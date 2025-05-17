@@ -152,11 +152,11 @@ Delegate back to manager if you think you need a different persona to help.
 agent_coroutine = get_agent()
 
 # Export these for other modules to use
-soc_analyst_tier1 = None
+soc_analyst_tier2 = None
 exit_stack = None
 
 # Function to initialize the agent (to be called from the appropriate place in your application)
 async def initialize():
-    global soc_analyst_tier1, exit_stack
-    soc_analyst_tier1, exit_stack = await agent_coroutine
-    return soc_analyst_tier1, exit_stack
+    global soc_analyst_tier2, exit_stack
+    soc_analyst_tier2, exit_stack = await agent_coroutine
+    return soc_analyst_tier2, exit_stack
