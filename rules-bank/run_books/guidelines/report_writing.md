@@ -33,34 +33,25 @@ These guidelines apply to various report types (e.g., investigation summaries, t
 5.  **Review & Refine:** Proofread the report for clarity, accuracy, and completeness.
 6.  **Save Report:** Use `write_to_file` to save the report with a standardized filename (e.g., `<report_type>_<report_name>_${CASE_ID}_${timestamp}.md`).
 
+Reports should include which agents called which MCP tools
+
 ```{mermaid}
+**Agent Workflow Diagram:**
+```mermaid
 sequenceDiagram
-    participant Analyst/Agent
-    participant Cline as Cline (MCP Client)
-    participant ReportingTemplates as .clinerules/reporting_templates.md
+    participant User
+    participant Manager
+    participant Tier2 as soc_analyst_tier2
+    participant SOAR
 
-    Analyst/Agent->>Cline: Initiate Report Writing\nInput: FINDINGS, RUNBOOK_NAME, CASE_ID, MERMAID_DIAGRAM
-
-    %% Step 1 & 2: Gather Info & Structure
-    Note over Cline: Gather all necessary inputs
-    Cline->>ReportingTemplates: Consult for structure based on report type
-    ReportingTemplates-->>Cline: Required Sections
-
-    %% Step 3 & 4: Incorporate Metadata & Write Content
-    Note over Cline: Add Runbook Name, Timestamp, Case ID
-    Note over Cline: Embed Mermaid Diagram
-    Note over Cline: Write detailed findings, analysis, conclusions
-    Note over Cline: Add relevant links
-
-    %% Step 5: Review
-    Note over Cline: Review for clarity, accuracy
-
-    %% Step 6: Save Report
-    Cline->>Cline: write_to_file(path="./reports/...", content=FinalReportMarkdown)
-    Note over Cline: Report Saved
-
-    Cline->>Analyst/Agent: attempt_completion(result="Report writing complete. File saved.")
-
+    User->>Manager: research soar case 2396 and then write a report on what you find
+    Manager->>Tier2: research soar case 2396 and then write a report on what you find
+    Tier2->>SOAR: get_case_full_details(case_id="2396")
+    SOAR-->>Tier2: Case Details
+    Tier2->>Manager: Report on SOAR Case 2396 with Recommendations
+    Manager->>User: Report on SOAR Case 2396 with Recommendations
+    User->>Manager: update the report to include a mermaid sequence diagram for which agents called which mcp tools
+    ...
 ```
 
 ## Completion Criteria

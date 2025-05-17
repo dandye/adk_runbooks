@@ -18,10 +18,42 @@ async def initialize_actual_manager_agent():
     initialized_cti_researcher, cti_researcher_exit_stack = await cti_researcher_agent_module.initialize()
     # TODO: Properly handle the exit_stack from sub_agents if needed by the manager
 
+
+    persona_file_path = "/Users/dandye/Projects/adk_runbooks/rules-bank/personas/soc_manager.md"
+    runbook_files = [
+        "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/investigate_a_gti_collection_id.md",
+        "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/proactive_threat_hunting_based_on_gti_campain_or_actor.md",
+        "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/compare_gti_collection_to_iocs_and_events.md",
+        "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/ioc_threat_hunt.md",
+        "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/apt_threat_hunt.md",
+        "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/deep_dive_ioc_analysis.md",
+        "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/malware_triage.md",
+        "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guidelines/threat_intel_workflows.md",
+        "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guidelines/report_writing.md",
+        # `case_event_timeline_and_process_analysis.md`, `create_an_investigation_report.md`, `phishing_response.md`, or `ransomware_response.md`.
+    ]
+
+    try:
+        with open(persona_file_path, 'r') as f:
+            persona_description = f.read()
+    except FileNotFoundError:
+        # Fallback or error handling if the persona file is not found
+        persona_description = "SOC Mnaager: Responsible for delegating to other agents and writing reports."
+        print(f"Warning: Persona file not found at {persona_file_path}. Using default description.")
+
+    for runbook_file in runbook_files:
+        try:
+            with open(runbook_file, 'r') as f:
+                runbook_content = f.read()
+            persona_description += "\n\n" + runbook_content
+        except FileNotFoundError:
+            print(f"Warning: Runbook file not found at {runbook_file}. Skipping.")
+
+
     return Agent(
         name="manager", # This name should match the one used in DeferredInitializationAgent
         model="gemini-2.0-flash",
-        description="Manager agent",
+        description=persona_description,
         instruction="""
         You are a SOC Manager agent that is responsible for overseeing the work of the other agents.
 
