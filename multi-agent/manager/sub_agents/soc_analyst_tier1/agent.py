@@ -36,6 +36,21 @@ async def get_tools_async():
     )
   )
   tools.extend(soar_tools)
+  gti_tools, exit_stack = await MCPToolset.from_server(
+    connection_params=StdioServerParameters(
+    command='uv',
+    args=[
+        "--directory",
+        "/Users/dandye/Projects/google-mcp-security/server/gti/gti_mcp",
+        "run",
+        "--env-file",
+        "/Users/dandye/Projects/google-mcp-security/.env",
+        "server.py"
+      ],
+    )
+  )
+  tools.extend(gti_tools)
+
   return tools, exit_stack
 
 def make_tools_gemini_compatible(tools):
