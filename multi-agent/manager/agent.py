@@ -7,7 +7,7 @@ from .sub_agents.soc_analyst_tier1 import agent as soc_analyst_tier1_agent_modul
 from .sub_agents.soc_analyst_tier2 import agent as soc_analyst_tier2_agent_module
 from .sub_agents.cti_researcher import agent as cti_researcher_agent_module
 
-from .tools.tools import get_current_time
+from .tools.tools import get_current_time, write_report
 
 
 # This function will perform the actual asynchronous initialization of the manager Agent
@@ -28,13 +28,14 @@ async def initialize_actual_manager_agent():
         Always delegate the task to the appropriate agent. Use your best judgement
         to determine which agent to delegate to.
 
-        You are responsible for delegating tasks to the following agent:
-        - soc_analyst_tier1
-        - soc_analyst_tier2
-        - cti_researcher
+        You are responsible for delegating tasks to the following agents:
+        - soc_analyst_tier1: for siem questions and tasks and tool use
+        - soc_analyst_tier2: for soar questions and tasks and tool use
+        - cti_researcher: for cti questions and tasks and tool use
 
         You also have access to the following tools:
         - get_current_time
+        - write_report
         """,
         sub_agents=[
             initialized_soc_analyst_tier1,
@@ -43,6 +44,7 @@ async def initialize_actual_manager_agent():
         ],
         tools=[
             get_current_time,
+            write_report,
         ],
     )
 
