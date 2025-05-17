@@ -8,19 +8,19 @@ from .sub_agents.news_analyst.agent import news_analyst
 #from .sub_agents.soc_analyst_tier1.agent import soc_analyst_tier1
 from .sub_agents.soc_analyst_tier1 import agent as soc_analyst_tier1_agent_module
 from .sub_agents.soc_analyst_tier2 import agent as soc_analyst_tier2_agent_module
+from .sub_agents.cti_researcher import agent as cti_researcher_agent_module
 
 #from .sub_agents.soc_analyst_tier1 import agent as soc_analyst_tier1_agent_module
 from .sub_agents.stock_analyst.agent import stock_analyst
 from .tools.tools import get_current_time
 
-#await soc_analyst_tier1_agent_module.initialize()
-#soc_analyst_tier1_agent, exit_stack = soc_analyst_tier1_agent_module.get_agent()
 
 # This function will perform the actual asynchronous initialization of the manager Agent
 async def initialize_actual_manager_agent():
     # Initialize sub-agents that require async initialization first
     initialized_soc_analyst_tier1, soc_analyst_tier1_exit_stack = await soc_analyst_tier1_agent_module.initialize()
     initialized_soc_analyst_tier2, soc_analyst_tier2_exit_stack = await soc_analyst_tier2_agent_module.initialize()
+    initialized_cti_researcher, cti_researcher_exit_stack = await cti_researcher_agent_module.initialize()
     # TODO: Properly handle the exit_stack from sub_agents if needed by the manager
 
     return Agent(
@@ -38,12 +38,19 @@ async def initialize_actual_manager_agent():
         - funny_nerd
         - soc_analyst_tier1
         - soc_analyst_tier2
+        - cti_researcher
 
         You also have access to the following tools:
         - news_analyst
         - get_current_time
         """,
-        sub_agents=[stock_analyst, funny_nerd, initialized_soc_analyst_tier1, initialized_soc_analyst_tier2],
+        sub_agents=[
+            stock_analyst,
+            funny_nerd,
+            initialized_soc_analyst_tier1,
+            initialized_soc_analyst_tier2,
+            initialized_cti_researcher,
+        ],
         tools=[
             AgentTool(news_analyst),
             get_current_time,
