@@ -6,7 +6,7 @@ from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParamet
 
 
 async def get_tools_async():
-  tools, exit_stack = await MCPToolset.from_server(
+  siem_tools, exit_stack = await MCPToolset.from_server(
     connection_params=StdioServerParameters(
     command='uv',
     args=[
@@ -19,6 +19,23 @@ async def get_tools_async():
       ],
     )
   )
+  tools = siem_tools
+  soar_tools, exit_stack = await MCPToolset.from_server(
+    connection_params=StdioServerParameters(
+    command='uv',
+    args=[
+        "--directory",
+        "/Users/dandye/Projects/google-mcp-security/server/secops-soar/secops_soar_mcp",  # Corrected path
+        "run",
+        "--env-file",
+        "/Users/dandye/Projects/google-mcp-security/.env",
+        "server.py",
+        #"--integrations",  # doesn't work in ADK?
+        #"CSV,GoogleChronicle,Siemplify,SiemplifyUtilities"
+      ],
+    )
+  )
+  tools.extend(soar_tools)
   return tools, exit_stack
 
 def make_tools_gemini_compatible(tools):
