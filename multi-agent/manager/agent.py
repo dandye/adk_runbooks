@@ -1,34 +1,115 @@
+import asyncio # Added import
+
 from google.adk.agents import Agent
 from google.adk.tools.agent_tool import AgentTool
 
 from .sub_agents.funny_nerd.agent import funny_nerd
 from .sub_agents.news_analyst.agent import news_analyst
-from .sub_agents.soc_analyst_tier1.agent import soc_analyst_tier1
+#from .sub_agents.soc_analyst_tier1.agent import soc_analyst_tier1
+from .sub_agents.soc_analyst_tier1 import agent as soc_analyst_tier1_agent_module
+
+#from .sub_agents.soc_analyst_tier1 import agent as soc_analyst_tier1_agent_module
 from .sub_agents.stock_analyst.agent import stock_analyst
 from .tools.tools import get_current_time
 
-root_agent = Agent(
-    name="manager",
-    model="gemini-2.0-flash",
-    description="Manager agent",
-    instruction="""
-    You are a manager agent that is responsible for overseeing the work of the other agents.
+#await soc_analyst_tier1_agent_module.initialize()
+#soc_analyst_tier1_agent, exit_stack = soc_analyst_tier1_agent_module.get_agent()
 
-    Always delegate the task to the appropriate agent. Use your best judgement
-    to determine which agent to delegate to.
+# This function will perform the actual asynchronous initialization of the manager Agent
+async def initialize_actual_manager_agent():
+    # Initialize sub-agents that require async initialization first
+    initialized_soc_analyst_tier1, soc_analyst_tier1_exit_stack = await soc_analyst_tier1_agent_module.initialize()
+    # TODO: Properly handle the exit_stack from sub_agents if needed by the manager
 
-    You are responsible for delegating tasks to the following agent:
-    - stock_analyst
-    - funny_nerd
+    return Agent(
+        name="manager", # This name should match the one used in DeferredInitializationAgent
+        model="gemini-2.0-flash",
+        description="Manager agent",
+        instruction="""
+        You are a manager agent that is responsible for overseeing the work of the other agents.
 
-    You also have access to the following tools:
-    - news_analyst
-    - get_current_time
-    """,
-    sub_agents=[stock_analyst, funny_nerd],
-    tools=[
-        AgentTool(news_analyst),
-        AgentTool(soc_analyst_tier1),
-        get_current_time,
-    ],
-)
+        Always delegate the task to the appropriate agent. Use your best judgement
+        to determine which agent to delegate to.
+
+        You are responsible for delegating tasks to the following agent:
+        - stock_analyst
+        - funny_nerd
+        - soc_analyst_tier1
+
+        You also have access to the following tools:
+        - news_analyst
+        - get_current_time
+        """,
+        sub_agents=[stock_analyst, funny_nerd, initialized_soc_analyst_tier1],
+        tools=[
+            AgentTool(news_analyst),
+            get_current_time,
+        ],
+    )
+
+class DeferredInitializationAgent(Agent):
+    def __init__(self, name: str, initialization_coro_func):
+        # Initialize with minimal valid Agent attributes for synchronous access (e.g., .name)
+        # and to satisfy Pydantic if it checks for Agent instance type.
+        super().__init__(name=name, model="placeholder_model", tools=[]) # Provide minimal valid args
+        self._initialization_coro_func = initialization_coro_func
+        self._initialized_agent_delegate = None
+        self._is_fully_initialized = False
+        self._init_lock = asyncio.Lock()
+
+    async def _ensure_initialized(self):
+        async with self._init_lock:
+            if not self._is_fully_initialized:
+                # Await the coroutine that returns the fully configured Agent instance
+                self._initialized_agent_delegate = await self._initialization_coro_func()
+                # Copy essential attributes from the delegate to self, so this wrapper
+                # behaves like the fully initialized agent.
+                self.model = self._initialized_agent_delegate.model
+                self.description = self._initialized_agent_delegate.description
+                self.instruction = self._initialized_agent_delegate.instruction
+                self.sub_agents = self._initialized_agent_delegate.sub_agents
+                self.tools = self._initialized_agent_delegate.tools
+                # TODO: Consider other attributes/methods that might need to be proxied or copied.
+                self._is_fully_initialized = True
+
+    async def run_async(self, invocation_context):
+        """Overrides BaseAgent.run_async to ensure full initialization first."""
+        await self._ensure_initialized()
+        # After _ensure_initialized, attributes like self.model, self.tools, etc.,
+        # are copied to this DeferredInitializationAgent instance.
+        # Now, calling super().run_async() will use these correct attributes.
+        # We must iterate over the async generator returned by super().run_async()
+        # and yield its events, making this method an async generator too.
+        async for event in super().run_async(invocation_context):
+            yield event
+
+    # Override core Agent methods to ensure initialization and delegate.
+    async def process_request(self, request, invocation_context=None, tools_code_execution_config=None):
+        await self._ensure_initialized()
+        # Delegate to the fully initialized agent's process_request.
+        return await self._initialized_agent_delegate.process_request(
+            request, invocation_context, tools_code_execution_config
+        )
+
+    def get_tools_for_model(self):
+        # This method might be called by the framework.
+        # Ensure it returns the correct tools after initialization.
+        if self._is_fully_initialized:
+            return self._initialized_agent_delegate.get_tools_for_model()
+        # Before full initialization, it returns the placeholder tools from super().__init__
+        return super().get_tools_for_model()
+
+    # Consider other methods from BaseAgent or Agent that the ADK framework might call directly
+    # on the root_agent instance and override them similarly if needed.
+
+# root_agent is an instance of DeferredInitializationAgent.
+# It *is* an Agent (satisfies Pydantic), its .name is available synchronously.
+# Its async methods will trigger full initialization on first call.
+root_agent = DeferredInitializationAgent(name="manager", initialization_coro_func=initialize_actual_manager_agent)
+
+# This function can be used if other parts of the ADK or user code
+# explicitly want to ensure the agent is fully initialized by awaiting something.
+async def get_root_agent():
+    if isinstance(root_agent, DeferredInitializationAgent):
+        await root_agent._ensure_initialized()
+    return root_agent
