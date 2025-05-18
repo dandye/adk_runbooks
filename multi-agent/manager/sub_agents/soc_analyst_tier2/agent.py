@@ -22,6 +22,9 @@ def get_agent(tools, exit_stack):
   """
   persona_file_path = "/Users/dandye/Projects/adk_runbooks/rules-bank/personas/soc_analyst_tier_2.md"
   runbook_files = [
+    # Guidelines
+    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guidelines/report_writing.md",
+    # Runboosk
     "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/case_event_timeline_and_process_analysis.md",
     "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/cloud_vulnerability_triage_and_contextualization.md",
     "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/compare_gti_collection_to_iocs_and_events.md",
@@ -36,7 +39,7 @@ def get_agent(tools, exit_stack):
     "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guided_ttp_hunt_credential_access.md",
     "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/malware_triage.md",
     "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/lateral_movement_hunt_psexec_wmi.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/report_writing.md",
+
     "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/ioc_threat_hunt.md",
     "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/apt_threat_hunt.md",
   ]
