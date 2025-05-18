@@ -11,20 +11,23 @@ from .sub_agents.soc_analyst_tier3 import agent as soc_analyst_tier3_agent_modul
 from .sub_agents.incident_responder import agent as incident_responder_agent_module
 from .sub_agents.detection_engineer import agent as detection_engineer_agent_module
 
-from .tools.tools import get_current_time, write_report
+from .tools.tools import get_current_time, write_report, get_agent_tools
 
 
 # This function will perform the actual asynchronous initialization of the manager Agent
 async def initialize_actual_manager_agent():
-    # Initialize sub-agents that require async initialization first
-    initialized_soc_analyst_tier1, soc_analyst_tier1_exit_stack = await soc_analyst_tier1_agent_module.initialize()
-    initialized_soc_analyst_tier2, soc_analyst_tier2_exit_stack = await soc_analyst_tier2_agent_module.initialize()
-    initialized_cti_researcher, cti_researcher_exit_stack = await cti_researcher_agent_module.initialize()
-    initialized_threat_hunter, threat_hunter_exit_stack = await threat_hunter_agent_module.initialize()
-    initialized_soc_analyst_tier3, soc_analyst_tier3_exit_stack = await soc_analyst_tier3_agent_module.initialize()
-    initialized_incident_responder, incident_responder_exit_stack = await incident_responder_agent_module.initialize()
-    initialized_detection_engineer, detection_engineer_exit_stack = await detection_engineer_agent_module.initialize()
-    # TODO: Properly handle the exit_stack from sub_agents if needed by the manager
+    # Call get_agent_tools once
+    shared_tools, shared_exit_stack = await get_agent_tools()
+
+    # Initialize sub-agents that require async initialization first, passing shared tools and exit_stack
+    initialized_soc_analyst_tier1, _ = await soc_analyst_tier1_agent_module.initialize(shared_tools, shared_exit_stack)
+    initialized_soc_analyst_tier2, _ = await soc_analyst_tier2_agent_module.initialize(shared_tools, shared_exit_stack)
+    initialized_cti_researcher, _ = await cti_researcher_agent_module.initialize(shared_tools, shared_exit_stack)
+    initialized_threat_hunter, _ = await threat_hunter_agent_module.initialize(shared_tools, shared_exit_stack)
+    initialized_soc_analyst_tier3, _ = await soc_analyst_tier3_agent_module.initialize(shared_tools, shared_exit_stack)
+    initialized_incident_responder, _ = await incident_responder_agent_module.initialize(shared_tools, shared_exit_stack)
+    initialized_detection_engineer, _ = await detection_engineer_agent_module.initialize(shared_tools, shared_exit_stack)
+    # The shared_exit_stack will manage all resources. Individual stacks from sub-agents are not needed here.
 
 
     persona_file_path = "/Users/dandye/Projects/adk_runbooks/rules-bank/personas/soc_manager.md"

@@ -1,10 +1,11 @@
 from google.adk.agents import Agent
 
-from manager.tools.tools import get_agent_tools
+# Removed: from manager.tools.tools import get_agent_tools
 
 
-async def get_agent():
-  tools, exit_stack = await get_agent_tools()
+# Changed to a synchronous function that accepts tools and exit_stack
+def get_agent(tools, exit_stack):
+  # Removed: tools, exit_stack = await get_agent_tools()
   persona_file_path = "/Users/dandye/Projects/adk_runbooks/rules-bank/personas/cti_researcher.md"
   runbook_files = [
     "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/investigate_a_gti_collection_id.md",
@@ -39,25 +40,22 @@ async def get_agent():
       print(f"Warning: Runbook file not found at {runbook_file}. Skipping.")
 
 
-  cti_researcher = Agent(
+  agent_instance = Agent( # Renamed to avoid conflict with module-level var if any
       name="cti_researcher",
       # model="gemini-2.0-flash",
       model="gemini-2.5-pro-preview-05-06",
       description=persona_data,
       instruction="You are a CTI Researcher.",
-      tools=tools,
+      tools=tools, # Use passed-in tools
       # enabled_mcp_servers=["gti-mcp"],
   )
-  return cti_researcher, exit_stack
+  return agent_instance # Only return the agent instance
 
-agent_coroutine = get_agent()
+# Removed module-level agent_coroutine, cti_researcher, exit_stack
 
-# Export these for other modules to use
-cti_researcher = None
-exit_stack = None
-
-# Function to initialize the agent (to be called from the appropriate place in your application)
-async def initialize():
-    global cti_researcher, exit_stack
-    cti_researcher, exit_stack = await agent_coroutine
-    return cti_researcher, exit_stack
+# Function to initialize the agent, now accepts shared_tools and shared_exit_stack
+async def initialize(shared_tools, shared_exit_stack):
+    # global cti_researcher, exit_stack # No longer needed
+    agent_instance = get_agent(shared_tools, shared_exit_stack) # Call synchronous get_agent
+    # cti_researcher, exit_stack = await agent_coroutine # Old way
+    return agent_instance, shared_exit_stack # Return agent and the shared_exit_stack

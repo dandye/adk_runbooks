@@ -1,10 +1,11 @@
 from google.adk.agents import Agent
 
-from manager.tools.tools import get_agent_tools
+# Removed: from manager.tools.tools import get_agent_tools
 
 
-async def get_agent():
-  tools, common_exit_stack = await get_agent_tools()
+# Changed to a synchronous function that accepts tools and exit_stack
+def get_agent(tools, exit_stack):
+  # Removed: tools, common_exit_stack = await get_agent_tools()
 
   persona_file_path = "/Users/dandye/Projects/adk_runbooks/rules-bank/personas/incident_responder.md"
   runbook_files = [
@@ -34,32 +35,26 @@ async def get_agent():
     except FileNotFoundError:
       print(f"Warning: Runbook file not found at {runbook_file}. Skipping.")
 
-  incident_responder = Agent(
+  agent_instance = Agent( # Renamed to avoid conflict
       name="incident_responder",
       model="gemini-2.5-pro-preview-05-06",
       description=persona_description,
       instruction="""You are an Incident Responder. Your primary role is to manage the full lifecycle of security incidents, from initial detection and triage through containment, eradication, recovery, and post-incident analysis.""",
-      tools=tools,
+      tools=tools, # Use passed-in tools
   )
-  return incident_responder, common_exit_stack
+  return agent_instance # Only return the agent instance
 
 
-agent_coroutine = get_agent()
-#
-## Export these for other modules to use
-incident_responder = None
-exit_stack = None
-#
-## Function to initialize the agent (to be called from the appropriate place in your application)
-async def initialize():
-    global incident_responder, exit_stack
+# Removed module-level agent_coroutine, incident_responder, exit_stack
+
+# Function to initialize the agent, now accepts shared_tools and shared_exit_stack
+async def initialize(shared_tools, shared_exit_stack):
+    # global incident_responder, exit_stack # No longer needed
     try:
-      incident_responder, exit_stack = await agent_coroutine
-      return incident_responder, exit_stack
+      agent_instance = get_agent(shared_tools, shared_exit_stack) # Call synchronous get_agent
+      return agent_instance, shared_exit_stack # Return agent and the shared_exit_stack
     except Exception as e:
       # Log the error or handle it appropriately
-      print(f"Error initializing agent: {e}")
-      # You might want to clean up any partially initialized resources
-      if exit_stack:
-          await exit_stack.aclose()
+      print(f"Error initializing agent incident_responder: {e}") # Added agent name for clarity
+      # The shared_exit_stack is managed by the caller (manager agent)
       raise  # Re-raise the exception to let callers know initialization failed

@@ -1,11 +1,11 @@
 from google.adk.agents import Agent
 
-from manager.tools.tools import get_agent_tools
+# Removed: from manager.tools.tools import get_agent_tools
 
 
-async def get_agent():
-
-  tools, exit_stack = await get_agent_tools()
+# Changed to a synchronous function that accepts tools and exit_stack
+def get_agent(tools, exit_stack):
+  # Removed: tools, exit_stack = await get_agent_tools()
   persona_file_path = "/Users/dandye/Projects/adk_runbooks/rules-bank/personas/soc_analyst_tier_2.md"
   runbook_files = [
 
@@ -47,24 +47,20 @@ async def get_agent():
     except FileNotFoundError:
       print(f"Warning: Runbook file not found at {runbook_file}. Skipping.")
 
-  soc_analyst_tier1 = Agent(
+  agent_instance = Agent( # Corrected variable name
       name="soc_analyst_tier2",
       #model="gemini-2.0-flash",
       model="gemini-2.5-pro-preview-05-06",
       description=persona_description,
       instruction="You are a Tier 2 SOC Analyst.",
-      tools=tools,
+      tools=tools, # Use passed-in tools
   )
-  return soc_analyst_tier1, exit_stack
+  return agent_instance # Only return the agent instance
 
-agent_coroutine = get_agent()
+# Removed module-level agent_coroutine, soc_analyst_tier2, exit_stack
 
-# Export these for other modules to use
-soc_analyst_tier2 = None
-exit_stack = None
-
-# Function to initialize the agent (to be called from the appropriate place in your application)
-async def initialize():
-    global soc_analyst_tier2, exit_stack
-    soc_analyst_tier2, exit_stack = await agent_coroutine
-    return soc_analyst_tier2, exit_stack
+# Function to initialize the agent, now accepts shared_tools and shared_exit_stack
+async def initialize(shared_tools, shared_exit_stack):
+    # global soc_analyst_tier2, exit_stack # No longer needed
+    agent_instance = get_agent(shared_tools, shared_exit_stack) # Call synchronous get_agent
+    return agent_instance, shared_exit_stack # Return agent and the shared_exit_stack
