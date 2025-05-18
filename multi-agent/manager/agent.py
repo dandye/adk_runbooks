@@ -9,6 +9,7 @@ from .sub_agents.cti_researcher import agent as cti_researcher_agent_module
 from .sub_agents.threat_hunter import agent as threat_hunter_agent_module
 from .sub_agents.soc_analyst_tier3 import agent as soc_analyst_tier3_agent_module
 from .sub_agents.incident_responder import agent as incident_responder_agent_module
+from .sub_agents.detection_engineer import agent as detection_engineer_agent_module
 
 from .tools.tools import get_current_time, write_report
 
@@ -22,6 +23,7 @@ async def initialize_actual_manager_agent():
     initialized_threat_hunter, threat_hunter_exit_stack = await threat_hunter_agent_module.initialize()
     initialized_soc_analyst_tier3, soc_analyst_tier3_exit_stack = await soc_analyst_tier3_agent_module.initialize()
     initialized_incident_responder, incident_responder_exit_stack = await incident_responder_agent_module.initialize()
+    initialized_detection_engineer, detection_engineer_exit_stack = await detection_engineer_agent_module.initialize()
     # TODO: Properly handle the exit_stack from sub_agents if needed by the manager
 
 
@@ -83,6 +85,7 @@ async def initialize_actual_manager_agent():
         - threat_hunter: for proactive threat hunting and advanced analysis tasks
         - soc_analyst_tier3: for advanced incident response, deep-dive analysis, and leading response efforts for escalated incidents
         - incident_responder: for managing the full lifecycle of security incidents, including containment, eradication, and recovery
+        - detection_engineer: for designing, developing, testing, and maintaining security detection rules and analytics
 
         You also have access to the following tools:
         - get_current_time
@@ -95,6 +98,7 @@ async def initialize_actual_manager_agent():
             initialized_threat_hunter,
             initialized_soc_analyst_tier3,
             initialized_incident_responder,
+            initialized_detection_engineer,
         ],
         tools=[
             get_current_time,
