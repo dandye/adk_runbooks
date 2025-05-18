@@ -28,7 +28,7 @@ def make_tools_gemini_compatible(tools):
   return tools
 
 
-async def get_agent():
+async def get_agent_tools():
   common_exit_stack = contextlib.AsyncExitStack()
   siem_tools, common_exit_stack = await asyncio.shield(MCPToolset.from_server(
     connection_params=StdioServerParameters(
@@ -64,6 +64,13 @@ async def get_agent():
      async_exit_stack=common_exit_stack
   ))
   #soar_tools = make_tools_gemini_compatible(soar_tools)
+  return (*siem_tools, *soar_tools), common_exit_stack
+
+
+
+async def get_agent():
+  tools, common_exit_stack = await get_agent_tools()
+  #siem_tools, soar_tools, common_exit_stack = tools
 
   persona_file_path = "/Users/dandye/Projects/adk_runbooks/rules-bank/personas/soc_analyst_tier_1.md"
   runbook_files = [
@@ -100,7 +107,8 @@ async def get_agent():
       model="gemini-2.5-pro-preview-05-06",
       description=persona_description,
       instruction="""You are a Tier 1 SOC Analyst.""",
-      tools=[*siem_tools, *soar_tools],
+      #tools=[*siem_tools, *soar_tools],
+      tools=tools,
   )
   return soc_analyst_tier1, common_exit_stack
 
