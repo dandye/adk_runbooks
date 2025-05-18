@@ -7,6 +7,8 @@ from .sub_agents.soc_analyst_tier1 import agent as soc_analyst_tier1_agent_modul
 from .sub_agents.soc_analyst_tier2 import agent as soc_analyst_tier2_agent_module
 from .sub_agents.cti_researcher import agent as cti_researcher_agent_module
 from .sub_agents.threat_hunter import agent as threat_hunter_agent_module
+from .sub_agents.soc_analyst_tier3 import agent as soc_analyst_tier3_agent_module
+from .sub_agents.incident_responder import agent as incident_responder_agent_module
 
 from .tools.tools import get_current_time, write_report
 
@@ -18,6 +20,8 @@ async def initialize_actual_manager_agent():
     initialized_soc_analyst_tier2, soc_analyst_tier2_exit_stack = await soc_analyst_tier2_agent_module.initialize()
     initialized_cti_researcher, cti_researcher_exit_stack = await cti_researcher_agent_module.initialize()
     initialized_threat_hunter, threat_hunter_exit_stack = await threat_hunter_agent_module.initialize()
+    initialized_soc_analyst_tier3, soc_analyst_tier3_exit_stack = await soc_analyst_tier3_agent_module.initialize()
+    initialized_incident_responder, incident_responder_exit_stack = await incident_responder_agent_module.initialize()
     # TODO: Properly handle the exit_stack from sub_agents if needed by the manager
 
 
@@ -77,6 +81,8 @@ async def initialize_actual_manager_agent():
         - soc_analyst_tier2: for soar questions and tasks and tool use
         - cti_researcher: for cti questions and tasks and tool use
         - threat_hunter: for proactive threat hunting and advanced analysis tasks
+        - soc_analyst_tier3: for advanced incident response, deep-dive analysis, and leading response efforts for escalated incidents
+        - incident_responder: for managing the full lifecycle of security incidents, including containment, eradication, and recovery
 
         You also have access to the following tools:
         - get_current_time
@@ -87,6 +93,8 @@ async def initialize_actual_manager_agent():
             initialized_soc_analyst_tier2,
             initialized_cti_researcher,
             initialized_threat_hunter,
+            initialized_soc_analyst_tier3,
+            initialized_incident_responder,
         ],
         tools=[
             get_current_time,
