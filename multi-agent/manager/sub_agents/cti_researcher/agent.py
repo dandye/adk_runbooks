@@ -1,3 +1,4 @@
+from pathlib import Path
 from google.adk.agents import Agent
 
 from ...tools.tools import load_persona_and_runbooks
@@ -19,18 +20,19 @@ def get_agent(tools, exit_stack):
   Returns:
       Agent: An initialized instance of the CTI Researcher agent.
   """
-  persona_file_path = "/Users/dandye/Projects/adk_runbooks/rules-bank/personas/cti_researcher.md"
+  BASE_DIR = Path(__file__).resolve().parent
+  persona_file_path = (BASE_DIR / "../../../../rules-bank/personas/cti_researcher.md").resolve()
   runbook_files = [
     # Guidelines
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guidelines/threat_intel_workflows.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guidelines/report_writing.md",
+    (BASE_DIR / "../../../../rules-bank/run_books/guidelines/threat_intel_workflows.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/guidelines/report_writing.md").resolve(),
     # Runbooks
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/investigate_a_gti_collection_id.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/proactive_threat_hunting_based_on_gti_campain_or_actor.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/compare_gti_collection_to_iocs_and_events.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/ioc_threat_hunt.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/apt_threat_hunt.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/deep_dive_ioc_analysis.md",
+    (BASE_DIR / "../../../../rules-bank/run_books/investigate_a_gti_collection_id.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/proactive_threat_hunting_based_on_gti_campain_or_actor.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/compare_gti_collection_to_iocs_and_events.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/ioc_threat_hunt.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/apt_threat_hunt.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/deep_dive_ioc_analysis.md").resolve(),
   ]
   persona_data = load_persona_and_runbooks(
       persona_file_path,

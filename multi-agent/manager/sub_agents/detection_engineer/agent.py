@@ -1,3 +1,4 @@
+from pathlib import Path
 from google.adk.agents import Agent
 
 from ...tools.tools import load_persona_and_runbooks
@@ -22,13 +23,14 @@ def get_agent(tools, exit_stack):
   """
   # Removed: tools, common_exit_stack = await get_agent_tools()
 
-  persona_file_path = "/Users/dandye/Projects/adk_runbooks/rules-bank/personas/detection_engineer.md"
+  BASE_DIR = Path(__file__).resolve().parent
+  persona_file_path = (BASE_DIR / "../../../../rules-bank/personas/detection_engineer.md").resolve()
   runbook_files = [
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/detection_rule_validation_tuning.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/detection_as_code_workflows.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/detection_report.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guided_ttp_hunt_credential_access.md", # For TTP understanding
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guidelines/report_writing.md", # For documenting detections
+    (BASE_DIR / "../../../../rules-bank/run_books/detection_rule_validation_tuning.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/detection_as_code_workflows.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/detection_report.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/guided_ttp_hunt_credential_access.md").resolve(), # For TTP understanding
+    (BASE_DIR / "../../../../rules-bank/run_books/guidelines/report_writing.md").resolve(), # For documenting detections
   ]
 
   persona_description = load_persona_and_runbooks(

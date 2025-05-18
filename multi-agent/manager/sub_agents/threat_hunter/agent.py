@@ -1,3 +1,4 @@
+from pathlib import Path
 from google.adk.agents import Agent
 
 from ...tools.tools import load_persona_and_runbooks
@@ -19,15 +20,16 @@ def get_agent(tools, exit_stack):
   Returns:
       Agent: An initialized instance of the Threat Hunter agent.
   """
-  persona_file_path = "/Users/dandye/Projects/adk_runbooks/rules-bank/personas/threat_hunter.md"
+  BASE_DIR = Path(__file__).resolve().parent
+  persona_file_path = (BASE_DIR / "../../../../rules-bank/personas/threat_hunter.md").resolve()
   runbook_files = [
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/advanced_threat_hunting.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/apt_threat_hunt.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/ioc_threat_hunt.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guided_ttp_hunt_credential_access.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/lateral_movement_hunt_psexec_wmi.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/proactive_threat_hunting_based_on_gti_campain_or_actor.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guidelines/report_writing.md", # Added report writing
+    (BASE_DIR / "../../../../rules-bank/run_books/advanced_threat_hunting.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/apt_threat_hunt.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/ioc_threat_hunt.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/guided_ttp_hunt_credential_access.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/lateral_movement_hunt_psexec_wmi.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/proactive_threat_hunting_based_on_gti_campain_or_actor.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/guidelines/report_writing.md").resolve(), # Added report writing
   ]
 
   persona_description = load_persona_and_runbooks(

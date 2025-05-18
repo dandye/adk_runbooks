@@ -1,3 +1,4 @@
+from pathlib import Path
 from google.adk.agents import Agent
 
 from ...tools.tools import load_persona_and_runbooks
@@ -21,15 +22,16 @@ def get_agent(tools, exit_stack):
   Returns:
       Agent: An initialized instance of the SOC Analyst Tier 3 agent.
   """
-  persona_file_path = "/Users/dandye/Projects/adk_runbooks/rules-bank/personas/soc_analyst_tier_3.md"
+  BASE_DIR = Path(__file__).resolve().parent
+  persona_file_path = (BASE_DIR / "../../../../rules-bank/personas/soc_analyst_tier_3.md").resolve()
   runbook_files = [
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/deep_dive_ioc_analysis.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/malware_triage.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/irps/compromised_user_account_response.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/irps/ransomware_response.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/detection_rule_validation_tuning.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/create_an_investigation_report.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guidelines/report_writing.md",
+    (BASE_DIR / "../../../../rules-bank/run_books/deep_dive_ioc_analysis.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/malware_triage.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/irps/compromised_user_account_response.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/irps/ransomware_response.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/detection_rule_validation_tuning.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/create_an_investigation_report.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/guidelines/report_writing.md").resolve(),
   ]
 
   persona_description = load_persona_and_runbooks(
