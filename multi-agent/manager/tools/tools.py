@@ -1,7 +1,7 @@
 from datetime import datetime
 import asyncio
 import contextlib
-import os # Added for path operations
+import os
 
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
 
@@ -28,11 +28,10 @@ def write_report(report_name: str, report_contents: str):
         report_name (str): The base name for the report file (without extension).
         report_contents (str): The markdown content to write to the report file.
     """
-    now = get_current_time()["current_time"]
     # Ensure the reports directory exists, relative to this tools.py file
     reports_dir = os.path.join(os.path.dirname(__file__), "..", "..", "reports")
     os.makedirs(reports_dir, exist_ok=True)
-    file_path = os.path.join(reports_dir, f"{report_name}_{now}.md")
+    file_path = os.path.join(reports_dir, f"{report_name}")
     with open(file_path, "w") as f:
         f.write(f"{report_contents}")
 
@@ -87,10 +86,10 @@ async def get_agent_tools():
     command='uv',
     args=[
         "--directory",
-        "/Users/dandye/Projects/google-mcp-security/server/secops/secops_mcp",  # Corrected path
+        "/Users/dandye/Projects/google-mcp-security/server/secops/secops_mcp",
         "run",
         "--env-file",
-        "/Users/dandye/Projects/google-mcp-security/.env",  # Corrected path (assuming .env is at project root)
+        "/Users/dandye/Projects/google-mcp-security/.env",
         "server.py"
       ],
     ),
@@ -103,7 +102,7 @@ async def get_agent_tools():
      command='uv',
      args=[
          "--directory",
-         "/Users/dandye/Projects/google-mcp-security/server/secops-soar/secops_soar_mcp",  # Corrected path
+         "/Users/dandye/Projects/google-mcp-security/server/secops-soar/secops_soar_mcp",
          "run",
          "--env-file",
          "/Users/dandye/Projects/google-mcp-security/.env",

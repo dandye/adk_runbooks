@@ -1,7 +1,6 @@
 from google.adk.agents import Agent
-from ...tools.tools import load_persona_and_runbooks
 
-# Removed: from manager.tools.tools import get_agent_tools
+from ...tools.tools import load_persona_and_runbooks
 
 
 # Changed to a synchronous function that accepts tools and exit_stack
@@ -21,10 +20,8 @@ def get_agent(tools, exit_stack):
   Returns:
       Agent: An initialized instance of the SOC Analyst Tier 2 agent.
   """
-  # Removed: tools, exit_stack = await get_agent_tools()
   persona_file_path = "/Users/dandye/Projects/adk_runbooks/rules-bank/personas/soc_analyst_tier_2.md"
   runbook_files = [
-
     "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/case_event_timeline_and_process_analysis.md",
     "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/cloud_vulnerability_triage_and_contextualization.md",
     "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/compare_gti_collection_to_iocs_and_events.md",
@@ -42,9 +39,6 @@ def get_agent(tools, exit_stack):
     "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/report_writing.md",
     "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/ioc_threat_hunt.md",
     "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/apt_threat_hunt.md",
-
-    #"/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/demo_soc_t2_soar_runbook.md",
-    #"/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guidelines/demo_threat_intel_workflows.md",
   ]
 
   persona_description = load_persona_and_runbooks(
@@ -63,7 +57,6 @@ def get_agent(tools, exit_stack):
   )
   return agent_instance # Only return the agent instance
 
-# Removed module-level agent_coroutine, soc_analyst_tier2, exit_stack
 
 # Function to initialize the agent, now accepts shared_tools and shared_exit_stack
 async def initialize(shared_tools, shared_exit_stack):
@@ -85,6 +78,5 @@ async def initialize(shared_tools, shared_exit_stack):
     Raises:
         Exception: Propagates any exceptions encountered during agent creation.
     """
-    # global soc_analyst_tier2, exit_stack # No longer needed
     agent_instance = get_agent(shared_tools, shared_exit_stack) # Call synchronous get_agent
     return agent_instance, shared_exit_stack # Return agent and the shared_exit_stack

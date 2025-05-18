@@ -1,7 +1,6 @@
-import asyncio # Added import
+import asyncio
 
 from google.adk.agents import Agent
-from google.adk.tools.agent_tool import AgentTool # Not used, consider removing if AgentTool itself is not directly used.
 
 from .sub_agents.soc_analyst_tier1 import agent as soc_analyst_tier1_agent_module
 from .sub_agents.soc_analyst_tier2 import agent as soc_analyst_tier2_agent_module
@@ -112,7 +111,6 @@ async def initialize_actual_manager_agent():
             get_current_time,
             write_report,
         ],
-        # enabled_mcp_servers=[],
     )
 
 class DeferredInitializationAgent(Agent):

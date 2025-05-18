@@ -1,7 +1,6 @@
 from google.adk.agents import Agent
-from ...tools.tools import load_persona_and_runbooks
 
-# Removed: from manager.tools.tools import get_agent_tools
+from ...tools.tools import load_persona_and_runbooks
 
 
 # Changed to a synchronous function that accepts tools and exit_stack
@@ -35,14 +34,18 @@ def get_agent(tools, exit_stack):
   persona_description = load_persona_and_runbooks(
       persona_file_path,
       runbook_files,
-      default_persona_description="Default Detection Engineer description: Responsible for creating, tuning, and managing security detection rules."
+      default_persona_description="Default Detection Engineer description: "
+      "Responsible for creating, tuning, and managing security detection rules."
   )
 
   agent_instance = Agent( # Renamed to avoid conflict
       name="detection_engineer",
       model="gemini-2.5-pro-preview-05-06",
       description=persona_description,
-      instruction="""You are a Detection Engineer. Your role involves designing, developing, testing, and maintaining security detection rules and analytics to identify threats and malicious activities.""",
+      instruction="You are a Detection Engineer. "
+      "Your role involves designing, developing, testing, and maintaining "
+      "security detection rules and analytics to identify threats and "
+      "malicious activities.",
       tools=tools, # Use passed-in tools
   )
   return agent_instance # Only return the agent instance

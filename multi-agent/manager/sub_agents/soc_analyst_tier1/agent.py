@@ -1,7 +1,6 @@
 from google.adk.agents import Agent
-from ...tools.tools import load_persona_and_runbooks
 
-# Removed: from manager.tools.tools import get_agent_tools
+from ...tools.tools import load_persona_and_runbooks
 
 
 # Changed to a synchronous function that accepts tools and exit_stack
@@ -20,9 +19,6 @@ def get_agent(tools, exit_stack):
   Returns:
       Agent: An initialized instance of the SOC Analyst Tier 1 agent.
   """
-  # Removed: tools, common_exit_stack = await get_agent_tools()
-  #siem_tools, soar_tools, common_exit_stack = tools # This logic is now handled by the caller
-
   persona_file_path = "/Users/dandye/Projects/adk_runbooks/rules-bank/personas/soc_analyst_tier_1.md"
   runbook_files = [
     "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/triage_alerts.md",
@@ -33,8 +29,6 @@ def get_agent(tools, exit_stack):
     "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/basic_ioc_enrichment.md",
     "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/suspicious_login_triage.md",
     "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guidelines/report_writing.md",
-    #"/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/demo_soc_t1_siem_runbook.md",
-    #"/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guidelines/demo_threat_intel_workflows.md",
   ]
 
   persona_description = load_persona_and_runbooks(
@@ -48,13 +42,10 @@ def get_agent(tools, exit_stack):
       model="gemini-2.5-pro-preview-05-06",
       description=persona_description,
       instruction="""You are a Tier 1 SOC Analyst.""",
-      #tools=[*siem_tools, *soar_tools], # Tools are now passed directly
-      tools=tools, # Use passed-in tools
+      tools=tools,
   )
   return agent_instance # Only return the agent instance
 
-
-# Removed module-level agent_coroutine, soc_analyst_tier1, exit_stack
 
 # Function to initialize the agent, now accepts shared_tools and shared_exit_stack
 async def initialize(shared_tools, shared_exit_stack):
