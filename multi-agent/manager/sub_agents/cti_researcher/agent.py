@@ -1,11 +1,6 @@
-import asyncio
-
 from google.adk.agents import Agent
 
-from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
-
-from ..soc_analyst_tier1.agent import get_agent_tools
-
+from manager.tools.tools import get_agent_tools
 
 
 async def get_agent():
