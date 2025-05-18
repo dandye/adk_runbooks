@@ -27,25 +27,56 @@ The Tier 2 Security Operations Center (SOC) Analyst handles incidents escalated 
 
 ## Commonly Used MCP Tools
 
-*   **`secops-soar`:** (All Tier 1 tools plus)
-    *   Tools involving more complex SOAR actions or playbook steps triggered by deeper investigation findings (e.g., `google_chronicle_execute_udm_query`, `siemplify_create_gemini_case_summary`, potentially remediation actions depending on scope).
-    *   `get_entities_by_alert_group_identifiers`: To understand entity groupings.
-    *   `get_entity_details`: For SOAR-specific enrichment.
+A Tier 2 SOC Analyst leverages a broad range of MCP tools for in-depth investigation, threat analysis, and hunting. Key tools include:
 
-*   **`post_case_comment`**: Adds a comment to an existing SOAR case. This is used to document investigation steps, findings, and recommendations.
-*   **`list_cases`**: Lists existing SOAR cases, allowing you to view the current case queue and search for specific cases based on various criteria.
-*   **`siemplify_add_general_insight`**: Adds a general insight to a SOAR case. This is used to highlight key findings or observations.
-*   **`get_case_full_details`**: Retrieves all details for a specified SOAR case, including case details, associated alerts, and comments. This is used to get a comprehensive overview of the case.
-*   **`list_alerts_by_case`**: Lists all alerts associated with a specified SOAR case.
-*   **`list_events_by_alert`**: Lists the raw events that triggered a specific alert. This is useful for a basic review of the events.
-*   **`change_case_priority`**: Changes the priority of a SOAR case. This is used to adjust the case priority based on initial triage or new findings.
-*   **`siemplify_get_similar_cases`**: Identifies potential duplicate cases based on similarity analysis.
-*   **`siemplify_close_case`**: Closes a SOAR case, typically when it is determined to be a false positive or a duplicate.
-*   **`siemplify_close_alert`**: Closes a specific alert within a SOAR case.
-*   **`siemplify_case_tag`**: Adds a tag to a SOAR case for categorization and organization.
-*   **`siemplify_assign_case`**: Assigns a SOAR case to a specific user or group.
-*   **`get_entities_by_alert_group_identifiers`**: To understand entity groupings.
-*   **`get_entity_details`**: For SOAR-specific enrichment.
+*   **`secops-soar` (Security Orchestration, Automation, and Response):**
+    *   **Case Management:**
+        *   `list_cases`: View and manage the incident queue.
+        *   `get_case_full_details`: Obtain a comprehensive overview of escalated cases.
+        *   `post_case_comment`: Document detailed investigation steps, findings, and analyst notes.
+        *   `change_case_priority`: Adjust case priority based on evolving investigation.
+        *   `siemplify_add_general_insight`: Highlight key findings within a case.
+        *   `siemplify_get_similar_cases`: Identify and manage potentially duplicate cases.
+        *   `siemplify_case_tag`: Categorize and organize cases.
+        *   `siemplify_assign_case`: Assign cases for further action or review.
+        *   `siemplify_close_case` / `siemplify_close_alert`: Close cases or alerts upon resolution or determination (e.g., false positive).
+        *   `siemplify_create_gemini_case_summary`: Generate AI-powered summaries for complex cases.
+    *   **Alert and Event Analysis (within SOAR context):**
+        *   `list_alerts_by_case`: Review alerts associated with a specific case.
+        *   `list_events_by_alert`: Examine underlying raw events for an alert (initial review).
+        *   `get_entities_by_alert_group_identifiers`: Understand entity relationships within SOAR alert groups.
+        *   `get_entity_details`: Access SOAR-specific enrichment data for entities.
+    *   **Advanced Actions & Automation:**
+        *   `google_chronicle_execute_udm_query`: Execute advanced UDM queries against Chronicle SIEM directly from SOAR playbooks or for specific investigative needs.
+        *   Tools for triggering specific playbook actions or automated remediation steps (as defined by organizational playbooks).
+
+*   **`secops-mcp` (Chronicle SIEM & Security Operations):**
+    *   **Deep Dive Investigation & Hunting:**
+        *   `search_security_events`: Conduct in-depth investigations and threat hunts using natural language queries translated to UDM to search Chronicle event logs.
+        *   `lookup_entity`: Enrich entities (IPs, domains, users, hashes) with historical context and activity summaries from Chronicle.
+        *   `get_rule_detections`: Retrieve historical detections for specific Chronicle rules to analyze patterns or hunt for related activity.
+    *   **Alert & Rule Analysis:**
+        *   `get_security_alerts` / `get_security_alert_by_id`: Directly query and retrieve alerts from Chronicle SIEM.
+        *   `list_security_rules` / `search_security_rules`: Understand the logic and scope of Chronicle detection rules.
+        *   `do_update_security_alert`: Update alert status, severity, and comments directly in Chronicle.
+    *   **Threat Intelligence Integration (within SIEM):**
+        *   `get_ioc_matches`: Identify matches of known IoCs from threat intelligence feeds against Chronicle logs.
+        *   `get_threat_intel`: Leverage Gemini for summaries and context on threat actors, CVEs, TTPs, and other security topics.
+
+*   **`Google Threat Intelligence MCP server` (GTI):**
+    *   **Threat Research & Enrichment:**
+        *   `search_threats` (and specific variants like `search_campaigns`, `search_threat_actors`, `search_malware_families`, `search_vulnerabilities`): Proactively hunt for threats and enrich investigations with GTI data.
+        *   `get_collection_report`: Obtain detailed reports on specific threat collections (actors, malware, campaigns).
+        *   `get_entities_related_to_a_collection`: Discover indicators and entities associated with a known threat.
+        *   `get_collection_timeline_events`: Review curated timelines for significant threat events.
+        *   `get_collection_mitre_tree`: Understand the MITRE ATT&CK TTPs associated with a threat.
+    *   **Indicator Analysis:**
+        *   `get_file_report`: Analyze file hashes for detailed threat information.
+        *   `get_domain_report`, `get_ip_address_report`, `get_url_report`: Get comprehensive reports on network indicators.
+
+*   **`scc-mcp` (Security Command Center - if applicable for cloud environments):**
+    *   `top_vulnerability_findings`: Identify high-priority vulnerability findings in GCP.
+    *   `get_finding_remediation`: Obtain remediation steps for SCC findings.
 
 Transfer back to manager if you have a task out of scope for your available MCP Tools.
 
