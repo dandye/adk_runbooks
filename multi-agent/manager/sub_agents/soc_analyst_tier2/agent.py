@@ -2,69 +2,10 @@ import asyncio
 
 from google.adk.agents import Agent
 
-from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
-
 from ..soc_analyst_tier1.agent import get_agent_tools
 
-async def get_tools_async():
-  #siem_tools, exit_stack = await MCPToolset.from_server(
-  #  connection_params=StdioServerParameters(
-  #  command='uv',
-  #  args=[
-  #      "--directory",
-  #      "/Users/dandye/Projects/google-mcp-security/server/secops/secops_mcp",  # Corrected path
-  #      "run",
-  #      "--env-file",
-  #      "/Users/dandye/Projects/google-mcp-security/.env",  # Corrected path (assuming .env is at project root)
-  #      "server.py"
-  #    ],
-  #  )
-  #)
-  #tools = siem_tools
-  soar_tools, exit_stack = await MCPToolset.from_server(
-    connection_params=StdioServerParameters(
-    command='uv',
-    args=[
-        "--directory",
-        "/Users/dandye/Projects/google-mcp-security/server/secops-soar/secops_soar_mcp",  # Corrected path
-        "run",
-        "--env-file",
-        "/Users/dandye/Projects/google-mcp-security/.env",
-        "server.py",
-        #"--integrations",  # doesn't work in ADK?
-        #"CSV,GoogleChronicle,Siemplify,SiemplifyUtilities"
-      ],
-    )
-  )
-  #tools.extend(soar_tools)
-  tools = soar_tools
-  return tools, exit_stack
-
-def make_tools_gemini_compatible(tools):
-  """
-  This function makes the schema compatible with Gemini/Vertex AI API
-  It is only needed when API used is Gemini and model is other than 2.5 models
-  It is however needed for ALL models when API used is VertexAI
-  """
-  for tool in tools:
-    if hasattr(tool, 'mcp_tool') and hasattr(tool.mcp_tool, 'inputSchema') and tool.mcp_tool.inputSchema:
-      if "properties" in tool.mcp_tool.inputSchema:
-          for prop_name in list(tool.mcp_tool.inputSchema["properties"].keys()): # Use list() for safe iteration
-            if "anyOf" in tool.mcp_tool.inputSchema["properties"][prop_name]:
-              # Ensure 'anyOf' list is not empty and first item has 'type' or 'items'
-              if tool.mcp_tool.inputSchema["properties"][prop_name]["anyOf"]:
-                first_any_of_item = tool.mcp_tool.inputSchema["properties"][prop_name]["anyOf"][0]
-                if first_any_of_item.get("type") == "array" and "items" in first_any_of_item and "type" in first_any_of_item["items"]:
-                  tool.mcp_tool.inputSchema["properties"][prop_name]["type"] = first_any_of_item["items"]["type"]
-                elif "type" in first_any_of_item:
-                   tool.mcp_tool.inputSchema["properties"][prop_name]["type"] = first_any_of_item["type"]
-                # else: could add a warning or skip if type cannot be determined
-              tool.mcp_tool.inputSchema["properties"][prop_name].pop("anyOf", None) # Use pop with default
-  return tools
 
 async def get_agent():
-  #tools, exit_stack = await get_tools_async()
-  #compatible_tools = make_tools_gemini_compatible(list(tools)) # Ensure tools is a list and then process
 
   tools, exit_stack = await get_agent_tools()
   persona_file_path = "/Users/dandye/Projects/adk_runbooks/rules-bank/personas/soc_analyst_tier_2.md"
@@ -107,12 +48,8 @@ async def get_agent():
       #model="gemini-2.0-flash",
       model="gemini-2.5-pro-preview-05-06",
       description=persona_description,
-      instruction="""
-      You are a Tier 2 SOC Analyst.
-      """,
-      #tools=compatible_tools,
+      instruction="You are a Tier 2 SOC Analyst.",
       tools=tools,
-      #enabled_mcp_servers=["secops-soar"],
   )
   return soc_analyst_tier1, exit_stack
 
