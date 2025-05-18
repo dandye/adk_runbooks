@@ -44,7 +44,7 @@ async def get_agent_tools():
     ),
     async_exit_stack=common_exit_stack
   ))
-  #siem_tools = make_tools_gemini_compatible(siem_tools)
+
   await asyncio.sleep(2)  # Give the first server time to stabilize
   soar_tools, common_exit_stack = await asyncio.shield(MCPToolset.from_server(
      connection_params=StdioServerParameters(
@@ -60,11 +60,25 @@ async def get_agent_tools():
          "CSV,GoogleChronicle,Siemplify,SiemplifyUtilities"
        ],
      ),
-     #env={"PORT": "8082"},
      async_exit_stack=common_exit_stack
   ))
-  #soar_tools = make_tools_gemini_compatible(soar_tools)
-  return (*siem_tools, *soar_tools), common_exit_stack
+  await asyncio.sleep(2)  # Give the first server time to stabilize
+  gti_tools, common_exit_stack = await MCPToolset.from_server(
+    connection_params=StdioServerParameters(
+    command='uv',
+    args=[
+        "--directory",
+        "/Users/dandye/Projects/google-mcp-security/server/gti/gti_mcp",
+        "run",
+        "--env-file",
+        "/Users/dandye/Projects/google-mcp-security/.env",
+        "server.py"
+      ],
+    ),
+    async_exit_stack=common_exit_stack
+  )
+
+  return (*siem_tools, *soar_tools, *gti_tools), common_exit_stack
 
 
 
