@@ -1,139 +1,73 @@
-import asyncio
-
+from pathlib import Path
 from google.adk.agents import Agent
 
-from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
+from ...tools.tools import load_persona_and_runbooks
 
 
-async def get_tools_async():
-  # siem_tools, exit_stack = await MCPToolset.from_server(
-  #   connection_params=StdioServerParameters(
-  #   command='uv',
-  #   args=[
-  #       "--directory",
-  #       "/Users/dandye/Projects/google-mcp-security/server/secops/secops_mcp",  # Corrected path
-  #       "run",
-  #       "--env-file",
-  #       "/Users/dandye/Projects/google-mcp-security/.env",  # Corrected path (assuming .env is at project root)
-  #       "server.py"
-  #     ],
-  #   )
-  # )
-  # tools = siem_tools
-  # soar_tools, exit_stack = await MCPToolset.from_server(
-  #   connection_params=StdioServerParameters(
-  #   command='uv',
-  #   args=[
-  #       "--directory",
-  #       "/Users/dandye/Projects/google-mcp-security/server/secops-soar/secops_soar_mcp",  # Corrected path
-  #       "run",
-  #       "--env-file",
-  #       "/Users/dandye/Projects/google-mcp-security/.env",
-  #       "server.py",
-  #       #"--integrations",  # doesn't work in ADK?
-  #       #"CSV,GoogleChronicle,Siemplify,SiemplifyUtilities"
-  #     ],
-  #   )
-  # )
-  # tools.extend(soar_tools)
-  gti_tools, exit_stack = await MCPToolset.from_server(
-    connection_params=StdioServerParameters(
-    command='uv',
-    args=[
-        "--directory",
-        "/Users/dandye/Projects/google-mcp-security/server/gti/gti_mcp",
-        "run",
-        "--env-file",
-        "/Users/dandye/Projects/google-mcp-security/.env",
-        "server.py"
-      ],
-    )
-  )
-  tools = gti_tools
-  #tools.extend(gti_tools)
-  return tools, exit_stack
+# Changed to a synchronous function that accepts tools and exit_stack
+def get_agent(tools, exit_stack):
+  """Configures and returns a CTI Researcher Agent instance.
 
-def make_tools_gemini_compatible(tools):
+  This function sets up the agent with a specific persona, runbooks,
+  and tools necessary for Cyber Threat Intelligence research.
+
+  Args:
+      tools (tuple): A tuple containing the pre-initialized MCP toolsets.
+      exit_stack (contextlib.AsyncExitStack): The shared asynchronous exit stack
+          for managing resources. (Currently not directly used by the synchronous
+          agent creation but passed for consistency with async initialization patterns).
+
+  Returns:
+      Agent: An initialized instance of the CTI Researcher agent.
   """
-  This function makes the schema compatible with Gemini/Vertex AI API
-  It is only needed when API used is Gemini and model is other than 2.5 models
-  It is however needed for ALL models when API used is VertexAI
-  """
-  for tool in tools:
-    if hasattr(tool, 'mcp_tool') and hasattr(tool.mcp_tool, 'inputSchema') and tool.mcp_tool.inputSchema:
-      if "properties" in tool.mcp_tool.inputSchema:
-          for prop_name in list(tool.mcp_tool.inputSchema["properties"].keys()): # Use list() for safe iteration
-            if "anyOf" in tool.mcp_tool.inputSchema["properties"][prop_name]:
-              # Ensure 'anyOf' list is not empty and first item has 'type' or 'items'
-              if tool.mcp_tool.inputSchema["properties"][prop_name]["anyOf"]:
-                first_any_of_item = tool.mcp_tool.inputSchema["properties"][prop_name]["anyOf"][0]
-                if first_any_of_item.get("type") == "array" and "items" in first_any_of_item and "type" in first_any_of_item["items"]:
-                  tool.mcp_tool.inputSchema["properties"][prop_name]["type"] = first_any_of_item["items"]["type"]
-                elif "type" in first_any_of_item:
-                   tool.mcp_tool.inputSchema["properties"][prop_name]["type"] = first_any_of_item["type"]
-                # else: could add a warning or skip if type cannot be determined
-              tool.mcp_tool.inputSchema["properties"][prop_name].pop("anyOf", None) # Use pop with default
-  return tools
-
-async def get_agent():
-  tools, exit_stack = await get_tools_async()
-  compatible_tools = make_tools_gemini_compatible(list(tools)) # Ensure tools is a list and then process
-
-  persona_file_path = "/Users/dandye/Projects/adk_runbooks/rules-bank/personas/cti_researcher.md"
+  BASE_DIR = Path(__file__).resolve().parent
+  persona_file_path = (BASE_DIR / "../../../../rules-bank/personas/cti_researcher.md").resolve()
   runbook_files = [
-    #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/investigate_a_gti_collection_id.md",
-    #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/proactive_threat_hunting_based_on_gti_campain_or_actor.md",
-    #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/compare_gti_collection_to_iocs_and_events.md",
-    #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/ioc_threat_hunt.md",
-    #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/apt_threat_hunt.md",
-    #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/deep_dive_ioc_analysis.md",
-    #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/malware_triage.md",
-    #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guidelines/threat_intel_workflows.md",
-    #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guidelines/report_writing.md",
-    #  # `case_event_timeline_and_process_analysis.md`, `create_an_investigation_report.md`, `phishing_response.md`, or `ransomware_response.md`.
-
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/demo_cti_gti_runbook.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guidelines/demo_threat_intel_workflows.md",
+    # Guidelines
+    (BASE_DIR / "../../../../rules-bank/run_books/guidelines/threat_intel_workflows.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/guidelines/report_writing.md").resolve(),
+    # Runbooks
+    (BASE_DIR / "../../../../rules-bank/run_books/investigate_a_gti_collection_id.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/proactive_threat_hunting_based_on_gti_campain_or_actor.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/compare_gti_collection_to_iocs_and_events.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/ioc_threat_hunt.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/apt_threat_hunt.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/deep_dive_ioc_analysis.md").resolve(),
   ]
-
-  try:
-    with open(persona_file_path, 'r') as f:
-      persona_description = f.read()
-  except FileNotFoundError:
-    # Fallback or error handling if the persona file is not found
-    persona_description = "Default CTI Researcher description: Responsible for threat intelligence."
-    print(f"Warning: Persona file not found at {persona_file_path}. Using default description.")
-
-  for runbook_file in runbook_files:
-    try:
-      with open(runbook_file, 'r') as f:
-        runbook_content = f.read()
-      persona_description += "\n\n" + runbook_content
-    except FileNotFoundError:
-      print(f"Warning: Runbook file not found at {runbook_file}. Skipping.")
-
-
-  cti_researcher = Agent(
-      name="cti_researcher",
-      # model="gemini-2.0-flash",
-      model="gemini-2.5-pro-preview-05-06",
-      description=persona_description,
-      instruction="""
-      You are a CTI Researcher.
-      """,
-      tools=compatible_tools,
-      # enabled_mcp_servers=["gti-mcp"],
+  persona_data = load_persona_and_runbooks(
+      persona_file_path,
+      runbook_files,
+      default_persona_description="Default CTI Researcher description: Responsible for threat intelligence."
   )
-  return cti_researcher, exit_stack
+  agent_instance = Agent( # Renamed to avoid conflict with module-level var if any
+      name="cti_researcher",
+      model="gemini-2.5-pro-preview-05-06",
+      description=persona_data,
+      instruction="You are a CTI Researcher.",
+      tools=tools, # Use passed-in tools
+  )
+  return agent_instance # Only return the agent instance
 
-agent_coroutine = get_agent()
 
-# Export these for other modules to use
-cti_researcher = None
-exit_stack = None
+# Function to initialize the agent, now accepts shared_tools and shared_exit_stack
+async def initialize(shared_tools, shared_exit_stack):
+    """Asynchronously initializes the CTI Researcher agent.
 
-# Function to initialize the agent (to be called from the appropriate place in your application)
-async def initialize():
-    global cti_researcher, exit_stack
-    cti_researcher, exit_stack = await agent_coroutine
-    return cti_researcher, exit_stack
+    This function serves as the entry point for creating an instance of the
+    CTI Researcher agent, utilizing shared toolsets and an exit stack.
+
+    Args:
+        shared_tools (tuple): The pre-initialized MCP toolsets to be used by the agent.
+        shared_exit_stack (contextlib.AsyncExitStack): The asynchronous exit stack
+            for managing the lifecycle of shared resources like MCP connections.
+
+    Returns:
+        tuple: A tuple containing:
+            - Agent: The initialized CTI Researcher agent instance.
+            - contextlib.AsyncExitStack: The shared exit stack.
+
+    Raises:
+        Exception: Propagates any exceptions encountered during agent creation.
+    """
+    agent_instance = get_agent(shared_tools, shared_exit_stack) # Call synchronous get_agent
+    return agent_instance, shared_exit_stack # Return agent and the shared_exit_stack
