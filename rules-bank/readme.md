@@ -1,4 +1,4 @@
-# .clinerules Directory Overview
+# Rules Bank Directory Overview
 
 This directory contains configuration files and documentation to provide context and guidance for LLM Agents operating within this security environment.
 
