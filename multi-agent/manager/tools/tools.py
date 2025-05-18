@@ -7,20 +7,26 @@ from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParamet
 
 
 def get_current_time() -> dict:
-    """
-    Get the current time in the format YYYYMMDD_HHMMSS
+    """Gets the current time, formatted for use in filenames or timestamps.
+
+    Returns:
+        dict: A dictionary with a single key "current_time" and a string value
+              representing the current time in "YYYYMMDD_HHMMSS" format.
     """
     return {
         "current_time": datetime.now().strftime("%Y%m%d_%H%M%S"),
     }
 
 def write_report(report_name: str, report_contents: str):
-    """Write a report to a file.
+    """Writes a report with the given name and content to a timestamped markdown file.
+
+    The file will be saved in the `../reports/` directory relative to the
+    `multi-agent/manager/` directory. The filename will be in the format
+    `{report_name}_{YYYYMMDD_HHMMSS}.md`.
 
     Args:
-        report_name: The name of the report.
-        report_contents: The contents of the report.
-
+        report_name (str): The base name for the report file (without extension).
+        report_contents (str): The markdown content to write to the report file.
     """
     now = get_current_time()["current_time"]
     # Ensure the reports directory exists, relative to this tools.py file
@@ -60,6 +66,21 @@ def load_persona_and_runbooks(persona_file_path: str, runbook_files: list, defau
     return persona_description
 
 async def get_agent_tools():
+  """Initializes and returns MCP toolsets for SIEM, SOAR, and GTI functionalities.
+
+  This function sets up connections to locally running MCP servers specified by
+  their command-line arguments. It manages the lifecycle of these connections
+  using an AsyncExitStack.
+
+  Assumes that the necessary MCP servers (SecOps, SecOps-SOAR, GTI) can be
+  started using the `uv run` commands with paths and environment files
+  as defined within this function.
+
+  Returns:
+      tuple: A tuple containing:
+          - tuple: A combined tuple of all initialized MCP tools (*siem_tools, *soar_tools, *gti_tools).
+          - contextlib.AsyncExitStack: The exit stack managing the MCP server connections.
+  """
   common_exit_stack = contextlib.AsyncExitStack()
   siem_tools, common_exit_stack = await asyncio.shield(MCPToolset.from_server(
     connection_params=StdioServerParameters(

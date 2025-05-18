@@ -6,6 +6,20 @@ from ...tools.tools import load_persona_and_runbooks
 
 # Changed to a synchronous function that accepts tools and exit_stack
 def get_agent(tools, exit_stack):
+  """Configures and returns a Threat Hunter Agent instance.
+
+  This function sets up the agent with a specific persona, runbooks,
+  and tools tailored for proactive threat hunting activities.
+
+  Args:
+      tools (tuple): A tuple containing the pre-initialized MCP toolsets.
+      exit_stack (contextlib.AsyncExitStack): The shared asynchronous exit stack
+          for managing resources. (Currently not directly used by the synchronous
+          agent creation but passed for consistency with async initialization patterns).
+
+  Returns:
+      Agent: An initialized instance of the Threat Hunter agent.
+  """
   # Removed: tools, common_exit_stack = await get_agent_tools()
 
   persona_file_path = "/Users/dandye/Projects/adk_runbooks/rules-bank/personas/threat_hunter.md"
@@ -39,6 +53,24 @@ def get_agent(tools, exit_stack):
 
 # Function to initialize the agent, now accepts shared_tools and shared_exit_stack
 async def initialize(shared_tools, shared_exit_stack):
+    """Asynchronously initializes the Threat Hunter agent.
+
+    This function serves as the entry point for creating an instance of the
+    Threat Hunter agent, utilizing shared toolsets and an exit stack.
+
+    Args:
+        shared_tools (tuple): The pre-initialized MCP toolsets to be used by the agent.
+        shared_exit_stack (contextlib.AsyncExitStack): The asynchronous exit stack
+            for managing the lifecycle of shared resources like MCP connections.
+
+    Returns:
+        tuple: A tuple containing:
+            - Agent: The initialized Threat Hunter agent instance.
+            - contextlib.AsyncExitStack: The shared exit stack.
+
+    Raises:
+        Exception: Propagates any exceptions encountered during agent creation.
+    """
     # global threat_hunter, exit_stack # No longer needed
     try:
       agent_instance = get_agent(shared_tools, shared_exit_stack) # Call synchronous get_agent

@@ -1,7 +1,7 @@
 import asyncio # Added import
 
 from google.adk.agents import Agent
-from google.adk.tools.agent_tool import AgentTool
+from google.adk.tools.agent_tool import AgentTool # Not used, consider removing if AgentTool itself is not directly used.
 
 from .sub_agents.soc_analyst_tier1 import agent as soc_analyst_tier1_agent_module
 from .sub_agents.soc_analyst_tier2 import agent as soc_analyst_tier2_agent_module
@@ -11,11 +11,23 @@ from .sub_agents.soc_analyst_tier3 import agent as soc_analyst_tier3_agent_modul
 from .sub_agents.incident_responder import agent as incident_responder_agent_module
 from .sub_agents.detection_engineer import agent as detection_engineer_agent_module
 
-from .tools.tools import get_current_time, write_report, get_agent_tools
+from .tools.tools import get_current_time, write_report, get_agent_tools, load_persona_and_runbooks
 
 
 # This function will perform the actual asynchronous initialization of the manager Agent
 async def initialize_actual_manager_agent():
+    """Initializes the main Manager Agent and all its sub-agents.
+
+    This function orchestrates the setup of shared MCP tools and then
+    initializes each sub-agent, passing the shared resources. Finally,
+    it configures and returns the fully initialized Manager Agent.
+
+    The Manager Agent is responsible for delegating tasks to appropriate
+    sub-agents and has its own set of tools for reporting and timekeeping.
+
+    Returns:
+        Agent: The fully configured and initialized Manager Agent instance.
+    """
     # Call get_agent_tools once
     shared_tools, shared_exit_stack = await get_agent_tools()
 
@@ -57,22 +69,11 @@ async def initialize_actual_manager_agent():
 
     ]
 
-    try:
-        with open(persona_file_path, 'r') as f:
-            persona_description = f.read()
-    except FileNotFoundError:
-        # Fallback or error handling if the persona file is not found
-        persona_description = "SOC Mnaager: Responsible for delegating to other agents and writing reports."
-        print(f"Warning: Persona file not found at {persona_file_path}. Using default description.")
-
-    for runbook_file in runbook_files:
-        try:
-            with open(runbook_file, 'r') as f:
-                runbook_content = f.read()
-            persona_description += "\n\n" + runbook_content
-        except FileNotFoundError:
-            print(f"Warning: Runbook file not found at {runbook_file}. Skipping.")
-
+    persona_description = load_persona_and_runbooks(
+        persona_file_path,
+        runbook_files,
+        default_persona_description="SOC Manager: Responsible for delegating to other agents and writing reports."
+    )
 
     return Agent(
         name="manager", # This name should match the one used in DeferredInitializationAgent
@@ -115,7 +116,21 @@ async def initialize_actual_manager_agent():
     )
 
 class DeferredInitializationAgent(Agent):
+    """A wrapper agent that defers full initialization until an async method is called.
+
+    This allows the agent's name to be available synchronously for registration
+    while the potentially lengthy or asynchronous parts of its setup (like
+    initializing sub-agents or tools) are delayed until actually needed.
+    """
     def __init__(self, name: str, initialization_coro_func):
+        """Initializes the deferred agent.
+
+        Args:
+            name (str): The name of the agent, available synchronously.
+            initialization_coro_func (Callable[[], Coroutine[Any, Any, Agent]]):
+                An async function (coroutine) that, when called, performs the
+                full initialization and returns the actual, fully configured Agent instance.
+        """
         # Initialize with minimal valid Agent attributes for synchronous access (e.g., .name)
         # and to satisfy Pydantic if it checks for Agent instance type.
         super().__init__(name=name, model="placeholder_model", tools=[]) # Provide minimal valid args
@@ -125,6 +140,7 @@ class DeferredInitializationAgent(Agent):
         self._init_lock = asyncio.Lock()
 
     async def _ensure_initialized(self):
+        """Ensures the agent is fully initialized, performing initialization if not already done."""
         async with self._init_lock:
             if not self._is_fully_initialized:
                 # Await the coroutine that returns the fully configured Agent instance
@@ -140,7 +156,7 @@ class DeferredInitializationAgent(Agent):
                 self._is_fully_initialized = True
 
     async def run_async(self, invocation_context):
-        """Overrides BaseAgent.run_async to ensure full initialization first."""
+        """Overrides BaseAgent.run_async to ensure full initialization before running."""
         await self._ensure_initialized()
         # After _ensure_initialized, attributes like self.model, self.tools, etc.,
         # are copied to this DeferredInitializationAgent instance.
@@ -152,6 +168,7 @@ class DeferredInitializationAgent(Agent):
 
     # Override core Agent methods to ensure initialization and delegate.
     async def process_request(self, request, invocation_context=None, tools_code_execution_config=None):
+        """Overrides Agent.process_request to ensure full initialization before processing."""
         await self._ensure_initialized()
         # Delegate to the fully initialized agent's process_request.
         return await self._initialized_agent_delegate.process_request(
@@ -159,9 +176,10 @@ class DeferredInitializationAgent(Agent):
         )
 
     def get_tools_for_model(self):
+        """Returns the tools appropriate for the model, ensuring initialization first."""
         # This method might be called by the framework.
         # Ensure it returns the correct tools after initialization.
-        if self._is_fully_initialized:
+        if self._is_fully_initialized: # pragma: no cover
             return self._initialized_agent_delegate.get_tools_for_model()
         # Before full initialization, it returns the placeholder tools from super().__init__
         return super().get_tools_for_model()
@@ -177,6 +195,14 @@ root_agent = DeferredInitializationAgent(name="manager", initialization_coro_fun
 # This function can be used if other parts of the ADK or user code
 # explicitly want to ensure the agent is fully initialized by awaiting something.
 async def get_root_agent():
-    if isinstance(root_agent, DeferredInitializationAgent):
+    """Ensures the root_agent is fully initialized and returns it.
+
+    This is a convenience function for external modules that might need to
+    interact with a fully initialized manager agent.
+
+    Returns:
+        Agent: The fully initialized manager agent instance.
+    """
+    if isinstance(root_agent, DeferredInitializationAgent): # pragma: no cover
         await root_agent._ensure_initialized()
     return root_agent
