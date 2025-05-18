@@ -6,6 +6,7 @@ from google.adk.tools.agent_tool import AgentTool
 from .sub_agents.soc_analyst_tier1 import agent as soc_analyst_tier1_agent_module
 from .sub_agents.soc_analyst_tier2 import agent as soc_analyst_tier2_agent_module
 from .sub_agents.cti_researcher import agent as cti_researcher_agent_module
+from .sub_agents.threat_hunter import agent as threat_hunter_agent_module
 
 from .tools.tools import get_current_time, write_report
 
@@ -16,6 +17,7 @@ async def initialize_actual_manager_agent():
     initialized_soc_analyst_tier1, soc_analyst_tier1_exit_stack = await soc_analyst_tier1_agent_module.initialize()
     initialized_soc_analyst_tier2, soc_analyst_tier2_exit_stack = await soc_analyst_tier2_agent_module.initialize()
     initialized_cti_researcher, cti_researcher_exit_stack = await cti_researcher_agent_module.initialize()
+    initialized_threat_hunter, threat_hunter_exit_stack = await threat_hunter_agent_module.initialize()
     # TODO: Properly handle the exit_stack from sub_agents if needed by the manager
 
 
@@ -74,6 +76,7 @@ async def initialize_actual_manager_agent():
         - soc_analyst_tier1: for siem questions and tasks and tool use
         - soc_analyst_tier2: for soar questions and tasks and tool use
         - cti_researcher: for cti questions and tasks and tool use
+        - threat_hunter: for proactive threat hunting and advanced analysis tasks
 
         You also have access to the following tools:
         - get_current_time
@@ -83,6 +86,7 @@ async def initialize_actual_manager_agent():
             initialized_soc_analyst_tier1,
             initialized_soc_analyst_tier2,
             initialized_cti_researcher,
+            initialized_threat_hunter,
         ],
         tools=[
             get_current_time,
