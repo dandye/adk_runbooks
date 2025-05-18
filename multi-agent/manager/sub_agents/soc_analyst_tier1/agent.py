@@ -1,56 +1,9 @@
 import asyncio
-
+import contextlib
 from google.adk.agents import Agent
 
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
 
-
-async def get_tools_async():
-  siem_tools, exit_stack = await MCPToolset.from_server(
-    connection_params=StdioServerParameters(
-    command='uv',
-    args=[
-        "--directory",
-        "/Users/dandye/Projects/google-mcp-security/server/secops/secops_mcp",  # Corrected path
-        "run",
-        "--env-file",
-        "/Users/dandye/Projects/google-mcp-security/.env",  # Corrected path (assuming .env is at project root)
-        "server.py"
-      ],
-    )
-  )
-  tools = siem_tools
-  #soar_tools, exit_stack = await MCPToolset.from_server(
-  #  command='uv',
-  #  args=[
-  #      "--directory",
-  #      "/Users/dandye/Projects/google-mcp-security/server/secops-soar/secops_soar_mcp",  # Corrected path
-  #      "run",
-  #      "--env-file",
-  #      "/Users/dandye/Projects/google-mcp-security/.env",
-  #      "server.py",
-  #      #"--integrations",  # doesn't work in ADK?
-  #      #"CSV,GoogleChronicle,Siemplify,SiemplifyUtilities"
-  #    ],
-  #  )
-  #)
-  #tools.extend(soar_tools)
-  #gti_tools, exit_stack = await MCPToolset.from_server(
-  #  connection_params=StdioServerParameters(
-  #  command='uv',
-  #  args=[
-  #      "--directory",
-  #      "/Users/dandye/Projects/google-mcp-security/server/gti/gti_mcp",
-  #      "run",
-  #      "--env-file",
-  #      "/Users/dandye/Projects/google-mcp-security/.env",
-  #      "server.py"
-  #    ],
-  #  )
-  #)
-  #tools.extend(gti_tools)
-
-  return tools, exit_stack
 
 def make_tools_gemini_compatible(tools):
   """
@@ -74,24 +27,56 @@ def make_tools_gemini_compatible(tools):
               tool.mcp_tool.inputSchema["properties"][prop_name].pop("anyOf", None) # Use pop with default
   return tools
 
+
 async def get_agent():
-  tools, exit_stack = await get_tools_async()
-  compatible_tools = make_tools_gemini_compatible(list(tools)) # Ensure tools is a list and then process
+  common_exit_stack = contextlib.AsyncExitStack()
+  siem_tools, common_exit_stack = await asyncio.shield(MCPToolset.from_server(
+    connection_params=StdioServerParameters(
+    command='uv',
+    args=[
+        "--directory",
+        "/Users/dandye/Projects/google-mcp-security/server/secops/secops_mcp",  # Corrected path
+        "run",
+        "--env-file",
+        "/Users/dandye/Projects/google-mcp-security/.env",  # Corrected path (assuming .env is at project root)
+        "server.py"
+      ],
+    ),
+    async_exit_stack=common_exit_stack
+  ))
+  #siem_tools = make_tools_gemini_compatible(siem_tools)
+  await asyncio.sleep(2)  # Give the first server time to stabilize
+  soar_tools, common_exit_stack = await asyncio.shield(MCPToolset.from_server(
+     connection_params=StdioServerParameters(
+     command='uv',
+     args=[
+         "--directory",
+         "/Users/dandye/Projects/google-mcp-security/server/secops-soar/secops_soar_mcp",  # Corrected path
+         "run",
+         "--env-file",
+         "/Users/dandye/Projects/google-mcp-security/.env",
+         "server.py",
+         "--integrations",
+         "CSV,GoogleChronicle,Siemplify,SiemplifyUtilities"
+       ],
+     ),
+     #env={"PORT": "8082"},
+     async_exit_stack=common_exit_stack
+  ))
+  #soar_tools = make_tools_gemini_compatible(soar_tools)
 
   persona_file_path = "/Users/dandye/Projects/adk_runbooks/rules-bank/personas/soc_analyst_tier_1.md"
   runbook_files = [
-    #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/investigate_a_gti_collection_id.md",
-    #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/proactive_threat_hunting_based_on_gti_campain_or_actor.md",
-    #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/compare_gti_collection_to_iocs_and_events.md",
-    #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/ioc_threat_hunt.md",
-    #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/apt_threat_hunt.md",
-    #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/deep_dive_ioc_analysis.md",
-    #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/malware_triage.md",
-    #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guidelines/threat_intel_workflows.md",
-    #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guidelines/report_writing.md",
-    #  # `case_event_timeline_and_process_analysis.md`, `create_an_investigation_report.md`, `phishing_response.md`, or `ransomware_response.md`
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/demo_soc_t1_siem_runbook.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guidelines/demo_threat_intel_workflows.md",
+    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/triage_alerts.md",
+    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/close_duplicate_or_similar_cases.md",
+    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/investgate_a_case_w_external_tools.md",
+    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/group_cases.md",
+    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/group_cases_v2.md",
+    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/basic_ioc_enrichment.md",
+    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/suspicious_login_triage.md",
+    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guidelines/report_writing.md",
+    #"/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/demo_soc_t1_siem_runbook.md",
+    #"/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guidelines/demo_threat_intel_workflows.md",
   ]
 
   try:
@@ -110,26 +95,32 @@ async def get_agent():
     except FileNotFoundError:
       print(f"Warning: Runbook file not found at {runbook_file}. Skipping.")
 
-
   soc_analyst_tier1 = Agent(
       name="soc_analyst_tier1",
-      #model="gemini-2.0-flash",
       model="gemini-2.5-pro-preview-05-06",
       description=persona_description,
       instruction="""You are a Tier 1 SOC Analyst.""",
-      tools=compatible_tools,
-      # enabled_mcp_servers=["secops-mcp"],
+      tools=[*siem_tools, *soar_tools],
   )
-  return soc_analyst_tier1, exit_stack
+  return soc_analyst_tier1, common_exit_stack
+
 
 agent_coroutine = get_agent()
-
-# Export these for other modules to use
+#
+## Export these for other modules to use
 soc_analyst_tier1 = None
 exit_stack = None
-
-# Function to initialize the agent (to be called from the appropriate place in your application)
+#
+## Function to initialize the agent (to be called from the appropriate place in your application)
 async def initialize():
     global soc_analyst_tier1, exit_stack
-    soc_analyst_tier1, exit_stack = await agent_coroutine
-    return soc_analyst_tier1, exit_stack
+    try:
+      soc_analyst_tier1, exit_stack = await agent_coroutine
+      return soc_analyst_tier1, exit_stack
+    except Exception as e:
+      # Log the error or handle it appropriately
+      print(f"Error initializing agent: {e}")
+      # You might want to clean up any partially initialized resources
+      if exit_stack:
+          await exit_stack.aclose()
+      raise  # Re-raise the exception to let callers know initialization failed
