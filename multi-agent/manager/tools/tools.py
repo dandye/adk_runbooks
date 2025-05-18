@@ -1,6 +1,7 @@
 from datetime import datetime
 import asyncio
 import contextlib
+import os # Added for path operations
 
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
 
@@ -22,8 +23,41 @@ def write_report(report_name: str, report_contents: str):
 
     """
     now = get_current_time()["current_time"]
-    with open(f"../reports/{report_name}_{now}.md", "w") as f:
+    # Ensure the reports directory exists, relative to this tools.py file
+    reports_dir = os.path.join(os.path.dirname(__file__), "..", "..", "reports")
+    os.makedirs(reports_dir, exist_ok=True)
+    file_path = os.path.join(reports_dir, f"{report_name}_{now}.md")
+    with open(file_path, "w") as f:
         f.write(f"{report_contents}")
+
+def load_persona_and_runbooks(persona_file_path: str, runbook_files: list, default_persona_description: str = "Default persona description.") -> str:
+    """
+    Loads persona description from a file and appends contents from runbook files.
+
+    Args:
+        persona_file_path: Path to the persona file.
+        runbook_files: A list of paths to runbook files.
+        default_persona_description: Default description if persona file is not found.
+
+    Returns:
+        A string containing the persona description and appended runbook contents.
+    """
+    persona_description = ""
+    try:
+        with open(persona_file_path, 'r') as f:
+            persona_description = f.read()
+    except FileNotFoundError:
+        persona_description = default_persona_description
+        print(f"Warning: Persona file not found at {persona_file_path}. Using default description.")
+
+    for runbook_file in runbook_files:
+        try:
+            with open(runbook_file, 'r') as f:
+                runbook_content = f.read()
+            persona_description += "\n\n" + runbook_content
+        except FileNotFoundError:
+            print(f"Warning: Runbook file not found at {runbook_file}. Skipping.")
+    return persona_description
 
 async def get_agent_tools():
   common_exit_stack = contextlib.AsyncExitStack()

@@ -1,4 +1,5 @@
 from google.adk.agents import Agent
+from ...tools.tools import load_persona_and_runbooks
 
 # Removed: from manager.tools.tools import get_agent_tools
 
@@ -23,22 +24,11 @@ def get_agent(tools, exit_stack):
     #"/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guidelines/demo_threat_intel_workflows.md",
   ]
 
-  try:
-    with open(persona_file_path, 'r') as f:
-      persona_data = f.read()
-  except FileNotFoundError:
-    # Fallback or error handling if the persona file is not found
-    persona_data = "Default CTI Researcher description: Responsible for threat intelligence."
-    print(f"Warning: Persona file not found at {persona_file_path}. Using default description.")
-
-  for runbook_file in runbook_files:
-    try:
-      with open(runbook_file, 'r') as f:
-        runbook_content = f.read()
-      persona_data += "\n\n" + runbook_content
-    except FileNotFoundError:
-      print(f"Warning: Runbook file not found at {runbook_file}. Skipping.")
-
+  persona_data = load_persona_and_runbooks(
+      persona_file_path,
+      runbook_files,
+      default_persona_description="Default CTI Researcher description: Responsible for threat intelligence."
+  )
 
   agent_instance = Agent( # Renamed to avoid conflict with module-level var if any
       name="cti_researcher",
