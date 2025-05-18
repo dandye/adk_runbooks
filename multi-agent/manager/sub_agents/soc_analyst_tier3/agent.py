@@ -10,8 +10,8 @@ async def get_agent():
   runbook_files = [
     "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/deep_dive_ioc_analysis.md",
     "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/malware_triage.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/compromised_user_account_response.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/ransomware_response.md",
+    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/irps/compromised_user_account_response.md",
+    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/irps/ransomware_response.md",
     "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/detection_rule_validation_tuning.md",
     "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/create_an_investigation_report.md",
     "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guidelines/report_writing.md",

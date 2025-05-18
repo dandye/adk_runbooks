@@ -29,6 +29,13 @@ async def initialize_actual_manager_agent():
 
     persona_file_path = "/Users/dandye/Projects/adk_runbooks/rules-bank/personas/soc_manager.md"
     runbook_files = [
+        # Guidelines
+        "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guidelines/report_writing.md",
+        # IRPs
+        "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/irps/compromised_user_account_response.md",
+        "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/irps/phishing_response.md",
+        "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/irps/ransomware_response.md",
+        # Runbooks
         "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/triage_alerts.md",
         "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/prioritize_and_investigate_a_case.md",
         "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/close_duplicate_or_similar_cases.md",
@@ -36,10 +43,7 @@ async def initialize_actual_manager_agent():
         "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/suspicious_login_triage.md",
         "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/investgate_a_case_w_external_tools.md",
         "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/ioc_containment.md",
-        "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/compromised_user_account_response.md",
         "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/basic_endpoint_triage_isolation.md",
-        "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/phishing_response.md",
-        "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/ransomware_response.md",
         "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/deep_dive_ioc_analysis.md",
         "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/malware_triage.md",
         "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guided_ttp_hunt_credential_access.md",
@@ -47,7 +51,7 @@ async def initialize_actual_manager_agent():
         "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/advanced_threat_hunting.md",
         "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/detection_rule_validation_tuning.md",
         "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/create_an_investigation_report.md",
-        "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guidelines/report_writing.md",
+
     ]
 
     try:
