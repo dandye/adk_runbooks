@@ -4,6 +4,7 @@ from google.adk.agents import Agent
 
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
 
+from ..soc_analyst_tier1.agent import get_agent_tools
 
 async def get_tools_async():
   #siem_tools, exit_stack = await MCPToolset.from_server(
@@ -62,9 +63,10 @@ def make_tools_gemini_compatible(tools):
   return tools
 
 async def get_agent():
-  tools, exit_stack = await get_tools_async()
-  compatible_tools = make_tools_gemini_compatible(list(tools)) # Ensure tools is a list and then process
+  #tools, exit_stack = await get_tools_async()
+  #compatible_tools = make_tools_gemini_compatible(list(tools)) # Ensure tools is a list and then process
 
+  tools, exit_stack = await get_agent_tools()
   persona_file_path = "/Users/dandye/Projects/adk_runbooks/rules-bank/personas/soc_analyst_tier_2.md"
   runbook_files = [
 
@@ -108,7 +110,8 @@ async def get_agent():
       instruction="""
       You are a Tier 2 SOC Analyst.
       """,
-      tools=compatible_tools,
+      #tools=compatible_tools,
+      tools=tools,
       #enabled_mcp_servers=["secops-soar"],
   )
   return soc_analyst_tier1, exit_stack
