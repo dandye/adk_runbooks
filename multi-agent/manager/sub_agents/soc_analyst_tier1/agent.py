@@ -80,16 +80,18 @@ async def get_agent():
 
   persona_file_path = "/Users/dandye/Projects/adk_runbooks/rules-bank/personas/soc_analyst_tier_1.md"
   runbook_files = [
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/investigate_a_gti_collection_id.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/proactive_threat_hunting_based_on_gti_campain_or_actor.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/compare_gti_collection_to_iocs_and_events.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/ioc_threat_hunt.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/apt_threat_hunt.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/deep_dive_ioc_analysis.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/malware_triage.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guidelines/threat_intel_workflows.md",
-    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guidelines/report_writing.md",
-    # `case_event_timeline_and_process_analysis.md`, `create_an_investigation_report.md`, `phishing_response.md`, or `ransomware_response.md`.
+    #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/investigate_a_gti_collection_id.md",
+    #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/proactive_threat_hunting_based_on_gti_campain_or_actor.md",
+    #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/compare_gti_collection_to_iocs_and_events.md",
+    #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/ioc_threat_hunt.md",
+    #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/apt_threat_hunt.md",
+    #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/deep_dive_ioc_analysis.md",
+    #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/malware_triage.md",
+    #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guidelines/threat_intel_workflows.md",
+    #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guidelines/report_writing.md",
+    #  # `case_event_timeline_and_process_analysis.md`, `create_an_investigation_report.md`, `phishing_response.md`, or `ransomware_response.md`
+    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/demo_soc_t1_siem_runbook.md",
+    "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guidelines/demo_threat_intel_workflows.md",
   ]
 
   try:
@@ -111,10 +113,12 @@ async def get_agent():
 
   soc_analyst_tier1 = Agent(
       name="soc_analyst_tier1",
-      model="gemini-2.0-flash",
+      #model="gemini-2.0-flash",
+      model="gemini-2.5-pro-preview-05-06",
       description=persona_description,
       instruction="""You are a Tier 1 SOC Analyst.""",
       tools=compatible_tools,
+      # enabled_mcp_servers=["secops-mcp"],
   )
   return soc_analyst_tier1, exit_stack
 

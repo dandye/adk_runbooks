@@ -21,16 +21,18 @@ async def initialize_actual_manager_agent():
 
     persona_file_path = "/Users/dandye/Projects/adk_runbooks/rules-bank/personas/soc_manager.md"
     runbook_files = [
-        "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/investigate_a_gti_collection_id.md",
-        "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/proactive_threat_hunting_based_on_gti_campain_or_actor.md",
-        "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/compare_gti_collection_to_iocs_and_events.md",
-        "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/ioc_threat_hunt.md",
-        "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/apt_threat_hunt.md",
-        "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/deep_dive_ioc_analysis.md",
-        "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/malware_triage.md",
-        "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guidelines/threat_intel_workflows.md",
+        #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/investigate_a_gti_collection_id.md",
+        #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/proactive_threat_hunting_based_on_gti_campain_or_actor.md",
+        #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/compare_gti_collection_to_iocs_and_events.md",
+        #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/ioc_threat_hunt.md",
+        #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/apt_threat_hunt.md",
+        #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/deep_dive_ioc_analysis.md",
+        #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/malware_triage.md",
+        #  "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guidelines/threat_intel_workflows.md",
         "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guidelines/report_writing.md",
-        # `case_event_timeline_and_process_analysis.md`, `create_an_investigation_report.md`, `phishing_response.md`, or `ransomware_response.md`.
+        #  # `case_event_timeline_and_process_analysis.md`, `create_an_investigation_report.md`, `phishing_response.md`, or `ransomware_response.md`.
+        "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/demo_manager_runbook.md",
+        "/Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guidelines/demo_threat_intel_workflows.md",
     ]
 
     try:
@@ -52,7 +54,8 @@ async def initialize_actual_manager_agent():
 
     return Agent(
         name="manager", # This name should match the one used in DeferredInitializationAgent
-        model="gemini-2.0-flash",
+        #model="gemini-2.0-flash",
+        model="gemini-2.5-pro-preview-05-06",
         description=persona_description,
         instruction="""
         You are a SOC Manager agent that is responsible for overseeing the work of the other agents.
@@ -78,6 +81,7 @@ async def initialize_actual_manager_agent():
             get_current_time,
             write_report,
         ],
+        # enabled_mcp_servers=[],
     )
 
 class DeferredInitializationAgent(Agent):
