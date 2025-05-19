@@ -133,4 +133,10 @@ async def get_agent_tools():
     async_exit_stack=common_exit_stack
   )
 
-  return (*siem_tools, *soar_tools, *gti_tools), common_exit_stack
+  return (
+      *siem_tools,
+      *soar_tools,
+      *gti_tools,
+      write_report,
+      get_current_time,
+  ), common_exit_stack

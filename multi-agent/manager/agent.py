@@ -30,10 +30,7 @@ async def initialize_actual_manager_agent():
     """
     # Call get_agent_tools once
     shared_tools, shared_exit_stack = await get_agent_tools()
-    shared_tools += [
-        get_current_time,
-        write_report,
-    ]
+
     # Initialize sub-agents that require async initialization first, passing shared tools and exit_stack
     initialized_soc_analyst_tier1, _ = await soc_analyst_tier1_agent_module.initialize(shared_tools, shared_exit_stack)
     initialized_soc_analyst_tier2, _ = await soc_analyst_tier2_agent_module.initialize(shared_tools, shared_exit_stack)
