@@ -1,5 +1,11 @@
 ![Screenshot 2025-05-18 at 4 16 04 PM](https://github.com/user-attachments/assets/338a92af-1721-4b6f-9c9c-c451c9581129)
 
+# Setup
+
+There are two places to configure for your environment:
+ * `./multi-agent/manager/.env` file in
+ * `./multi-agent/manager/tools/tools.py` needs your MCP Security configuration
+
 # Multi-Agent Systems in ADK
 
 This example demonstrates how to create a multi-agent system in ADK, where specialized security agents collaborate to handle complex cybersecurity tasks, each focusing on their area of expertise.
@@ -27,9 +33,10 @@ project_root/
 │   │       ├── detection_engineer/
 │   │       │   ├── __init__.py
 │   │       │   └── agent.py
-│   │       └── ... (other security agents)
-│   └── README.md                # This file
-└── .venv/                       # Virtual environment (example location)
+│   │       ├── ... (other security agents)
+│   │       └── tools.py         # Configure paths to MCP Security in this file
+├── .venv/                       # Virtual environment (example location)
+└── README.md                    # This file
 ```
 
 ### Essential Structure Components:
