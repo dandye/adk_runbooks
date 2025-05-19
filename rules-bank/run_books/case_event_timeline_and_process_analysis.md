@@ -14,7 +14,6 @@ Uses Tools:
 *   `secops-mcp.get_threat_intel` (for MITRE TACTIC mapping/general enrichment)
 *   `siemplify_create_gemini_case_summary` (Optional, for AI-generated summary)
 *   `write_report` (for report generation)
-*   `execute_command` (using `pandoc` for PDF conversion)
 *   `secops-soar.post_case_comment` (to note report location/attach if possible)
 *   You may ask follow up question (for report format/content/attachment/SOAR actions confirmation)
 *   `attempt_completion`
@@ -147,8 +146,6 @@ sequenceDiagram
         User->>Cline: Confirmation (e.g., "Yes")
 
         alt PDF & Attach/Comment Confirmed
-            Cline->>Cline: execute_command(pandoc MD_PATH -o PDF_PATH ...)
-            Note over Cline: PDF Generated locally.
             Note over Cline: Attempt SOAR attachment (Tool dependent)
             Cline->>SOAR: post_case_comment(case_id=`${CASE_ID}`, comment="Generated report. PDF available at: PDF_PATH") %% Fallback if attach fails
             SOAR-->>Cline: Comment Confirmation
