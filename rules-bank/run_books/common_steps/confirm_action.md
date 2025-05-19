@@ -36,7 +36,7 @@ sequenceDiagram
     CallingRunbook->>ConfirmAction: Execute Confirmation\nInput: QUESTION_TEXT, RESPONSE_OPTIONS (opt)
 
     %% Step 2: Ask Question
-    ConfirmAction->>User: ask_followup_question(question=QUESTION_TEXT, options=RESPONSE_OPTIONS)
+    ConfirmAction->>User: Confirm: QUESTION_TEXT (Options: RESPONSE_OPTIONS)
     User-->>ConfirmAction: User Response (USER_RESPONSE)
 
     %% Step 3: Return Response

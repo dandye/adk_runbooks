@@ -42,7 +42,7 @@ This runbook covers gathering essential details about the alert(s), associated e
     *   *(Guidance: Consider performing this step if initial enrichment reveals highly critical IOCs or if the alert context is unclear).*
         *   Perform limited `secops-mcp.search_security_events` queries around the alert timeframe for the most critical entities identified (e.g., the primary host or user) to find immediate related context beyond the specific alert events.
 6.  **Synthesize & Format Report:**
-    *   Create a Markdown report structure including (referencing `.clinerules/reporting_templates.md` and `.clinerules/run_books/guidelines/runbook_guidelines.md`):
+    *   Create a Markdown report structure including (referencing `rules-bank/reporting_templates.md` and `rules-bank/run_books/guidelines/runbook_guidelines.md`):
         *   **Metadata:** Runbook Used, Timestamp, Case ID(s).
         *   **Case Summary:** Case ID, Name, Priority, Status (from `get_case_full_details`).
         *   **Alert(s) Summary:** List target Alert IDs, Names, Timestamps, Severities.
@@ -64,66 +64,66 @@ This runbook covers gathering essential details about the alert(s), associated e
 ```{mermaid}
 sequenceDiagram
     participant Analyst/User
-    participant Cline as Cline (MCP Client)
+    participant AutomatedAgent as Automated Agent (MCP Client)
     participant SOAR as secops-soar
     participant SIEM as secops-mcp
     participant GTI as Google Threat Intelligence MCP server
 
-    Analyst/User->>Cline: Generate Alert Report\nInput: CASE_ID, ALERT_GROUP_IDS/ALERT_IDS, FILENAME_SUFFIX (opt)
+    Analyst/User->>AutomatedAgent: Generate Alert Report\nInput: CASE_ID, ALERT_GROUP_IDS/ALERT_IDS, FILENAME_SUFFIX (opt)
 
     %% Step 1: Context
-    Cline->>SOAR: get_case_full_details(case_id=CASE_ID)
-    SOAR-->>Cline: Case Details
+    AutomatedAgent->>SOAR: get_case_full_details(case_id=CASE_ID)
+    SOAR-->>AutomatedAgent: Case Details
 
     %% Step 2: Identify Alerts & Entities
     alt Use Alert Group IDs
-        Cline->>SOAR: get_entities_by_alert_group_identifiers(case_id=CASE_ID, alert_group_identifiers=ALERT_GROUP_IDS)
-        SOAR-->>Cline: Entities List (KEY_ENTITIES)
-        Cline->>SOAR: list_alerts_by_case(case_id=CASE_ID) %% Filter alerts based on group if possible
-        SOAR-->>Cline: Target Alert List (A1, A2...)
+        AutomatedAgent->>SOAR: get_entities_by_alert_group_identifiers(case_id=CASE_ID, alert_group_identifiers=ALERT_GROUP_IDS)
+        SOAR-->>AutomatedAgent: Entities List (KEY_ENTITIES)
+        AutomatedAgent->>SOAR: list_alerts_by_case(case_id=CASE_ID) %% Filter alerts based on group if possible
+        SOAR-->>AutomatedAgent: Target Alert List (A1, A2...)
     else Use Alert IDs
-        Note over Cline: Extract Target Alerts (A1, A2...) from Case Details or list_alerts_by_case
-        Note over Cline: Extract KEY_ENTITIES from Target Alerts
+        Note over AutomatedAgent: Extract Target Alerts (A1, A2...) from Case Details or list_alerts_by_case
+        Note over AutomatedAgent: Extract KEY_ENTITIES from Target Alerts
     end
 
     %% Step 3: Gather Alert Events
     loop For each Target Alert Ai
-        Cline->>SOAR: list_events_by_alert(case_id=CASE_ID, alert_id=Ai)
-        SOAR-->>Cline: Events for Alert Ai
-        Note over Cline: Store key event details
+        AutomatedAgent->>SOAR: list_events_by_alert(case_id=CASE_ID, alert_id=Ai)
+        SOAR-->>AutomatedAgent: Events for Alert Ai
+        Note over AutomatedAgent: Store key event details
     end
 
     %% Step 4: Enrich Key Entities
     loop For each Entity Ei in KEY_ENTITIES
-        Cline->>SIEM: lookup_entity(entity_value=Ei)
-        SIEM-->>Cline: SIEM Summary for Ei
+        AutomatedAgent->>SIEM: lookup_entity(entity_value=Ei)
+        SIEM-->>AutomatedAgent: SIEM Summary for Ei
         alt Entity Type is IP/Domain/Hash/URL
-            Cline->>GTI: get_..._report(ioc=Ei)
-            GTI-->>Cline: GTI Report Summary for Ei
+            AutomatedAgent->>GTI: get_..._report(ioc=Ei)
+            GTI-->>AutomatedAgent: GTI Report Summary for Ei
         end
-        Note over Cline: Store enrichment findings
+        Note over AutomatedAgent: Store enrichment findings
     end
 
     %% Step 5: Optional SIEM Search
     opt Search Related Activity
         loop For critical Entity Ec in KEY_ENTITIES
-            Cline->>SIEM: search_security_events(text="Activity related to Ec near alert time")
-            SIEM-->>Cline: Related SIEM Events
-            Note over Cline: Store summary of related activity
+            AutomatedAgent->>SIEM: search_security_events(text="Activity related to Ec near alert time")
+            SIEM-->>AutomatedAgent: Related SIEM Events
+            Note over AutomatedAgent: Store summary of related activity
         end
     end
 
     %% Step 6 & 7: Synthesize & Write Report
-    Note over Cline: Format report content (ReportMarkdown) (Case Summary, Alert Summary, Entities, Enrichment, Events, Assessment)
-    Note over Cline: Construct REPORT_NAME_VAR (e.g., alert_report_${CASE_ID}_${REPORT_FILENAME_SUFFIX}_${timestamp}.md)
-    Cline->>Cline: write_report(report_name=REPORT_NAME_VAR, report_contents=ReportMarkdown)
-    Note over Cline: Report file created
+    Note over AutomatedAgent: Format report content (ReportMarkdown) (Case Summary, Alert Summary, Entities, Enrichment, Events, Assessment)
+    Note over AutomatedAgent: Construct REPORT_NAME_VAR (e.g., alert_report_${CASE_ID}_${REPORT_FILENAME_SUFFIX}_${timestamp}.md)
+    AutomatedAgent->>AutomatedAgent: write_report(report_name=REPORT_NAME_VAR, report_contents=ReportMarkdown)
+    Note over AutomatedAgent: Report file created
 
     %% Step 8: Optional SOAR Update
     opt Update SOAR Case
-        Cline->>SOAR: post_case_comment(case_id=CASE_ID, comment="Alert report generated: alert_report_....md. Summary: [...]")
-        SOAR-->>Cline: Comment Confirmation
+        AutomatedAgent->>SOAR: post_case_comment(case_id=CASE_ID, comment="Alert report generated: alert_report_....md. Summary: [...]")
+        SOAR-->>AutomatedAgent: Comment Confirmation
     end
 
     %% Step 9: Completion
-    Cline->>Analyst/User: attempt_completion(result="Alert investigation summary report generated for Case CASE_ID.")
+    AutomatedAgent->>Analyst/User: attempt_completion(result="Alert investigation summary report generated for Case CASE_ID.")

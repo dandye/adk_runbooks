@@ -34,40 +34,40 @@
 ```{mermaid}
 sequenceDiagram
     participant Analyst/User
-    participant Cline as Cline (MCP Client)
+    participant AutomatedAgent as Automated Agent (MCP Client)
     participant BigQuery as bigquery
     participant SOAR as secops-soar (Optional)
 
-    Analyst/User->>Cline: Start Data Lake Query\nInput: QUERY_OBJECTIVE, TARGET_DATASETS, TIME_RANGE...
+    Analyst/User->>AutomatedAgent: Start Data Lake Query\nInput: QUERY_OBJECTIVE, TARGET_DATASETS, TIME_RANGE...
 
     %% Step 1: Define Query
     opt Need Schema/Table Info
-        Cline->>BigQuery: list-tables() / describe-table(table_name=...)
-        BigQuery-->>Cline: Table/Schema Info
+        AutomatedAgent->>BigQuery: list-tables() / describe-table(table_name=...)
+        BigQuery-->>AutomatedAgent: Table/Schema Info
     end
-    Note over Cline: Construct BigQuery SQL Query
+    Note over AutomatedAgent: Construct BigQuery SQL Query
 
     %% Step 2: Execute Query
-    Cline->>BigQuery: execute-query(query=SQL_QUERY)
-    BigQuery-->>Cline: Query Results
+    AutomatedAgent->>BigQuery: execute-query(query=SQL_QUERY)
+    BigQuery-->>AutomatedAgent: Query Results
 
     %% Step 3: Analyze Results
-    Note over Cline: Analyze query results
+    Note over AutomatedAgent: Analyze query results
 
     %% Step 4: Format/Save Results (Optional)
     opt Save Results
-        Note over Cline: Format results (e.g., CSV, JSON) (FormattedResults)
-        Cline->>Cline: write_report(report_name="query_results_${QUERY_OBJECTIVE_Sanitized}_${timestamp}.md", report_contents=FormattedResults)
-        Note over Cline: Results saved as a report file
+        Note over AutomatedAgent: Format results (e.g., CSV, JSON) (FormattedResults)
+        AutomatedAgent->>AutomatedAgent: write_report(report_name="query_results_${QUERY_OBJECTIVE_Sanitized}_${timestamp}.md", report_contents=FormattedResults)
+        Note over AutomatedAgent: Results saved as a report file
     end
 
     %% Step 5: Document (Optional)
     opt Document in SOAR
-        Cline->>SOAR: post_case_comment(case_id=..., comment="Data Lake Query Executed: [...], Summary: [...]")
-        SOAR-->>Cline: Comment Confirmation
+        AutomatedAgent->>SOAR: post_case_comment(case_id=..., comment="Data Lake Query Executed: [...], Summary: [...]")
+        SOAR-->>AutomatedAgent: Comment Confirmation
     end
 
-    Cline->>Analyst/User: attempt_completion(result="Data lake query executed. Results analyzed/saved/documented as requested.")
+    AutomatedAgent->>Analyst/User: attempt_completion(result="Data lake query executed. Results analyzed/saved/documented as requested.")
 
 ```
 

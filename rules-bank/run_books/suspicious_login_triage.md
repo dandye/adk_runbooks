@@ -73,71 +73,71 @@ This runbook covers the initial investigation steps to gather context about a su
 ```{mermaid}
 sequenceDiagram
     participant Analyst
-    participant Cline as Cline (MCP Client)
+    participant AutomatedAgent as Automated Agent (MCP Client)
     participant SOAR as secops-soar
     participant SIEM as secops-mcp
     participant EnrichIOC as common_steps/enrich_ioc.md
     participant FindCase as common_steps/find_relevant_soar_case.md
     participant DocumentInSOAR as common_steps/document_in_soar.md
-    participant AskReport as ask_followup_question (Cline Tool)
+    participant AskReport as ask_followup_question (AutomatedAgent Tool)
     participant GenerateReport as common_steps/generate_report_file.md
     participant IDP as Identity Provider (Optional)
 
-    Analyst->>Cline: Start Suspicious Login Triage\nInput: CASE_ID, ALERT_GROUP_IDS/ALERT_ID
+    Analyst->>AutomatedAgent: Start Suspicious Login Triage\nInput: CASE_ID, ALERT_GROUP_IDS/ALERT_ID
 
     %% Step 1: Context
-    Cline->>SOAR: get_case_full_details(case_id=CASE_ID)
-    SOAR-->>Cline: Case Details
+    AutomatedAgent->>SOAR: get_case_full_details(case_id=CASE_ID)
+    SOAR-->>AutomatedAgent: Case Details
 
     %% Step 2: Extract Key Entities
-    Cline->>SOAR: list_events_by_alert(case_id=CASE_ID, alert_id=...)
-    SOAR-->>Cline: Events
-    Note over Cline: Extract USER_ID, SOURCE_IP, HOSTNAME
+    AutomatedAgent->>SOAR: list_events_by_alert(case_id=CASE_ID, alert_id=...)
+    SOAR-->>AutomatedAgent: Events
+    Note over AutomatedAgent: Extract USER_ID, SOURCE_IP, HOSTNAME
 
     %% Step 3: User Context
-    Cline->>SIEM: lookup_entity(entity_value=USER_ID)
-    SIEM-->>Cline: User SIEM Summary (USER_SIEM_SUMMARY)
+    AutomatedAgent->>SIEM: lookup_entity(entity_value=USER_ID)
+    SIEM-->>AutomatedAgent: User SIEM Summary (USER_SIEM_SUMMARY)
 
     %% Step 4: Source IP Enrichment
-    Cline->>EnrichIOC: Execute(Input: IOC_VALUE=SOURCE_IP, IOC_TYPE="IP Address")
-    EnrichIOC-->>Cline: Results: IP_GTI_FINDINGS, IP_SIEM_SUMMARY, IP_SIEM_MATCH
+    AutomatedAgent->>EnrichIOC: Execute(Input: IOC_VALUE=SOURCE_IP, IOC_TYPE="IP Address")
+    EnrichIOC-->>AutomatedAgent: Results: IP_GTI_FINDINGS, IP_SIEM_SUMMARY, IP_SIEM_MATCH
 
     %% Step 5: Hostname Context
     opt HOSTNAME extracted
-        Cline->>SIEM: lookup_entity(entity_value=HOSTNAME)
-        SIEM-->>Cline: Hostname SIEM Summary (HOSTNAME_SIEM_SUMMARY)
+        AutomatedAgent->>SIEM: lookup_entity(entity_value=HOSTNAME)
+        SIEM-->>AutomatedAgent: Hostname SIEM Summary (HOSTNAME_SIEM_SUMMARY)
     end
 
     %% Step 6: Recent Login Activity
-    Note over Cline: Use refined UDM query
-    Cline->>SIEM: search_security_events(text="Refined Login Query for USER_ID", hours_back=72)
-    SIEM-->>Cline: Recent Login Events (LOGIN_ACTIVITY_SUMMARY)
+    Note over AutomatedAgent: Use refined UDM query
+    AutomatedAgent->>SIEM: search_security_events(text="Refined Login Query for USER_ID", hours_back=72)
+    SIEM-->>AutomatedAgent: Recent Login Events (LOGIN_ACTIVITY_SUMMARY)
 
     %% Step 7: Check Related SOAR Cases
-    Cline->>FindCase: Execute(Input: SEARCH_TERMS=[USER_ID, SOURCE_IP, HOSTNAME], CASE_STATUS_FILTER="Opened")
-    FindCase-->>Cline: Results: RELATED_SOAR_CASES
+    AutomatedAgent->>FindCase: Execute(Input: SEARCH_TERMS=[USER_ID, SOURCE_IP, HOSTNAME], CASE_STATUS_FILTER="Opened")
+    FindCase-->>AutomatedAgent: Results: RELATED_SOAR_CASES
 
     %% Step 8: Optional IDP Check
     opt IDP Tool Available (e.g., okta-mcp)
-        Cline->>IDP: lookup_okta_user(user=USER_ID)
-        IDP-->>Cline: User Account Details from IDP (IDP_SUMMARY)
+        AutomatedAgent->>IDP: lookup_okta_user(user=USER_ID)
+        IDP-->>AutomatedAgent: User Account Details from IDP (IDP_SUMMARY)
     end
 
     %% Step 9: Synthesize & Document
-    Note over Cline: Synthesize findings (incl. related cases, hostname) and prepare COMMENT_TEXT with Recommendation
-    Cline->>DocumentInSOAR: Execute(Input: CASE_ID, COMMENT_TEXT)
-    DocumentInSOAR-->>Cline: Results: COMMENT_POST_STATUS
+    Note over AutomatedAgent: Synthesize findings (incl. related cases, hostname) and prepare COMMENT_TEXT with Recommendation
+    AutomatedAgent->>DocumentInSOAR: Execute(Input: CASE_ID, COMMENT_TEXT)
+    DocumentInSOAR-->>AutomatedAgent: Results: COMMENT_POST_STATUS
 
     %% Step 10: Optional Report Generation
-    Cline->>AskReport: ask_followup_question(question="Generate markdown report?")
-    AskReport-->>Cline: User Response (REPORT_CHOICE)
+    AutomatedAgent->>AskReport: Confirm: "Generate markdown report? (Yes/No)"
+    AskReport-->>AutomatedAgent: User Response (REPORT_CHOICE)
     alt REPORT_CHOICE is "Yes"
-        Note over Cline: Prepare REPORT_CONTENT (incl. Mermaid diagram)
-        Cline->>GenerateReport: Execute(Input: REPORT_CONTENT, REPORT_TYPE="suspicious_login_triage", REPORT_NAME_SUFFIX=CASE_ID)
-        GenerateReport-->>Cline: Results: REPORT_GENERATION_STATUS
+        Note over AutomatedAgent: Prepare REPORT_CONTENT (incl. Mermaid diagram)
+        AutomatedAgent->>GenerateReport: Execute(Input: REPORT_CONTENT, REPORT_TYPE="suspicious_login_triage", REPORT_NAME_SUFFIX=CASE_ID)
+        GenerateReport-->>AutomatedAgent: Results: REPORT_GENERATION_STATUS
     else REPORT_CHOICE is "No"
-        Note over Cline: REPORT_GENERATION_STATUS = "Skipped"
+        Note over AutomatedAgent: REPORT_GENERATION_STATUS = "Skipped"
     end
 
     %% Step 11: Completion
-    Cline->>Analyst: attempt_completion(result="Suspicious Login Triage complete for USER_ID from SOURCE_IP. Findings documented in case CASE_ID. Report Status: REPORT_GENERATION_STATUS.")
+    AutomatedAgent->>Analyst: attempt_completion(result="Suspicious Login Triage complete for USER_ID from SOURCE_IP. Findings documented in case CASE_ID. Report Status: REPORT_GENERATION_STATUS.")

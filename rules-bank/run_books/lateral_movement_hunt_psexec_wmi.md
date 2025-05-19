@@ -65,7 +65,7 @@ This runbook provides a template for hunting specific lateral movement TTPs, foc
 ```{mermaid}
 sequenceDiagram
     participant Analyst
-    participant Cline as Cline (MCP Client)
+    participant AutomatedAgent as Automated Agent (MCP Client)
     participant SecOpsMCP as secops-mcp
     participant SOAR as secops-soar
     participant MITRE as MITRE ATT&CK (External)
@@ -73,71 +73,71 @@ sequenceDiagram
     participant GTI as gti-mcp
     participant FindCase as common_steps/find_relevant_soar_case.md
 
-    Analyst->>Cline: Start Lateral Movement Hunt (PsExec/WMI)\nInput: TIME_FRAME_HOURS, TARGET_SCOPE_QUERY (opt), HUNT_HYPOTHESIS (opt)
+    Analyst->>AutomatedAgent: Start Lateral Movement Hunt (PsExec/WMI)\nInput: TIME_FRAME_HOURS, TARGET_SCOPE_QUERY (opt), HUNT_HYPOTHESIS (opt)
 
     %% Step 2: Research Techniques
-    Cline->>SecOpsMCP: get_threat_intel(query="MITRE T1021.002")
-    SecOpsMCP-->>Cline: Technique Context
-    Cline->>SecOpsMCP: get_threat_intel(query="MITRE T1047")
-    SecOpsMCP-->>Cline: Technique Context
-    Cline->>MITRE: (Manual) Review ATT&CK Website
-    MITRE-->>Cline: Detailed Procedures/Detections
+    AutomatedAgent->>SecOpsMCP: get_threat_intel(query="MITRE T1021.002")
+    SecOpsMCP-->>AutomatedAgent: Technique Context
+    AutomatedAgent->>SecOpsMCP: get_threat_intel(query="MITRE T1047")
+    SecOpsMCP-->>AutomatedAgent: Technique Context
+    AutomatedAgent->>MITRE: (Manual) Review ATT&CK Website
+    MITRE-->>AutomatedAgent: Detailed Procedures/Detections
 
     %% Step 3: Develop SIEM Queries
-    Note over Cline: Formulate UDM queries for PsExec/WMI indicators (incl. new WMI examples)
+    Note over AutomatedAgent: Formulate UDM queries for PsExec/WMI indicators (incl. new WMI examples)
 
     %% Step 4: Execute SIEM Searches
     loop For each developed Query Qi
-        Cline->>SecOpsMCP: search_security_events(text=Qi, hours_back=TIME_FRAME_HOURS)
-        SecOpsMCP-->>Cline: Search Results for Qi
+        AutomatedAgent->>SecOpsMCP: search_security_events(text=Qi, hours_back=TIME_FRAME_HOURS)
+        SecOpsMCP-->>AutomatedAgent: Search Results for Qi
     end
 
     %% Step 5: Network Correlation (Optional)
     opt Suspicious Activity Found
-        Note over Cline: Construct Network Correlation Query Qn
-        Cline->>SecOpsMCP: search_security_events(text=Qn, hours_back=...)
-        SecOpsMCP-->>Cline: Network Correlation Results
+        Note over AutomatedAgent: Construct Network Correlation Query Qn
+        AutomatedAgent->>SecOpsMCP: search_security_events(text=Qn, hours_back=...)
+        SecOpsMCP-->>AutomatedAgent: Network Correlation Results
     end
 
     %% Step 6: Analyze Results
-    Note over Cline: Analyze results for anomalous PsExec/WMI usage & correlations
+    Note over AutomatedAgent: Analyze results for anomalous PsExec/WMI usage & correlations
 
     %% Step 7: Enrich Findings
     opt Suspicious Activity Found
-        Note over Cline: Identify SUSPICIOUS_ENTITIES (H1, U1...)
+        Note over AutomatedAgent: Identify SUSPICIOUS_ENTITIES (H1, U1...)
         loop For each Suspicious Entity Ei
-            Cline->>SecOpsMCP: lookup_entity(entity_value=Ei)
-            SecOpsMCP-->>Cline: SIEM Summary for Ei
+            AutomatedAgent->>SecOpsMCP: lookup_entity(entity_value=Ei)
+            SecOpsMCP-->>AutomatedAgent: SIEM Summary for Ei
             opt IDP Tool Available and Ei is User
-                Cline->>IDP: lookup_user(user=Ei)
-                IDP-->>Cline: User IDP Context
+                AutomatedAgent->>IDP: lookup_user(user=Ei)
+                IDP-->>AutomatedAgent: User IDP Context
             end
             %% Potentially enrich related IOCs if found
             opt IOCs Found (I1, I2...)
                  loop For each IOC Ii
-                     Cline->>GTI: get_..._report(ioc=Ii)
-                     GTI-->>Cline: GTI Report for Ii
+                     AutomatedAgent->>GTI: get_..._report(ioc=Ii)
+                     GTI-->>AutomatedAgent: GTI Report for Ii
                  end
             end
         end
-        Note over Cline: Store combined enrichment (ENRICHMENT_RESULTS)
+        Note over AutomatedAgent: Store combined enrichment (ENRICHMENT_RESULTS)
     end
 
     %% Step 8: Check Related SOAR Cases
     opt Suspicious Activity Found
-        Cline->>FindCase: Execute(Input: SEARCH_TERMS=SUSPICIOUS_ENTITIES, CASE_STATUS_FILTER="Opened")
-        FindCase-->>Cline: Results: RELATED_SOAR_CASES
+        AutomatedAgent->>FindCase: Execute(Input: SEARCH_TERMS=SUSPICIOUS_ENTITIES, CASE_STATUS_FILTER="Opened")
+        FindCase-->>AutomatedAgent: Results: RELATED_SOAR_CASES
     end
 
     %% Step 9: Document Hunt
-    Note over Cline: Prepare hunt summary comment (incl. negative results, related cases & suggested follow-ons)
-    Cline->>SOAR: post_case_comment(case_id=[Hunt Case/Relevant Case], comment="Lateral Movement Hunt (PsExec/WMI) Summary: Scope [...], Queries [...], Findings [...], Enrichment [...], Related Cases: [...], Follow-on: [...]")
-    SOAR-->>Cline: Comment Confirmation
+    Note over AutomatedAgent: Prepare hunt summary comment (incl. negative results, related cases & suggested follow-ons)
+    AutomatedAgent->>SOAR: post_case_comment(case_id=[Hunt Case/Relevant Case], comment="Lateral Movement Hunt (PsExec/WMI) Summary: Scope [...], Queries [...], Findings [...], Enrichment [...], Related Cases: [...], Follow-on: [...]")
+    SOAR-->>AutomatedAgent: Comment Confirmation
 
     %% Step 10 & 11: Escalate or Conclude
     alt Confirmed Malicious Activity Found
-        Note over Cline: Escalate findings (Create new case or link to existing)
-        Cline->>Analyst: attempt_completion(result="Lateral Movement Hunt complete. Findings escalated.")
+        Note over AutomatedAgent: Escalate findings (Create new case or link to existing)
+        AutomatedAgent->>Analyst: attempt_completion(result="Lateral Movement Hunt complete. Findings escalated.")
     else No Significant Findings
-        Cline->>Analyst: attempt_completion(result="Lateral Movement Hunt complete. No significant findings. Hunt documented.")
+        AutomatedAgent->>Analyst: attempt_completion(result="Lateral Movement Hunt complete. No significant findings. Hunt documented.")
     end

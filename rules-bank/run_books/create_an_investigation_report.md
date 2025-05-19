@@ -42,7 +42,7 @@ Consolidate findings from a completed or ongoing investigation involving various
 1.  **Gather Case Context & Identify Key Entities:** Retrieve full details for `${CASE_ID}` using `secops-soar.get_case_full_details`. Extract relevant alerts, comments, existing entities, priority/status, and **explicitly identify the key entities/IOCs** that are central to the investigation based on this initial context.
 2.  **Synthesize Findings:** Combine information from Step 1 with optional inputs (`${INVESTIGATION_SUMMARY}`, `${KEY_ENTITIES}`, `${INCLUDE_TOOLS}`). Review case comments and alert details to reconstruct the investigation narrative and key findings.
     *   **Note on Tool Limitations:** Be aware that direct searches for specific artifacts (like event IDs) or lookups for certain entity types (like hostnames without full paths) might fail or return limited information. If primary methods fail, adapt the investigation by using alternative approaches, such as searching SIEM logs based on related entities (IPs, users) and relevant timeframes, or performing broader lookups.
-3.  **Structure Report:** Organize the synthesized information according to standard templates. **Refer to `.clinerules/reporting_templates.md` and `.clinerules/run_books/guidelines/runbook_guidelines.md`**. Key sections should include: Executive Summary, Investigation Timeline (high-level), Involved Entities & Enrichment Summary, Analysis/Root Cause (if determined), Actions Taken (summary), Recommendations/Lessons Learned.
+3.  **Structure Report:** Organize the synthesized information according to standard templates. **Refer to `rules-bank/reporting_templates.md` and `rules-bank/run_books/guidelines/runbook_guidelines.md`**. Key sections should include: Executive Summary, Investigation Timeline (high-level), Involved Entities & Enrichment Summary, Analysis/Root Cause (if determined), Actions Taken (summary), Recommendations/Lessons Learned.
 4.  **Generate Mermaid Diagram:** Create a Mermaid sequence diagram summarizing the *actual investigation workflow* performed for this case, including any alternative steps taken or tool failures encountered. The diagram should reflect reality, not just the ideal path.
 5.  **Manual Review & Redaction:** **CRITICAL STEP:** Prompt the analyst to review the drafted report content for accuracy and to **manually redact or defang any sensitive data** (e.g., PII, internal hostnames if required, specific credentials) before proceeding. You may ask follow up question to get confirmation that redaction is complete.
 6.  **Format Final Report:** Compile the reviewed/redacted information and the Mermaid diagram into the final Markdown report content (let this be `${FINAL_REPORT_CONTENT}`).
@@ -61,7 +61,7 @@ Consolidate findings from a completed or ongoing investigation involving various
 ```{mermaid}
 sequenceDiagram
     participant User
-    participant Cline as Cline (MCP Client)
+    participant AutomatedAgent as Automated Agent (MCP Client)
     participant SOAR as secops-soar
     participant SIEM as secops-mcp
     participant GTI as gti-mcp
@@ -71,40 +71,40 @@ sequenceDiagram
     participant Drive as google-drive-mcp
     participant GCS as gcs-mcp
 
-    User->>Cline: Request Investigation Report for Case X
-    Cline->>SOAR: list_alerts_by_case(case_id=X)
-    SOAR-->>Cline: Alerts for Case X (containing entities E1, E2...)
+    User->>AutomatedAgent: Request Investigation Report for Case X
+    AutomatedAgent->>SOAR: list_alerts_by_case(case_id=X)
+    SOAR-->>AutomatedAgent: Alerts for Case X (containing entities E1, E2...)
     loop For each relevant Entity Ei
-        Cline->>SIEM: lookup_entity(entity_value=Ei)
-        SIEM-->>Cline: SIEM context for Ei
-        Cline->>GTI: get_file_report/get_domain_report(entity=Ei)
-        GTI-->>Cline: GTI context for Ei
-        Cline->>SCC: search_scc_findings(query=Ei)
-        SCC-->>Cline: SCC findings for Ei
-        Cline->>Okta: lookup_okta_user(user=Ei)
-        Okta-->>Cline: Okta user details for Ei
-        Cline->>CS: get_host_details(host=Ei)
-        CS-->>Cline: CrowdStrike host details for Ei
+        AutomatedAgent->>SIEM: lookup_entity(entity_value=Ei)
+        SIEM-->>AutomatedAgent: SIEM context for Ei
+        AutomatedAgent->>GTI: get_file_report/get_domain_report(entity=Ei)
+        GTI-->>AutomatedAgent: GTI context for Ei
+        AutomatedAgent->>SCC: search_scc_findings(query=Ei)
+        SCC-->>AutomatedAgent: SCC findings for Ei
+        AutomatedAgent->>Okta: lookup_okta_user(user=Ei)
+        Okta-->>AutomatedAgent: Okta user details for Ei
+        AutomatedAgent->>CS: get_host_details(host=Ei)
+        CS-->>AutomatedAgent: CrowdStrike host details for Ei
     end
-    Note over Cline: Synthesize findings, redact/defang sensitive data (FINAL_REPORT_CONTENT)
-    Note over Cline: Construct REPORT_NAME (e.g., investigation_report_case_X.md)
-    Cline->>GenerateReportFile: common_steps/generate_report_file.md(REPORT_CONTENTS=FINAL_REPORT_CONTENT, REPORT_NAME=REPORT_NAME)
-    GenerateReportFile-->>Cline: REPORT_FILE_PATH, WRITE_STATUS
-    Note over Cline: Report created locally at REPORT_FILE_PATH
-    Cline->>SOAR: siemplify_add_attachment_to_case(case_id=X, file_path=REPORT_FILE_PATH)
-    SOAR-->>Cline: Attachment confirmation
-    Cline->>User: ask_followup_question(question="Upload redacted report to Drive/GCS?", options=["Yes, Drive", "Yes, GCS", "No"])
-    User->>Cline: Response (e.g., "Yes, Drive")
+    Note over AutomatedAgent: Synthesize findings, redact/defang sensitive data (FINAL_REPORT_CONTENT)
+    Note over AutomatedAgent: Construct REPORT_NAME (e.g., investigation_report_case_X.md)
+    AutomatedAgent->>GenerateReportFile: common_steps/generate_report_file.md(REPORT_CONTENTS=FINAL_REPORT_CONTENT, REPORT_NAME=REPORT_NAME)
+    GenerateReportFile-->>AutomatedAgent: REPORT_FILE_PATH, WRITE_STATUS
+    Note over AutomatedAgent: Report created locally at REPORT_FILE_PATH
+    AutomatedAgent->>SOAR: siemplify_add_attachment_to_case(case_id=X, file_path=REPORT_FILE_PATH)
+    SOAR-->>AutomatedAgent: Attachment confirmation
+    AutomatedAgent->>User: Confirm: "Upload redacted report to Drive/GCS? (Yes, Drive/Yes, GCS/No)"
+    User->>AutomatedAgent: Response (e.g., "Yes, Drive")
     alt Upload Confirmed
         alt Upload to Drive
-            Cline->>Drive: upload_to_drive(file_path="investigation_report_case_X.md", destination="Reports Folder")
-            Drive-->>Cline: Drive upload confirmation
+            AutomatedAgent->>Drive: upload_to_drive(file_path="investigation_report_case_X.md", destination="Reports Folder")
+            Drive-->>AutomatedAgent: Drive upload confirmation
         else Upload to GCS
-            Cline->>GCS: upload_to_gcs(file_path="investigation_report_case_X.md", bucket="security-reports", object_name="case_X_report.md")
-            GCS-->>Cline: GCS upload confirmation
+            AutomatedAgent->>GCS: upload_to_gcs(file_path="investigation_report_case_X.md", bucket="security-reports", object_name="case_X_report.md")
+            GCS-->>AutomatedAgent: GCS upload confirmation
         end
     end
-    Cline->>Cline: attempt_completion(result="Investigation report created, attached to Case X, and optionally uploaded.")
+    AutomatedAgent->>AutomatedAgent: attempt_completion(result="Investigation report created, attached to Case X, and optionally uploaded.")
 
 ```
 

@@ -59,7 +59,7 @@ This runbook outlines a flexible framework for advanced threat hunting, emphasiz
 ```{mermaid}
 sequenceDiagram
     participant Analyst/Hunter
-    participant SOC_Manager as SOC Manager (MCP Client)
+    participant AutomatedAgent as Automated Agent (MCP Client)
     participant GTI as gti-mcp
     participant SIEM as secops-mcp
     participant SOAR as secops-soar
@@ -68,69 +68,69 @@ sequenceDiagram
     participant IR_Team as Incident Response
     participant SecEng as Security Engineering
 
-    Analyst/Hunter->>SOC_Manager: Start Advanced Threat Hunt\nInput: HUNT_HYPOTHESIS, GTI_REPORTS (opt), SCOPE (opt), TIME_FRAME, HUNT_CASE_ID (opt)
+    Analyst/Hunter->>AutomatedAgent: Start Advanced Threat Hunt\nInput: HUNT_HYPOTHESIS, GTI_REPORTS (opt), SCOPE (opt), TIME_FRAME, HUNT_CASE_ID (opt)
 
     %% Step 1: Define Scope & Case
-    Note over SOC_Manager: Define Hypothesis, Scope, Timeframe. Create/Identify HUNT_CASE_ID.
+    Note over AutomatedAgent: Define Hypothesis, Scope, Timeframe. Create/Identify HUNT_CASE_ID.
 
     %% Step 2: Deep Intelligence Analysis
     loop For each GTI Report R
-        SOC_Manager->>GTI: get_collection_report(id=R)
-        GTI-->>SOC_Manager: Report Details
-        SOC_Manager->>GTI: get_entities_related_to_a_collection(id=R, ...)
-        GTI-->>SOC_Manager: Related Entities/TTPs
-        SOC_Manager->>GTI: get_collection_timeline_events(id=R)
-        GTI-->>SOC_Manager: Timeline
+        AutomatedAgent->>GTI: get_collection_report(id=R)
+        GTI-->>AutomatedAgent: Report Details
+        AutomatedAgent->>GTI: get_entities_related_to_a_collection(id=R, ...)
+        GTI-->>AutomatedAgent: Related Entities/TTPs
+        AutomatedAgent->>GTI: get_collection_timeline_events(id=R)
+        GTI-->>AutomatedAgent: Timeline
     end
-    SOC_Manager->>GTI: get_threat_intel(query="Details on relevant TTPs")
-    GTI-->>SOC_Manager: TTP Context
+    AutomatedAgent->>GTI: get_threat_intel(query="Details on relevant TTPs")
+    GTI-->>AutomatedAgent: TTP Context
 
     %% Step 3: Develop Initial Queries
-    Note over SOC_Manager: Formulate advanced SIEM/BigQuery queries based on Hypothesis & TI
+    Note over AutomatedAgent: Formulate advanced SIEM/BigQuery queries based on Hypothesis & TI
 
     %% Step 4: Iterative Search & Analysis
     loop Until Hunt Concluded
-        SOC_Manager->>SIEM: search_security_events(text=Query, hours_back=...)
-        SIEM-->>SOC_Manager: Search Results
+        AutomatedAgent->>SIEM: search_security_events(text=Query, hours_back=...)
+        SIEM-->>AutomatedAgent: Search Results
         opt Use BigQuery
-            SOC_Manager->>BigQuery: execute-query(query=BQ_Query)
-            BigQuery-->>SOC_Manager: BQ Results
+            AutomatedAgent->>BigQuery: execute-query(query=BQ_Query)
+            BigQuery-->>AutomatedAgent: BQ Results
         end
-        Note over SOC_Manager: Analyze results, identify leads (Leads L1, L2...)
-        Note over SOC_Manager: Refine Hypothesis, Develop New Queries based on Leads
+        Note over AutomatedAgent: Analyze results, identify leads (Leads L1, L2...)
+        Note over AutomatedAgent: Refine Hypothesis, Develop New Queries based on Leads
         break If No More Leads or Hunt Time Limit Reached
     end
 
     %% Step 5: Advanced Enrichment
     opt Suspicious Leads Found (L1, L2...)
         loop For each Lead Li
-            SOC_Manager->>SIEM: lookup_entity(entity_value=Li)
-            SIEM-->>SOC_Manager: SIEM Summary
-            SOC_Manager->>GTI: get_..._report / get_entities_related_to_a_...(ioc=Li)
-            GTI-->>SOC_Manager: GTI Enrichment & Pivot Results
+            AutomatedAgent->>SIEM: lookup_entity(entity_value=Li)
+            SIEM-->>AutomatedAgent: SIEM Summary
+            AutomatedAgent->>GTI: get_..._report / get_entities_related_to_a_...(ioc=Li)
+            GTI-->>AutomatedAgent: GTI Enrichment & Pivot Results
             opt Use Other Tools
-                 SOC_Manager->>OtherTools: Query EDR/Cloud/IDP for Li
-                 OtherTools-->>SOC_Manager: Additional Context
+                 AutomatedAgent->>OtherTools: Query EDR/Cloud/IDP for Li
+                 OtherTools-->>AutomatedAgent: Additional Context
             end
         end
     end
 
     %% Step 6: Synthesize & Document
-    Note over SOC_Manager: Continuously document process, queries, findings in HUNT_CASE_ID
-    SOC_Manager->>SOAR: post_case_comment(case_id=HUNT_CASE_ID, comment="Hunt Update: Query [...], Findings [...], Enrichment [...]")
-    SOAR-->>SOC_Manager: Comment Confirmation
+    Note over AutomatedAgent: Continuously document process, queries, findings in HUNT_CASE_ID
+    AutomatedAgent->>SOAR: post_case_comment(case_id=HUNT_CASE_ID, comment="Hunt Update: Query [...], Findings [...], Enrichment [...]")
+    SOAR-->>AutomatedAgent: Comment Confirmation
 
     %% Step 7 & 8: Action / Handover / Conclude
     alt Confirmed Threat Found
-        Note over SOC_Manager: Escalate to Incident Response
-        SOC_Manager->>IR_Team: Handover Findings
-        SOC_Manager->>Analyst/Hunter: attempt_completion(result="Advanced Hunt complete. Confirmed threat found and escalated.")
+        Note over AutomatedAgent: Escalate to Incident Response
+        AutomatedAgent->>IR_Team: Handover Findings
+        AutomatedAgent->>Analyst/Hunter: attempt_completion(result="Advanced Hunt complete. Confirmed threat found and escalated.")
     else Suspicious Activity Found
-        Note over SOC_Manager: Recommend monitoring or new detections
-        SOC_Manager->>SecEng: Propose New Detection Logic
-        SOC_Manager->>Analyst/Hunter: attempt_completion(result="Advanced Hunt complete. Suspicious activity documented. Recommendations made.")
+        Note over AutomatedAgent: Recommend monitoring or new detections
+        AutomatedAgent->>SecEng: Propose New Detection Logic
+        AutomatedAgent->>Analyst/Hunter: attempt_completion(result="Advanced Hunt complete. Suspicious activity documented. Recommendations made.")
     else Inconclusive / Negative Findings
-        Note over SOC_Manager: Document negative results and limitations
-        SOC_Manager->>Analyst/Hunter: attempt_completion(result="Advanced Hunt complete. No significant findings. Hunt documented.")
+        Note over AutomatedAgent: Document negative results and limitations
+        AutomatedAgent->>Analyst/Hunter: attempt_completion(result="Advanced Hunt complete. No significant findings. Hunt documented.")
     end
 ```

@@ -56,62 +56,62 @@ Instructions:
 ```{mermaid}
 sequenceDiagram
     participant User
-    participant Cline as Cline (MCP Client)
+    participant AutomatedAgent as Automated Agent (MCP Client)
     participant GTI as gti-mcp
     participant SIEM as secops-mcp
     participant SOAR as secops-soar
 
-    User->>Cline: Investigate GTI Collection ID `${COLLECTION_ID}` (Enhanced)
+    User->>AutomatedAgent: Investigate GTI Collection ID `${COLLECTION_ID}` (Enhanced)
 
     %% Step 1: Initial Collection Context
-    Cline->>GTI: get_collection_report(id=`${COLLECTION_ID}`)
-    GTI-->>Cline: Collection Details (Type: T)
+    AutomatedAgent->>GTI: get_collection_report(id=`${COLLECTION_ID}`)
+    GTI-->>AutomatedAgent: Collection Details (Type: T)
 
     %% Step 2 & 3: Define & Investigate Relationships
-    Note over Cline: Determine RELATIONSHIP_LIST based on Type T
+    Note over AutomatedAgent: Determine RELATIONSHIP_LIST based on Type T
     loop For each relationship_name in RELATIONSHIP_LIST
-        Cline->>GTI: get_entities_related_to_a_collection(id=`${COLLECTION_ID}`, relationship_name=...)
-        GTI-->>Cline: Related Entities (E1, E2...) for relationship
-        Note over Cline: Store entities in gti_findings
+        AutomatedAgent->>GTI: get_entities_related_to_a_collection(id=`${COLLECTION_ID}`, relationship_name=...)
+        GTI-->>AutomatedAgent: Related Entities (E1, E2...) for relationship
+        Note over AutomatedAgent: Store entities in gti_findings
     end
 
     %% Step 4: Detailed GTI Entity Enrichment
-    Note over Cline: Initialize enriched_entities
+    Note over AutomatedAgent: Initialize enriched_entities
     loop For each key Entity Ei in gti_findings (Files, Domains, IPs)
         alt Entity is File (Hash H)
-            Cline->>GTI: get_file_report(hash=H)
-            GTI-->>Cline: File Report for H
-            Note over Cline: Store in enriched_entities
+            AutomatedAgent->>GTI: get_file_report(hash=H)
+            GTI-->>AutomatedAgent: File Report for H
+            Note over AutomatedAgent: Store in enriched_entities
         else Entity is Domain (D)
-            Cline->>GTI: get_domain_report(domain=D)
-            GTI-->>Cline: Domain Report for D
-            Note over Cline: Store in enriched_entities
+            AutomatedAgent->>GTI: get_domain_report(domain=D)
+            GTI-->>AutomatedAgent: Domain Report for D
+            Note over AutomatedAgent: Store in enriched_entities
         else Entity is IP Address (IP)
-            Cline->>GTI: get_ip_address_report(ip_address=IP)
-            GTI-->>Cline: IP Report for IP
-            Note over Cline: Store in enriched_entities
+            AutomatedAgent->>GTI: get_ip_address_report(ip_address=IP)
+            GTI-->>AutomatedAgent: IP Report for IP
+            Note over AutomatedAgent: Store in enriched_entities
         end
     end
 
     %% Step 5: Local Environment Correlation
-    Note over Cline: Initialize local_findings
+    Note over AutomatedAgent: Initialize local_findings
     loop For each key IOC Ii from gti_findings (Files, Domains, IPs)
-        Cline->>SIEM: lookup_entity(entity_value=Ii)
-        SIEM-->>Cline: SIEM Entity Summary for Ii
-        Note over Cline: Store in local_findings
-        Cline->>SIEM: search_security_events(text="Events involving Ii")
-        SIEM-->>Cline: Relevant SIEM Events for Ii
-        Note over Cline: Store in local_findings
+        AutomatedAgent->>SIEM: lookup_entity(entity_value=Ii)
+        SIEM-->>AutomatedAgent: SIEM Entity Summary for Ii
+        Note over AutomatedAgent: Store in local_findings
+        AutomatedAgent->>SIEM: search_security_events(text="Events involving Ii")
+        SIEM-->>AutomatedAgent: Relevant SIEM Events for Ii
+        Note over AutomatedAgent: Store in local_findings
     end
     %% Optional SOAR Check (Conceptual)
-    %% Cline->>SOAR: list_cases(filter="Related to Campaign/Actor from GTI")
-    %% SOAR-->>Cline: Potentially related SOAR cases
+    %% AutomatedAgent->>SOAR: list_cases(filter="Related to Campaign/Actor from GTI")
+    %% SOAR-->>AutomatedAgent: Potentially related SOAR cases
 
     %% Step 6 & 7: Synthesize Report and Write File
-    Note over Cline: Synthesize report content (report_contents_var) from gti_findings, enriched_entities, local_findings
-    Note over Cline: Include Key Findings & Recommendations
-    Note over Cline: Construct report_name_var (e.g., enhanced_report_${COLLECTION_ID}_${timestamp}.md)
-    Cline->>Cline: write_report(report_name=report_name_var, report_contents=report_contents_var)
-    Note over Cline: Report file created
+    Note over AutomatedAgent: Synthesize report content (report_contents_var) from gti_findings, enriched_entities, local_findings
+    Note over AutomatedAgent: Include Key Findings & Recommendations
+    Note over AutomatedAgent: Construct report_name_var (e.g., enhanced_report_${COLLECTION_ID}_${timestamp}.md)
+    AutomatedAgent->>AutomatedAgent: write_report(report_name=report_name_var, report_contents=report_contents_var)
+    Note over AutomatedAgent: Report file created
 
-    Cline->>User: attempt_completion(result="Enhanced investigation complete. Report generated.")
+    AutomatedAgent->>User: attempt_completion(result="Enhanced investigation complete. Report generated.")

@@ -17,44 +17,44 @@ Use the tools:
 ```{mermaid}
 sequenceDiagram
     participant User
-    participant Cline as Cline (MCP Client)
+    participant AutomatedAgent as Automated Agent (MCP Client)
     participant SOAR as secops-soar
     participant SIEM as secops-mcp
     participant FindCase as common_steps/find_relevant_soar_case.md
 
-    User->>Cline: Prioritize and investigate cases
-    Cline->>SOAR: list_cases()
-    SOAR-->>Cline: List of cases (C1, C2... Priority P1, P2...)
-    Note over Cline: Analyze cases, identify high priority (e.g., Case X based on initial priority/alerts)
-    Cline->>SOAR: get_case_full_details(case_id=X)
-    SOAR-->>Cline: Full details for Case X (alerts, comments, etc.)
-    Note over Cline: Confirm priority based on full details. May use change_case_priority if needed.
-    Cline->>SOAR: list_alerts_by_case(case_id=X)
-    SOAR-->>Cline: Alerts for Case X (A1, A2...)
-    Note over Cline: Initialize ALL_CASE_ENTITIES = set()
+    User->>AutomatedAgent: Prioritize and investigate cases
+    AutomatedAgent->>SOAR: list_cases()
+    SOAR-->>AutomatedAgent: List of cases (C1, C2... Priority P1, P2...)
+    Note over AutomatedAgent: Analyze cases, identify high priority (e.g., Case X based on initial priority/alerts)
+    AutomatedAgent->>SOAR: get_case_full_details(case_id=X)
+    SOAR-->>AutomatedAgent: Full details for Case X (alerts, comments, etc.)
+    Note over AutomatedAgent: Confirm priority based on full details. May use change_case_priority if needed.
+    AutomatedAgent->>SOAR: list_alerts_by_case(case_id=X)
+    SOAR-->>AutomatedAgent: Alerts for Case X (A1, A2...)
+    Note over AutomatedAgent: Initialize ALL_CASE_ENTITIES = set()
     loop For each Alert Ai in Case X
-        Cline->>SOAR: list_events_by_alert(case_id=X, alert_id=Ai)
-        SOAR-->>Cline: Events for Alert Ai (containing rule_id, entities E1, E2...)
-        Note over Cline: Add E1, E2... to ALL_CASE_ENTITIES
-        Note over Cline: Extract rule_id from event/alert data
-        Cline->>SIEM: list_security_rules(rule_id=rule_id)
-        SIEM-->>Cline: Rule logic/definition for rule_id
-        Cline->>SIEM: list_rule_detections(rule_id=rule_id)
-        SIEM-->>Cline: Detections associated with rule_id
-        Note over Cline: Analyze events/detections against rule logic
+        AutomatedAgent->>SOAR: list_events_by_alert(case_id=X, alert_id=Ai)
+        SOAR-->>AutomatedAgent: Events for Alert Ai (containing rule_id, entities E1, E2...)
+        Note over AutomatedAgent: Add E1, E2... to ALL_CASE_ENTITIES
+        Note over AutomatedAgent: Extract rule_id from event/alert data
+        AutomatedAgent->>SIEM: list_security_rules(rule_id=rule_id)
+        SIEM-->>AutomatedAgent: Rule logic/definition for rule_id
+        AutomatedAgent->>SIEM: list_rule_detections(rule_id=rule_id)
+        SIEM-->>AutomatedAgent: Detections associated with rule_id
+        Note over AutomatedAgent: Analyze events/detections against rule logic
         loop For each relevant Entity Ej in Events
-            Cline->>SIEM: lookup_entity(entity_value=Ej)
-            SIEM-->>Cline: Entity context for Ej
-            Cline->>SIEM: search_security_events(text="Events involving entity Ej", hours_back=...)
-            SIEM-->>Cline: Broader UDM events for Ej
+            AutomatedAgent->>SIEM: lookup_entity(entity_value=Ej)
+            SIEM-->>AutomatedAgent: Entity context for Ej
+            AutomatedAgent->>SIEM: search_security_events(text="Events involving entity Ej", hours_back=...)
+            SIEM-->>AutomatedAgent: Broader UDM events for Ej
         end
     end
-    Note over Cline: Check for related SOAR cases using all identified entities
-    Cline->>FindCase: Execute(Input: SEARCH_TERMS=list(ALL_CASE_ENTITIES), CASE_STATUS_FILTER="Opened")
-    FindCase-->>Cline: Results: RELATED_SOAR_CASES
-    Note over Cline: Synthesize findings, correlate rule logic with events/entities, include related cases
-    Cline->>SOAR: post_case_comment(case_id=X, comment="Investigation Summary: Case X involves rule [Rule Name] triggered by events [...]. Entities [...] investigated. Related Cases: ${RELATED_SOAR_CASES}. Findings: [...]")
-    SOAR-->>Cline: Comment confirmation
-    Cline->>Cline: attempt_completion(result="Completed investigation for Case X. Summary posted as comment.")
+    Note over AutomatedAgent: Check for related SOAR cases using all identified entities
+    AutomatedAgent->>FindCase: Execute(Input: SEARCH_TERMS=list(ALL_CASE_ENTITIES), CASE_STATUS_FILTER="Opened")
+    FindCase-->>AutomatedAgent: Results: RELATED_SOAR_CASES
+    Note over AutomatedAgent: Synthesize findings, correlate rule logic with events/entities, include related cases
+    AutomatedAgent->>SOAR: post_case_comment(case_id=X, comment="Investigation Summary: Case X involves rule [Rule Name] triggered by events [...]. Entities [...] investigated. Related Cases: ${RELATED_SOAR_CASES}. Findings: [...]")
+    SOAR-->>AutomatedAgent: Comment confirmation
+    AutomatedAgent->>AutomatedAgent: attempt_completion(result="Completed investigation for Case X. Summary posted as comment.")
 
 ```

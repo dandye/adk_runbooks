@@ -62,116 +62,116 @@ Uses Tools:
 ```{mermaid}
 sequenceDiagram
     participant User
-    participant Cline as Cline (MCP Client)
+    participant AutomatedAgent as Automated Agent (MCP Client)
     participant SOAR as secops-soar
     participant SIEM as secops-mcp
     participant GTI as gti-mcp
 
-    User->>Cline: Generate timeline for Case `${CASE_ID}` with full process tree
+    User->>AutomatedAgent: Generate timeline for Case `${CASE_ID}` with full process tree
 
     %% Step 1: Get Initial Case Details & Alerts
-    Cline->>SOAR: get_case_full_details(case_id=`${CASE_ID}`)
-    SOAR-->>Cline: Case Details, List of Alerts (A1, A2...), Comments
+    AutomatedAgent->>SOAR: get_case_full_details(case_id=`${CASE_ID}`)
+    SOAR-->>AutomatedAgent: Case Details, List of Alerts (A1, A2...), Comments
 
-    Note over Cline: Initialize timeline_data = [], process_chain = {}, assets = set()
-    Note over Cline: Use Alerts (A1, A2...) from get_case_full_details response
+    Note over AutomatedAgent: Initialize timeline_data = [], process_chain = {}, assets = set()
+    Note over AutomatedAgent: Use Alerts (A1, A2...) from get_case_full_details response
 
     %% Step 2 & 3: Get Events & Optional Rule/Detection Details
     loop For each Alert Ai
-        Cline->>SOAR: list_events_by_alert(case_id=`${CASE_ID}`, alert_id=Ai)
-        SOAR-->>Cline: Events for Alert Ai (E1, E2...)
-        Note over Cline: Extract Process Info (PID P1, Parent PID PP1, Hash H1...), Assets (Host H, IP I...) & store in timeline_data, process_chain, assets
-        Note over Cline: Extract Rule ID Ri, Detection ID Di if available
+        AutomatedAgent->>SOAR: list_events_by_alert(case_id=`${CASE_ID}`, alert_id=Ai)
+        SOAR-->>AutomatedAgent: Events for Alert Ai (E1, E2...)
+        Note over AutomatedAgent: Extract Process Info (PID P1, Parent PID PP1, Hash H1...), Assets (Host H, IP I...) & store in timeline_data, process_chain, assets
+        Note over AutomatedAgent: Extract Rule ID Ri, Detection ID Di if available
         opt Rule ID Ri available
-            Cline->>SOAR: google_chronicle_get_rule_details(rule_id=Ri, ...)
-            SOAR-->>Cline: Rule Details
+            AutomatedAgent->>SOAR: google_chronicle_get_rule_details(rule_id=Ri, ...)
+            SOAR-->>AutomatedAgent: Rule Details
         end
         opt Detection ID Di available
-            Cline->>SOAR: google_chronicle_get_detection_details(detection_id=Di, ...)
-            SOAR-->>Cline: Detection Details
+            AutomatedAgent->>SOAR: google_chronicle_get_detection_details(detection_id=Di, ...)
+            SOAR-->>AutomatedAgent: Detection Details
         end
         alt Process Hash H1 available
-            Cline->>GTI: get_file_report(hash=H1)
-            GTI-->>Cline: GTI Report for Hash H1 -> Classify P1
+            AutomatedAgent->>GTI: get_file_report(hash=H1)
+            GTI-->>AutomatedAgent: GTI Report for Hash H1 -> Classify P1
         end
     end
 
     %% Step 5: Find Parent Processes
-    Note over Cline: **CRITICAL: Find Parent Processes**
-    Note over Cline: Current PID = PP1 (from initial events)
+    Note over AutomatedAgent: **CRITICAL: Find Parent Processes**
+    Note over AutomatedAgent: Current PID = PP1 (from initial events)
     loop While Current PID is valid & not root
-        Cline->>SIEM: search_security_events(text="PROCESS_LAUNCH for target PID Current PID")
-        SIEM-->>Cline: Launch Event (Parent PID PP_Next, CmdLine...)
-        Note over Cline: Store launch event in timeline_data
-        Note over Cline: Add Current PID, PP_Next to process_chain
-        Note over Cline: Current PID = PP_Next
+        AutomatedAgent->>SIEM: search_security_events(text="PROCESS_LAUNCH for target PID Current PID")
+        SIEM-->>AutomatedAgent: Launch Event (Parent PID PP_Next, CmdLine...)
+        Note over AutomatedAgent: Store launch event in timeline_data
+        Note over AutomatedAgent: Add Current PID, PP_Next to process_chain
+        Note over AutomatedAgent: Current PID = PP_Next
     end
 
     %% Step 6: Optional Asset Event Search
     opt Assets identified
         loop For each Asset As in assets
-            Cline->>SOAR: google_chronicle_list_events(target_entities=[{Identifier: As, ...}], time_frame=...)
-            SOAR-->>Cline: Broader events for Asset As
-            Note over Cline: Add relevant asset events to timeline_data
+            AutomatedAgent->>SOAR: google_chronicle_list_events(target_entities=[{Identifier: As, ...}], time_frame=...)
+            SOAR-->>AutomatedAgent: Broader events for Asset As
+            Note over AutomatedAgent: Add relevant asset events to timeline_data
         end
     end
 
-    Note over Cline: Sort timeline_data by time
+    Note over AutomatedAgent: Sort timeline_data by time
 
     %% Step 8: Optional MITRE Enrichment
-    Note over Cline: (Optional) Enrich with MITRE TACTICs
+    Note over AutomatedAgent: (Optional) Enrich with MITRE TACTICs
     loop For each relevant entry in timeline_data
-        Cline->>SIEM: get_threat_intel(query="MITRE TACTIC for [activity description]")
-        SIEM-->>Cline: Potential TACTIC(s)
+        AutomatedAgent->>SIEM: get_threat_intel(query="MITRE TACTIC for [activity description]")
+        SIEM-->>AutomatedAgent: Potential TACTIC(s)
     end
 
     %% Step 10: Optional Gemini Summary
     opt Generate Gemini Summary
-        Cline->>SOAR: siemplify_create_gemini_case_summary(case_id=`${CASE_ID}`, ...)
-        SOAR-->>Cline: Gemini Summary Text
+        AutomatedAgent->>SOAR: siemplify_create_gemini_case_summary(case_id=`${CASE_ID}`, ...)
+        SOAR-->>AutomatedAgent: Gemini Summary Text
     end
 
     %% Step 12: Confirm Report Generation
-    Cline->>User: ask_followup_question(question="Generate MD report (incl. Process Trees)? Include delta/Gemini?", options=["Yes, include delta", "Yes, exclude delta", "Yes, include Gemini", "Yes, include All", "No Report"])
-    User->>Cline: Confirmation (e.g., "Yes, exclude delta")
+    AutomatedAgent->>User: Confirm: "Generate MD report (incl. Process Trees)? Include delta/Gemini? (Yes, include delta/Yes, exclude delta/Yes, include Gemini/Yes, include All/No Report)"
+    User->>AutomatedAgent: Confirmation (e.g., "Yes, exclude delta")
 
     alt Report Confirmed ("Yes...")
         %% Step 13: Write MD Report
-        Note over Cline: Format report content (MUST include Trees & Table, optionally Gemini Summary)
-        Cline->>Cline: write_report(path="./reports/case_${CASE_ID}_timeline_${timestamp}.md", content=...)
-        Note over Cline: MD Report file created.
+        Note over AutomatedAgent: Format report content (MUST include Trees & Table, optionally Gemini Summary)
+        AutomatedAgent->>AutomatedAgent: write_report(path="./reports/case_${CASE_ID}_timeline_${timestamp}.md", content=...)
+        Note over AutomatedAgent: MD Report file created.
 
         %% Step 14 & 15: Confirm PDF/Attach
-        Cline->>User: ask_followup_question(question="Convert report to PDF and attach/comment in SOAR?", options=["Yes", "No"])
-        User->>Cline: Confirmation (e.g., "Yes")
+        AutomatedAgent->>User: Confirm: "Convert report to PDF and attach/comment in SOAR? (Yes/No)"
+        User->>AutomatedAgent: Confirmation (e.g., "Yes")
 
         alt PDF & Attach/Comment Confirmed
-            Note over Cline: Attempt SOAR attachment (Tool dependent)
-            Cline->>SOAR: post_case_comment(case_id=`${CASE_ID}`, comment="Generated report. PDF available at: PDF_PATH") %% Fallback if attach fails
-            SOAR-->>Cline: Comment Confirmation
+            Note over AutomatedAgent: Attempt SOAR attachment (Tool dependent)
+            AutomatedAgent->>SOAR: post_case_comment(case_id=`${CASE_ID}`, comment="Generated report. PDF available at: PDF_PATH") %% Fallback if attach fails
+            SOAR-->>AutomatedAgent: Comment Confirmation
 
             %% Step 16 & 17: Optional SOAR Actions
-            Cline->>User: ask_followup_question(question="Perform additional SOAR actions?", options=["Tag Case", "Change Priority", "Add Insight", "Update Description", "Assign Case", "Raise Incident", "None"])
-            User->>Cline: SOAR Action Choice (e.g., "Tag Case")
+            AutomatedAgent->>User: Confirm: "Perform additional SOAR actions? (Tag Case/Change Priority/Add Insight/Update Description/Assign Case/Raise Incident/None)"
+            User->>AutomatedAgent: SOAR Action Choice (e.g., "Tag Case")
             alt SOAR Action Chosen != "None"
                 %% Execute chosen SOAR action(s)
-                Cline->>SOAR: [Chosen SOAR Tool](case_id=`${CASE_ID}`, ...)
-                SOAR-->>Cline: Action Confirmation
+                AutomatedAgent->>SOAR: [Chosen SOAR Tool](case_id=`${CASE_ID}`, ...)
+                SOAR-->>AutomatedAgent: Action Confirmation
             end
-            Cline->>Cline: attempt_completion(result="Timeline analysis complete. Report generated (MD/PDF). SOAR case updated. Optional actions performed.")
+            AutomatedAgent->>AutomatedAgent: attempt_completion(result="Timeline analysis complete. Report generated (MD/PDF). SOAR case updated. Optional actions performed.")
 
         else PDF & Attach/Comment Not Confirmed
             %% Step 16 & 17: Optional SOAR Actions (No PDF/Attach)
-            Cline->>User: ask_followup_question(question="Perform additional SOAR actions?", options=["Tag Case", "Change Priority", "Add Insight", "Update Description", "Assign Case", "Raise Incident", "None"])
-            User->>Cline: SOAR Action Choice (e.g., "None")
+            AutomatedAgent->>User: Confirm: "Perform additional SOAR actions? (Tag Case/Change Priority/Add Insight/Update Description/Assign Case/Raise Incident/None)"
+            User->>AutomatedAgent: SOAR Action Choice (e.g., "None")
              alt SOAR Action Chosen != "None"
                 %% Execute chosen SOAR action(s)
-                Cline->>SOAR: [Chosen SOAR Tool](case_id=`${CASE_ID}`, ...)
-                SOAR-->>Cline: Action Confirmation
+                AutomatedAgent->>SOAR: [Chosen SOAR Tool](case_id=`${CASE_ID}`, ...)
+                SOAR-->>AutomatedAgent: Action Confirmation
             end
-            Cline->>Cline: attempt_completion(result="Timeline analysis complete. MD Report generated. Optional actions performed.")
+            AutomatedAgent->>AutomatedAgent: attempt_completion(result="Timeline analysis complete. MD Report generated. Optional actions performed.")
         end
     else Report Not Confirmed ("No Report")
-        Cline->>Cline: attempt_completion(result="Timeline analysis complete. No report generated.")
+        AutomatedAgent->>AutomatedAgent: attempt_completion(result="Timeline analysis complete. No report generated.")
     end
 ```

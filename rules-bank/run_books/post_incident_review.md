@@ -40,7 +40,7 @@ This runbook outlines the process for conducting a PIR meeting, analyzing incide
     *   **Brainstorm Recommendations:** Collaboratively develop specific, measurable, achievable, relevant, and time-bound (SMART) recommendations for improvement.
 4.  **Document PIR Findings & Recommendations:**
     *   Consolidate the discussion points, identified gaps, root cause analysis, and recommendations.
-    *   Structure the findings according to a standard PIR report template (potentially defined in `.clinerules/reporting_templates.md`).
+    *   Structure the findings according to a standard PIR report template (potentially defined in `.agentrules/reporting_templates.md`).
 5.  **Assign & Track Recommendations:**
     *   Assign owners and target completion dates for each recommendation.
     *   Establish a mechanism for tracking the implementation status of recommendations (e.g., within the SOAR case, a separate tracking system).
@@ -54,22 +54,22 @@ This runbook outlines the process for conducting a PIR meeting, analyzing incide
 ```{mermaid}
 sequenceDiagram
     participant PIR_Lead/Analyst
-    participant Cline as Cline (MCP Client)
+    participant AutomatedAgent as Automated Agent (MCP Client)
     participant SOAR as secops-soar
     participant Stakeholders as Key Stakeholders
     participant Documentation as Runbooks/Policies
     participant TrackingSystem as Recommendation Tracking
 
-    PIR_Lead/Analyst->>Cline: Start Post-Incident Review\nInput: CASE_ID, REPORT_PATH (opt), STAKEHOLDERS (opt)
+    PIR_Lead/Analyst->>AutomatedAgent: Start Post-Incident Review\nInput: CASE_ID, REPORT_PATH (opt), STAKEHOLDERS (opt)
 
     %% Step 1: Schedule Meeting
     Note over PIR_Lead/Analyst: Identify & Schedule Stakeholders
 
     %% Step 2: Gather Data
-    Cline->>SOAR: get_case_full_details(case_id=CASE_ID)
-    SOAR-->>Cline: Case Details, Comments, Phase 7 Feedback
-    Note over Cline: Review Incident Report (REPORT_PATH)
-    Note over Cline: Compile Detailed Timeline
+    AutomatedAgent->>SOAR: get_case_full_details(case_id=CASE_ID)
+    SOAR-->>AutomatedAgent: Case Details, Comments, Phase 7 Feedback
+    Note over AutomatedAgent: Review Incident Report (REPORT_PATH)
+    Note over AutomatedAgent: Compile Detailed Timeline
 
     %% Step 3: Conduct PIR Meeting
     PIR_Lead/Analyst->>Stakeholders: Conduct PIR Meeting
@@ -85,12 +85,12 @@ sequenceDiagram
     PIR_Lead/Analyst->>Documentation: Initiate updates to Runbooks, Policies, Detections
 
     %% Step 7: Finalize PIR Documentation
-    Cline->>SOAR: post_case_comment(case_id=CASE_ID, comment="PIR Summary: Root Cause [...], Gaps [...], Recommendations [...]")
-    SOAR-->>Cline: Comment Confirmation
+    AutomatedAgent->>SOAR: post_case_comment(case_id=CASE_ID, comment="PIR Summary: Root Cause [...], Gaps [...], Recommendations [...]")
+    SOAR-->>AutomatedAgent: Comment Confirmation
     Note over PIR_Lead/Analyst: Store formal PIR report
 
     %% Step 8: Completion
-    Cline->>PIR_Lead/Analyst: attempt_completion(result="Post-Incident Review process complete for Case CASE_ID. Findings documented and recommendations tracked.")
+    AutomatedAgent->>PIR_Lead/Analyst: attempt_completion(result="Post-Incident Review process complete for Case CASE_ID. Findings documented and recommendations tracked.")
 
 ```
 

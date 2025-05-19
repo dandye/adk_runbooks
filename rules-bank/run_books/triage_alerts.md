@@ -46,7 +46,7 @@
 7.  **Basic Enrichment:** Initialize `ENRICHMENT_RESULTS` structure. For each entity `Ei` in `KEY_ENTITIES`:
     *   Execute `common_steps/enrich_ioc.md` with `IOC_VALUE=Ei` and appropriate `IOC_TYPE`.
     *   Store results (`GTI_FINDINGS`, `SIEM_ENTITY_SUMMARY`, `SIEM_IOC_MATCH_STATUS`) in `ENRICHMENT_RESULTS[Ei]`.
-8.  **Initial Assessment:** Based on alert type, `ENRICHMENT_RESULTS`, `${ENTITY_RELATED_CASES}`, `${INITIAL_SIEM_CONTEXT}`, and potential known benign patterns (referencing `.clinerules/common_benign_alerts.md` if available), make an initial assessment:
+8.  **Initial Assessment:** Based on alert type, `ENRICHMENT_RESULTS`, `${ENTITY_RELATED_CASES}`, `${INITIAL_SIEM_CONTEXT}`, and potential known benign patterns (referencing `.agentrules/common_benign_alerts.md` if available), make an initial assessment:
     *   False Positive (FP)
     *   Benign True Positive (BTP - expected/authorized activity)
     *   Requires Further Investigation (True Positive - TP or Suspicious)
@@ -65,7 +65,7 @@
 ```{mermaid}
 sequenceDiagram
     participant Analyst
-    participant Cline as Cline (MCP Client)
+    participant AutomatedAgent as Automated Agent (MCP Client)
     participant SOAR as secops-soar
     participant CheckDuplicates as common_steps/check_duplicate_cases.md
     participant FindCase as common_steps/find_relevant_soar_case.md
@@ -73,59 +73,59 @@ sequenceDiagram
     participant DocumentInSOAR as common_steps/document_in_soar.md
     participant CloseArtifact as common_steps/close_soar_artifact.md
 
-    Analyst->>Cline: Start Alert Triage\nInput: ALERT_ID/CASE_ID
+    Analyst->>AutomatedAgent: Start Alert Triage\nInput: ALERT_ID/CASE_ID
 
     %% Step 2: Gather Initial Context
-    Cline->>SOAR: get_case_full_details / list_alerts_by_case / list_events_by_alert
-    SOAR-->>Cline: Context (KEY_ENTITIES: E1, E2...)
+    AutomatedAgent->>SOAR: get_case_full_details / list_alerts_by_case / list_events_by_alert
+    SOAR-->>AutomatedAgent: Context (KEY_ENTITIES: E1, E2...)
 
     %% Step 3: Check for Duplicates
-    Cline->>CheckDuplicates: Execute(Input: CASE_ID)
-    CheckDuplicates-->>Cline: Results: SIMILAR_CASE_IDS
+    AutomatedAgent->>CheckDuplicates: Execute(Input: CASE_ID)
+    CheckDuplicates-->>AutomatedAgent: Results: SIMILAR_CASE_IDS
 
     %% Step 4: Handle Duplicates
     alt SIMILAR_CASE_IDS not empty & Confirmed Duplicate
-        Cline->>DocumentInSOAR: Execute(Input: CASE_ID, Comment="Closing as duplicate...")
-        DocumentInSOAR-->>Cline: Status
-        Cline->>CloseArtifact: Execute(Input: ARTIFACT_ID=CASE_ID/ALERT_ID, TYPE=..., REASON="Duplicate"...)
-        CloseArtifact-->>Cline: Status
-        Cline->>Analyst: End Triage (Duplicate)
+        AutomatedAgent->>DocumentInSOAR: Execute(Input: CASE_ID, Comment="Closing as duplicate...")
+        DocumentInSOAR-->>AutomatedAgent: Status
+        AutomatedAgent->>CloseArtifact: Execute(Input: ARTIFACT_ID=CASE_ID/ALERT_ID, TYPE=..., REASON="Duplicate"...)
+        CloseArtifact-->>AutomatedAgent: Status
+        AutomatedAgent->>Analyst: End Triage (Duplicate)
     end
 
     %% Step 5: Find Entity-Related Cases
-    Cline->>FindCase: Execute(Input: SEARCH_TERMS=KEY_ENTITIES, CASE_STATUS_FILTER="Opened")
-    FindCase-->>Cline: Results: ENTITY_RELATED_CASES
+    AutomatedAgent->>FindCase: Execute(Input: SEARCH_TERMS=KEY_ENTITIES, CASE_STATUS_FILTER="Opened")
+    FindCase-->>AutomatedAgent: Results: ENTITY_RELATED_CASES
 
     %% Step 6: Alert-Specific SIEM Search
-    Note over Cline: Construct alert-specific SIEM query based on alert type
-    Cline->>SIEM: search_security_events(text=AlertSpecificQuery, hours_back=1)
-    SIEM-->>Cline: Initial SIEM Context Results (INITIAL_SIEM_CONTEXT)
+    Note over AutomatedAgent: Construct alert-specific SIEM query based on alert type
+    AutomatedAgent->>SIEM: search_security_events(text=AlertSpecificQuery, hours_back=1)
+    SIEM-->>AutomatedAgent: Initial SIEM Context Results (INITIAL_SIEM_CONTEXT)
 
     %% Step 7: Basic Enrichment
     loop For each Key Entity Ei
-        Cline->>EnrichIOC: Execute(Input: IOC_VALUE=Ei, IOC_TYPE=...)
-        EnrichIOC-->>Cline: Results: Enrichment Data for Ei
+        AutomatedAgent->>EnrichIOC: Execute(Input: IOC_VALUE=Ei, IOC_TYPE=...)
+        EnrichIOC-->>AutomatedAgent: Results: Enrichment Data for Ei
     end
 
     %% Step 8: Initial Assessment
-    Note over Cline: Assess: FP / BTP / TP / Suspicious based on Context, Enrichment, Related Cases & Initial SIEM Context
+    Note over AutomatedAgent: Assess: FP / BTP / TP / Suspicious based on Context, Enrichment, Related Cases & Initial SIEM Context
 
     %% Step 9: Action Based on Assessment
     alt FP / BTP
-        Cline->>DocumentInSOAR: Execute(Input: CASE_ID, Comment="Closing as FP/BTP...")
-        DocumentInSOAR-->>Cline: Status
-        Cline->>CloseArtifact: Execute(Input: ARTIFACT_ID=CASE_ID/ALERT_ID, TYPE=..., REASON="FP/BTP"...)
-        CloseArtifact-->>Cline: Status
-        Cline->>Analyst: End Triage (FP/BTP)
+        AutomatedAgent->>DocumentInSOAR: Execute(Input: CASE_ID, Comment="Closing as FP/BTP...")
+        DocumentInSOAR-->>AutomatedAgent: Status
+        AutomatedAgent->>CloseArtifact: Execute(Input: ARTIFACT_ID=CASE_ID/ALERT_ID, TYPE=..., REASON="FP/BTP"...)
+        CloseArtifact-->>AutomatedAgent: Status
+        AutomatedAgent->>Analyst: End Triage (FP/BTP)
     else TP / Suspicious
         opt Change Priority
-             Cline->>SOAR: change_case_priority(...)
-             SOAR-->>Cline: Status
+             AutomatedAgent->>SOAR: change_case_priority(...)
+             SOAR-->>AutomatedAgent: Status
         end
-        Cline->>DocumentInSOAR: Execute(Input: CASE_ID, Comment="Initial Findings...")
-        DocumentInSOAR-->>Cline: Status
-        Note over Cline: Escalate / Assign / Trigger Next Runbook
-        Cline->>Analyst: End Triage (Escalated)
+        AutomatedAgent->>DocumentInSOAR: Execute(Input: CASE_ID, Comment="Initial Findings...")
+        DocumentInSOAR-->>AutomatedAgent: Status
+        Note over AutomatedAgent: Escalate / Assign / Trigger Next Runbook
+        AutomatedAgent->>Analyst: End Triage (Escalated)
     end
 ```
 

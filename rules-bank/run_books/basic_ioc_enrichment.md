@@ -72,7 +72,7 @@ This runbook covers fundamental enrichment steps using readily available GTI and
 ```{mermaid}
 sequenceDiagram
     participant Analyst
-    participant Cline as Cline (MCP Client)
+    participant AutomatedAgent as Automated Agent (MCP Client)
     participant EnrichIOC as common_steps/enrich_ioc.md
     participant PivotGTI as common_steps/pivot_on_ioc_gti.md
     participant FindCase as common_steps/find_relevant_soar_case.md
@@ -83,47 +83,47 @@ sequenceDiagram
     participant SOAR as secops-soar
     participant User
 
-    Analyst->>Cline: Start Basic IOC Enrichment v2\nInput: IOC_VALUE, IOC_TYPE, CASE_ID (opt), ...
+    Analyst->>AutomatedAgent: Start Basic IOC Enrichment v2\nInput: IOC_VALUE, IOC_TYPE, CASE_ID (opt), ...
 
     %% Step 2: Enrich IOC (GTI Report + SIEM Lookup + SIEM Match)
-    Cline->>EnrichIOC: Execute(Input: IOC_VALUE, IOC_TYPE)
-    EnrichIOC-->>Cline: Results: GTI_FINDINGS, SIEM_ENTITY_SUMMARY, SIEM_IOC_MATCH_STATUS
+    AutomatedAgent->>EnrichIOC: Execute(Input: IOC_VALUE, IOC_TYPE)
+    EnrichIOC-->>AutomatedAgent: Results: GTI_FINDINGS, SIEM_ENTITY_SUMMARY, SIEM_IOC_MATCH_STATUS
 
     %% Step 3: Fetch Key GTI Relationships
-    Note over Cline: Determine relevant RELATIONSHIP_NAMES (REL_LIST)
-    Cline->>PivotGTI: Execute(Input: IOC_VALUE, IOC_TYPE, RELATIONSHIP_NAMES=REL_LIST)
-    PivotGTI-->>Cline: Results: GTI_RELATIONSHIPS
+    Note over AutomatedAgent: Determine relevant RELATIONSHIP_NAMES (REL_LIST)
+    AutomatedAgent->>PivotGTI: Execute(Input: IOC_VALUE, IOC_TYPE, RELATIONSHIP_NAMES=REL_LIST)
+    PivotGTI-->>AutomatedAgent: Results: GTI_RELATIONSHIPS
 
     %% Step 4: Search Recent SIEM Events
-    Cline->>SIEM: search_security_events(text=IOC_VALUE, hours_back=SIEM_SEARCH_HOURS)
-    SIEM-->>Cline: Recent SIEM Events Summary (SIEM_RECENT_EVENTS)
+    AutomatedAgent->>SIEM: search_security_events(text=IOC_VALUE, hours_back=SIEM_SEARCH_HOURS)
+    SIEM-->>AutomatedAgent: Recent SIEM Events Summary (SIEM_RECENT_EVENTS)
 
     %% Step 5: Search Relevant SOAR Cases
-    Cline->>FindCase: Execute(Input: SEARCH_TERMS=[IOC_VALUE], CASE_STATUS_FILTER="Opened")
-    FindCase-->>Cline: Results: RELEVANT_CASE_IDS, RELEVANT_CASE_SUMMARIES (FOUND_CASES)
+    AutomatedAgent->>FindCase: Execute(Input: SEARCH_TERMS=[IOC_VALUE], CASE_STATUS_FILTER="Opened")
+    FindCase-->>AutomatedAgent: Results: RELEVANT_CASE_IDS, RELEVANT_CASE_SUMMARIES (FOUND_CASES)
 
     %% Step 6: Synthesize Findings & Assess Risk
-    Note over Cline: Combine all findings (incl. FOUND_CASES). Guide analyst assessment (ASSESSMENT) & recommendation (RECOMMENDATION).
+    Note over AutomatedAgent: Combine all findings (incl. FOUND_CASES). Guide analyst assessment (ASSESSMENT) & recommendation (RECOMMENDATION).
 
     %% Step 7: Conditional Documentation
     alt CASE_ID provided
-        Note over Cline: Prepare COMMENT_TEXT with all findings, assessment, recommendation
-        Cline->>DocumentInSOAR: Execute(Input: CASE_ID, COMMENT_TEXT)
-        DocumentInSOAR-->>Cline: Results: DOCUMENTATION_STATUS
+        Note over AutomatedAgent: Prepare COMMENT_TEXT with all findings, assessment, recommendation
+        AutomatedAgent->>DocumentInSOAR: Execute(Input: CASE_ID, COMMENT_TEXT)
+        DocumentInSOAR-->>AutomatedAgent: Results: DOCUMENTATION_STATUS
     else CASE_ID not provided
-        Note over Cline: DOCUMENTATION_STATUS = "Skipped"
+        Note over AutomatedAgent: DOCUMENTATION_STATUS = "Skipped"
     end
 
     %% Step 8: Optional Report Generation
-    Cline->>User: ask_followup_question(question="Generate markdown report?")
-    User-->>Cline: Report Choice (REPORT_CHOICE)
+    AutomatedAgent->>User: Confirm: "Generate markdown report? (Yes/No)"
+    User-->>AutomatedAgent: Report Choice (REPORT_CHOICE)
     alt REPORT_CHOICE is "Yes"
-        Note over Cline: Prepare REPORT_CONTENT
-        Cline->>GenerateReport: Execute(Input: REPORT_CONTENT, REPORT_TYPE="ioc_enrichment", REPORT_NAME_SUFFIX=IOC_VALUE)
-        GenerateReport-->>Cline: Results: REPORT_GENERATION_STATUS
+        Note over AutomatedAgent: Prepare REPORT_CONTENT
+        AutomatedAgent->>GenerateReport: Execute(Input: REPORT_CONTENT, REPORT_TYPE="ioc_enrichment", REPORT_NAME_SUFFIX=IOC_VALUE)
+        GenerateReport-->>AutomatedAgent: Results: REPORT_GENERATION_STATUS
     else REPORT_CHOICE is "No"
-        Note over Cline: REPORT_GENERATION_STATUS = "Skipped"
+        Note over AutomatedAgent: REPORT_GENERATION_STATUS = "Skipped"
     end
 
     %% Step 9: Completion
-    Cline->>Analyst: attempt_completion(result="Basic IOC enrichment v2 complete for IOC_VALUE. Assessment: ASSESSMENT. Recommendation: RECOMMENDATION. Documentation: DOCUMENTATION_STATUS. Report: REPORT_GENERATION_STATUS.")
+    AutomatedAgent->>Analyst: attempt_completion(result="Basic IOC enrichment v2 complete for IOC_VALUE. Assessment: ASSESSMENT. Recommendation: RECOMMENDATION. Documentation: DOCUMENTATION_STATUS. Report: REPORT_GENERATION_STATUS.")

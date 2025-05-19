@@ -35,47 +35,47 @@
 ```{mermaid}
 sequenceDiagram
     participant Developer/Engineer
-    participant Cline as Cline (MCP Client)
+    participant AutomatedAgent as Automated Agent (MCP Client)
     participant SIEM as secops-mcp
     participant VersionControl as Git (Conceptual)
     participant CI_CD as CI/CD Pipeline (Conceptual)
     participant SOAR as secops-soar (Optional)
 
-    Developer/Engineer->>Cline: Start Detection-as-Code Workflow\nInput: RULE_IDEA, LOG_SOURCES, TEST_DATA...
+    Developer/Engineer->>AutomatedAgent: Start Detection-as-Code Workflow\nInput: RULE_IDEA, LOG_SOURCES, TEST_DATA...
 
     %% Step 1: Rule Development
-    Note over Cline: Draft detection logic (e.g., YARA-L)
+    Note over AutomatedAgent: Draft detection logic (e.g., YARA-L)
 
     %% Step 2: Testing
-    Cline->>SIEM: search_security_events(text="Test Query for Rule", ...)
-    SIEM-->>Cline: Test Results
+    AutomatedAgent->>SIEM: search_security_events(text="Test Query for Rule", ...)
+    SIEM-->>AutomatedAgent: Test Results
     opt Validate Query Tool Available
-        Cline->>SIEM: validate_udm_query(query=...)
-        SIEM-->>Cline: Validation Result
+        AutomatedAgent->>SIEM: validate_udm_query(query=...)
+        SIEM-->>AutomatedAgent: Validation Result
     end
-    Note over Cline: Refine rule based on testing
+    Note over AutomatedAgent: Refine rule based on testing
 
     %% Step 3: Version Control
-    Cline->>VersionControl: (Conceptual) Commit rule definition to branch
+    AutomatedAgent->>VersionControl: (Conceptual) Commit rule definition to branch
 
     %% Step 4: Peer Review
-    Note over Cline: Initiate Peer Review Process (Manual/External)
+    Note over AutomatedAgent: Initiate Peer Review Process (Manual/External)
 
     %% Step 5: Deployment
-    Cline->>VersionControl: (Conceptual) Merge rule to main branch
+    AutomatedAgent->>VersionControl: (Conceptual) Merge rule to main branch
     VersionControl->>CI_CD: (Conceptual) Trigger Deployment Pipeline
     CI_CD->>SIEM: (Conceptual) Deploy rule (e.g., via create_detection_rule)
     SIEM-->>CI_CD: Deployment Status
-    CI_CD-->>Cline: Deployment Result
+    CI_CD-->>AutomatedAgent: Deployment Result
 
     %% Step 6: Monitoring
-    Note over Cline: Monitor rule performance (Manual/Alerting)
+    Note over AutomatedAgent: Monitor rule performance (Manual/Alerting)
     opt Document Deployment
-        Cline->>SOAR: post_case_comment(case_id=..., comment="Rule [Rule Name] deployed via DaC workflow.")
-        SOAR-->>Cline: Comment Confirmation
+        AutomatedAgent->>SOAR: post_case_comment(case_id=..., comment="Rule [Rule Name] deployed via DaC workflow.")
+        SOAR-->>AutomatedAgent: Comment Confirmation
     end
 
-    Cline->>Developer/Engineer: attempt_completion(result="Detection-as-Code workflow initiated/completed for rule idea. Deployment status: [...]")
+    AutomatedAgent->>Developer/Engineer: attempt_completion(result="Detection-as-Code workflow initiated/completed for rule idea. Deployment status: [...]")
 
 ```
 

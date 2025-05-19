@@ -34,48 +34,48 @@
 ```{mermaid}
 sequenceDiagram
     participant Analyst/Researcher
-    participant Cline as Cline (MCP Client)
+    participant AutomatedAgent as Automated Agent (MCP Client)
     participant SOAR as secops-soar
     participant SIEM as secops-mcp
     participant BigQuery as bigquery (Optional)
 
-    Analyst/Researcher->>Cline: Start Meta-Analysis\nInput: ANALYSIS_FOCUS, TIMEFRAME_DAYS, DATA_SOURCES (opt)
+    Analyst/Researcher->>AutomatedAgent: Start Meta-Analysis\nInput: ANALYSIS_FOCUS, TIMEFRAME_DAYS, DATA_SOURCES (opt)
 
     %% Step 1: Define Scope
-    Note over Cline: Define analysis objective and scope
+    Note over AutomatedAgent: Define analysis objective and scope
 
     %% Step 2: Data Collection
     opt Collect SOAR Data
-        Cline->>SOAR: list_cases(filter=..., time_range=...)
-        SOAR-->>Cline: Case List
+        AutomatedAgent->>SOAR: list_cases(filter=..., time_range=...)
+        SOAR-->>AutomatedAgent: Case List
         loop For relevant Case Ci
-            Cline->>SOAR: get_case_full_details(case_id=Ci)
-            SOAR-->>Cline: Case Details for Ci
+            AutomatedAgent->>SOAR: get_case_full_details(case_id=Ci)
+            SOAR-->>AutomatedAgent: Case Details for Ci
         end
     end
     opt Collect SIEM Data
-        Cline->>SIEM: search_security_events(text=..., hours_back=...)
-        SIEM-->>Cline: SIEM Event Data
-        Cline->>SIEM: get_security_alerts(query=..., hours_back=...)
-        SIEM-->>Cline: SIEM Alert Data
+        AutomatedAgent->>SIEM: search_security_events(text=..., hours_back=...)
+        SIEM-->>AutomatedAgent: SIEM Event Data
+        AutomatedAgent->>SIEM: get_security_alerts(query=..., hours_back=...)
+        SIEM-->>AutomatedAgent: SIEM Alert Data
     end
     opt Collect Data Lake Data
-        Cline->>BigQuery: execute-query(query=...)
-        BigQuery-->>Cline: Data Lake Results
+        AutomatedAgent->>BigQuery: execute-query(query=...)
+        BigQuery-->>AutomatedAgent: Data Lake Results
     end
 
     %% Step 3: Data Aggregation & Analysis
-    Note over Cline: Aggregate and analyze collected data for trends/patterns
+    Note over AutomatedAgent: Aggregate and analyze collected data for trends/patterns
 
     %% Step 4 & 5: Synthesize Findings & Recommendations
-    Note over Cline: Summarize key findings and formulate recommendations
+    Note over AutomatedAgent: Summarize key findings and formulate recommendations
 
     %% Step 6: Generate Report
-    Note over Cline: Compile report content (ReportMarkdown) (Objective, Method, Findings, Recommendations)
-    Cline->>Cline: write_report(report_name="meta_analysis_${ANALYSIS_FOCUS_Sanitized}_${timestamp}.md", report_contents=ReportMarkdown)
-    Note over Cline: Report file created
+    Note over AutomatedAgent: Compile report content (ReportMarkdown) (Objective, Method, Findings, Recommendations)
+    AutomatedAgent->>AutomatedAgent: write_report(report_name="meta_analysis_${ANALYSIS_FOCUS_Sanitized}_${timestamp}.md", report_contents=ReportMarkdown)
+    Note over AutomatedAgent: Report file created
 
-    Cline->>Analyst/Researcher: attempt_completion(result="Meta-analysis complete. Report generated.")
+    AutomatedAgent->>Analyst/Researcher: attempt_completion(result="Meta-analysis complete. Report generated.")
 
 ```
 

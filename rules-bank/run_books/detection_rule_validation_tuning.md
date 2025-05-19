@@ -60,67 +60,67 @@ This runbook covers the analysis of a single detection rule's historical perform
 ```{mermaid}
 sequenceDiagram
     participant Analyst/Engineer
-    participant Cline as Cline (MCP Client)
+    participant AutomatedAgent as Automated Agent (MCP Client)
     participant SIEM as secops-mcp
     participant SOAR as secops-soar
     participant GTI as gti-mcp
     participant SecEng as Security Engineering
 
-    Analyst/Engineer->>Cline: Start Rule Validation & Tuning\nInput: RULE_ID, TIMEFRAME_DAYS, REASON, REVIEW_CASE_ID (opt)
+    Analyst/Engineer->>AutomatedAgent: Start Rule Validation & Tuning\nInput: RULE_ID, TIMEFRAME_DAYS, REASON, REVIEW_CASE_ID (opt)
 
     %% Step 1: Define Scope
-    Note over Cline: Document Rule Intent, TTPs, Case ID.
+    Note over AutomatedAgent: Document Rule Intent, TTPs, Case ID.
 
     %% Step 2: Retrieve Rule Logic
-    Cline->>SIEM: list_security_rules(filter=RULE_ID)
-    SIEM-->>Cline: Rule Definition/Logic
-    Note over Cline: Analyze rule logic
+    AutomatedAgent->>SIEM: list_security_rules(filter=RULE_ID)
+    SIEM-->>AutomatedAgent: Rule Definition/Logic
+    Note over AutomatedAgent: Analyze rule logic
 
     %% Step 3: Analyze Historical Alerts
-    Cline->>SIEM: get_security_alerts(rule_id=RULE_ID, hours_back=TIMEFRAME_DAYS*24)
-    SIEM-->>Cline: Historical Alerts List
-    Note over Cline: Analyze alert volume, severity, associated case statuses (TP/FP)
+    AutomatedAgent->>SIEM: get_security_alerts(rule_id=RULE_ID, hours_back=TIMEFRAME_DAYS*24)
+    SIEM-->>AutomatedAgent: Historical Alerts List
+    Note over AutomatedAgent: Analyze alert volume, severity, associated case statuses (TP/FP)
 
     %% Step 4: Analyze Underlying Events (Sampling)
-    Note over Cline: Select sample FP alerts
+    Note over AutomatedAgent: Select sample FP alerts
     loop For each Sample FP Alert FPi
-        Cline->>SOAR: list_events_by_alert(case_id=..., alert_id=FPi) %% Or SIEM search
-        SOAR-->>Cline: Events for FPi
-        Note over Cline: Analyze why rule triggered incorrectly
+        AutomatedAgent->>SOAR: list_events_by_alert(case_id=..., alert_id=FPi) %% Or SIEM search
+        SOAR-->>AutomatedAgent: Events for FPi
+        Note over AutomatedAgent: Analyze why rule triggered incorrectly
     end
-    Note over Cline: Select sample TP alerts
+    Note over AutomatedAgent: Select sample TP alerts
     loop For each Sample TP Alert TPi
-        Cline->>SOAR: list_events_by_alert(case_id=..., alert_id=TPi) %% Or SIEM search
-        SOAR-->>Cline: Events for TPi
-        Note over Cline: Verify rule logic worked correctly
+        AutomatedAgent->>SOAR: list_events_by_alert(case_id=..., alert_id=TPi) %% Or SIEM search
+        SOAR-->>AutomatedAgent: Events for TPi
+        Note over AutomatedAgent: Verify rule logic worked correctly
     end
 
     %% Step 5: Enrich Key Entities
-    Note over Cline: Identify key entities from sample events
+    Note over AutomatedAgent: Identify key entities from sample events
     loop For each Key Entity Ei
-        Cline->>SIEM: lookup_entity(entity_value=Ei)
-        SIEM-->>Cline: SIEM Summary for Ei
-        Cline->>GTI: get_..._report(ioc=Ei)
-        GTI-->>Cline: GTI Report for Ei
+        AutomatedAgent->>SIEM: lookup_entity(entity_value=Ei)
+        SIEM-->>AutomatedAgent: SIEM Summary for Ei
+        AutomatedAgent->>GTI: get_..._report(ioc=Ei)
+        GTI-->>AutomatedAgent: GTI Report for Ei
     end
 
     %% Step 6: Identify Potential False Negatives
-    Note over Cline: Formulate FN hypotheses based on rule intent & TI
+    Note over AutomatedAgent: Formulate FN hypotheses based on rule intent & TI
     loop For each FN Hypothesis Hi
-        Note over Cline: Develop SIEM query Qi for Hi
-        Cline->>SIEM: search_security_events(text=Qi, hours_back=...)
-        SIEM-->>Cline: Search Results for Qi
-        Note over Cline: Analyze if rule should have triggered but didn't
+        Note over AutomatedAgent: Develop SIEM query Qi for Hi
+        AutomatedAgent->>SIEM: search_security_events(text=Qi, hours_back=...)
+        SIEM-->>AutomatedAgent: Search Results for Qi
+        Note over AutomatedAgent: Analyze if rule should have triggered but didn't
     end
 
     %% Step 7: Synthesize Findings & Propose Tuning
-    Note over Cline: Summarize performance, FP causes, FN scenarios
-    Note over Cline: Formulate specific tuning recommendations (logic changes)
+    Note over AutomatedAgent: Summarize performance, FP causes, FN scenarios
+    Note over AutomatedAgent: Formulate specific tuning recommendations (logic changes)
 
     %% Step 8 & 9: Document & Handover
-    Cline->>SOAR: post_case_comment(case_id=REVIEW_CASE_ID, comment="Rule Review Summary (RULE_ID): Performance [...], FP Analysis [...], FN Analysis [...], Tuning Recommendations: [...]")
-    SOAR-->>Cline: Comment Confirmation
-    Note over Cline: Assign case/report to Security Engineering
+    AutomatedAgent->>SOAR: post_case_comment(case_id=REVIEW_CASE_ID, comment="Rule Review Summary (RULE_ID): Performance [...], FP Analysis [...], FN Analysis [...], Tuning Recommendations: [...]")
+    SOAR-->>AutomatedAgent: Comment Confirmation
+    Note over AutomatedAgent: Assign case/report to Security Engineering
 
     %% Step 10: Completion
-    Cline->>Analyst/Engineer: attempt_completion(result="Detection Rule Validation & Tuning complete for RULE_ID. Recommendations documented and handed over.")
+    AutomatedAgent->>Analyst/Engineer: attempt_completion(result="Detection Rule Validation & Tuning complete for RULE_ID. Recommendations documented and handed over.")

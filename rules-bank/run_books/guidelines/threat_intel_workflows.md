@@ -38,51 +38,51 @@
 ```{mermaid}
 sequenceDiagram
     participant Researcher
-    participant Cline as Cline (MCP Client)
+    participant AutomatedAgent as Automated Agent (MCP Client)
     participant GTI as gti-mcp
     participant SIEM as secops-mcp
     participant SOAR as secops-soar
 
-    Researcher->>Cline: Research Threat Actor\nInput: THREAT_ACTOR_ID
+    Researcher->>AutomatedAgent: Research Threat Actor\nInput: THREAT_ACTOR_ID
 
     %% Step 2: Initial GTI Lookup
-    Cline->>GTI: get_collection_report(id=THREAT_ACTOR_ID)
-    GTI-->>Cline: Actor Details
+    AutomatedAgent->>GTI: get_collection_report(id=THREAT_ACTOR_ID)
+    GTI-->>AutomatedAgent: Actor Details
 
     %% Step 3: Explore Relationships
-    Cline->>GTI: get_entities_related_to_a_collection(id=THREAT_ACTOR_ID, relationship_name="malware_families")
-    GTI-->>Cline: Related Malware
-    Cline->>GTI: get_entities_related_to_a_collection(id=THREAT_ACTOR_ID, relationship_name="attack_techniques")
-    GTI-->>Cline: Related TTPs
+    AutomatedAgent->>GTI: get_entities_related_to_a_collection(id=THREAT_ACTOR_ID, relationship_name="malware_families")
+    GTI-->>AutomatedAgent: Related Malware
+    AutomatedAgent->>GTI: get_entities_related_to_a_collection(id=THREAT_ACTOR_ID, relationship_name="attack_techniques")
+    GTI-->>AutomatedAgent: Related TTPs
     %% Add other relationship calls
 
     %% Step 4: Analyze TTPs
-    Cline->>GTI: get_collection_mitre_tree(id=THREAT_ACTOR_ID)
-    GTI-->>Cline: MITRE TTP Tree
+    AutomatedAgent->>GTI: get_collection_mitre_tree(id=THREAT_ACTOR_ID)
+    GTI-->>AutomatedAgent: MITRE TTP Tree
 
     %% Step 5: Review Timelines
-    Cline->>GTI: get_collection_timeline_events(id=THREAT_ACTOR_ID)
-    GTI-->>Cline: Timeline Events
+    AutomatedAgent->>GTI: get_collection_timeline_events(id=THREAT_ACTOR_ID)
+    GTI-->>AutomatedAgent: Timeline Events
 
     %% Step 6: Correlate Locally (Optional)
     opt Correlate Locally
-        Note over Cline: Extract key IOCs/TTPs
+        Note over AutomatedAgent: Extract key IOCs/TTPs
         loop For each IOC/TTP Indicator Ii
-            Cline->>SIEM: search_security_events(text="Search for Ii")
-            SIEM-->>Cline: Local Activity Results
+            AutomatedAgent->>SIEM: search_security_events(text="Search for Ii")
+            SIEM-->>AutomatedAgent: Local Activity Results
         end
     end
 
     %% Step 7: Synthesize & Report
-    Note over Cline: Compile Threat Actor Profile (ReportMarkdown)
-    Cline->>Cline: write_report(report_name="actor_profile_${THREAT_ACTOR_ID}_${timestamp}.md", report_contents=ReportMarkdown)
-    Note over Cline: Report Saved
+    Note over AutomatedAgent: Compile Threat Actor Profile (ReportMarkdown)
+    AutomatedAgent->>AutomatedAgent: write_report(report_name="actor_profile_${THREAT_ACTOR_ID}_${timestamp}.md", report_contents=ReportMarkdown)
+    Note over AutomatedAgent: Report Saved
 
     %% Step 8: Disseminate
-    Cline->>SOAR: post_case_comment(case_id=..., comment="Threat Actor Profile for THREAT_ACTOR_ID available: ...")
-    SOAR-->>Cline: Comment Confirmation
+    AutomatedAgent->>SOAR: post_case_comment(case_id=..., comment="Threat Actor Profile for THREAT_ACTOR_ID available: ...")
+    SOAR-->>AutomatedAgent: Comment Confirmation
 
-    Cline->>Researcher: attempt_completion(result="Threat Actor research complete. Profile generated.")
+    AutomatedAgent->>Researcher: attempt_completion(result="Threat Actor research complete. Profile generated.")
 
 ```
 

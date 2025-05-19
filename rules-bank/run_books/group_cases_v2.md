@@ -33,48 +33,48 @@
 ```{mermaid}
 sequenceDiagram
     participant Analyst/User
-    participant Cline as Cline (MCP Client)
+    participant AutomatedAgent as Automated Agent (MCP Client)
     participant SOAR as secops-soar
     participant SIEM as secops-mcp
     participant GTI as gti-mcp
 
-    Analyst/User->>Cline: Start Group Cases v2 Workflow\nInput: NUMBER_OF_CASES, ...
+    Analyst/User->>AutomatedAgent: Start Group Cases v2 Workflow\nInput: NUMBER_OF_CASES, ...
 
     %% Step 1: List Cases
-    Cline->>SOAR: list_cases(limit=NUMBER_OF_CASES)
-    SOAR-->>Cline: List of Cases (C1, C2...)
+    AutomatedAgent->>SOAR: list_cases(limit=NUMBER_OF_CASES)
+    SOAR-->>AutomatedAgent: List of Cases (C1, C2...)
 
     %% Step 2: Gather Details
     loop For each Case Ci
-        Cline->>SOAR: get_case_full_details(case_id=Ci)
-        SOAR-->>Cline: Details for Ci
-        Cline->>SOAR: list_alerts_by_case(case_id=Ci)
-        SOAR-->>Cline: Alerts for Ci
-        Note over Cline: Extract Key Entities for Ci
+        AutomatedAgent->>SOAR: get_case_full_details(case_id=Ci)
+        SOAR-->>AutomatedAgent: Details for Ci
+        AutomatedAgent->>SOAR: list_alerts_by_case(case_id=Ci)
+        SOAR-->>AutomatedAgent: Alerts for Ci
+        Note over AutomatedAgent: Extract Key Entities for Ci
     end
 
     %% Step 3 & 4: Group & Prioritize
-    Note over Cline: Analyze entities/alerts across cases, form groups (G1, G2...), prioritize groups
+    Note over AutomatedAgent: Analyze entities/alerts across cases, form groups (G1, G2...), prioritize groups
 
     %% Step 5: Enrich (Optional)
     opt Enrich High Priority Groups
         loop For each High Priority Group Gp
-            Note over Cline: Identify key shared entities (Ep1, Ep2...)
+            Note over AutomatedAgent: Identify key shared entities (Ep1, Ep2...)
             loop For each Entity Epi
-                Cline->>SIEM: lookup_entity(entity_value=Epi)
-                SIEM-->>Cline: SIEM Summary
-                Cline->>GTI: get_..._report(ioc=Epi)
-                GTI-->>Cline: GTI Enrichment
+                AutomatedAgent->>SIEM: lookup_entity(entity_value=Epi)
+                SIEM-->>AutomatedAgent: SIEM Summary
+                AutomatedAgent->>GTI: get_..._report(ioc=Epi)
+                GTI-->>AutomatedAgent: GTI Enrichment
             end
         end
     end
 
     %% Step 6: Generate Report
-    Note over Cline: Synthesize findings into report content
-    Cline->>Cline: write_report(report_name="case_grouping_report_${timestamp}.md", report_contents=ReportMarkdown)
-    Note over Cline: Report file created
+    Note over AutomatedAgent: Synthesize findings into report content
+    AutomatedAgent->>AutomatedAgent: write_report(report_name="case_grouping_report_${timestamp}.md", report_contents=ReportMarkdown)
+    Note over AutomatedAgent: Report file created
 
-    Cline->>Analyst/User: attempt_completion(result="Case grouping analysis complete. Report generated.")
+    AutomatedAgent->>Analyst/User: attempt_completion(result="Case grouping analysis complete. Report generated.")
 
 ```
 

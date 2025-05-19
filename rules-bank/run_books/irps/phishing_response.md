@@ -96,7 +96,7 @@ sequenceDiagram
         *   Template for informing third parties (e.g., impersonated brands) of abuse.
         *   Template for user warnings/guidance post-incident.
     *   Ensure relevant detections for known phishing indicators (domains, IPs, TTPs) are active in SIEM/Email Gateway.
-    *   Familiarity with escalation paths (`.clinerules/escalation_paths.md`).
+    *   Familiarity with escalation paths (`.agentrules/escalation_paths.md`).
     *   *(Consider periodic phishing firedrills/simulations).*
 
 ---
@@ -221,7 +221,7 @@ sequenceDiagram
     5.  **User Awareness Follow-up:**
         *   Ensure affected users receive appropriate follow-up and potentially targeted phishing awareness training.
     6.  **Track Recommendations:** Assign owners and deadlines for implementing recommendations and track them to completion.
-    7.  **Final Report:** Generate a comprehensive post-incident report using guidelines from `.clinerules/reporting_templates.md` and `../report_writing.md`.
+    7.  **Final Report:** Generate a comprehensive post-incident report using guidelines from `rules-bank/reporting_templates.md` and `../report_writing.md`.
     8.  **Document Review:** Document the review meeting, findings, and recommendations using `../common_steps/document_in_soar.md` or a dedicated reporting system.
 
 ---

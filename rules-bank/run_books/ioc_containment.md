@@ -45,7 +45,7 @@ This runbook focuses on the immediate containment actions based on confirmed mal
 ```{mermaid}
 sequenceDiagram
     participant Analyst
-    participant Cline as Cline (MCP Client)
+    participant AutomatedAgent as Automated Agent (MCP Client)
     participant GTI as gti-mcp
     participant ConfirmAction as common_steps/confirm_action.md
     participant SOAR as secops-soar
@@ -55,58 +55,58 @@ sequenceDiagram
     participant EDR as EDR (Conceptual)
     participant Firewall as Firewall (Conceptual)
 
-    Analyst->>Cline: Start IOC Containment Runbook\nInput: IOC_VALUE, IOC_TYPE, CASE_ID, ALERT_GROUP_IDS
+    Analyst->>AutomatedAgent: Start IOC Containment Runbook\nInput: IOC_VALUE, IOC_TYPE, CASE_ID, ALERT_GROUP_IDS
 
     %% Step 2: Optional Reputation Check
     opt Reputation Check
         alt IOC_TYPE is IP Address
-            Cline->>GTI: get_ip_address_report(ip_address=IOC_VALUE)
-            GTI-->>Cline: IP Report (Confirm Malicious)
+            AutomatedAgent->>GTI: get_ip_address_report(ip_address=IOC_VALUE)
+            GTI-->>AutomatedAgent: IP Report (Confirm Malicious)
         else IOC_TYPE is Domain
-            Cline->>GTI: get_domain_report(domain=IOC_VALUE)
-            GTI-->>Cline: Domain Report (Confirm Malicious)
+            AutomatedAgent->>GTI: get_domain_report(domain=IOC_VALUE)
+            GTI-->>AutomatedAgent: Domain Report (Confirm Malicious)
         else IOC_TYPE is File Hash
-            Cline->>GTI: get_file_report(hash=IOC_VALUE)
-            GTI-->>Cline: File Report (Confirm Malicious)
+            AutomatedAgent->>GTI: get_file_report(hash=IOC_VALUE)
+            GTI-->>AutomatedAgent: File Report (Confirm Malicious)
         end
     end
 
     %% Step 3: Confirm Action
-    Cline->>ConfirmAction: Execute(Input: QUESTION_TEXT="Proceed...?", RESPONSE_OPTIONS=["Yes", "No"])
-    ConfirmAction-->>Cline: Results: USER_RESPONSE
+    AutomatedAgent->>ConfirmAction: Execute(Input: QUESTION_TEXT="Proceed...?", RESPONSE_OPTIONS=["Yes", "No"])
+    ConfirmAction-->>AutomatedAgent: Results: USER_RESPONSE
 
     %% Step 4: Execute Containment (If Confirmed)
     alt USER_RESPONSE is "Yes"
-        Note over Cline: Containment_Action_Status = "Attempted"
+        Note over AutomatedAgent: Containment_Action_Status = "Attempted"
         alt IOC_TYPE is IP Address or Domain
-            Note over Cline: Determine Reference List Name (e.g., "IP_Blocklist")
-            Cline->>SOAR: google_chronicle_add_values_to_reference_list(case_id=CASE_ID, ..., values=IOC_VALUE)
-            SOAR-->>Cline: Blocklist Add Result -> Update Containment_Action_Status
+            Note over AutomatedAgent: Determine Reference List Name (e.g., "IP_Blocklist")
+            AutomatedAgent->>SOAR: google_chronicle_add_values_to_reference_list(case_id=CASE_ID, ..., values=IOC_VALUE)
+            SOAR-->>AutomatedAgent: Blocklist Add Result -> Update Containment_Action_Status
             opt Firewall/Proxy Integration Available
-                 Cline->>Firewall: (Conceptual) Block IOC_VALUE
-                 Firewall-->>Cline: Block Result -> Update Containment_Action_Status
+                 AutomatedAgent->>Firewall: (Conceptual) Block IOC_VALUE
+                 Firewall-->>AutomatedAgent: Block Result -> Update Containment_Action_Status
             end
         else IOC_TYPE is File Hash
-            Cline->>SIEM: search_security_events(text="Events with hash IOC_VALUE")
-            SIEM-->>Cline: Events (Identify Endpoints E1, E2...)
+            AutomatedAgent->>SIEM: search_security_events(text="Events with hash IOC_VALUE")
+            SIEM-->>AutomatedAgent: Events (Identify Endpoints E1, E2...)
             opt EDR Integration Available
                 loop For each Endpoint Ei
-                    Cline->>EDR: (Conceptual) Quarantine/Delete Hash IOC_VALUE on Ei
-                    EDR-->>Cline: EDR Action Result -> Update Containment_Action_Status
+                    AutomatedAgent->>EDR: (Conceptual) Quarantine/Delete Hash IOC_VALUE on Ei
+                    EDR-->>AutomatedAgent: EDR Action Result -> Update Containment_Action_Status
                 end
             else
-                Note over Cline: Containment_Action_Status = "Manual EDR Action Needed"
+                Note over AutomatedAgent: Containment_Action_Status = "Manual EDR Action Needed"
             end
         end
 
         %% Document Action (Yes case)
-        Cline->>DocumentInSOAR: Execute(Input: CASE_ID, COMMENT_TEXT="Containment action attempted...")
-        DocumentInSOAR-->>Cline: Results: COMMENT_POST_STATUS
-        Cline->>Analyst: attempt_completion(result="IOC Containment runbook complete for IOC_VALUE. Action attempted.")
+        AutomatedAgent->>DocumentInSOAR: Execute(Input: CASE_ID, COMMENT_TEXT="Containment action attempted...")
+        DocumentInSOAR-->>AutomatedAgent: Results: COMMENT_POST_STATUS
+        AutomatedAgent->>Analyst: attempt_completion(result="IOC Containment runbook complete for IOC_VALUE. Action attempted.")
 
     else USER_RESPONSE is "No"
          %% Document Action (No case)
-         Cline->>DocumentInSOAR: Execute(Input: CASE_ID, COMMENT_TEXT="Containment action aborted...")
-         DocumentInSOAR-->>Cline: Results: COMMENT_POST_STATUS
-         Cline->>Analyst: attempt_completion(result="IOC Containment runbook aborted for IOC_VALUE.")
+         AutomatedAgent->>DocumentInSOAR: Execute(Input: CASE_ID, COMMENT_TEXT="Containment action aborted...")
+         DocumentInSOAR-->>AutomatedAgent: Results: COMMENT_POST_STATUS
+         AutomatedAgent->>Analyst: attempt_completion(result="IOC Containment runbook aborted for IOC_VALUE.")
     end

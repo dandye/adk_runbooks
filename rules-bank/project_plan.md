@@ -1,6 +1,6 @@
 # Project Plan: Enhance LLM Agent Context
 
-**Project Goal:** To create a comprehensive set of context files within the `.clinerules` directory, improving the LLM Agent's understanding of the environment, tools, policies, and relevant threats.
+**Project Goal:** To create a comprehensive set of context files within the rules-bank directory, improving the LLM Agent's understanding of the environment, tools, policies, and relevant threats.
 
 **Project Phases & Tasks:**
 
@@ -71,7 +71,7 @@
     1.  **Create `governance_overview.md`**:
         *   Describe the overall cybersecurity governance structure.
         *   Outline the risk management approach and appetite.
-        *   Reference key policies (linking to where they might exist if not directly in `.clinerules`).
+        *   Reference key policies (linking to where they might exist if not directly in rules-bank).
         *   *Potential Action:* Ask user/CISO Office/Compliance Manager.
     *   **Rationale:** Directly addresses the "Govern" function of NIST CSF 2.0.
     2.  **Create `incident_severity_matrix.md`**:
@@ -153,7 +153,7 @@
         *   Encourage adding simple relationship diagrams (e.g., `graph LR; Host-->IP; IP-->Domain;`) in investigation reports.
     8.  **Address Tool Limitations:**
         *   Ensure `find_relevant_soar_case.md` clearly documents the `list_cases` entity search limitation and suggests specific workarounds (manual search, SIEM correlation).
-    *   **Rationale:** Ensures runbooks remain effective, reflect real-world conditions, incorporate lessons learned (like tool errors), and leverage the full context available within the `.clinerules` directory.
+    *   **Rationale:** Ensures runbooks remain effective, reflect real-world conditions, incorporate lessons learned (like tool errors), and leverage the full context available within the rules-bank directory.
 
 **Next Steps:**
 

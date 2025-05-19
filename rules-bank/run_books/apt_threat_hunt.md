@@ -60,7 +60,7 @@ Focuses on SIEM log analysis and GTI correlation for specific TTPs and IOCs rela
     *   Combine all findings: GTI intelligence, IOC match results, IOC search findings (positive and negative), TTP search findings (positive and negative), enrichment results (`ENRICHMENT_RESULTS`), and related SOAR cases (`${RELATED_SOAR_CASES}`).
     *   Document findings, queries used, and analysis in `${HUNT_CASE_ID}` (if provided) using `secops-soar.post_case_comment`.
 8.  **Generate Report:**
-    *   Structure a Markdown report summarizing the hunt (referencing `.clinerules/reporting_templates.md` and `.clinerules/run_books/guidelines/runbook_guidelines.md`). Include:
+    *   Structure a Markdown report summarizing the hunt (referencing `rules-bank/reporting_templates.md` and `rules-bank/run_books/guidelines/runbook_guidelines.md`). Include:
         *   Metadata (Runbook Used, Timestamp, Case ID if applicable).
         *   Hunt Objective/Hypothesis.
         *   Scope (`${TARGET_SCOPE_QUERY}`) & Timeframe (`${HUNT_TIMEFRAME_HOURS}`).
@@ -78,87 +78,87 @@ Focuses on SIEM log analysis and GTI correlation for specific TTPs and IOCs rela
 ```{mermaid}
 sequenceDiagram
     participant Analyst/Hunter
-    participant Cline as Cline (MCP Client)
+    participant AutomatedAgent as Automated Agent (MCP Client)
     participant GTI as gti-mcp
     participant SIEM as secops-mcp
     participant SOAR as secops-soar
     participant FindCase as common_steps/find_relevant_soar_case.md
     participant GenerateReport as common_steps/generate_report_file.md
 
-    Analyst/Hunter->>Cline: Start APT Hunt\nInput: THREAT_ACTOR_ID, HUNT_TIMEFRAME_HOURS, ...
+    Analyst/Hunter->>AutomatedAgent: Start APT Hunt\nInput: THREAT_ACTOR_ID, HUNT_TIMEFRAME_HOURS, ...
 
     %% Step 1: Intelligence Gathering
     opt Actor Name Provided instead of ID
-        Cline->>GTI: search_threat_actors(query=ActorName)
-        GTI-->>Cline: THREAT_ACTOR_ID
+        AutomatedAgent->>GTI: search_threat_actors(query=ActorName)
+        GTI-->>AutomatedAgent: THREAT_ACTOR_ID
     end
-    Cline->>GTI: get_collection_report(id=THREAT_ACTOR_ID)
-    GTI-->>Cline: Actor Details
-    Cline->>GTI: get_collection_mitre_tree(id=THREAT_ACTOR_ID)
-    GTI-->>Cline: Actor TTPs
-    Cline->>GTI: get_collection_timeline_events(id=THREAT_ACTOR_ID)
-    GTI-->>Cline: Timeline (Optional - May be empty)
-    Note over Cline: Gather IOCs for each relevant type (files, domains, urls...)
+    AutomatedAgent->>GTI: get_collection_report(id=THREAT_ACTOR_ID)
+    GTI-->>AutomatedAgent: Actor Details
+    AutomatedAgent->>GTI: get_collection_mitre_tree(id=THREAT_ACTOR_ID)
+    GTI-->>AutomatedAgent: Actor TTPs
+    AutomatedAgent->>GTI: get_collection_timeline_events(id=THREAT_ACTOR_ID)
+    GTI-->>AutomatedAgent: Timeline (Optional - May be empty)
+    Note over AutomatedAgent: Gather IOCs for each relevant type (files, domains, urls...)
     loop For each IOC Relationship R
-        Cline->>GTI: get_entities_related_to_a_collection(id=THREAT_ACTOR_ID, relationship_name=R)
-        GTI-->>Cline: Associated IOCs for type R (GTI_IOC_LIST)
+        AutomatedAgent->>GTI: get_entities_related_to_a_collection(id=THREAT_ACTOR_ID, relationship_name=R)
+        GTI-->>AutomatedAgent: Associated IOCs for type R (GTI_IOC_LIST)
     end
 
     %% Step 2: Check SIEM IOC Matches
-    Cline->>SIEM: get_ioc_matches(hours_back=HUNT_TIMEFRAME_HOURS)
-    SIEM-->>Cline: SIEM IOC Match Results
-    Note over Cline: Correlate matches with GTI_IOC_LIST
+    AutomatedAgent->>SIEM: get_ioc_matches(hours_back=HUNT_TIMEFRAME_HOURS)
+    SIEM-->>AutomatedAgent: SIEM IOC Match Results
+    Note over AutomatedAgent: Correlate matches with GTI_IOC_LIST
 
     %% Step 3: IOC-Based Search (SIEM)
     loop For each IOC Type/Value Ii in GTI_IOC_LIST
-        Note over Cline: Construct UDM query Qi for IOC Ii
-        Cline->>SIEM: search_security_events(text=Qi, hours_back=HUNT_TIMEFRAME_HOURS)
-        SIEM-->>Cline: IOC Search Results for Ii (IOC_SEARCH_FINDINGS)
+        Note over AutomatedAgent: Construct UDM query Qi for IOC Ii
+        AutomatedAgent->>SIEM: search_security_events(text=Qi, hours_back=HUNT_TIMEFRAME_HOURS)
+        SIEM-->>AutomatedAgent: IOC Search Results for Ii (IOC_SEARCH_FINDINGS)
     end
 
     %% Step 4: TTP-Based Search (SIEM)
-    Note over Cline: Develop TTP-based UDM queries Qt based on MITRE techniques & Hypothesis (Use get_threat_intel if needed)
+    Note over AutomatedAgent: Develop TTP-based UDM queries Qt based on MITRE techniques & Hypothesis (Use get_threat_intel if needed)
     loop For each TTP Query Qt
-        Cline->>SIEM: search_security_events(text=Qt, hours_back=HUNT_TIMEFRAME_HOURS)
-        SIEM-->>Cline: TTP Search Results for Qt (TTP_SEARCH_FINDINGS)
+        AutomatedAgent->>SIEM: search_security_events(text=Qt, hours_back=HUNT_TIMEFRAME_HOURS)
+        SIEM-->>AutomatedAgent: TTP Search Results for Qt (TTP_SEARCH_FINDINGS)
     end
 
     %% Step 5: Enrich Findings
     opt Hits Found (IOC or TTP)
-        Note over Cline: Identify key Found_IOCs and Found_Entities (E1, E2...)
+        Note over AutomatedAgent: Identify key Found_IOCs and Found_Entities (E1, E2...)
         loop For each Found Item Fi (IOC or Entity)
-            Cline->>SIEM: lookup_entity(entity_value=Fi)
-            SIEM-->>Cline: SIEM Summary for Fi
-            Cline->>GTI: get_..._report(ioc=Fi) %% Use appropriate GTI tool
-            GTI-->>Cline: GTI Enrichment for Fi (ENRICHMENT_RESULTS)
+            AutomatedAgent->>SIEM: lookup_entity(entity_value=Fi)
+            SIEM-->>AutomatedAgent: SIEM Summary for Fi
+            AutomatedAgent->>GTI: get_..._report(ioc=Fi) %% Use appropriate GTI tool
+            GTI-->>AutomatedAgent: GTI Enrichment for Fi (ENRICHMENT_RESULTS)
         end
     end
 
     %% Step 6: Check Related SOAR Cases
     opt Hits Found
-        Note over Cline: Prepare list of Found_IOCs + Found_Entities
-        Cline->>FindCase: Execute(Input: SEARCH_TERMS=[Found List], CASE_STATUS_FILTER="Opened")
-        FindCase-->>Cline: Results: RELATED_SOAR_CASES
+        Note over AutomatedAgent: Prepare list of Found_IOCs + Found_Entities
+        AutomatedAgent->>FindCase: Execute(Input: SEARCH_TERMS=[Found List], CASE_STATUS_FILTER="Opened")
+        FindCase-->>AutomatedAgent: Results: RELATED_SOAR_CASES
     end
 
     %% Step 7: Document in SOAR (Optional)
     opt HUNT_CASE_ID provided
-        Note over Cline: Synthesize findings including RELATED_SOAR_CASES
-        Cline->>SOAR: post_case_comment(case_id=HUNT_CASE_ID, comment="APT Hunt Summary...")
-        SOAR-->>Cline: Comment Confirmation
+        Note over AutomatedAgent: Synthesize findings including RELATED_SOAR_CASES
+        AutomatedAgent->>SOAR: post_case_comment(case_id=HUNT_CASE_ID, comment="APT Hunt Summary...")
+        SOAR-->>AutomatedAgent: Comment Confirmation
     end
 
     %% Step 8: Generate Report
-    Note over Cline: Synthesize all findings (positive & negative, incl. related cases) into Markdown report content
-    Cline->>GenerateReport: Execute(Input: REPORT_CONTENT, REPORT_TYPE="apt_hunt_report", REPORT_NAME_SUFFIX=THREAT_ACTOR_ID)
-    GenerateReport-->>Cline: Results: REPORT_FILE_PATH, WRITE_STATUS
+    Note over AutomatedAgent: Synthesize all findings (positive & negative, incl. related cases) into Markdown report content
+    AutomatedAgent->>GenerateReport: Execute(Input: REPORT_CONTENT, REPORT_TYPE="apt_hunt_report", REPORT_NAME_SUFFIX=THREAT_ACTOR_ID)
+    GenerateReport-->>AutomatedAgent: Results: REPORT_FILE_PATH, WRITE_STATUS
 
     %% Step 9: Escalation/Conclusion
     alt Confirmed Threat Found via Hunt
-        Note over Cline: Escalate findings (Create/Update Incident Case)
-        Cline->>Analyst/Hunter: attempt_completion(result="APT Hunt complete. Threat found and escalated. Report generated at REPORT_FILE_PATH.")
+        Note over AutomatedAgent: Escalate findings (Create/Update Incident Case)
+        AutomatedAgent->>Analyst/Hunter: attempt_completion(result="APT Hunt complete. Threat found and escalated. Report generated at REPORT_FILE_PATH.")
     else No Threat Found
-        Cline->>Analyst/Hunter: attempt_completion(result="APT Hunt complete. No significant findings. Report generated at REPORT_FILE_PATH.")
+        AutomatedAgent->>Analyst/Hunter: attempt_completion(result="APT Hunt complete. No significant findings. Report generated at REPORT_FILE_PATH.")
     end
 ```
 

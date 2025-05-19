@@ -66,7 +66,7 @@ This runbook covers in-depth analysis of a single IOC (IP, Domain, Hash, URL) us
 ```{mermaid}
 sequenceDiagram
     participant Analyst
-    participant Cline as Cline (MCP Client)
+    participant AutomatedAgent as Automated Agent (MCP Client)
     participant GTI as gti-mcp
     participant PivotOnIOC as common_steps/pivot_on_ioc_gti.md
     participant SIEM as secops-mcp
@@ -77,66 +77,66 @@ sequenceDiagram
     participant GenerateReport as common_steps/generate_report_file.md
     participant SOAR as secops-soar %% Underlying tool for documentation & context
 
-    Analyst->>Cline: Start Deep Dive IOC Analysis\nInput: IOC_VALUE, IOC_TYPE, CASE_ID (opt), SKIP_SOAR (opt), ...
+    Analyst->>AutomatedAgent: Start Deep Dive IOC Analysis\nInput: IOC_VALUE, IOC_TYPE, CASE_ID (opt), SKIP_SOAR (opt), ...
 
     %% Step 1: Context
     opt CASE_ID provided AND SKIP_SOAR is false
-        Cline->>SOAR: get_case_full_details(case_id=CASE_ID)
-        SOAR-->>Cline: Case Details
+        AutomatedAgent->>SOAR: get_case_full_details(case_id=CASE_ID)
+        SOAR-->>AutomatedAgent: Case Details
     end
 
     %% Step 2: Detailed GTI Report
-    Cline->>GTI: get_..._report(ioc=IOC_VALUE) %% Based on IOC_TYPE
-    GTI-->>Cline: Detailed GTI Report (GTI_REPORT_DETAILS, ASSOCIATED_THREAT_IDS)
+    AutomatedAgent->>GTI: get_..._report(ioc=IOC_VALUE) %% Based on IOC_TYPE
+    GTI-->>AutomatedAgent: Detailed GTI Report (GTI_REPORT_DETAILS, ASSOCIATED_THREAT_IDS)
 
     %% Step 3: GTI Pivoting
-    Note over Cline: Determine relevant RELATIONSHIP_NAMES
-    Cline->>PivotOnIOC: Execute(Input: IOC_VALUE, IOC_TYPE, RELATIONSHIP_NAMES)
-    PivotOnIOC-->>Cline: Results: RELATED_ENTITIES
+    Note over AutomatedAgent: Determine relevant RELATIONSHIP_NAMES
+    AutomatedAgent->>PivotOnIOC: Execute(Input: IOC_VALUE, IOC_TYPE, RELATIONSHIP_NAMES)
+    PivotOnIOC-->>AutomatedAgent: Results: RELATED_ENTITIES
     opt IOC_TYPE is File Hash
-        Cline->>GTI: get_file_behavior_summary(hash=IOC_VALUE)
-        GTI-->>Cline: File Behavior Summary
+        AutomatedAgent->>GTI: get_file_behavior_summary(hash=IOC_VALUE)
+        GTI-->>AutomatedAgent: File Behavior Summary
     end
 
     %% Step 4: Deep SIEM Search
-    Note over Cline: Construct UDM queries for IOC_VALUE and RELATED_ENTITIES
-    Cline->>SIEM: search_security_events(text=Query1, hours_back=TIME_FRAME_HOURS)
-    SIEM-->>Cline: SIEM Search Results 1
-    Cline->>SIEM: search_security_events(text=Query2, hours_back=TIME_FRAME_HOURS)
-    SIEM-->>Cline: SIEM Search Results 2 (SIEM_SEARCH_RESULTS)
-    Note over Cline: Identify OBSERVED_RELATED_IOCS from SIEM_SEARCH_RESULTS
+    Note over AutomatedAgent: Construct UDM queries for IOC_VALUE and RELATED_ENTITIES
+    AutomatedAgent->>SIEM: search_security_events(text=Query1, hours_back=TIME_FRAME_HOURS)
+    SIEM-->>AutomatedAgent: SIEM Search Results 1
+    AutomatedAgent->>SIEM: search_security_events(text=Query2, hours_back=TIME_FRAME_HOURS)
+    SIEM-->>AutomatedAgent: SIEM Search Results 2 (SIEM_SEARCH_RESULTS)
+    Note over AutomatedAgent: Identify OBSERVED_RELATED_IOCS from SIEM_SEARCH_RESULTS
 
     %% Step 5: SIEM Context & Correlation
-    Note over Cline: Initialize SIEM_ENRICHMENT_RESULTS
-    Note over Cline: Prepare prioritized IOC list (IOC_VALUE + OBSERVED_RELATED_IOCS)
+    Note over AutomatedAgent: Initialize SIEM_ENRICHMENT_RESULTS
+    Note over AutomatedAgent: Prepare prioritized IOC list (IOC_VALUE + OBSERVED_RELATED_IOCS)
     loop For each prioritized IOC Ki
-        Cline->>EnrichIOC: Execute(Input: IOC_VALUE=Ki, IOC_TYPE=...)
-        EnrichIOC-->>Cline: Results: Store in SIEM_ENRICHMENT_RESULTS[Ki]
+        AutomatedAgent->>EnrichIOC: Execute(Input: IOC_VALUE=Ki, IOC_TYPE=...)
+        EnrichIOC-->>AutomatedAgent: Results: Store in SIEM_ENRICHMENT_RESULTS[Ki]
     end
-    Cline->>CorrelateIOC: Execute(Input: IOC_LIST=[Prioritized List], TIME_FRAME_HOURS)
-    CorrelateIOC-->>Cline: Results: RELATED_SIEM_ALERTS, RELATED_SOAR_CASES_CORRELATION
-    Note over Cline: Prepare broader search list (IOCs + key entities from SIEM results)
-    Cline->>FindCase: Execute(Input: SEARCH_TERMS=[Broad List], CASE_STATUS_FILTER="Opened")
-    FindCase-->>Cline: Results: RELATED_SOAR_CASES_BROAD
+    AutomatedAgent->>CorrelateIOC: Execute(Input: IOC_LIST=[Prioritized List], TIME_FRAME_HOURS)
+    CorrelateIOC-->>AutomatedAgent: Results: RELATED_SIEM_ALERTS, RELATED_SOAR_CASES_CORRELATION
+    Note over AutomatedAgent: Prepare broader search list (IOCs + key entities from SIEM results)
+    AutomatedAgent->>FindCase: Execute(Input: SEARCH_TERMS=[Broad List], CASE_STATUS_FILTER="Opened")
+    FindCase-->>AutomatedAgent: Results: RELATED_SOAR_CASES_BROAD
 
     %% Step 6: Optional Threat Enrichment
     opt ASSOCIATED_THREAT_IDS exist
         loop For each Threat ID Ti
-            Cline->>GTI: get_collection_report(id=Ti)
-            GTI-->>Cline: Associated Threat Details
+            AutomatedAgent->>GTI: get_collection_report(id=Ti)
+            GTI-->>AutomatedAgent: Associated Threat Details
         end
     end
 
     %% Step 7: Synthesize & Document/Report
-    Note over Cline: Synthesize all findings, assess impact, prepare COMMENT_TEXT or REPORT_CONTENT with Recommendation
+    Note over AutomatedAgent: Synthesize all findings, assess impact, prepare COMMENT_TEXT or REPORT_CONTENT with Recommendation
     alt CASE_ID provided AND SKIP_SOAR is false
-        Cline->>DocumentInSOAR: Execute(Input: CASE_ID, COMMENT_TEXT)
-        DocumentInSOAR-->>Cline: Results: COMMENT_POST_STATUS
-        Cline->>Analyst: attempt_completion(result="Deep Dive IOC Analysis complete for IOC_VALUE. Findings documented in case CASE_ID.")
+        AutomatedAgent->>DocumentInSOAR: Execute(Input: CASE_ID, COMMENT_TEXT)
+        DocumentInSOAR-->>AutomatedAgent: Results: COMMENT_POST_STATUS
+        AutomatedAgent->>Analyst: attempt_completion(result="Deep Dive IOC Analysis complete for IOC_VALUE. Findings documented in case CASE_ID.")
     else No CASE_ID or SKIP_SOAR is true
-        Note over Cline: Prepare REPORT_CONTENTS_VAR including Mermaid diagram
-        Note over Cline: Construct REPORT_NAME_VAR (e.g., deep_dive_ioc_${IOC_VALUE_Sanitized}_${timestamp}.md)
-        Cline->>GenerateReport: Execute(Input: REPORT_CONTENTS=REPORT_CONTENTS_VAR, REPORT_NAME=REPORT_NAME_VAR)
-        GenerateReport-->>Cline: Results: REPORT_FILE_PATH, WRITE_STATUS
-        Cline->>Analyst: attempt_completion(result="Deep Dive IOC Analysis complete for IOC_VALUE. Report generated at REPORT_FILE_PATH.")
+        Note over AutomatedAgent: Prepare REPORT_CONTENTS_VAR including Mermaid diagram
+        Note over AutomatedAgent: Construct REPORT_NAME_VAR (e.g., deep_dive_ioc_${IOC_VALUE_Sanitized}_${timestamp}.md)
+        AutomatedAgent->>GenerateReport: Execute(Input: REPORT_CONTENTS=REPORT_CONTENTS_VAR, REPORT_NAME=REPORT_NAME_VAR)
+        GenerateReport-->>AutomatedAgent: Results: REPORT_FILE_PATH, WRITE_STATUS
+        AutomatedAgent->>Analyst: attempt_completion(result="Deep Dive IOC Analysis complete for IOC_VALUE. Report generated at REPORT_FILE_PATH.")
     end

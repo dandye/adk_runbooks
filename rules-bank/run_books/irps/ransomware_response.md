@@ -86,7 +86,7 @@ sequenceDiagram
     *   Ensure regular, tested backups of critical systems exist.
     *   Maintain asset inventory and network diagrams.
     *   Ensure relevant detections for ransomware precursors (e.g., credential dumping, lateral movement tools, specific exploits) and known ransomware IOCs are active.
-    *   Review and understand communication, escalation (`.clinerules/escalation_paths.md`), and potentially ransom payment decision-making procedures.
+    *   Review and understand communication, escalation (`.agentrules/escalation_paths.md`), and potentially ransom payment decision-making procedures.
 
 ---
 
@@ -179,7 +179,7 @@ sequenceDiagram
     4.  **Develop Recommendations:** Suggest improvements (e.g., security control changes, new detections, backup strategy review, user training).
     5.  **Update Documentation:** Update runbooks, policies, etc.
     6.  **Track Recommendations:** Assign and track implementation.
-    7.  **Final Report:** Generate using guidelines from `.clinerules/reporting_templates.md` and `../report_writing.md`.
+    7.  **Final Report:** Generate using guidelines from `rules-bank/reporting_templates.md` and `../report_writing.md`.
     8.  **Document Review:** Document outcomes using `../common_steps/document_in_soar.md`.
 
 ---

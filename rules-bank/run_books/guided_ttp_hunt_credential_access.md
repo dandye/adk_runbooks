@@ -53,53 +53,53 @@ This runbook provides a template for hunting specific TTPs. This example focuses
 ```{mermaid}
 sequenceDiagram
     participant Analyst
-    participant Cline as Cline (MCP Client)
+    participant AutomatedAgent as Automated Agent (MCP Client)
     participant GTI as gti-mcp
     participant SIEM as secops-mcp
     participant SOAR as secops-soar
     participant MITRE as MITRE ATT&CK (External)
 
-    Analyst->>Cline: Start Guided TTP Hunt\nInput: TECHNIQUE_IDS, TIME_FRAME_HOURS, TARGET_SCOPE_QUERY (opt), HUNT_HYPOTHESIS (opt)
+    Analyst->>AutomatedAgent: Start Guided TTP Hunt\nInput: TECHNIQUE_IDS, TIME_FRAME_HOURS, TARGET_SCOPE_QUERY (opt), HUNT_HYPOTHESIS (opt)
 
     %% Step 2: Research Techniques
     loop For each Technique ID Ti in TECHNIQUE_IDS
-        Cline->>GTI: get_threat_intel(query="Explain MITRE ATT&CK technique Ti")
-        GTI-->>Cline: Technique Description/Context
-        Cline->>MITRE: (Manual) Review ATT&CK Website for Ti
-        MITRE-->>Cline: Detailed Procedures/Detections
+        AutomatedAgent->>GTI: get_threat_intel(query="Explain MITRE ATT&CK technique Ti")
+        GTI-->>AutomatedAgent: Technique Description/Context
+        AutomatedAgent->>MITRE: (Manual) Review ATT&CK Website for Ti
+        MITRE-->>AutomatedAgent: Detailed Procedures/Detections
     end
 
     %% Step 3: Develop SIEM Queries
-    Note over Cline: Formulate UDM queries based on research & inputs
+    Note over AutomatedAgent: Formulate UDM queries based on research & inputs
 
     %% Step 4: Execute SIEM Searches
     loop For each developed Query Qi
-        Cline->>SIEM: search_security_events(text=Qi, hours_back=TIME_FRAME_HOURS)
-        SIEM-->>Cline: Search Results for Qi
+        AutomatedAgent->>SIEM: search_security_events(text=Qi, hours_back=TIME_FRAME_HOURS)
+        SIEM-->>AutomatedAgent: Search Results for Qi
     end
 
     %% Step 5: Analyze Results
-    Note over Cline: Analyze results for suspicious patterns/anomalies
+    Note over AutomatedAgent: Analyze results for suspicious patterns/anomalies
 
     %% Step 6: Enrich Findings
     opt Suspicious Activity Found (Entities E1, E2...)
         loop For each Suspicious Entity Ei
-            Cline->>SIEM: lookup_entity(entity_value=Ei)
-            SIEM-->>Cline: SIEM Summary for Ei
-            Cline->>GTI: get_..._report(ioc=Ei)
-            GTI-->>Cline: GTI Report for Ei
+            AutomatedAgent->>SIEM: lookup_entity(entity_value=Ei)
+            SIEM-->>AutomatedAgent: SIEM Summary for Ei
+            AutomatedAgent->>GTI: get_..._report(ioc=Ei)
+            GTI-->>AutomatedAgent: GTI Report for Ei
         end
     end
 
     %% Step 7: Document Hunt
-    Note over Cline: Prepare hunt summary comment
-    Cline->>SOAR: post_case_comment(case_id=[Hunt Case/Relevant Case], comment="Guided Hunt Summary: Techniques [...], Scope [...], Queries [...], Findings [...], Enrichment [...]")
-    SOAR-->>Cline: Comment Confirmation
+    Note over AutomatedAgent: Prepare hunt summary comment
+    AutomatedAgent->>SOAR: post_case_comment(case_id=[Hunt Case/Relevant Case], comment="Guided Hunt Summary: Techniques [...], Scope [...], Queries [...], Findings [...], Enrichment [...]")
+    SOAR-->>AutomatedAgent: Comment Confirmation
 
     %% Step 8 & 9: Escalate or Conclude
     alt Confirmed Malicious Activity Found
-        Note over Cline: Escalate findings (Create new case or link to existing)
-        Cline->>Analyst: attempt_completion(result="Guided TTP Hunt complete. Findings escalated.")
+        Note over AutomatedAgent: Escalate findings (Create new case or link to existing)
+        AutomatedAgent->>Analyst: attempt_completion(result="Guided TTP Hunt complete. Findings escalated.")
     else No Significant Findings
-        Cline->>Analyst: attempt_completion(result="Guided TTP Hunt complete. No significant findings. Hunt documented.")
+        AutomatedAgent->>Analyst: attempt_completion(result="Guided TTP Hunt complete. No significant findings. Hunt documented.")
     end

@@ -35,39 +35,39 @@
 
 ```{mermaid}
 sequenceDiagram
-    participant Analyst
+    participant User/Analyst
+    participant AutomatedAgent as Automated Agent (MCP Client)
     participant SOAR as secops-soar
     participant SIEM as secops-mcp
     participant GTI as gti-mcp
     participant IDP as Identity Provider (Optional)
 
-    Analyst->>SOAR: Receive UEBA Alert/Case (ID, User, Entity, Anomaly Desc.)
-    SOAR-->>Analyst: Alert/Case Details
-    Analyst->>SOAR: get_case_full_details (Optional)
-    SOAR-->>Analyst: Case Context
-    Analyst->>SIEM: lookup_entity(entity_value=USER_ID)
-    SIEM-->>Analyst: User SIEM Context
-    Analyst->>SIEM: lookup_entity(entity_value=ENTITY_ID)
-    SIEM-->>Analyst: Entity SIEM Context
+    User/Analyst->>AutomatedAgent: Analyze UEBA Alert/Case (ID, User, Entity, Anomaly Desc.)
+    AutomatedAgent->>SOAR: get_case_full_details (Optional, if CASE_ID provided)
+    SOAR-->>AutomatedAgent: Case Context
+    AutomatedAgent->>SIEM: lookup_entity(entity_value=USER_ID)
+    SIEM-->>AutomatedAgent: User SIEM Context
+    AutomatedAgent->>SIEM: lookup_entity(entity_value=ENTITY_ID)
+    SIEM-->>AutomatedAgent: Entity SIEM Context
     opt IDP Check
-        Analyst->>IDP: lookup_user(user=USER_ID)
-        IDP-->>Analyst: User IDP Context
+        AutomatedAgent->>IDP: lookup_user(user=USER_ID)
+        IDP-->>AutomatedAgent: User IDP Context
     end
-    Analyst->>SIEM: search_security_events(text="Detailed logs for anomaly timeframe/activity")
-    SIEM-->>Analyst: Specific Activity Logs
-    Note over Analyst: Compare activity to baseline/history
+    AutomatedAgent->>SIEM: search_security_events(text="Detailed logs for anomaly timeframe/activity")
+    SIEM-->>AutomatedAgent: Specific Activity Logs
+    Note over AutomatedAgent: Compare activity to baseline/history
     opt IOCs Involved (I1, I2...)
         loop For each IOC Ii
-            Analyst->>SIEM: lookup_entity(entity_value=Ii)
-            SIEM-->>Analyst: SIEM Context for Ii
-            Analyst->>GTI: get...report(ioc=Ii)
-            GTI-->>Analyst: GTI Context for Ii
+            AutomatedAgent->>SIEM: lookup_entity(entity_value=Ii)
+            SIEM-->>AutomatedAgent: SIEM Context for Ii
+            AutomatedAgent->>GTI: get...report(ioc=Ii)
+            GTI-->>AutomatedAgent: GTI Context for Ii
         end
     end
-    Note over Analyst: Synthesize findings, assess activity
-    Analyst->>SOAR: post_case_comment(case_id=..., comment="UEBA Analysis Summary... Assessment: [...]. Recommendation: [Close/Monitor/Escalate]")
-    SOAR-->>Analyst: Comment Confirmation
-
+    Note over AutomatedAgent: Synthesize findings, assess activity
+    AutomatedAgent->>SOAR: post_case_comment(case_id=..., comment="UEBA Analysis Summary... Assessment: [...]. Recommendation: [Close/Monitor/Escalate]")
+    SOAR-->>AutomatedAgent: Comment Confirmation
+    AutomatedAgent->>User/Analyst: attempt_completion(result="UEBA analysis complete. Findings documented.")
 ```
 
 ## Completion Criteria

@@ -79,7 +79,7 @@ sequenceDiagram
     *   Verify tool connectivity (SIEM, SOAR, IDP).
     *   Ensure relevant detections for suspicious logins, impossible travel, credential stuffing, etc., are active.
     *   Maintain access credentials and procedures for Identity Provider actions (disable, reset, session termination).
-    *   Review and understand communication and escalation plans (`.clinerules/escalation_paths.md`).
+    *   Review and understand communication and escalation plans (`.agentrules/escalation_paths.md`).
 
 ---
 
@@ -163,7 +163,7 @@ sequenceDiagram
     4.  **Develop Recommendations:** Suggest improvements (e.g., security control changes, new detections, user training).
     5.  **Update Documentation:** Update runbooks, policies, etc.
     6.  **Track Recommendations:** Assign and track implementation.
-    7.  **Final Report:** Generate using guidelines from `.clinerules/reporting_templates.md` and `../report_writing.md`.
+    7.  **Final Report:** Generate using guidelines from `rules-bank/reporting_templates.md` and `../report_writing.md`.
     8.  **Document Review:** Document outcomes using `../common_steps/document_in_soar.md`.
 
 ---

@@ -45,50 +45,50 @@
 ```{mermaid}
 sequenceDiagram
     participant Analyst/Hunter
-    participant Cline as Cline (MCP Client)
+    participant AutomatedAgent as Automated Agent (MCP Client)
     participant SIEM as secops-mcp
     participant GTI as gti-mcp
     participant SOAR as secops-soar
 
-    Analyst/Hunter->>Cline: Start IOC Threat Hunt\nInput: IOC_LIST, IOC_TYPES, HUNT_TIMEFRAME_HOURS, ...
+    Analyst/Hunter->>AutomatedAgent: Start IOC Threat Hunt\nInput: IOC_LIST, IOC_TYPES, HUNT_TIMEFRAME_HOURS, ...
 
     %% Step 2: Initial Check (Optional)
     opt Check IOC Matches
-        Cline->>SIEM: get_ioc_matches(hours_back=HUNT_TIMEFRAME_HOURS)
-        SIEM-->>Cline: Recent IOC Matches
-        Note over Cline: Correlate with IOC_LIST
+        AutomatedAgent->>SIEM: get_ioc_matches(hours_back=HUNT_TIMEFRAME_HOURS)
+        SIEM-->>AutomatedAgent: Recent IOC Matches
+        Note over AutomatedAgent: Correlate with IOC_LIST
     end
 
     %% Step 3: Iterative SIEM Search
     loop For each IOC Ii in IOC_LIST
-        Note over Cline: Construct UDM query Qi for Ii
-        Cline->>SIEM: search_security_events(text=Qi, hours_back=HUNT_TIMEFRAME_HOURS)
-        SIEM-->>Cline: Search Results for Ii
-        Note over Cline: Analyze results for hits
+        Note over AutomatedAgent: Construct UDM query Qi for Ii
+        AutomatedAgent->>SIEM: search_security_events(text=Qi, hours_back=HUNT_TIMEFRAME_HOURS)
+        SIEM-->>AutomatedAgent: Search Results for Ii
+        Note over AutomatedAgent: Analyze results for hits
     end
 
     %% Step 4: Enrich Findings
     opt Hits Found for IOC Ij (Involved Entities E1, E2...)
-        Cline->>SIEM: lookup_entity(entity_value=Ij)
-        SIEM-->>Cline: SIEM Summary for Ij
-        Cline->>GTI: get_..._report(ioc=Ij)
-        GTI-->>Cline: GTI Enrichment for Ij
+        AutomatedAgent->>SIEM: lookup_entity(entity_value=Ij)
+        SIEM-->>AutomatedAgent: SIEM Summary for Ij
+        AutomatedAgent->>GTI: get_..._report(ioc=Ij)
+        GTI-->>AutomatedAgent: GTI Enrichment for Ij
         loop For each Involved Entity Ek (E1, E2...)
-            Cline->>SIEM: lookup_entity(entity_value=Ek)
-            SIEM-->>Cline: SIEM Summary for Ek
+            AutomatedAgent->>SIEM: lookup_entity(entity_value=Ek)
+            SIEM-->>AutomatedAgent: SIEM Summary for Ek
         end
     end
 
     %% Step 5: Document Hunt
-    Cline->>SOAR: post_case_comment(case_id=HUNT_CASE_ID, comment="IOC Hunt Summary: IOCs [...], Findings [...], Enrichment [...]")
-    SOAR-->>Cline: Comment Confirmation
+    AutomatedAgent->>SOAR: post_case_comment(case_id=HUNT_CASE_ID, comment="IOC Hunt Summary: IOCs [...], Findings [...], Enrichment [...]")
+    SOAR-->>AutomatedAgent: Comment Confirmation
 
     %% Step 6: Escalate or Conclude
     alt Confirmed Activity Found
-        Note over Cline: Escalate findings (Create/Update Incident Case)
-        Cline->>Analyst/Hunter: attempt_completion(result="IOC Hunt complete. Findings escalated.")
+        Note over AutomatedAgent: Escalate findings (Create/Update Incident Case)
+        AutomatedAgent->>Analyst/Hunter: attempt_completion(result="IOC Hunt complete. Findings escalated.")
     else No Significant Findings
-        Cline->>Analyst/Hunter: attempt_completion(result="IOC Hunt complete. No significant findings. Hunt documented.")
+        AutomatedAgent->>Analyst/Hunter: attempt_completion(result="IOC Hunt complete. No significant findings. Hunt documented.")
     end
 ```
 
