@@ -16,7 +16,7 @@ Uses Tools:
 *   `write_report` (for report generation)
 *   `execute_command` (using `pandoc` for PDF conversion)
 *   `secops-soar.post_case_comment` (to note report location/attach if possible)
-*   `ask_followup_question` (for report format/content/attachment/SOAR actions confirmation)
+*   You may ask follow up question (for report format/content/attachment/SOAR actions confirmation)
 *   `attempt_completion`
 *   *(Optional SOAR Actions based on user confirmation):* `siemplify_case_tag`, `siemplify_change_priority`, `siemplify_add_general_insight`, `siemplify_update_case_description`, `siemplify_assign_case`, `siemplify_raise_incident`, `siemplify_create_gemini_case_summary`
 

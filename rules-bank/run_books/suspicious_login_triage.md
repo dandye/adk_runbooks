@@ -23,7 +23,7 @@ This runbook covers the initial investigation steps to gather context about a su
 *   `secops-mcp`: `lookup_entity`, `search_security_events`
 *   `gti-mcp`: `get_ip_address_report`
 *   *(Optional: Identity Provider tools like `okta-mcp.lookup_okta_user`)*
-*   `ask_followup_question`
+*   You may ask follow up question
 *   **Common Steps:** `common_steps/enrich_ioc.md`, `common_steps/find_relevant_soar_case.md`, `common_steps/document_in_soar.md`, `common_steps/generate_report_file.md`
 
 ## Workflow Steps & Diagram
@@ -63,7 +63,7 @@ This runbook covers the initial investigation steps to gather context about a su
     *   Prepare comment text: `COMMENT_TEXT = "Suspicious Login Triage for ${USER_ID} from ${SOURCE_IP} (Host: ${HOSTNAME}): User SIEM Summary: ${USER_SIEM_SUMMARY}. Source IP GTI: ${IP_GTI_FINDINGS}. Source IP SIEM: ${IP_SIEM_SUMMARY}. Source IP IOC Match: ${IP_SIEM_MATCH}. Hostname SIEM: ${HOSTNAME_SIEM_SUMMARY}. Recent Login Pattern: ${LOGIN_ACTIVITY_SUMMARY}. Related Open Cases: ${RELATED_SOAR_CASES}. Optional IDP Check: ${IDP_SUMMARY}. Recommendation: [Close as FP/Known Activity | Escalate to Tier 2 for further investigation]"`
     *   Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and `${COMMENT_TEXT}`. Obtain `${COMMENT_POST_STATUS}`.
 10. **(Optional) Generate Report:**
-    *   Use `ask_followup_question` to ask the user: "Generate a markdown report file for this triage?". Obtain `${REPORT_CHOICE}`.
+    *   You may ask follow up question to ask the user: "Generate a markdown report file for this triage?". Obtain `${REPORT_CHOICE}`.
     *   **If `${REPORT_CHOICE}` is "Yes":**
         *   Prepare `REPORT_CONTENT` summarizing findings (similar to `${COMMENT_TEXT}` but formatted for a report, including the Mermaid diagram below).
         *   Execute `common_steps/generate_report_file.md` with `REPORT_CONTENT`, `REPORT_TYPE="suspicious_login_triage"`, `REPORT_NAME_SUFFIX=${CASE_ID}`. Obtain `${REPORT_GENERATION_STATUS}`.

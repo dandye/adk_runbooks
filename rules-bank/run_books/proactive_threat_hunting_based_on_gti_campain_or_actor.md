@@ -16,7 +16,7 @@ Uses Tools:
 *   **(Optional) `gti-mcp.get_file_behavior_summary` (For found file hashes)**
 *   `write_report` (for report generation)
 *   `secops-soar`: `post_case_comment` (optional), `list_cases`
-*   `ask_followup_question`
+*   You may ask follow up question
 *   **Common Steps:** `common_steps/find_relevant_soar_case.md`
 
 ```{mermaid}

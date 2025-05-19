@@ -23,7 +23,7 @@ Consolidate findings from a completed or ongoing investigation involving various
 **Required for Reporting Workflow:**
 *   `secops-soar`: `get_case_full_details`, `post_case_comment`
 *   `write_report`
-*   `ask_followup_question`
+*   You may ask follow up question
 
 **Summarized From (Examples - Actual tools depend on the investigation):**
 *   `secops-mcp`: `lookup_entity`, `search_security_events`
@@ -44,14 +44,14 @@ Consolidate findings from a completed or ongoing investigation involving various
     *   **Note on Tool Limitations:** Be aware that direct searches for specific artifacts (like event IDs) or lookups for certain entity types (like hostnames without full paths) might fail or return limited information. If primary methods fail, adapt the investigation by using alternative approaches, such as searching SIEM logs based on related entities (IPs, users) and relevant timeframes, or performing broader lookups.
 3.  **Structure Report:** Organize the synthesized information according to standard templates. **Refer to `.clinerules/reporting_templates.md` and `.clinerules/run_books/guidelines/runbook_guidelines.md`**. Key sections should include: Executive Summary, Investigation Timeline (high-level), Involved Entities & Enrichment Summary, Analysis/Root Cause (if determined), Actions Taken (summary), Recommendations/Lessons Learned.
 4.  **Generate Mermaid Diagram:** Create a Mermaid sequence diagram summarizing the *actual investigation workflow* performed for this case, including any alternative steps taken or tool failures encountered. The diagram should reflect reality, not just the ideal path.
-5.  **Manual Review & Redaction:** **CRITICAL STEP:** Prompt the analyst to review the drafted report content for accuracy and to **manually redact or defang any sensitive data** (e.g., PII, internal hostnames if required, specific credentials) before proceeding. Use `ask_followup_question` to get confirmation that redaction is complete.
+5.  **Manual Review & Redaction:** **CRITICAL STEP:** Prompt the analyst to review the drafted report content for accuracy and to **manually redact or defang any sensitive data** (e.g., PII, internal hostnames if required, specific credentials) before proceeding. You may ask follow up question to get confirmation that redaction is complete.
 6.  **Format Final Report:** Compile the reviewed/redacted information and the Mermaid diagram into the final Markdown report content (let this be `${FINAL_REPORT_CONTENT}`).
 7.  **Write Report File:** Construct `${REPORT_NAME}` (e.g., `investigation_report_${CASE_ID}.md` or `investigation_report_${REPORT_FILENAME_SUFFIX}.md` if provided, ensuring a `.md` extension). Execute `common_steps/generate_report_file.md` with `REPORT_CONTENTS=${FINAL_REPORT_CONTENT}` and `REPORT_NAME=${REPORT_NAME}`. Obtain `${REPORT_FILE_PATH}` and `${WRITE_STATUS}`.
 8.  **Attempt SOAR Attachment:**
     *   *(If `siemplify_add_attachment_to_case` or similar tool exists)* Attempt to attach the generated file (`${REPORT_FILE_PATH}`) to the SOAR case `${CASE_ID}`.
     *   **If Attachment Fails or Tool Unavailable:** Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and `COMMENT_TEXT="Investigation report generated: `${REPORT_FILE_PATH}`. Attachment failed or not available. Summary: [Include brief summary here]."`. Obtain `${COMMENT_POST_STATUS}`.
     *   **If Attachment Succeeds:** Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and `COMMENT_TEXT="Investigation report attached successfully: `${REPORT_FILE_PATH}`."`. Obtain `${COMMENT_POST_STATUS}`.
-9.  **Confirm Optional External Upload:** Use `ask_followup_question` to ask the user: "Upload the redacted report file (`${REPORT_FILE_PATH}`) to Google Drive or GCS?". Options: ["Yes, Drive", "Yes, GCS", "No"]. Obtain `${UPLOAD_CHOICE}`.
+9.  **Confirm Optional External Upload:** You may ask follow up question to ask the user: "Upload the redacted report file (`${REPORT_FILE_PATH}`) to Google Drive or GCS?". Options: ["Yes, Drive", "Yes, GCS", "No"]. Obtain `${UPLOAD_CHOICE}`.
 10. **Execute External Upload (Optional):**
     *   If `${UPLOAD_CHOICE}` is "Yes, Drive" *(and Drive tool exists)*: Execute `google-drive-mcp.upload_to_drive` with `${REPORT_FILE_PATH}`.
     *   If `${UPLOAD_CHOICE}` is "Yes, GCS" *(and GCS tool exists)*: Execute `gcs-mcp.upload_to_gcs` with `${REPORT_FILE_PATH}`.

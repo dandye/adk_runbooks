@@ -23,7 +23,7 @@ This runbook covers the initial assessment and potential network isolation of an
 *   `scc-mcp`: `top_vulnerability_findings` (if cloud resource), `get_finding_remediation`
 *   *(Potentially EDR tools if available via MCP: e.g., get_endpoint_details, isolate_endpoint)*
 *   *(Potentially Vulnerability Scanner tools if available via MCP)*
-*   `ask_followup_question` (To confirm isolation)
+*   You may ask follow up question (To confirm isolation)
 
 ## Workflow Steps & Diagram
 
@@ -43,7 +43,7 @@ This runbook covers the initial assessment and potential network isolation of an
     *   *(Optional) Check EDR Status:*
         *   *(Use EDR integration tool `get_endpoint_details` for `${ENDPOINT_ID}` to check agent status, recent EDR alerts, running processes)*.
 4.  **Assess Compromise Likelihood & Need for Isolation:** Based on the gathered context, SIEM activity, vulnerability/EDR status, determine the likelihood of compromise and the urgency for isolation.
-5.  **Confirm Isolation Action:** Use `ask_followup_question` to confirm with the analyst whether network isolation should be performed for `${ENDPOINT_ID}`.
+5.  **Confirm Isolation Action:** You may ask follow up question to confirm with the analyst whether network isolation should be performed for `${ENDPOINT_ID}`.
 6.  **Execute Isolation:**
     *   *(Requires specific EDR integration tool with isolation capability)*
     *   If confirmed "Yes":

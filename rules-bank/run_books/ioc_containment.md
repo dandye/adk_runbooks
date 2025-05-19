@@ -22,7 +22,7 @@ This runbook focuses on the immediate containment actions based on confirmed mal
 *   `secops-soar`: `post_case_comment` (For documentation)
 *   *(Potentially other SOAR actions for specific integrations like Firewalls, Proxies, EDR)*
 *   `secops-mcp`: `search_security_events` (To find related activity/endpoints for file hashes)
-*   `ask_followup_question` (To confirm actions)
+*   You may ask follow up question (To confirm actions)
 
 ## Workflow Steps & Diagram
 

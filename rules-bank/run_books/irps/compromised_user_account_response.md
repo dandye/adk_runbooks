@@ -29,7 +29,7 @@ This runbook covers the end-to-end response lifecycle for compromised user accou
 *   `secops-mcp`: `search_security_events`, `lookup_entity`
 *   `secops-soar`: `post_case_comment`, `get_case_full_details`
 *   *(Potentially Identity Provider tools like `okta-mcp` if available: `lookup_okta_user`, `disable_okta_user`, `reset_okta_user_password`, `terminate_sessions`, etc.)*
-*   `ask_followup_question` (To confirm actions)
+*   You may ask follow up question (To confirm actions)
 *   *(Potentially Email platform tools for checking rules/delegation)*
 *   *(Potentially Endpoint tools if investigating actions taken on hosts)*
 *   **Common Steps:** `common_steps/check_duplicate_cases.md`, `common_steps/find_relevant_soar_case.md`, `common_steps/document_in_soar.md`, `common_steps/confirm_action.md`

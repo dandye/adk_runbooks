@@ -6,7 +6,7 @@ Ask the user a follow-up question to confirm whether a specific action should be
 
 ## Scope
 
-This sub-runbook executes the `ask_followup_question` tool with a provided question and optional response options. It returns the user's response to the calling runbook.
+This sub-runbook executes the You may ask follow up question tool with a provided question and optional response options. It returns the user's response to the calling runbook.
 
 ## Inputs
 
@@ -19,12 +19,12 @@ This sub-runbook executes the `ask_followup_question` tool with a provided quest
 
 ## Tools
 
-*   `ask_followup_question`
+*   You may ask follow up question
 
 ## Workflow Steps & Diagram
 
 1.  **Receive Input:** Obtain `${QUESTION_TEXT}` and optionally `${RESPONSE_OPTIONS}` from the calling runbook.
-2.  **Ask Question:** Call `ask_followup_question` with `question=${QUESTION_TEXT}` and `options=${RESPONSE_OPTIONS}` (if provided).
+2.  **Ask Question:** Call You may ask follow up question with `question=${QUESTION_TEXT}` and `options=${RESPONSE_OPTIONS}` (if provided).
 3.  **Return Response:** Store the user's response in `${USER_RESPONSE}` and return it to the calling runbook.
 
 ```{mermaid}
@@ -46,4 +46,4 @@ sequenceDiagram
 
 ## Completion Criteria
 
-The `ask_followup_question` action has been executed. The user's response (`${USER_RESPONSE}`) is available.
+The You may ask follow up question action has been executed. The user's response (`${USER_RESPONSE}`) is available.

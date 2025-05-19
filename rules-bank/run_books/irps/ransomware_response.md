@@ -36,7 +36,7 @@ This runbook covers the end-to-end response lifecycle for ransomware incidents, 
 *   **Basic Endpoint Triage & Isolation Runbook:** `../basic_endpoint_triage_isolation.md` (Crucial for containment).
 *   **IOC Containment Runbook:** `../ioc_containment.md` (For network IOCs).
 *   **Compromised User Account Response Runbook:** `../compromised_user_account_response.md` (If initial access vector involves user).
-*   `ask_followup_question` (To confirm actions, especially isolation).
+*   You may ask follow up question (To confirm actions, especially isolation).
 *   *(External Resources: Ransomware identification sites, known decryptor databases - manual step)*.
 *   **Common Steps:** `common_steps/check_duplicate_cases.md`, `common_steps/find_relevant_soar_case.md`, `common_steps/document_in_soar.md`
 

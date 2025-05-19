@@ -34,7 +34,7 @@ This runbook covers fundamental enrichment steps using readily available GTI and
 *   `gti-mcp`: `get_ip_address_report`, `get_domain_report`, `get_file_report`, `get_url_report`, `get_entities_related_to_a_file`, `get_entities_related_to_a_domain`, `get_entities_related_to_an_ip_address`, `get_entities_related_to_an_url`
 *   `secops-mcp`: `lookup_entity`, `get_ioc_matches`, `search_security_events`
 *   `secops-soar`: `list_cases`, `post_case_comment`
-*   `ask_followup_question`
+*   You may ask follow up question
 *   `write_report`
 *   **Common Steps:** `common_steps/enrich_ioc.md`, `common_steps/pivot_on_ioc_gti.md`, `common_steps/find_relevant_soar_case.md`, `common_steps/document_in_soar.md`, `common_steps/generate_report_file.md`
 
@@ -62,7 +62,7 @@ This runbook covers fundamental enrichment steps using readily available GTI and
         *   Execute `common_steps/document_in_soar.md` with `CASE_ID=${CASE_ID}` and `COMMENT_TEXT`. Obtain `${DOCUMENTATION_STATUS}`.
     *   **Else (`${CASE_ID}` not provided):** Set `${DOCUMENTATION_STATUS}` = "Skipped (No Case ID)".
 8.  **Optional Report Generation:**
-    *   Use `ask_followup_question` to ask the user: "Generate a markdown report file for this enrichment?". Obtain `${REPORT_CHOICE}`.
+    *   You may ask follow up question to ask the user: "Generate a markdown report file for this enrichment?". Obtain `${REPORT_CHOICE}`.
     *   **If `${REPORT_CHOICE}` is "Yes":**
         *   Prepare `REPORT_CONTENT` similar to `COMMENT_TEXT` but formatted for a standalone report.
         *   Execute `common_steps/generate_report_file.md` with `REPORT_CONTENT`, `REPORT_TYPE="ioc_enrichment"`, `REPORT_NAME_SUFFIX=${IOC_VALUE}`. Obtain `${REPORT_GENERATION_STATUS}`.

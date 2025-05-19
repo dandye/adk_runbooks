@@ -39,7 +39,7 @@ This runbook covers the end-to-end response lifecycle for phishing incidents. It
 *   **IOC Containment Runbook:** `../ioc_containment.md`
 *   **Compromised User Account Response Runbook:** `../compromised_user_account_response.md`
 *   **Basic Endpoint Triage & Isolation Runbook:** `../basic_endpoint_triage_isolation.md`
-*   `ask_followup_question` (To confirm actions).
+*   You may ask follow up question (To confirm actions).
 *   *(Potentially Email Gateway tools if integrated via MCP for searching/deleting emails)*
 *   **Common Steps:** `common_steps/check_duplicate_cases.md`, `common_steps/enrich_ioc.md`, `common_steps/find_relevant_soar_case.md`, `common_steps/document_in_soar.md`
 
