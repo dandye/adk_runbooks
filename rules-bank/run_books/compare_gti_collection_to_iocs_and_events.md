@@ -80,6 +80,6 @@ sequenceDiagram
         Cline->>Cline: attempt_completion(result="Environment sweep based on GTI Collection 'GTI-XYZ' complete. Report posted to existing case CaseID_Found.")
     else No Existing Case Found
         Note over Cline: Generate report locally (as done previously)
-        Cline->>Cline: write_to_file(path="./reports/...", content=ReportMarkdown)
-        Cline->>Cline: attempt_completion(result="Environment sweep based on GTI Collection 'GTI-XYZ' complete. Report generated locally. Recommend manual case creation if needed.")
+        Cline->>Cline: write_report(report_name="gti_comparison_report_GTI-XYZ_${timestamp}.md", report_contents=ReportMarkdown)
+        Cline->>Cline: attempt_completion(result="Environment sweep based on GTI Collection 'GTI-XYZ' complete. Report generated. Recommend manual case creation if needed.")
     end

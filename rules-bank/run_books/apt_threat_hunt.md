@@ -22,7 +22,7 @@ Focuses on SIEM log analysis and GTI correlation for specific TTPs and IOCs rela
 *   `gti-mcp`: `get_collection_report`, `get_entities_related_to_a_collection`, `get_collection_timeline_events`, `get_collection_mitre_tree`, `search_threat_actors` (if starting with name)
 *   `secops-mcp`: `search_security_events`, `lookup_entity`, `get_ioc_matches`
 *   `secops-soar`: `post_case_comment`, `list_cases`
-*   `write_to_file`
+*   `write_report`
 *   **Common Steps:** `common_steps/find_relevant_soar_case.md`, `common_steps/generate_report_file.md`
 
 ## Workflow Steps & Diagram

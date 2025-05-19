@@ -19,7 +19,7 @@
 *   `secops-soar`: `list_cases`, `get_case_full_details` (for analyzing case data)
 *   `secops-mcp`: `search_security_events`, `get_security_alerts` (for analyzing event/alert data)
 *   `bigquery`: `execute-query` (if analyzing data lake information)
-*   `write_to_file` (for report generation)
+*   `write_report` (for report generation)
 *   *(Potentially other tools for data aggregation or visualization if available)*
 
 ## Workflow Steps & Diagram
@@ -29,7 +29,7 @@
 3.  **Data Aggregation & Analysis:** Aggregate the collected data. Analyze for trends, patterns, outliers, and correlations related to the `${ANALYSIS_FOCUS}`.
 4.  **Synthesize Findings:** Summarize the key findings and insights derived from the analysis.
 5.  **Develop Recommendations:** Based on the findings, formulate actionable recommendations (e.g., tune specific detection rules, update runbooks, implement new security controls, focus threat hunting efforts).
-6.  **Generate Report:** Create a comprehensive report detailing the analysis objective, methodology, data sources, findings, and recommendations using `write_to_file`. Include visualizations (e.g., Mermaid diagrams summarizing data flow or findings) if applicable.
+6.  **Generate Report:** Create a comprehensive report detailing the analysis objective, methodology, data sources, findings, and recommendations using `write_report` (e.g., `report_name="meta_analysis_${ANALYSIS_FOCUS_Sanitized}_${timestamp}.md"`, `report_contents=ReportMarkdown`). Include visualizations (e.g., Mermaid diagrams summarizing data flow or findings) if applicable.
 
 ```{mermaid}
 sequenceDiagram
@@ -71,8 +71,8 @@ sequenceDiagram
     Note over Cline: Summarize key findings and formulate recommendations
 
     %% Step 6: Generate Report
-    Note over Cline: Compile report content (Objective, Method, Findings, Recommendations)
-    Cline->>Cline: write_to_file(path="./reports/meta_analysis_report...", content=ReportMarkdown)
+    Note over Cline: Compile report content (ReportMarkdown) (Objective, Method, Findings, Recommendations)
+    Cline->>Cline: write_report(report_name="meta_analysis_${ANALYSIS_FOCUS_Sanitized}_${timestamp}.md", report_contents=ReportMarkdown)
     Note over Cline: Report file created
 
     Cline->>Analyst/Researcher: attempt_completion(result="Meta-analysis complete. Report generated.")

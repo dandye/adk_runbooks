@@ -20,7 +20,7 @@
 ## Tools
 
 *   `bigquery`: `execute-query`, `describe-table`, `list-tables`
-*   `write_to_file` (Optional, for saving results)
+*   `write_report` (Optional, for saving results as a report file)
 *   `secops-soar`: `post_case_comment` (Optional, for documenting query/results)
 
 ## Workflow Steps & Diagram
@@ -28,7 +28,7 @@
 1.  **Define Query:** Based on `${QUERY_OBJECTIVE}`, `${TARGET_DATASETS}`, time range, and filters, construct the BigQuery SQL query. Use `describe-table` or `list-tables` if needed to confirm schema/table names.
 2.  **Execute Query:** Run the query using `bigquery.execute-query`.
 3.  **Analyze Results:** Review the query results.
-4.  **Format/Save Results (Optional):** If needed, format the results and save them to a file using `write_to_file`.
+4.  **Format/Save Results (Optional):** If needed, format the results (e.g., as Markdown, CSV, or JSON, let this be `${FormattedResults}`) and save them using `write_report` with `report_name="query_results_${QUERY_OBJECTIVE_Sanitized}_${timestamp}.md"` and `report_contents=${FormattedResults}`.
 5.  **Document (Optional):** Document the query executed and a summary of the results in a relevant SOAR case using `post_case_comment`.
 
 ```{mermaid}
@@ -56,9 +56,9 @@ sequenceDiagram
 
     %% Step 4: Format/Save Results (Optional)
     opt Save Results
-        Note over Cline: Format results (e.g., CSV, JSON)
-        Cline->>Cline: write_to_file(path="./query_results...", content=FormattedResults)
-        Note over Cline: Results saved locally
+        Note over Cline: Format results (e.g., CSV, JSON) (FormattedResults)
+        Cline->>Cline: write_report(report_name="query_results_${QUERY_OBJECTIVE_Sanitized}_${timestamp}.md", report_contents=FormattedResults)
+        Note over Cline: Results saved as a report file
     end
 
     %% Step 5: Document (Optional)

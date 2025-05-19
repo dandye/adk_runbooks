@@ -14,7 +14,7 @@ Uses Tools:
 *   **`gti-mcp.get_entities_related_to_a_domain/file/ip/url` (Pivot on *found* IOCs)**
 *   **`secops-mcp.get_security_alerts` (Check related SIEM alerts for *found* IOCs/hosts)**
 *   **(Optional) `gti-mcp.get_file_behavior_summary` (For found file hashes)**
-*   `write_to_file` (for report generation)
+*   `write_report` (for report generation)
 *   `secops-soar`: `post_case_comment` (optional), `list_cases`
 *   `ask_followup_question`
 *   **Common Steps:** `common_steps/find_relevant_soar_case.md`
@@ -106,8 +106,8 @@ sequenceDiagram
             Cline->>Cline: attempt_completion(result="Proactive threat hunt for `${GTI_COLLECTION_ID}` complete. Findings summarized. SOAR case created/updated.")
         else Generate Report
             Note over Cline: Synthesize report content
-            Cline->>Cline: write_to_file(path="./reports/proactive_hunt_report_${GTI_COLLECTION_ID}_${timestamp}.md", content=...)
-            Note over Cline: Report file created locally.
+            Cline->>Cline: write_report(report_name="proactive_hunt_report_${GTI_COLLECTION_ID}_${timestamp}.md", report_contents=ReportContent)
+            Note over Cline: Report file created.
             Cline->>Cline: attempt_completion(result="Proactive threat hunt for `${GTI_COLLECTION_ID}` complete. Report generated.")
         else Do Nothing
              Cline->>Cline: attempt_completion(result="Proactive threat hunt for `${GTI_COLLECTION_ID}` complete. Findings summarized. No output action taken.")

@@ -20,7 +20,7 @@ This runbook covers gathering essential details about the alert(s), associated e
 *   `secops-soar`: `get_case_full_details`, `list_alerts_by_case`, `list_events_by_alert`, `get_entities_by_alert_group_identifiers`, `post_case_comment`
 *   `secops-mcp`: `lookup_entity`, `search_security_events` (optional, for broader context)
 *   `Google Threat Intelligence MCP server`: `get_ip_address_report`, `get_domain_report`, `get_file_report`, `get_url_report`
-*   `write_to_file`
+*   `write_report`
 
 ## Workflow Steps & Diagram
 
@@ -53,9 +53,10 @@ This runbook covers gathering essential details about the alert(s), associated e
         *   **Initial Assessment/Conclusion:** A brief statement on the nature of the alert based on the gathered data (e.g., "Likely malicious activity involving...", "Appears to be benign based on...", "Requires further investigation by Tier 2...").
         *   **Workflow Diagram:** Include a Mermaid sequence diagram illustrating the steps taken during this runbook execution.
 7.  **Write Report File:**
-    *   Generate a timestamp string (`TIMESTAMP`, e.g., `yyyymmdd_hhmm`).
-    *   Construct filename: `./reports/alert_report_${CASE_ID}_${REPORT_FILENAME_SUFFIX}_${timestamp}.md`.
-    *   Use `write_to_file` with the path and formatted Markdown content.
+    *   Generate a timestamp string (`${timestamp}`, e.g., `yyyymmdd_hhmm`).
+    *   Construct `REPORT_NAME_VAR` (e.g., `alert_report_${CASE_ID}_${REPORT_FILENAME_SUFFIX}_${timestamp}.md`). Ensure `${REPORT_FILENAME_SUFFIX}` is handled (e.g., if empty, don't include extra underscores).
+    *   Let the formatted Markdown content be `REPORT_CONTENTS_VAR`.
+    *   Use `write_report` with `report_name=${REPORT_NAME_VAR}` and `report_contents=${REPORT_CONTENTS_VAR}`.
 8.  **(Optional) Update SOAR Case:**
     *   Use `secops-soar.post_case_comment` to add a comment to `${CASE_ID}` stating that the report has been generated and providing the filename, or pasting a concise summary directly.
 9.  **Completion:** Conclude the runbook execution.
@@ -113,8 +114,9 @@ sequenceDiagram
     end
 
     %% Step 6 & 7: Synthesize & Write Report
-    Note over Cline: Format report content (Case Summary, Alert Summary, Entities, Enrichment, Events, Assessment)
-    Cline->>Cline: write_to_file(path="./reports/alert_report_...", content=ReportMarkdown)
+    Note over Cline: Format report content (ReportMarkdown) (Case Summary, Alert Summary, Entities, Enrichment, Events, Assessment)
+    Note over Cline: Construct REPORT_NAME_VAR (e.g., alert_report_${CASE_ID}_${REPORT_FILENAME_SUFFIX}_${timestamp}.md)
+    Cline->>Cline: write_report(report_name=REPORT_NAME_VAR, report_contents=ReportMarkdown)
     Note over Cline: Report file created
 
     %% Step 8: Optional SOAR Update

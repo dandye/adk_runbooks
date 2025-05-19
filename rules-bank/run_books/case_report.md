@@ -19,7 +19,7 @@
 *   `secops-soar`: `get_case_full_details`, `list_alerts_by_case`, `list_events_by_alert`, `post_case_comment` (Potentially others depending on what needs summarizing)
 *   `secops-mcp`: `lookup_entity`, `search_security_events` (If summarizing previous searches)
 *   `gti-mcp`: Various `get_*_report` tools (If summarizing previous enrichment)
-*   `write_to_file`
+*   `write_report`
 
 ## Workflow Steps & Diagram
 
@@ -28,7 +28,7 @@
 3.  **Structure Report:** Organize the information according to a standard template (referencing `.clinerules/reporting_templates.md`). Key sections might include: Executive Summary, Timeline of Key Events, Involved Entities & Enrichment, Analysis/Root Cause (if determined), Actions Taken, Recommendations/Lessons Learned.
 4.  **Generate Mermaid Diagram:** Create a Mermaid sequence diagram summarizing the *investigation workflow* that was performed for this case (which tools were used in what order).
 5.  **Format Report:** Compile the synthesized information and the Mermaid diagram into a final Markdown report.
-6.  **Write Report File:** Save the report using `write_to_file` with a standardized name (e.g., `./reports/case_report_${CASE_ID}_${timestamp}.md`).
+6.  **Write Report File:** Save the report using `write_report` with a standardized name (e.g., `./reports/case_report_${CASE_ID}_${timestamp}.md`).
 7.  **(Optional) Update Case:** Add a comment to the SOAR case indicating the report has been generated and its location using `post_case_comment`.
 
 ```{mermaid}
@@ -54,8 +54,8 @@ sequenceDiagram
     Note over Cline: Create Mermaid diagram summarizing investigation steps
 
     %% Step 5 & 6: Format & Write Report
-    Note over Cline: Compile final Markdown content
-    Cline->>Cline: write_to_file(path="./reports/case_report_...", content=ReportMarkdown)
+    Note over Cline: Compile final Markdown content (ReportMarkdown)
+    Cline->>Cline: write_report(report_name="case_report_${CASE_ID}_${timestamp}.md", report_contents=ReportMarkdown)
     Note over Cline: Report file created
 
     %% Step 7: Optional SOAR Update

@@ -13,7 +13,7 @@ Uses Tools:
 *   `gti-mcp.get_file_report` (for process hash classification)
 *   `secops-mcp.get_threat_intel` (for MITRE TACTIC mapping/general enrichment)
 *   `siemplify_create_gemini_case_summary` (Optional, for AI-generated summary)
-*   `write_to_file` (for report generation)
+*   `write_report` (for report generation)
 *   `execute_command` (using `pandoc` for PDF conversion)
 *   `secops-soar.post_case_comment` (to note report location/attach if possible)
 *   `ask_followup_question` (for report format/content/attachment/SOAR actions confirmation)
@@ -139,7 +139,7 @@ sequenceDiagram
     alt Report Confirmed ("Yes...")
         %% Step 13: Write MD Report
         Note over Cline: Format report content (MUST include Trees & Table, optionally Gemini Summary)
-        Cline->>Cline: write_to_file(path="./reports/case_${CASE_ID}_timeline_${timestamp}.md", content=...)
+        Cline->>Cline: write_report(path="./reports/case_${CASE_ID}_timeline_${timestamp}.md", content=...)
         Note over Cline: MD Report file created.
 
         %% Step 14 & 15: Confirm PDF/Attach

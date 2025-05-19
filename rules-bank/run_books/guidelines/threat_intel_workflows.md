@@ -17,7 +17,7 @@
 *   `gti-mcp`: (List relevant tools, likely most of them)
 *   `secops-mcp`: `search_security_events`, `lookup_entity`, `get_ioc_matches`
 *   `secops-soar`: `post_case_comment`, `list_cases`, `siemplify_add_general_insight`
-*   `write_to_file` (For reports)
+*   `write_report` (For reports)
 *   *(External OSINT tools/feeds - Manual)*
 
 ## Workflow Steps & Diagram
@@ -32,7 +32,7 @@
 4.  **Analyze TTPs:** Use `gti-mcp.get_collection_mitre_tree`.
 5.  **Review Timelines:** Use `gti-mcp.get_collection_timeline_events`.
 6.  **Correlate Locally (Optional):** Use `secops-mcp` tools (`search_security_events`, `lookup_entity`) to search for related IOCs/TTPs in the environment.
-7.  **Synthesize & Report:** Compile findings into a threat actor profile using `write_to_file`.
+7.  **Synthesize & Report:** Compile findings into a threat actor profile using `write_report` (e.g., `report_name="actor_profile_${THREAT_ACTOR_ID}_${timestamp}.md", report_contents=ReportMarkdown`).
 8.  **Disseminate:** Share findings via `secops-soar.post_case_comment` or other channels.
 
 ```{mermaid}
@@ -74,8 +74,8 @@ sequenceDiagram
     end
 
     %% Step 7: Synthesize & Report
-    Note over Cline: Compile Threat Actor Profile
-    Cline->>Cline: write_to_file(path="./reports/actor_profile_...", content=ReportMarkdown)
+    Note over Cline: Compile Threat Actor Profile (ReportMarkdown)
+    Cline->>Cline: write_report(report_name="actor_profile_${THREAT_ACTOR_ID}_${timestamp}.md", report_contents=ReportMarkdown)
     Note over Cline: Report Saved
 
     %% Step 8: Disseminate

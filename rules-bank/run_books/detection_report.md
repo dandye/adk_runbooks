@@ -18,7 +18,7 @@
 
 *   `secops-mcp`: `list_security_rules`, `get_security_alerts` (for performance data)
 *   `secops-soar`: `get_case_full_details`, `post_case_comment` (for context/documentation)
-*   `write_to_file`
+*   `write_report`
 
 ## Workflow Steps & Diagram
 
@@ -28,7 +28,7 @@
 4.  **Structure Report:** Organize information according to a standard template (referencing `.clinerules/reporting_templates.md`). Key sections might include: Rule Details (ID, Name, Logic Summary), Performance Metrics (Alert Volume, TP/FP Ratio if known), Key Findings/Observations, Tuning History/Recommendations (if applicable).
 5.  **Generate Mermaid Diagram:** Create a Mermaid sequence diagram summarizing the *tools used to gather data for this report*.
 6.  **Format Report:** Compile the synthesized information and the Mermaid diagram into a final Markdown report.
-7.  **Write Report File:** Save the report using `write_to_file` with a standardized name (e.g., `./reports/detection_report_${RULE_ID}_${timestamp}.md`).
+7.  **Write Report File:** Save the report using `write_report` with `report_name="detection_report_${RULE_ID}_${timestamp}.md"` and `report_contents=ReportMarkdown`.
 
 ```{mermaid}
 sequenceDiagram
@@ -59,8 +59,8 @@ sequenceDiagram
     Note over Cline: Create Mermaid diagram summarizing report generation steps
 
     %% Step 6 & 7: Format & Write Report
-    Note over Cline: Compile final Markdown content
-    Cline->>Cline: write_to_file(path="./reports/detection_report_...", content=ReportMarkdown)
+    Note over Cline: Compile final Markdown content (ReportMarkdown)
+    Cline->>Cline: write_report(report_name="detection_report_${RULE_ID}_${timestamp}.md", report_contents=ReportMarkdown)
     Note over Cline: Report file created
 
     Cline->>Analyst/User: attempt_completion(result="Detection report generated for RULE_ID.")

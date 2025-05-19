@@ -22,7 +22,7 @@ Consolidate findings from a completed or ongoing investigation involving various
 
 **Required for Reporting Workflow:**
 *   `secops-soar`: `get_case_full_details`, `post_case_comment`
-*   `write_to_file`
+*   `write_report`
 *   `ask_followup_question`
 
 **Summarized From (Examples - Actual tools depend on the investigation):**
@@ -45,8 +45,8 @@ Consolidate findings from a completed or ongoing investigation involving various
 3.  **Structure Report:** Organize the synthesized information according to standard templates. **Refer to `.clinerules/reporting_templates.md` and `.clinerules/run_books/guidelines/runbook_guidelines.md`**. Key sections should include: Executive Summary, Investigation Timeline (high-level), Involved Entities & Enrichment Summary, Analysis/Root Cause (if determined), Actions Taken (summary), Recommendations/Lessons Learned.
 4.  **Generate Mermaid Diagram:** Create a Mermaid sequence diagram summarizing the *actual investigation workflow* performed for this case, including any alternative steps taken or tool failures encountered. The diagram should reflect reality, not just the ideal path.
 5.  **Manual Review & Redaction:** **CRITICAL STEP:** Prompt the analyst to review the drafted report content for accuracy and to **manually redact or defang any sensitive data** (e.g., PII, internal hostnames if required, specific credentials) before proceeding. Use `ask_followup_question` to get confirmation that redaction is complete.
-6.  **Format Final Report:** Compile the reviewed/redacted information and the Mermaid diagram into the final Markdown report content.
-7.  **Write Report File:** Execute `common_steps/generate_report_file.md` with the final report content, `REPORT_TYPE="investigation_report"`, and `REPORT_NAME_SUFFIX=${CASE_ID}` (or `${REPORT_FILENAME_SUFFIX}`). Obtain `${REPORT_FILE_PATH}` and `${WRITE_STATUS}`.
+6.  **Format Final Report:** Compile the reviewed/redacted information and the Mermaid diagram into the final Markdown report content (let this be `${FINAL_REPORT_CONTENT}`).
+7.  **Write Report File:** Construct `${REPORT_NAME}` (e.g., `investigation_report_${CASE_ID}.md` or `investigation_report_${REPORT_FILENAME_SUFFIX}.md` if provided, ensuring a `.md` extension). Execute `common_steps/generate_report_file.md` with `REPORT_CONTENTS=${FINAL_REPORT_CONTENT}` and `REPORT_NAME=${REPORT_NAME}`. Obtain `${REPORT_FILE_PATH}` and `${WRITE_STATUS}`.
 8.  **Attempt SOAR Attachment:**
     *   *(If `siemplify_add_attachment_to_case` or similar tool exists)* Attempt to attach the generated file (`${REPORT_FILE_PATH}`) to the SOAR case `${CASE_ID}`.
     *   **If Attachment Fails or Tool Unavailable:** Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and `COMMENT_TEXT="Investigation report generated: `${REPORT_FILE_PATH}`. Attachment failed or not available. Summary: [Include brief summary here]."`. Obtain `${COMMENT_POST_STATUS}`.
@@ -86,11 +86,12 @@ sequenceDiagram
         Cline->>CS: get_host_details(host=Ei)
         CS-->>Cline: CrowdStrike host details for Ei
     end
-    Note over Cline: Synthesize findings, redact/defang sensitive data
-    Cline->>Cline: Create report content (e.g., report_content)
-    Cline->>Cline: write_to_file(path="investigation_report_case_X.md", content=report_content)
-    Note over Cline: Report created locally
-    Cline->>SOAR: siemplify_add_attachment_to_case(case_id=X, file_path="investigation_report_case_X.md")
+    Note over Cline: Synthesize findings, redact/defang sensitive data (FINAL_REPORT_CONTENT)
+    Note over Cline: Construct REPORT_NAME (e.g., investigation_report_case_X.md)
+    Cline->>GenerateReportFile: common_steps/generate_report_file.md(REPORT_CONTENTS=FINAL_REPORT_CONTENT, REPORT_NAME=REPORT_NAME)
+    GenerateReportFile-->>Cline: REPORT_FILE_PATH, WRITE_STATUS
+    Note over Cline: Report created locally at REPORT_FILE_PATH
+    Cline->>SOAR: siemplify_add_attachment_to_case(case_id=X, file_path=REPORT_FILE_PATH)
     SOAR-->>Cline: Attachment confirmation
     Cline->>User: ask_followup_question(question="Upload redacted report to Drive/GCS?", options=["Yes, Drive", "Yes, GCS", "No"])
     User->>Cline: Response (e.g., "Yes, Drive")

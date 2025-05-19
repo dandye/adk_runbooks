@@ -31,7 +31,11 @@ def write_report(report_name: str, report_contents: str):
     # Ensure the reports directory exists, relative to this tools.py file
     reports_dir = os.path.join(os.path.dirname(__file__), "..", "..", "reports")
     os.makedirs(reports_dir, exist_ok=True)
-    file_path = os.path.join(reports_dir, f"{report_name}")
+    timestamp = get_current_time()['current_time'] # ToDo: and ends with .md?
+    if timestamp[:8] in report_name:
+        file_path = os.path.join(reports_dir, f"{report_name}")
+    else:
+        file_path = os.path.join(reports_dir, f"{report_name}_{timestamp}.md")
     with open(file_path, "w") as f:
         f.write(f"{report_contents}")
 

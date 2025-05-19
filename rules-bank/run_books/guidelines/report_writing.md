@@ -17,7 +17,7 @@ These guidelines apply to various report types (e.g., investigation summaries, t
 
 ## Tools
 
-*   `write_to_file`: To save the final report.
+*   `write_report`: To save the final report.
 *   *(Tools used to gather `${FINDINGS}`)*
 
 ## Workflow Steps & Diagram (Conceptual - For Writing the Report)
@@ -30,8 +30,8 @@ These guidelines apply to various report types (e.g., investigation summaries, t
     *   **Case ID(s):** `${CASE_ID}`
     *   **Workflow Diagram:** Embed the `${MERMAID_DIAGRAM}`.
 4.  **Write Content:** Clearly articulate findings, analysis, and conclusions. Use consistent terminology. Include links back to relevant tools/platforms where appropriate (e.g., links to SOAR cases, GTI reports).
-5.  **Review & Refine:** Proofread the report for clarity, accuracy, and completeness.
-6.  **Save Report:** Use `write_to_file` to save the report with a standardized filename (e.g., `<report_type>_<report_name>_${CASE_ID}_${timestamp}.md`).
+5.  **Review & Refine:** Proofread the report for clarity, accuracy, and completeness. Let the final content be `${FinalReportContent}`.
+6.  **Save Report:** Use `write_report` with `report_name="<report_type>_<report_name_suffix>_${CASE_ID}_${timestamp}.md"` and `report_contents=${FinalReportContent}`. (Ensure variables like `${CASE_ID}` and `${timestamp}` are resolved before the call).
 
 Reports should include which agents called which MCP tools
 

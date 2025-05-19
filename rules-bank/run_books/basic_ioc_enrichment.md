@@ -35,7 +35,7 @@ This runbook covers fundamental enrichment steps using readily available GTI and
 *   `secops-mcp`: `lookup_entity`, `get_ioc_matches`, `search_security_events`
 *   `secops-soar`: `list_cases`, `post_case_comment`
 *   `ask_followup_question`
-*   `write_to_file`
+*   `write_report`
 *   **Common Steps:** `common_steps/enrich_ioc.md`, `common_steps/pivot_on_ioc_gti.md`, `common_steps/find_relevant_soar_case.md`, `common_steps/document_in_soar.md`, `common_steps/generate_report_file.md`
 
 ## Workflow Steps & Diagram

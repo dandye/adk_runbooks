@@ -6,14 +6,12 @@ Save generated report content (typically Markdown) to a file with a standardized
 
 ## Scope
 
-This sub-runbook executes the `write_to_file` action. It assumes the report content and necessary metadata for filename construction are provided by the calling runbook.
+This sub-runbook executes the `write_report` action. It assumes the report content and report name are provided by the calling runbook.
 
 ## Inputs
 
-*   `${REPORT_CONTENT}`: The full content of the report (usually Markdown text).
-*   `${REPORT_TYPE}`: A short identifier for the type of report (e.g., "alert_report", "ioc_enrichment", "hunt_summary").
-*   `${REPORT_NAME_SUFFIX}`: A descriptive suffix for the report name (e.g., the Case ID, IOC value, hunt name).
-*   *(Optional) `${TARGET_DIRECTORY}`: The directory to save the report in (defaults to `./reports/`).*
+*   `${REPORT_CONTENTS}`: The full content of the report (usually Markdown text).
+*   `${REPORT_NAME}`: The desired name for the report file (e.g., "ioc_investigation_report_case123_20250519.md"). The `.md` extension will be added by the tool if not present. The report will be saved in a default `reports/` directory.
 
 ## Outputs
 
@@ -22,31 +20,30 @@ This sub-runbook executes the `write_to_file` action. It assumes the report cont
 
 ## Tools
 
-*   `write_to_file`
+*   `write_report`
 
 ## Workflow Steps & Diagram
 
-1.  **Receive Input:** Obtain `${REPORT_CONTENT}`, `${REPORT_TYPE}`, `${REPORT_NAME_SUFFIX}`, and optionally `${TARGET_DIRECTORY}` from the calling runbook.
-2.  **Construct Filename:**
-    *   Generate a timestamp string (`TIMESTAMP`, e.g., `yyyymmdd_hhmm`).
-    *   Set target directory (`DIR = ${TARGET_DIRECTORY}` or `./reports/`).
-    *   Combine elements: `FILENAME = "${DIR}/${REPORT_TYPE}_${REPORT_NAME_SUFFIX}_${TIMESTAMP}.md"`. Store this in `${REPORT_FILE_PATH}`.
-3.  **Write File:** Call `write_to_file` with `path=${REPORT_FILE_PATH}` and `content=${REPORT_CONTENT}`.
-4.  **Return Status:** Store the result/status of the write operation in `${WRITE_STATUS}` and return `${REPORT_FILE_PATH}` and `${WRITE_STATUS}` to the calling runbook.
+1.  **Receive Input:** Obtain `${REPORT_CONTENTS}` and `${REPORT_NAME}` from the calling runbook.
+2.  **Prepare Report Details:**
+    *   The `${REPORT_NAME}` is provided directly.
+    *   The `${REPORT_CONTENTS}` is provided directly.
+3.  **Write Report:** Call `write_report` with `report_name=${REPORT_NAME}` and `report_contents=${REPORT_CONTENTS}`. The tool will handle saving this to a predefined reports directory (e.g. `reports/`) and adding a `.md` extension if needed.
+4.  **Return Status:** Store the result/status of the write operation in `${WRITE_STATUS}` and the actual file path (returned by `write_report`) in `${REPORT_FILE_PATH}`. Return `${REPORT_FILE_PATH}` and `${WRITE_STATUS}` to the calling runbook.
 
 ```{mermaid}
 sequenceDiagram
     participant CallingRunbook
     participant GenerateReportFile as generate_report_file.md (This Runbook)
 
-    CallingRunbook->>GenerateReportFile: Execute Report Generation\nInput: REPORT_CONTENT, REPORT_TYPE, REPORT_NAME_SUFFIX, TARGET_DIRECTORY (opt)
+    CallingRunbook->>GenerateReportFile: Execute Report Generation\nInput: REPORT_CONTENTS, REPORT_NAME
 
-    %% Step 2: Construct Filename
-    Note over GenerateReportFile: Generate TIMESTAMP\nDetermine DIR\nConstruct FILENAME (REPORT_FILE_PATH)
+    %% Step 2: Prepare Report Details
+    Note over GenerateReportFile: REPORT_NAME and REPORT_CONTENTS are provided
 
-    %% Step 3: Write File
-    GenerateReportFile->>GenerateReportFile: write_to_file(path=REPORT_FILE_PATH, content=REPORT_CONTENT)
-    Note over GenerateReportFile: Store write status (WRITE_STATUS)
+    %% Step 3: Write Report
+    GenerateReportFile->>GenerateReportFile: write_report(report_name=REPORT_NAME, report_contents=REPORT_CONTENTS)
+    Note over GenerateReportFile: Store write status (WRITE_STATUS) and returned REPORT_FILE_PATH
 
     %% Step 4: Return Status
     GenerateReportFile-->>CallingRunbook: Return Results:\nREPORT_FILE_PATH,\nWRITE_STATUS
@@ -55,4 +52,4 @@ sequenceDiagram
 
 ## Completion Criteria
 
-The `write_to_file` action has been attempted. The status (`${WRITE_STATUS}`) and the intended file path (`${REPORT_FILE_PATH}`) are available.
+The `write_report` action has been attempted. The status (`${WRITE_STATUS}`) and the actual file path (`${REPORT_FILE_PATH}`) are available.

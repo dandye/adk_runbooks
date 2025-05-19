@@ -19,7 +19,7 @@
 *   `secops-soar`: `list_cases`, `get_case_full_details`, `list_alerts_by_case`, `get_entities_by_alert_group_identifiers`
 *   `secops-mcp`: `lookup_entity`
 *   `gti-mcp`: (Relevant enrichment tools)
-*   `write_to_file`
+*   `write_report`
 
 ## Workflow Steps & Diagram
 
@@ -28,7 +28,7 @@
 3.  **Group Cases:** Analyze entities and alert details across cases to identify logical groups based on `${GROUPING_CRITERIA}` or observed similarities.
 4.  **Prioritize Groups:** Assess the priority of each group based on alert severity, entity criticality, or potential impact.
 5.  **Enrich Key Entities (Optional):** Perform basic enrichment on key shared entities within high-priority groups using `lookup_entity` and GTI tools.
-6.  **Generate Summary Report:** Create a report summarizing the case groups, prioritization rationale, and key findings using `write_to_file`.
+6.  **Generate Summary Report:** Create a report summarizing the case groups, prioritization rationale, and key findings using `write_report`.
 
 ```{mermaid}
 sequenceDiagram
@@ -71,7 +71,7 @@ sequenceDiagram
 
     %% Step 6: Generate Report
     Note over Cline: Synthesize findings into report content
-    Cline->>Cline: write_to_file(path="./reports/case_grouping_report...", content=ReportMarkdown)
+    Cline->>Cline: write_report(report_name="case_grouping_report_${timestamp}.md", report_contents=ReportMarkdown)
     Note over Cline: Report file created
 
     Cline->>Analyst/User: attempt_completion(result="Case grouping analysis complete. Report generated.")

@@ -22,7 +22,7 @@ This runbook covers in-depth analysis of a single IOC (IP, Domain, Hash, URL) us
 *   `gti-mcp`: `get_ip_address_report`, `get_domain_report`, `get_file_report`, `get_url_report`, `get_entities_related_to_an_ip_address`, `get_entities_related_to_a_domain`, `get_entities_related_to_a_file`, `get_entities_related_to_an_url`, `get_file_behavior_summary` (optional for hashes), `get_collection_report` (optional).
 *   `secops-mcp`: `lookup_entity`, `search_security_events`, `get_security_alerts`.
 *   `secops-soar`: `post_case_comment`, `get_case_full_details`, `list_cases`.
-*   `write_to_file` (for local report generation if skipping SOAR).
+*   `write_report` (for local report generation if skipping SOAR).
 *   **Common Steps:** `common_steps/pivot_on_ioc_gti.md`, `common_steps/enrich_ioc.md`, `common_steps/correlate_ioc_with_alerts_cases.md`, `common_steps/find_relevant_soar_case.md`, `common_steps/document_in_soar.md`, `common_steps/generate_report_file.md`.
 
 ## Workflow Steps & Diagram
@@ -58,8 +58,9 @@ This runbook covers in-depth analysis of a single IOC (IP, Domain, Hash, URL) us
         *   Prepare `COMMENT_TEXT` summarizing the deep dive: "Deep Dive Analysis for `${IOC_VALUE}` (`${IOC_TYPE}`): GTI Details: [...]. GTI Pivots found: [...]. SIEM Search revealed: [...]. SIEM Enrichment (Observed): [...]. Related Alerts: [...]. Related Cases (Correlation): [...]. Related Cases (Broad Search): [...]. Associated Threats: [...]. Assessment: `${ASSESSMENT}`. Recommendation: `${RECOMMENDATION}`".
         *   Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and `${COMMENT_TEXT}`. Obtain `${COMMENT_POST_STATUS}`.
     *   **Else (No CASE_ID or SKIP_SOAR is true):**
-        *   Prepare `REPORT_CONTENT` similar to `COMMENT_TEXT` but formatted for a standalone Markdown report, including a Mermaid diagram of the workflow performed.
-        *   Execute `common_steps/generate_report_file.md` with `REPORT_CONTENT`, `REPORT_TYPE="deep_dive_ioc"`, `REPORT_NAME_SUFFIX=${IOC_VALUE}`. Obtain `${REPORT_FILE_PATH}` and `${WRITE_STATUS}`.
+        *   Prepare `REPORT_CONTENTS_VAR` similar to `COMMENT_TEXT` but formatted for a standalone Markdown report, including a Mermaid diagram of the workflow performed.
+        *   Construct `REPORT_NAME_VAR` (e.g., `deep_dive_ioc_${IOC_VALUE_Sanitized}_${timestamp}.md`).
+        *   Execute `common_steps/generate_report_file.md` with `REPORT_CONTENTS=${REPORT_CONTENTS_VAR}` and `REPORT_NAME=${REPORT_NAME_VAR}`. Obtain `${REPORT_FILE_PATH}` and `${WRITE_STATUS}`.
 8.  **Completion:** Conclude the runbook execution. Inform analyst of completion status and report location (SOAR comment or local file path).
 
 ```{mermaid}
@@ -133,8 +134,9 @@ sequenceDiagram
         DocumentInSOAR-->>Cline: Results: COMMENT_POST_STATUS
         Cline->>Analyst: attempt_completion(result="Deep Dive IOC Analysis complete for IOC_VALUE. Findings documented in case CASE_ID.")
     else No CASE_ID or SKIP_SOAR is true
-        Note over Cline: Prepare REPORT_CONTENT including Mermaid diagram
-        Cline->>GenerateReport: Execute(Input: REPORT_CONTENT, REPORT_TYPE="deep_dive_ioc", REPORT_NAME_SUFFIX=IOC_VALUE)
+        Note over Cline: Prepare REPORT_CONTENTS_VAR including Mermaid diagram
+        Note over Cline: Construct REPORT_NAME_VAR (e.g., deep_dive_ioc_${IOC_VALUE_Sanitized}_${timestamp}.md)
+        Cline->>GenerateReport: Execute(Input: REPORT_CONTENTS=REPORT_CONTENTS_VAR, REPORT_NAME=REPORT_NAME_VAR)
         GenerateReport-->>Cline: Results: REPORT_FILE_PATH, WRITE_STATUS
         Cline->>Analyst: attempt_completion(result="Deep Dive IOC Analysis complete for IOC_VALUE. Report generated at REPORT_FILE_PATH.")
     end

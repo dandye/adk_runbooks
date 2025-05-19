@@ -47,10 +47,11 @@ Instructions:
         *   Summarize results from `lookup_entity` and `search_security_events` for each checked IOC. Highlight any matches or significant activity.
 
 7.  **Report Creation:**
-    *   Generate a timestamp string (`yyyymmdd_hhmm`).
-    *   Construct filename: `./reports/enhanced_report_${COLLECTION_ID}_${timestamp}.md`.
-    *   Use the `write_to_file` tool.
-    *   Arguments: `path`: constructed filename, `content`: complete formatted markdown string.
+    *   Generate a timestamp string (`${timestamp}`, e.g., `yyyymmdd_hhmm`).
+    *   Construct `report_name_var` (e.g., `enhanced_report_${COLLECTION_ID}_${timestamp}.md`).
+    *   Let the complete formatted markdown string be `report_contents_var`.
+    *   Use the `write_report` tool.
+    *   Arguments: `report_name=${report_name_var}`, `report_contents=${report_contents_var}`.
 
 ```{mermaid}
 sequenceDiagram
@@ -107,9 +108,10 @@ sequenceDiagram
     %% SOAR-->>Cline: Potentially related SOAR cases
 
     %% Step 6 & 7: Synthesize Report and Write File
-    Note over Cline: Synthesize report content from gti_findings, enriched_entities, local_findings
+    Note over Cline: Synthesize report content (report_contents_var) from gti_findings, enriched_entities, local_findings
     Note over Cline: Include Key Findings & Recommendations
-    Cline->>Cline: write_to_file(path="./reports/enhanced_report_${COLLECTION_ID}_${timestamp}.md", content=...)
+    Note over Cline: Construct report_name_var (e.g., enhanced_report_${COLLECTION_ID}_${timestamp}.md)
+    Cline->>Cline: write_report(report_name=report_name_var, report_contents=report_contents_var)
     Note over Cline: Report file created
 
     Cline->>User: attempt_completion(result="Enhanced investigation complete. Report generated.")
