@@ -6,6 +6,10 @@ import os
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioServerParameters
 
 
+def ask_follow_up_question(*args, **kwargs):
+    pass
+
+
 def get_current_time() -> dict:
     """Gets the current time, formatted for use in filenames or timestamps.
 

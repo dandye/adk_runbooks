@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from pathlib import Path
 
 from google.adk.agents import Agent
@@ -12,6 +13,9 @@ from .sub_agents.incident_responder import agent as incident_responder_agent_mod
 from .sub_agents.detection_engineer import agent as detection_engineer_agent_module
 
 from .tools.tools import get_current_time, write_report, get_agent_tools, load_persona_and_runbooks
+
+# Set the root logger to output debug messages
+logging.basicConfig(level=logging.ERROR)
 
 
 # This function will perform the actual asynchronous initialization of the manager Agent
@@ -42,30 +46,30 @@ async def initialize_actual_manager_agent():
 
     # The shared_exit_stack will manage all resources. Individual stacks from sub-agents are not needed here.
     BASE_DIR = Path(__file__).resolve().parent
-    persona_file_path = (BASE_DIR / "../../../rules-bank/personas/soc_manager.md").resolve()
+    persona_file_path = (BASE_DIR / "../../../adk_runbooks/rules-bank/personas/soc_manager.md").resolve()
     runbook_files = [
         # Guidelines
-        (BASE_DIR / "../../../run_books/guidelines/report_writing.md").resolve(),
+        (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/guidelines/report_writing.md").resolve(),
         # IRPs
-        (BASE_DIR / "../../../rules-bank/run_books/irps/compromised_user_account_response.md").resolve(),
-        (BASE_DIR / "../../../rules-bank/run_books/irps/phishing_response.md").resolve(),
-        (BASE_DIR / "../../../rules-bank/run_books/irps/ransomware_response.md").resolve(),
+        (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/irps/compromised_user_account_response.md").resolve(),
+        (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/irps/phishing_response.md").resolve(),
+        (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/irps/ransomware_response.md").resolve(),
         # Runbooks
-        (BASE_DIR / "../../../Users/dandye/Projects/adk_runbooks/rules-bank/run_books/triage_alerts.md").resolve(),
-        (BASE_DIR / "../../../Users/dandye/Projects/adk_runbooks/rules-bank/run_books/prioritize_and_investigate_a_case.md").resolve(),
-        (BASE_DIR / "../../../Users/dandye/Projects/adk_runbooks/rules-bank/run_books/close_duplicate_or_similar_cases.md").resolve(),
-        (BASE_DIR / "../../../Users/dandye/Projects/adk_runbooks/rules-bank/run_books/basic_ioc_enrichment.md").resolve(),
-        (BASE_DIR / "../../../Users/dandye/Projects/adk_runbooks/rules-bank/run_books/suspicious_login_triage.md").resolve(),
-        (BASE_DIR / "../../../Users/dandye/Projects/adk_runbooks/rules-bank/run_books/investgate_a_case_w_external_tools.md").resolve(),
-        (BASE_DIR / "../../../Users/dandye/Projects/adk_runbooks/rules-bank/run_books/ioc_containment.md").resolve(),
-        (BASE_DIR / "../../../Users/dandye/Projects/adk_runbooks/rules-bank/run_books/basic_endpoint_triage_isolation.md").resolve(),
-        (BASE_DIR / "../../../Users/dandye/Projects/adk_runbooks/rules-bank/run_books/deep_dive_ioc_analysis.md").resolve(),
-        (BASE_DIR / "../../../Users/dandye/Projects/adk_runbooks/rules-bank/run_books/malware_triage.md").resolve(),
-        (BASE_DIR / "../../../Users/dandye/Projects/adk_runbooks/rules-bank/run_books/guided_ttp_hunt_credential_access.md").resolve(),
-        (BASE_DIR / "../../../Users/dandye/Projects/adk_runbooks/rules-bank/run_books/lateral_movement_hunt_psexec_wmi.md").resolve(),
-        (BASE_DIR / "../../../Users/dandye/Projects/adk_runbooks/rules-bank/run_books/advanced_threat_hunting.md").resolve(),
-        (BASE_DIR / "../../../Users/dandye/Projects/adk_runbooks/rules-bank/run_books/detection_rule_validation_tuning.md").resolve(),
-        (BASE_DIR / "../../../Users/dandye/Projects/adk_runbooks/rules-bank/run_books/create_an_investigation_report.md").resolve(),
+        (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/triage_alerts.md").resolve(),
+        (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/prioritize_and_investigate_a_case.md").resolve(),
+        (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/close_duplicate_or_similar_cases.md").resolve(),
+        (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/basic_ioc_enrichment.md").resolve(),
+        (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/suspicious_login_triage.md").resolve(),
+        (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/investgate_a_case_w_external_tools.md").resolve(),
+        (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/ioc_containment.md").resolve(),
+        (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/basic_endpoint_triage_isolation.md").resolve(),
+        (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/deep_dive_ioc_analysis.md").resolve(),
+        (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/malware_triage.md").resolve(),
+        (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/guided_ttp_hunt_credential_access.md").resolve(),
+        (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/lateral_movement_hunt_psexec_wmi.md").resolve(),
+        (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/advanced_threat_hunting.md").resolve(),
+        (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/detection_rule_validation_tuning.md").resolve(),
+        (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/create_an_investigation_report.md").resolve(),
 
     ]
 
@@ -79,6 +83,7 @@ async def initialize_actual_manager_agent():
         name="manager", # This name should match the one used in DeferredInitializationAgent
         #model="gemini-2.0-flash",
         model="gemini-2.5-pro-preview-05-06",
+        #model="gemini-2.5-flash-preview-05-20",
         description=persona_description,
         instruction="""
         You are the SOC Manager agent, responsible for overseeing and orchestrating the work of specialized sub-agents. Your primary goal is to ensure efficient and effective incident response and SOC operations.
