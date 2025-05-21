@@ -1,17 +1,42 @@
-# Runbook: Alert Triage (Placeholder)
+# Runbook: Alert Triage
 
 ## Objective
 
-*(Define the goal, e.g., To provide a standardized process for the initial assessment and triage of incoming security alerts, determining if they represent a potential threat requiring further investigation or if they can be closed as false positives/duplicates.)*
+To provide a standardized process for the initial assessment and triage of incoming security alerts. This runbook guides the analyst in determining if an alert represents a potential threat requiring further investigation or if it can be closed as a false positive or duplicate. The process involves gathering initial context, checking for duplicates, performing basic enrichment, an alert-specific SIEM search, and making an initial assessment to decide on escalation or closure.
 
 ## Scope
 
-*(Define what is included/excluded, e.g., Covers initial alert review, basic entity enrichment, and decision-making based on predefined criteria. Excludes deep investigation or containment actions.)*
+This runbook covers:
+*   Initial review of an alert or case.
+*   Gathering context using SOAR and SIEM tools.
+*   Checking for duplicate or similar existing SOAR cases.
+*   Finding other SOAR cases related by key entities.
+*   Performing an initial, targeted SIEM search based on the alert type for immediate context.
+*   Basic enrichment of key entities using SIEM and GTI tools.
+*   Decision-making for escalation or closure based on predefined criteria and gathered information.
+
+This runbook explicitly **excludes**:
+*   Deep-dive investigation of alerts or entities.
+*   Containment or eradication actions.
+*   Advanced threat hunting.
 
 ## Inputs
 
 *   `${ALERT_ID}` or `${CASE_ID}`: The identifier for the alert or case to be triaged.
-*   *(Optional) `${ALERT_DETAILS}`: Initial details provided by the alerting system.*
+*   *(Optional) `${ALERT_DETAILS}`: Initial details provided by the alerting system (e.g., alert name, severity, specific indicators).
+*   *(Derived) `${KEY_ENTITIES}`: Key entities (IPs, domains, hashes, users) extracted from the alert/case during initial context gathering. These are used for enrichment and finding related cases.*
+*   *(Derived) `${ALERT_TYPE}`: The type of alert (e.g., "Suspicious Login", "Malware Detection", "Network Alert"), used to guide the alert-specific SIEM search.*
+
+## Outputs
+
+*   `${ASSESSMENT}`: The outcome of the triage (e.g., "False Positive", "Benign True Positive", "True Positive/Suspicious").
+*   `${ACTION_TAKEN}`: The action performed based on the assessment (e.g., "Closed", "Escalated", "Priority Changed").
+*   `${SIMILAR_CASE_IDS}`: List of case IDs identified as potentially similar or duplicate by `common_steps/check_duplicate_cases.md`.
+*   `${ENTITY_RELATED_CASES}`: List of case IDs related to key entities involved in the current alert/case, found by `common_steps/find_relevant_soar_case.md`.
+*   `${INITIAL_SIEM_CONTEXT}`: Summary of findings from the alert-specific SIEM search performed in Step 6.
+*   `${ENRICHMENT_RESULTS}`: A structured collection of enrichment data for key entities, gathered by `common_steps/enrich_ioc.md`.
+*   `${DOCUMENTATION_STATUS}`: Status of the attempt to document findings in the SOAR case via `common_steps/document_in_soar.md`.
+*   `${CLOSURE_STATUS}`: Status of the attempt to close the SOAR artifact (case or alert) via `common_steps/close_soar_artifact.md`, if applicable.
 
 ## Tools
 
@@ -131,4 +156,12 @@ sequenceDiagram
 
 ## Completion Criteria
 
-*(Define how successful completion is determined, e.g., Alert assessed, documented, and either closed or escalated appropriately.)*
+The alert or case has been successfully triaged:
+*   Initial context has been gathered and understood.
+*   A check for duplicate or similar cases has been performed.
+*   Relevant existing cases related to key entities have been identified.
+*   An alert-specific SIEM search has been conducted for immediate context.
+*   Key entities have undergone basic enrichment.
+*   An initial assessment (FP, BTP, TP/Suspicious) has been made.
+*   Appropriate action (closure or escalation/assignment) has been taken based on the assessment.
+*   All steps, findings, and actions have been documented in the SOAR case.
