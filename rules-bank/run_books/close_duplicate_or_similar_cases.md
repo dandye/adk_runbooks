@@ -11,7 +11,6 @@
       participant post_case_comment as post_case_comment (secops-soar)
       participant siemplify_close_case as siemplify_close_case (secops-soar)
       participant attempt_completion as attempt_completion (AutomatedAgent)
-      participant ask_followup_question as ask_followup_question (AutomatedAgent)
 
       User->>AutomatedAgent: Request case analysis and closure
       AutomatedAgent->>list_cases: list_cases()
@@ -27,7 +26,7 @@
           siemplify_get_similar_cases-->>AutomatedAgent: List of similar case IDs for Cj
       end
       AutomatedAgent->>User: Present potential duplicate cases (e.g., Ck, Cl are duplicates of Cm)
-      AutomatedAgent->>ask_followup_question: Confirm: "Confirm cases to close & provide reason/root_cause (Yes/No)"
+      AutomatedAgent->>User: Confirm: "Confirm cases to close & provide reason/root_cause (Yes/No)"
       User->>AutomatedAgent: Confirmation (e.g., Close Ck, Cl. Reason: Duplicate)
       loop For each confirmed Case C_dup (Ck, Cl)
           AutomatedAgent->>post_case_comment: post_case_comment(case_id=C_dup, comment="Closing as duplicate of Cm")

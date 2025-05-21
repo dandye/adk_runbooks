@@ -79,7 +79,6 @@ sequenceDiagram
     participant EnrichIOC as common_steps/enrich_ioc.md
     participant FindCase as common_steps/find_relevant_soar_case.md
     participant DocumentInSOAR as common_steps/document_in_soar.md
-    participant AskReport as ask_followup_question (AutomatedAgent Tool)
     participant GenerateReport as common_steps/generate_report_file.md
     participant IDP as Identity Provider (Optional)
 
