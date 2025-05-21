@@ -1,20 +1,39 @@
-# Runbook: IOC Threat Hunt (Placeholder)
+# Runbook: IOC Threat Hunt
 
 ## Objective
 
-*(Define the goal, e.g., To proactively hunt for specific Indicators of Compromise (IOCs) across the environment based on threat intelligence feeds, recent incidents, or specific hypotheses.)*
+To proactively hunt for specific Indicators of Compromise (IOCs) across the environment. This hunt is typically based on threat intelligence feeds, IOCs identified from recent incidents, or specific hypotheses regarding potential threats. The goal is to identify any presence or activity related to these IOCs within the defined timeframe.
 
 ## Scope
 
-*(Define what is included/excluded, e.g., Focuses on searching SIEM and potentially other log sources for specific IOC values (IPs, domains, hashes, URLs). May include basic enrichment of findings.)*
+This runbook covers:
+*   Receiving a list of IOCs and their types.
+*   Optionally checking these IOCs against the SIEM's integrated threat intelligence feeds (`get_ioc_matches`).
+*   Iteratively searching the SIEM for each IOC using appropriate UDM queries.
+*   Enriching any identified hits (both the IOC itself and involved entities like hosts/users) using SIEM and GTI tools.
+*   Documenting the hunt process, queries, findings (positive and negative), and enrichment results in a SOAR case.
+*   Escalating confirmed malicious activity or concluding the hunt if no significant findings.
+
+This runbook explicitly **excludes**:
+*   Deep-dive investigation beyond the initial enrichment of found IOCs/entities (this would typically trigger a different runbook).
+*   Containment or eradication actions (findings are escalated for such actions).
+*   Complex TTP-based hunting (this runbook focuses on known IOCs).
 
 ## Inputs
 
-*   `${IOC_LIST}`: Comma-separated list of IOC values to hunt for.
-*   `${IOC_TYPES}`: Corresponding comma-separated list of IOC types (e.g., "IP Address, Domain, File Hash").
-*   `${HUNT_TIMEFRAME_HOURS}`: Lookback period in hours (e.g., 72, 168).
-*   *(Optional) `${HUNT_CASE_ID}`: SOAR case ID for tracking.*
-*   *(Optional) `${REASON_FOR_HUNT}`: Brief description why these IOCs are being hunted.*
+*   `${IOC_LIST}`: Comma-separated list of IOC values to hunt for (e.g., "1.2.3.4,evil.com,hash123"). This is mandatory.
+*   `${IOC_TYPES}`: Corresponding comma-separated list of IOC types for each IOC in `${IOC_LIST}` (e.g., "IP Address,Domain,File Hash"). This is mandatory.
+*   `${HUNT_TIMEFRAME_HOURS}`: Lookback period in hours for SIEM searches (e.g., 72, 168). Defaults to 72 if not specified.
+*   *(Optional) `${HUNT_CASE_ID}`: SOAR case ID for tracking the hunt activities and findings. If not provided, a new case might be recommended or findings documented locally.*
+*   *(Optional) `${REASON_FOR_HUNT}`: Brief description of why these IOCs are being hunted (e.g., "From TI report XYZ", "Related to incident ABC").*
+*   *(Derived) `${SIEM_SEARCH_RESULTS}`: Collection of results from `secops-mcp.search_security_events` for each IOC.*
+*   *(Derived) `${ENRICHMENT_DATA}`: Collection of enrichment details for IOCs with hits and associated entities.*
+
+## Outputs
+
+*   `${HUNT_FINDINGS_SUMMARY}`: A summary of the hunt, including IOCs searched, hits found, key enrichment details, and whether escalation occurred.
+*   `${DOCUMENTATION_STATUS}`: Status of documenting the hunt in the SOAR case (if `${HUNT_CASE_ID}` was provided).
+*   `${ESCALATION_STATUS}`: Indicates if confirmed malicious activity was found and escalated.
 
 ## Tools
 
