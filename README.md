@@ -2,9 +2,33 @@
 
 # Setup
 
+Do *NOT* use `uv` to run `adk` with a pyproject.yaml file. (It causes intractable dependency resolution issues.)
+
+Instead, do this:
+```
+git clone https://github.com/dandy/adk_runbooks.git
+cd adk_runbooks/multi-agent
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+adk run manager
+```
+
+# Or with uv as pip replacement:
+```
+git clone https://github.com/dandy/adk_runbooks.git
+cd adk_runbooks/multi-agent
+python -m venv .venv
+source .venv/bin/activate
+uv pip sync requirements.txt
+adk run manager
+```
+# Configuration
+
 There are two places to configure for your environment:
  * `./multi-agent/manager/.env` file in
  * `./multi-agent/manager/tools/tools.py` needs your MCP Security configuration
+   * Fix the hard-coded paths in that file like `/Users/dandye/Projects/mcp_security/server/...`
 
 # Multi-Agent Systems in ADK
 
