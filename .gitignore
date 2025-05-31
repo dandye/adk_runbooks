@@ -2,3 +2,13 @@
 **/.env
 **/__pycache__
 multi-agent/venv/
+
+# Sphinx documentation
+build/
+.venv/
+rules-bank/_build/
+rules-bank/.jupyter_cache/
+*.doctree
+.buildinfo
+build/doctrees/
+build/**
