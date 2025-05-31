@@ -17,6 +17,17 @@ Our detection strategy is based on a defense-in-depth approach, aiming for:
 3.  **High Fidelity Alerts:** Striving to create detections that have a low false-positive rate and provide actionable insights.
 4.  **Continuous Improvement:** Regularly reviewing and refining detections based on operational feedback, new threat intelligence, and evolving attacker techniques.
 
+Key Detection Methodologies
+
+**Signature-based Detection:**
+  : Identifies known threats by looking for specific patterns (signatures) in data.
+
+**Anomaly-based Detection:**
+  : Establishes a baseline of normal behavior and flags deviations from this baseline.
+
+**Behavioral Detection:**
+  : Focuses on sequences of actions or behaviors that indicate malicious intent, even if individual actions appear benign.
+
 ## Key Detection Platforms
 
 -   **Primary SIEM:** Google Chronicle (for UDM-based event correlation, rule development, and threat hunting).

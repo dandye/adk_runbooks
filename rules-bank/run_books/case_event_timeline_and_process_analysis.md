@@ -1,4 +1,4 @@
-## Case Event Timeline & Process Analysis Workflow
+# Case Event Timeline & Process Analysis Workflow
 
 Objective: Generate a detailed timeline of events for a specific SOAR case (`${CASE_ID}`), including the **full process execution chain** leading to the alerted activity. Classify relevant processes as legitimate, LOLBIN, or malicious using GTI enrichment. Optionally enrich with MITRE TACTICs and generate a markdown report summarizing the findings. Optionally convert the report to PDF and attempt to attach it to the SOAR case.
 

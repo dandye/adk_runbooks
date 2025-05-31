@@ -10,8 +10,6 @@ This document outlines standardized initial investigation steps, preferred tools
 
 ## Protocols by Indicator Type
 
----
-
 ### 1. Atomic Indicator: IP Address
 
 -   **Objective:** Determine the reputation, ownership, and recent activity associated with the IP address.
@@ -21,6 +19,10 @@ This document outlines standardized initial investigation steps, preferred tools
     -   What internal assets have communicated with this IP? When and how?
     -   Is this IP internal or external? (Cross-reference `asset_inventory_guidelines.md` and `network_map.md`)
     -   Are there any existing alerts or cases related to this IP?
+
+```{note}
+When dealing with dynamic IP addresses, focus on associated domains or ASNs for broader context.
+```
 
 -   **Standard Initial Investigation Flow (Orchestrating Atomic Runbooks):**
 

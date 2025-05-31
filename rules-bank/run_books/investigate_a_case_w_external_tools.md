@@ -1,4 +1,4 @@
-### Investigate a Case + external tools
+# Investigate a Case + external tools
 
 Using SecOps, GTI, and Okta. Start with a Case (anomalous login Alerts). Find the entities involved and look up any related indicators. Find any users involved and look up Okta information to determine any suspicious characteristics. If confident in disposition, disable that User. Finally, provide a report about any identified activity for security analyst consumption.
 
@@ -11,7 +11,7 @@ Uses tools:
  * Event Search
  * OKTA user information
  * OKTA action"
- * **Common Steps:** `common_steps/find_relevant_soar_case.md`
+ * **Common Steps:** {doc}`common_steps/find_relevant_soar_case </run_books/common_steps/find_relevant_soar_case>`
 
 
 ```{mermaid}

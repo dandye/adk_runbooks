@@ -28,7 +28,7 @@ group_cases
 group_cases_v2
 guided_ttp_hunt_credential_access
 guidelines/index
-investgate_a_case_w_external_tools
+investigate_a_case_w_external_tools
 investigate_a_gti_collection_id
 ioc_containment
 ioc_threat_hunt
@@ -38,7 +38,7 @@ malware_triage
 metaanalysis
 post_incident_review
 prioritize_and_investigate_a_case
-proactive_threat_hunting_based_on_gti_campain_or_actor
+proactive_threat_hunting_based_on_gti_campaign_or_actor
 suspicious_login_triage
 triage_alerts
 ueba_report

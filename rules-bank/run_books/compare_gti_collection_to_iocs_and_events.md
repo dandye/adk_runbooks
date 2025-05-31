@@ -1,4 +1,4 @@
-### Compare GTI Collection to IoCs, Events in SecOps
+# Compare GTI Collection to IoCs, Events in SecOps
 
 From a GTI Collection (could be a Private Collection as well), search the past 3 days for any UDM events containing:
  1) Indicators of Compromise

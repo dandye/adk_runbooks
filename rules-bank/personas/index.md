@@ -6,6 +6,7 @@ Effective cybersecurity operations rely on a diverse team of professionals, each
 :maxdepth: 1
 :caption: Personas:
 
+personas
 ciso
 compliance_manager
 cti_researcher

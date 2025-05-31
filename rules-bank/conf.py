@@ -33,10 +33,11 @@ extensions = [
     'sphinx_design',
     'sphinxcontrib.mermaid',
     'sphinx_book_theme',
+    'sphinx.ext.graphviz',
 ]
 
 templates_path = ['_templates'] # Relative to this conf.py file
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'README.md']
+exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'readme.md', '_static/']
 
 # The master toctree document.
 # For Sphinx 4.0+, root_doc is preferred over master_doc.

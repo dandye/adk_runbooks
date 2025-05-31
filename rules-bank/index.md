@@ -2,23 +2,30 @@
 
 This site serves as the central hub for documentation related to the Agent Development Kit (ADK) runbooks, a collection of automated procedures, security content, and operational guides designed to streamline cybersecurity operations. Here you'll find information on setting up the project, configuring its components, understanding the multi-agent architecture, and leveraging the extensive Rules Bank for detection and response. Whether you're a SOC analyst, detection engineer, or incident responder, this documentation aims to provide the necessary resources to effectively utilize and contribute to the ADK Runbooks ecosystem.
 
-## Multi-Agent Systems in ADK
+## Project Documentation Contents
 
-This example demonstrates how to create a multi-agent system in ADK, where specialized security agents collaborate to handle complex cybersecurity tasks, each focusing on their area of expertise.
+This site contains detailed information about various components of the ADK Runbooks project. Explore the sections below to find specific documentation.
 
-### What is a Multi-Agent System?
+### ADK Multi-Agent System Overview
+Details on the multi-agent architecture, project structure, and how to run the example.
+```{toctree}
+:maxdepth: 2
+:caption: ADK Multi-Agent System
 
-A Multi-Agent System is an advanced pattern in the Agent Development Kit (ADK) that allows multiple specialized agents to work together to handle complex tasks. Each agent can focus on a specific domain or functionality, and they can collaborate through delegation and communication to solve problems that would be difficult for a single agent.
+multi_agent_overview
+```
 
-*(Note: Further details on Multi-Agent Systems, Project Structure, Architecture Options, Limitations, and Running the Example are available in the main project README.md. Consider creating separate pages for these if detailed documentation is desired here.)*
+### Setup & Configuration
+Instructions for setting up the project environment and configuring necessary components.
+```{note}
+The setup and configuration details below primarily pertain to the example multi-agent system provided in this repository.
+```
 
-<!-- Consider adding a toctree entry for a page dedicated to the multi-agent system if you create one -->
-<!-- e.g. multi_agent_system_overview -->
+**Setup**
 
-
-## Setup
-
-Do *NOT* use `uv` to run `adk` with a pyproject.yaml file. (It causes intractable dependency resolution issues.)
+```{warning}
+Do *NOT* use `uv` to run `adk` with a `pyproject.toml` file. (It causes intractable dependency resolution issues.)
+```
 
 Instead, do this:
 ```bash
@@ -40,17 +47,12 @@ uv pip sync requirements.txt
 adk run manager
 ```
 
-## Configuration
+**Configuration**
 
 There are two places to configure for your environment:
  * `./multi-agent/manager/.env` file in
  * `./multi-agent/manager/tools/tools.py` needs your MCP Security configuration
    * Fix the hard-coded paths in that file like `/Users/dandye/Projects/mcp_security/server/...`
-
-
-## Project Documentation Contents
-
-This site contains detailed information about various components of the ADK Runbooks project. Explore the sections below to find specific documentation.
 
 ### Core Documents
 These documents outline the foundational strategies, protocols, and plans for the ADK Runbooks project and the Rules Bank. They provide high-level guidance and operational frameworks.

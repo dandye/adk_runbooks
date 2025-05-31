@@ -94,7 +94,7 @@ async def get_agent_tools():
     command='uv',
     args=[
         "--directory",
-        "/Users/dandye/Projects/google-mcp-security/server/secops/secops_mcp",
+        "/Users/dandye/Projects/mcp_security_debugging/server/secops/secops_mcp",
         "run",
         "--env-file",
         "/Users/dandye/Projects/google-mcp-security/.env",
@@ -110,8 +110,10 @@ async def get_agent_tools():
      command='uv',
      args=[
          "--directory",
-         "/Users/dandye/Projects/google-mcp-security/server/secops-soar/secops_soar_mcp",
+         "/Users/dandye/Projects/mcp_security_debugging/server/secops-soar/secops_soar_mcp",
          "run",
+        #"--python", "3.13",
+        #"--refresh",
          "--env-file",
          "/Users/dandye/Projects/google-mcp-security/.env",
          "server.py",
@@ -127,8 +129,9 @@ async def get_agent_tools():
     command='uv',
     args=[
         "--directory",
-        "/Users/dandye/Projects/google-mcp-security/server/gti/gti_mcp",
+        "/Users/dandye/Projects/mcp_security_debugging/server/gti/gti_mcp",
         "run",
+        "--refresh",
         "--env-file",
         "/Users/dandye/Projects/google-mcp-security/.env",
         "server.py"

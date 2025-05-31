@@ -36,7 +36,7 @@ This runbook covers fundamental enrichment steps using readily available GTI and
 *   `secops-soar`: `list_cases`, `post_case_comment`
 *   You may ask follow up question
 *   `write_report`
-*   **Common Steps:** `common_steps/enrich_ioc.md`, `common_steps/pivot_on_ioc_gti.md`, `common_steps/find_relevant_soar_case.md`, `common_steps/document_in_soar.md`, `common_steps/generate_report_file.md`
+*   **Common Steps:** {doc}`common_steps/enrich_ioc </run_books/common_steps/enrich_ioc>`, {doc}`common_steps/pivot_on_ioc_gti </run_books/common_steps/pivot_on_ioc_gti>`, {doc}`common_steps/find_relevant_soar_case </run_books/common_steps/find_relevant_soar_case>`, {doc}`common_steps/document_in_soar </run_books/common_steps/document_in_soar>`, {doc}`common_steps/generate_report_file </run_books/common_steps/generate_report_file>`
 
 ## Workflow Steps & Diagram
 

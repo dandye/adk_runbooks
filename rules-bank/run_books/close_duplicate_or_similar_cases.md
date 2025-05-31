@@ -1,4 +1,4 @@
-## Close duplicate/similar Cases Workflow
+# Close duplicate/similar Cases Workflow
 
 ```{mermaid}
   sequenceDiagram

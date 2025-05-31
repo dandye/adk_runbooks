@@ -12,8 +12,6 @@ This document outlines criteria for triggering automated response actions by AI 
 
 ## Automated Response Criteria Examples
 
----
-
 ### Playbook: Isolate Host (EDR)
 
 -   **Objective:** Automatically isolate a compromised host using EDR capabilities.
