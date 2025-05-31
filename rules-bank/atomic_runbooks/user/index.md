@@ -1,6 +1,6 @@
 # User-Specific Atomic Runbooks
 
-This section lists atomic runbooks focused on investigating and responding to user account-related security events and indicators.
+User accounts are often targeted by attackers or can be involved in insider threats. Investigating user activity, such as login patterns, process executions, and resource access, is crucial for detecting and responding to potential compromises. These atomic runbooks provide focused procedures for analyzing user-related indicators and events.
 
 ```{toctree}
 :maxdepth: 1

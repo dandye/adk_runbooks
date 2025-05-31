@@ -1,6 +1,6 @@
 # File Hash-Specific Atomic Runbooks
 
-This section lists atomic runbooks focused on investigating and responding to file hash-related security events and indicators.
+File hashes (MD5, SHA1, SHA256) are critical indicators for identifying known malware or suspicious files. The runbooks in this section provide procedures for querying threat intelligence sources, searching for hash occurrences in endpoint and SIEM logs, and understanding the context of file executions within your environment.
 
 ```{toctree}
 :maxdepth: 1

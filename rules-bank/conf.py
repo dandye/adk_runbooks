@@ -85,16 +85,16 @@ nb_execution_mode = "off"  # "off", "force", "auto", "cache"
 
 html_theme = 'sphinx_book_theme'
 html_static_path = ['_static'] # Relative to this conf.py file. For custom CSS, JS.
-# html_logo = "_static/logo.png"
+html_logo = "_static/adk_runbooks_logo.png"
 # html_favicon = "_static/favicon.ico"
 
 html_theme_options = {
-    "repository_url": "",  # Optional: e.g., https://github.com/user/project
-    "repository_branch": "", # Optional: e.g., "main"
+    "repository_url": "https://github.com/dandye/adk_runbooks",
+    "repository_branch": "main",
     "path_to_docs": "rules-bank",  # Path from repository root to this sphinx source dir
-    "use_edit_page_button": False,
-    "use_issues_button": False,
-    "use_repository_button": False,
+    "use_edit_page_button": True,
+    "use_issues_button": True,
+    "use_repository_button": True,
     "home_page_in_toc": True,
     # "announcement": "<em>Important</em> announcement!",
 }

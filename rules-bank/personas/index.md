@@ -1,6 +1,6 @@
 # Security Personas
 
-This section describes the various security roles and personas involved in cybersecurity operations, outlining their typical responsibilities and areas of focus. Understanding these personas can help tailor runbooks and procedures to specific user needs.
+Effective cybersecurity operations rely on a diverse team of professionals, each with distinct roles and responsibilities. This section describes various security personas, from SOC Analysts and Incident Responders to CISOs and Threat Hunters, outlining their typical areas of focus. Understanding these personas helps in tailoring runbooks, procedures, and tool interactions to meet their specific needs and workflows.
 
 ```{toctree}
 :maxdepth: 1
@@ -11,7 +11,6 @@ compliance_manager
 cti_researcher
 detection_engineer
 incident_responder
-personas
 red_team
 security_engineer
 soc_analyst_tier_1

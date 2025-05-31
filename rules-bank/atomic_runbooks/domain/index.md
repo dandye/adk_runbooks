@@ -1,6 +1,6 @@
 # Domain-Specific Atomic Runbooks
 
-This section lists atomic runbooks focused on investigating and responding to domain-related security events and indicators.
+Domain names are frequent indicators in security investigations, often linked to phishing, malware command and control (C2), or other malicious infrastructure. The atomic runbooks in this section provide targeted procedures for gathering intelligence, analyzing activity, and assessing the risk associated with specific domains.
 
 ```{toctree}
 :maxdepth: 1

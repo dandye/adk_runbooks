@@ -1,6 +1,6 @@
 # Guidelines and Workflows
 
-This section provides guidelines for various operational processes, including report writing, runbook creation, and standardized workflows for different security roles.
+Standardized guidelines are essential for maintaining quality, consistency, and efficiency in security operations. This section offers guidance on key processes such as crafting effective reports, developing new runbooks, and executing standardized workflows tailored to different security roles like SOC Analysts and Threat Intelligence professionals. Adhering to these guidelines helps ensure clarity and best practices across the team.
 
 ```{toctree}
 :maxdepth: 1

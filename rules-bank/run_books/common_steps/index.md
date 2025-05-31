@@ -1,6 +1,6 @@
 # Common Investigation Steps
 
-This section details common, reusable steps that are frequently part of larger security investigation and response workflows.
+Effective security operations often involve recurring tasks and procedures. This section isolates common, reusable steps that are frequently incorporated into larger, more comprehensive investigation and response runbooks. Documenting these common steps here promotes consistency, reduces redundancy, and simplifies the construction and maintenance of broader workflows.
 
 ```{toctree}
 :maxdepth: 1

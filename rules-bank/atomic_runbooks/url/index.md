@@ -1,6 +1,6 @@
 # URL-Specific Atomic Runbooks
 
-This section lists atomic runbooks focused on investigating and responding to URL-related security events and indicators.
+URLs are common in alerts related to web-based threats, phishing campaigns, and malware delivery. These atomic runbooks provide procedures to analyze URLs, retrieve threat intelligence, and search for their occurrences in logs, helping to determine their maliciousness and impact.
 
 ```{toctree}
 :maxdepth: 1

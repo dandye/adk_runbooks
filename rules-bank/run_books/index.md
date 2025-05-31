@@ -1,6 +1,6 @@
 # General Security Runbooks
 
-This section contains a collection of general security runbooks covering various investigation, triage, and response procedures.
+This section houses a broader collection of general security runbooks. Unlike atomic runbooks that focus on singular tasks, these runbooks often orchestrate multiple steps and tools to address more complex scenarios such as comprehensive alert triage, in-depth incident investigations, proactive threat hunting campaigns, and specific incident response plans. They also include guidelines and common steps that can be referenced across various procedures.
 
 ```{toctree}
 :maxdepth: 1

@@ -1,6 +1,6 @@
 # IP Address-Specific Atomic Runbooks
 
-This section lists atomic runbooks focused on investigating and responding to IP address-related security events and indicators.
+IP addresses are fundamental to network communications and are often key indicators in security alerts and investigations. Whether internal or external, an IP address can be associated with legitimate services, compromised systems, or malicious actors. The runbooks here provide steps to enrich IP addresses with threat intelligence, examine historical network traffic, and assess their role in security events.
 
 ```{toctree}
 :maxdepth: 1
