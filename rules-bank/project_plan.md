@@ -155,16 +155,89 @@
         *   Ensure `find_relevant_soar_case.md` clearly documents the `list_cases` entity search limitation and suggests specific workarounds (manual search, SIEM correlation).
     *   **Rationale:** Ensures runbooks remain effective, reflect real-world conditions, incorporate lessons learned (like tool errors), and leverage the full context available within the rules-bank directory.
 
+**Phase 7: Enhancing for Autonomous SecOps Orchestration (ASO)**
+*   **Objective:** Further evolve the `rules-bank` to explicitly support an Autonomous SecOps Orchestration model, mapping AI agent capabilities and `rules-bank` content to SANS IR stages, and defining how AI agents can autonomously execute larger portions of the IR lifecycle. This phase is primarily inspired by the "Beyond the Tiered SOC" article.
+*   **Tasks:**
+    1.  **Map `rules-bank` to SANS IR Stages & ASO Capabilities:**
+        *   Modify `ai_performance_framework_picerl.md` (or create a new, complementary `aso_sans_ir_mapping.md`) to explicitly map SANS IR stages (Preparation, Identification, Containment, Eradication, Recovery, Lessons Learned) to relevant `rules-bank` documents and AI agent capabilities for each stage.
+        *   Incorporate the "Five Ws" (Who, What, When, Where, Why) as key questions for AI to address at each IR stage.
+        *   *Rationale:* Provides a clear operational model for AI agents within a recognized IR framework, supporting the ASO vision.
+    2.  **Define "Autonomous Workflow Snippets" within Atomic Runbooks:**
+        *   Modify `atomic_runbook_template.md` and existing/future atomic runbooks to include a new section: `Autonomous_Execution_Criteria_and_Logic`.
+        *   This section will detail conditions under which an AI agent can autonomously execute the runbook and potentially chain to the next, referencing `automated_response_playbook_criteria.md` for high-impact actions.
+        *   *Rationale:* Embeds autonomous decision-making logic directly into runbooks, moving closer to ASO.
+    3.  **Develop "Orchestration Runbooks" for Common Scenarios:**
+        *   Create a new directory: `rules-bank/orchestration_runbooks/`.
+        *   Develop a template: `orch_[SCENARIO_NAME]_template.md`.
+        *   These higher-level runbooks will define orchestration logic for common alert scenarios (e.g., "SIEM Alert: Admin account created resource in unusual region"), detailing AI Triage, Enrichment, Identification, Containment, Remediation, and Lessons Learned phases by sequencing atomic runbooks.
+        *   *Rationale:* Directly implements the ASO concept by defining how AI autonomously manages significant parts of the IR lifecycle.
+    4.  **Integrate "Forensic Evidence Gathering" Capabilities into Runbooks:**
+        *   Modify relevant atomic and orchestration runbooks to add steps or considerations for "Forensic Evidence Gathering" (e.g., snapshotting instances, collecting process lists/network connections, EDR telemetry dumps).
+        *   *Rationale:* Ensures necessary data for deeper forensic analysis is considered and potentially collected early in an AI-driven process.
+    5.  **Explicitly Document "Human-Generated Event" (HGE) to ASO Workflows:**
+        *   Modify or link from `hge_triage_protocols.md` (if created, or a similar document) to show how HGEs feed into relevant `Orchestration_Runbooks`.
+        *   *Rationale:* Bridges the gap between human-reported issues and the AI-driven SOC model.
+    *   **Overall Rationale for Phase 7:** These tasks are designed to make the `rules-bank` the central nervous system for an AI-driven, autonomous SOC, aligning with the vision presented in "Beyond the Tiered SOC."
+
 **Next Steps:**
 
 This plan outlines the creation of the suggested files. We can tackle these phases and tasks sequentially or prioritize based on which information would provide the most immediate value.
 
 Would you like to start working on creating one of these files, perhaps beginning with Phase 1? Or would you like to adjust this plan? Please let me know how you'd like to proceed and toggle to ACT MODE when you're ready for me to start creating the files.
 
-**For inspiration:**
+**Key Foundational Articles & Inspiration:**
 
-Here are some references and projects that might be helpful when looking for inspiration:
+This project plan and its evolution have been inspired by the following key articles:
 
+1.  **Blueprint for AI Agents in Cybersecurity: Leveraging AI Agents to Evolve Cybersecurity Practices**
+    *   Author: Filip Stojkovski & Dylan Williams
+    *   URL: https://www.cybersec-automation.com/p/blueprint-for-ai-agents-in-cybersecurity
+    *   *Contribution:* Provided the initial framework for AI agent roles (Triage, Threat Hunting, Response) and core concepts like indicator classification and data normalization challenges.
+2.  **Measuring ROI of AI agents in security operations: Introducing PICERL Index**
+    *   Author: Filip Stojkovski
+    *   URL: https://www.cybersec-automation.com/p/measuring-roi-of-ai-agents-in-security-operations-9a67fdab64192ed0
+    *   *Contribution:* Introduced the PICERL (Preparation, Identification, Containment, Eradication, Recovery, Learning) index, guiding the creation of documents focused on AI performance measurement, feedback loops, and explainability.
+3.  **Integrating Detection Engineering with Automation**
+    *   Author: Filip Stojkovski
+    *   URL: https://www.cybersec-automation.com/p/detection-engineering-automation-incident-response
+    *   *Contribution:* Emphasized the tight coupling of Detection Engineering, IR SOPs, and Automation, and introduced a DE lifecycle (Concept, Research, Engineering, Delivery, Optimization) that informed the structure of `detection_strategy.md` and the concept of "Detection Use-Case Packages."
+4.  **Beyond the Tiered SOC: Rethinking the SOC with Autonomous SecOps Orchestration**
+    *   Author: Filip Stojkovski
+    *   URL: https://www.cybersec-automation.com/p/beyond-the-tiered-soc
+    *   *Contribution:* Advocates for an Autonomous SecOps Orchestration (ASO) model mapped to SANS IR stages, inspiring Phase 7 of this plan to further enhance `rules-bank` for AI autonomy and functional team operations.
+
+**Additional Inspiration (from original plan):**
+
+ 1. Incident Response Recommendations and Considerations for Cybersecurity Risk Management
+    * A CSF 2.0 Community Profile. NIST Special Publication 800.
+    * URL: https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-61r3.pdf
+ 1. Cybersecurity Incident & Vulnerability Response Playbooks
+    * Operational Procedures for Planning and Conducting Cybersecurity Incident and Vulnerability Response Activities in FCEB Information Systems
+    * URL: https://www.cisa.gov/sites/default/files/2024-08/Federal_Government_Cybersecurity_Incident_and_Vulnerability_Response_Playbooks_508C.pdf
+ 1. The NIST Cybersecurity Framework (CSF) 2.0
+    * URL: https://nvlpubs.nist.gov/nistpubs/CSWP/NIST.CSWP.29.pdf
+ 1. Cybersecurity Log Management Planning Guide
+    * NIST Special Publication NIST SP 800-92r1 (Initial Public Draft)
+    * URL: https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-92r1.ipd.pdf
+ 1. SOCFortress Playbooks
+     * This repository contains incident response playbooks and workflows organized according to NIST-800.61 r2 standards. Each playbook is broken down into 6 sections and includes PDF versions for auditors and customers. It's designed specifically for SOC analysts.
+    * GitHub URL: https://github.com/socfortress/Playbooks
+      * [Incident Response Plan for Malware](https://github.com/socfortress/Playbooks/blob/main/IRP-Malware/README.md)
+      * [Incident Response Plan for Compromised Account](https://github.com/socfortress/Playbooks/blob/main/IRP-AccountCompromised/README.md)
+      * [Incident Reponse Plan for Phishing](https://github.com/socfortress/Playbooks/blob/main/IRP-Phishing/README.md)
+      * [Incident Reponse Plan for Ransomware](https://github.com/socfortress/Playbooks/blob/main/IRP-Ransom/README.md)
+ 1. Open Source SOC Documentation (OSSOCDOCS)
+    * This comprehensive project provides a complete library of SOC documentation including SOPs, policies, processes, and best practices. It follows a structured pyramid approach with detailed runbooks that offer step-by-step instructions for specific security operations like investigating malicious URLs or responding to specific alerts.
+    * GitHub URL: https://github.com/madirish/ossocdocs
+ 1. Microsoft Student SOC Toolkit
+    * This toolkit provides resources to prepare students for SOC work, including structured learning modules, hands-on experience, and certification pathways. It contains implementation guidance, a comprehensive training course, and simulated security incidents to build practical knowledge in incident response and threat detection.
+    * GitHub URL: https://github.com/microsoft/SOC
+ 1. Awesome SOC Collection
+    * This is a collection of documentation sources and field best practices for building and running a SOC. It includes strategies for structuring SOCs, communication practices, performance metrics, and advanced SOC functionalities like threat hunting and red teaming.
+    * GitHub URL: https://github.com/cyb3rxp/awesome-soc
+ 1. Security Operations Center Topic on GitHub
+    * The GitHub "security-operations-center" topic page lists numerous projects related to SOC operations, including Python modules for SOC enhancement, security maturity tracking matrices, and automation tools that integrate platforms like Wazuh, Shuffle, and TheHive.
+    * GitHub URL: https://github.com/topics/security-operations-center
  1. Incident Response Recommendations and Considerations for Cybersecurity Risk Management
     * A CSF 2.0 Community Profile. NIST Special Publication 800.
     * URL: https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-61r3.pdf
