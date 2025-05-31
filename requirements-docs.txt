@@ -1,0 +1,8 @@
+linkify-it-py
+sphinx
+myst-nb
+sphinx-autodoc-typehints
+sphinx-copybutton
+sphinx-design
+sphinxcontrib-mermaid
+sphinx-book-theme
