@@ -1,0 +1,44 @@
+# General Security Runbooks
+
+This section contains a collection of general security runbooks covering various investigation, triage, and response procedures.
+
+```{toctree}
+:maxdepth: 1
+:caption: General Runbooks:
+
+advanced_threat_hunting
+alert_report
+apt_threat_hunt
+basic_endpoint_triage_isolation
+basic_ioc_enrichment
+case_event_timeline_and_process_analysis
+case_report
+close_duplicate_or_similar_cases
+cloud_vulnerability_triage_and_contextualization
+common_steps/index
+compare_gti_collection_to_iocs_and_events
+create_an_investigation_report
+data_lake_queries
+deep_dive_ioc_analysis
+demo_soc_t2_soar_runbook
+detection_as_code_workflows
+detection_report
+detection_rule_validation_tuning
+group_cases
+group_cases_v2
+guided_ttp_hunt_credential_access
+guidelines/index
+investgate_a_case_w_external_tools
+investigate_a_gti_collection_id
+ioc_containment
+ioc_threat_hunt
+irps/index
+lateral_movement_hunt_psexec_wmi
+malware_triage
+metaanalysis
+post_incident_review
+prioritize_and_investigate_a_case
+proactive_threat_hunting_based_on_gti_campain_or_actor
+suspicious_login_triage
+triage_alerts
+ueba_report
