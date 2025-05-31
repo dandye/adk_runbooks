@@ -1,6 +1,6 @@
-# ADK Runbooks Project Documentation
+# ADK Runbooks
 
-Welcome to the ADK Runbooks project! This site serves as the central hub for documentation related to the Agent Development Kit (ADK) runbooks, a collection of automated procedures, security content, and operational guides designed to streamline cybersecurity operations. Here you'll find information on setting up the project, configuring its components, understanding the multi-agent architecture, and leveraging the extensive Rules Bank for detection and response. Whether you're a SOC analyst, detection engineer, or incident responder, this documentation aims to provide the necessary resources to effectively utilize and contribute to the ADK Runbooks ecosystem.
+This site serves as the central hub for documentation related to the Agent Development Kit (ADK) runbooks, a collection of automated procedures, security content, and operational guides designed to streamline cybersecurity operations. Here you'll find information on setting up the project, configuring its components, understanding the multi-agent architecture, and leveraging the extensive Rules Bank for detection and response. Whether you're a SOC analyst, detection engineer, or incident responder, this documentation aims to provide the necessary resources to effectively utilize and contribute to the ADK Runbooks ecosystem.
 
 ## Setup
 
@@ -26,18 +26,6 @@ uv pip sync requirements.txt
 adk run manager
 ```
 
-For building this documentation site locally:
-1. Navigate to the `adk_runbooks_debugging` directory (the parent of this `rules-bank` directory).
-2. Ensure you have a Python virtual environment activated.
-3. Install dependencies:
-   ```bash
-   pip install -r requirements-docs.txt
-   ```
-4. Build the documentation:
-   ```bash
-   make html
-   ```
-5. View the site by opening `build/html/index.html` in your browser.
 
 ## Configuration
 
