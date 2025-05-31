@@ -18,8 +18,6 @@ The PICERL Index, inspired by established incident response frameworks like NIST
 
 ## Phase Breakdown, `rules-bank` Support, and Key AI Metrics
 
----
-
 ### 1. Preparation (P)
 
 -   **Objective:** Ensure the environment, tools, and AI agents are ready to effectively handle security operations. This phase is foundational.
