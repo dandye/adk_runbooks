@@ -50,6 +50,8 @@ jobs:
           ls -R .
           echo "--- rules-bank content ---"
           ls -R rules-bank || echo "rules-bank directory not found at root"
+          echo "--- content of rules-bank/conf.py ---"
+          cat rules-bank/conf.py || echo "rules-bank/conf.py not found"
           echo "--- end listing ---"
 
       - name: Build documentation
