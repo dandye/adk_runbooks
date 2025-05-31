@@ -45,6 +45,13 @@ jobs:
             pip install sphinx myst-nb sphinx-book-theme sphinx-copybutton sphinx-design sphinxcontrib-mermaid linkify-it-py sphinx-autodoc-typehints
           fi
 
+      - name: List files for debugging
+        run: |
+          ls -R .
+          echo "--- rules-bank content ---"
+          ls -R rules-bank || echo "rules-bank directory not found at root"
+          echo "--- end listing ---"
+
       - name: Build documentation
         run: |
           # Run make html from the repository root
