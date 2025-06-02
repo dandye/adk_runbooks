@@ -176,6 +176,147 @@ Each pattern will include:
 
 ---
 
+### 8. Process Parent-Child Relationships
+
+-   **Analytical Question:** What child processes has `{process_name}` spawned on host `{hostname}` in the last `{hours}` hours?
+-   **Tool(s):** `secops-mcp - search_security_events`
+-   **Key Parameters/Inputs:**
+    -   `text`: Natural language query.
+    -   `hours_back`: `{hours}`
+-   **Query Template (Natural Language for `text` parameter):**
+    -   "Show child processes spawned by `{process_name}` on host `{hostname}` in the last `{hours}` hours."
+    -   "Find process launch events where parent process is `{process_name}` on `{hostname}` in the past `{hours}` hours."
+-   **Key UDM Fields to Examine:**
+    -   `metadata.event_timestamp`, `metadata.event_type` (e.g., `PROCESS_LAUNCH`)
+    -   `principal.hostname` (should match `{hostname}`)
+    -   `principal.process.file.full_path` (child process)
+    -   `principal.process.command_line` (child process arguments)
+    -   `principal.process.parent_process.file.full_path` (should contain `{process_name}`)
+    -   `principal.process.parent_process.command_line`
+    -   `principal.user.userid` (user context)
+-   **Notes/Considerations:**
+    -   Useful for investigating suspicious parent processes like Office applications spawning cmd.exe/powershell.exe.
+    -   Look for unusual parent-child relationships that may indicate process injection or living-off-the-land techniques.
+
+---
+
+### 9. File Creation/Modification in Suspicious Locations
+
+-   **Analytical Question:** Have any files been created or modified in suspicious directories (e.g., temp folders, startup folders) in the last `{hours}` hours?
+-   **Tool(s):** `secops-mcp - search_security_events`
+-   **Key Parameters/Inputs:**
+    -   `text`: Natural language query.
+    -   `hours_back`: `{hours}`
+-   **Query Template (Natural Language for `text` parameter):**
+    -   "Show file creation events in temp directories or startup folders in the last `{hours}` hours."
+    -   "Find files created in C:\\Users\\*\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup in the past `{hours}` hours."
+-   **Key UDM Fields to Examine:**
+    -   `metadata.event_timestamp`, `metadata.event_type` (e.g., `FILE_CREATION`, `FILE_MODIFICATION`)
+    -   `target.file.full_path` (examine path for suspicious locations)
+    -   `target.file.sha256` (for further analysis)
+    -   `principal.hostname` (affected host)
+    -   `principal.user.userid` (user context)
+    -   `principal.process.file.full_path` (process that created/modified the file)
+-   **Notes/Considerations:**
+    -   Common suspicious paths: temp folders, startup folders, System32, browser download directories.
+    -   Look for files with suspicious extensions (.scr, .pif, .bat, .vbs) or executable files in non-standard locations.
+
+---
+
+### 10. Registry Modifications
+
+-   **Analytical Question:** What registry modifications have occurred related to `{registry_key_pattern}` in the last `{hours}` hours?
+-   **Tool(s):** `secops-mcp - search_security_events`
+-   **Key Parameters/Inputs:**
+    -   `text`: Natural language query.
+    -   `hours_back`: `{hours}`
+-   **Query Template (Natural Language for `text` parameter):**
+    -   "Show registry modification events for keys containing `{registry_key_pattern}` in the last `{hours}` hours."
+    -   "Find registry changes in Run keys or persistence locations in the past `{hours}` hours."
+-   **Key UDM Fields to Examine:**
+    -   `metadata.event_timestamp`, `metadata.event_type` (e.g., `REGISTRY_MODIFICATION`)
+    -   `target.registry.registry_key` (modified registry key)
+    -   `target.registry.registry_value_name` (value name)
+    -   `target.registry.registry_value_data` (new value data)
+    -   `principal.hostname` (affected host)
+    -   `principal.user.userid` (user context)
+    -   `principal.process.file.full_path` (process making the change)
+-   **Notes/Considerations:**
+    -   Focus on persistence mechanisms: Run keys, Services, WMI subscriptions, Scheduled Tasks.
+    -   Common suspicious keys: HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run, HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run.
+
+---
+
+### 11. Network Traffic to Suspicious Domains/IPs
+
+-   **Analytical Question:** Has any internal host communicated with known bad IPs/domains from threat intelligence in the last `{hours}` hours?
+-   **Tool(s):** `secops-mcp - search_security_events`
+-   **Key Parameters/Inputs:**
+    -   `text`: Natural language query incorporating specific indicators.
+    -   `hours_back`: `{hours}`
+-   **Query Template (Natural Language for `text` parameter):**
+    -   "Show network connections to IP addresses in the range `{suspicious_ip_range}` in the last `{hours}` hours."
+    -   "Find HTTP/HTTPS connections to domains containing `{suspicious_domain_pattern}` in the past `{hours}` hours."
+-   **Key UDM Fields to Examine:**
+    -   `metadata.event_timestamp`, `metadata.event_type` (e.g., `NETWORK_CONNECTION`)
+    -   `principal.ip` / `principal.hostname` (internal source)
+    -   `target.ip` / `target.hostname` (external destination)
+    -   `target.url` (for HTTP connections)
+    -   `network.application_protocol`
+    -   `security_result.action` (allowed/blocked)
+-   **Notes/Considerations:**
+    -   Cross-reference with threat intelligence feeds or IOC lists.
+    -   Look for patterns: beaconing behavior, data exfiltration volumes, command and control traffic.
+
+---
+
+### 12. Lateral Movement Indicators
+
+-   **Analytical Question:** Are there signs of lateral movement involving user `{username}` or from host `{source_hostname}` in the last `{hours}` hours?
+-   **Tool(s):** `secops-mcp - search_security_events`
+-   **Key Parameters/Inputs:**
+    -   `text`: Natural language query.
+    -   `hours_back`: `{hours}`
+-   **Query Template (Natural Language for `text` parameter):**
+    -   "Show remote login events and network connections from `{source_hostname}` to other internal hosts in the last `{hours}` hours."
+    -   "Find WMI, PSExec, or RDP activity involving user `{username}` across multiple hosts in the past `{hours}` hours."
+-   **Key UDM Fields to Examine:**
+    -   `metadata.event_timestamp`, `metadata.event_type` (e.g., `USER_LOGIN`, `PROCESS_LAUNCH`, `NETWORK_CONNECTION`)
+    -   `principal.hostname` / `target.hostname` (source and destination hosts)
+    -   `principal.user.userid` / `target.user.userid` (user accounts involved)
+    -   `principal.process.file.full_path` (look for psexec.exe, wmiprvse.exe, mstsc.exe)
+    -   `network.application_protocol` (SMB, RDP, WinRM)
+    -   `target.port` (445 for SMB, 3389 for RDP, 5985/5986 for WinRM)
+-   **Notes/Considerations:**
+    -   Look for authentication events followed by process execution or file access on remote hosts.
+    -   Time correlation is key - events should occur in logical sequence across different hosts.
+
+---
+
+### 13. Data Staging and Exfiltration Patterns
+
+-   **Analytical Question:** Are there signs of data staging or large file transfers that might indicate data exfiltration in the last `{hours}` hours?
+-   **Tool(s):** `secops-mcp - search_security_events`
+-   **Key Parameters/Inputs:**
+    -   `text`: Natural language query.
+    -   `hours_back`: `{hours}`
+-   **Query Template (Natural Language for `text` parameter):**
+    -   "Show file operations creating large files or archives in unusual locations in the last `{hours}` hours."
+    -   "Find network connections with high data transfer volumes to external IPs in the past `{hours}` hours."
+-   **Key UDM Fields to Examine:**
+    -   `metadata.event_timestamp`, `metadata.event_type` (e.g., `FILE_CREATION`, `NETWORK_CONNECTION`)
+    -   `target.file.full_path` (look for .zip, .rar, .7z files)
+    -   `target.file.size` (large file sizes)
+    -   `network.bytes_sent` / `network.bytes_received` (large data transfers)
+    -   `principal.hostname` (source host)
+    -   `target.ip` (external destination for network events)
+    -   `principal.user.userid` (user context)
+-   **Notes/Considerations:**
+    -   Look for archiving tools (7zip.exe, winrar.exe) followed by network transfers.
+    -   Consider normal business hours and typical data transfer patterns for your organization.
+
+---
+
 ## General Notes for AI Agent Querying:
 
 -   **Iterative Refinement:** Start with broader queries if unsure, then narrow down based on initial results.

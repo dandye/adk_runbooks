@@ -51,6 +51,6 @@ Security Engineers are less likely to execute incident-focused runbooks directly
 
 *   `detection_as_code_workflows.md`: Core workflow for managing detection rules.
 *   `detection_rule_validation_tuning.md`: May execute this runbook or act on its recommendations.
-*   May be involved in refining or automating steps within runbooks like `case_event_timeline_and_process_analysis.md` or `proactive_threat_hunting_based_on_gti_campain_or_actor.md` by improving underlying tool capabilities or data collection.
+*   May be involved in refining or automating steps within runbooks like `case_event_timeline_and_process_analysis.md` or `proactive_threat_hunting_based_on_gti_campaign_or_actor.md` by improving underlying tool capabilities or data collection.
 *   Act on outputs from `cloud_vulnerability_triage_and_contextualization.md` by tuning cloud security tools or implementing remediation.
 *   Use findings from various investigation runbooks (e.g., `deep_dive_ioc_analysis.md`, `malware_triage.md`, `advanced_threat_hunting.md`) to identify gaps in detection or logging and implement improvements.

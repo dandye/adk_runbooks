@@ -1,5 +1,12 @@
 ![Screenshot 2025-05-18 at 4 16 04 PM](https://github.com/user-attachments/assets/338a92af-1721-4b6f-9c9c-c451c9581129)
 
+# Documentation
+
+The full documentation for this project, including detailed runbooks and agent information, is available at:
+[https://dandye.github.io/adk_runbooks](https://dandye.github.io/adk_runbooks)
+
+---
+
 # Setup
 
 Do *NOT* use `uv` to run `adk` with a pyproject.yaml file. (It causes intractable dependency resolution issues.)

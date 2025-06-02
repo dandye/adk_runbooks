@@ -143,17 +143,30 @@ This approach wraps agents as tools, allowing the root agent to call them and in
 
 ## Our Multi-Agent Example
 
-This example implements a **manager agent** that coordinates various specialized **security sub-agents**:
+This example implements a **manager agent** that coordinates various specialized **security sub-agents**. The personas are organized as follows:
 
-1.  **{doc}`CTI Researcher <personas/cti_researcher>`**: Gathers and analyzes cyber threat intelligence, investigates threat actors, campaigns, and TTPs.
-2.  **{doc}`Detection Engineer <personas/detection_engineer>`**: Designs, develops, tests, and maintains security detection rules and analytics.
-3.  **{doc}`Incident Responder <personas/incident_responder>`**: Manages the lifecycle of security incidents, including containment, eradication, and recovery.
-4.  **{doc}`SOC Analyst Tier 1 <personas/soc_analyst_tier_1>`**: Performs initial alert triage, basic IOC enrichment, and escalates incidents as needed.
-5.  **{doc}`SOC Analyst Tier 2 <personas/soc_analyst_tier_2>`**: Handles escalated alerts, performs deeper investigations, and manages incident cases.
-6.  **{doc}`SOC Analyst Tier 3 <personas/soc_analyst_tier_3>`**: Manages complex incidents, performs advanced analysis, and may lead response efforts.
-7.  **{doc}`Threat Hunter <personas/threat_hunter>`**: Proactively searches for threats and malicious activities within the environment.
+**Security Operations Personas:**
 
-The manager agent routes security-related queries and tasks to the appropriate specialist based on the user's request. Persona and runbook information for each agent is now loaded using `pathlib` for robust path resolution.
+*   **{doc}`CISO <personas/ciso>`**: Oversees the organization's cybersecurity strategy, budget, and policy.
+*   **{doc}`SOC Manager <personas/soc_manager>`**: Manages the Security Operations Center, its staff, processes, and technologies.
+*   **{doc}`SOC Analyst Tier 1 <personas/soc_analyst_tier_1>`**: Performs initial alert triage, basic IOC enrichment, and escalates incidents as needed.
+*   **{doc}`SOC Analyst Tier 2 <personas/soc_analyst_tier_2>`**: Handles escalated alerts, performs deeper investigations, and manages incident cases.
+*   **{doc}`SOC Analyst Tier 3 <personas/soc_analyst_tier_3>`**: Manages complex incidents, performs advanced analysis, and may lead response efforts.
+
+**Specialized Security Roles:**
+
+*   **{doc}`CTI Researcher <personas/cti_researcher>`**: Gathers and analyzes cyber threat intelligence, investigates threat actors, campaigns, and TTPs.
+*   **{doc}`Detection Engineer <personas/detection_engineer>`**: Designs, develops, tests, and maintains security detection rules and analytics.
+*   **{doc}`Incident Responder <personas/incident_responder>`**: Manages the lifecycle of security incidents, including containment, eradication, and recovery.
+*   **{doc}`Threat Hunter <personas/threat_hunter>`**: Proactively searches for threats and malicious activities within the environment.
+*   **{doc}`Security Engineer <personas/security_engineer>`**: Designs, implements, and maintains security infrastructure and solutions.
+*   **{doc}`Red Team <personas/red_team>`**: Simulates adversarial attacks to test and improve organizational defenses.
+
+**Governance & Compliance:**
+
+*   **{doc}`Compliance Manager <personas/compliance_manager>`**: Ensures the organization adheres to relevant security regulations and standards.
+
+These personas correspond to the multi-agent system's specialized agents and provide role-based operational guidance for cybersecurity teams. The manager agent routes security-related queries and tasks to the appropriate specialist based on the user's request. Persona and runbook information for each agent is now loaded using `pathlib` for robust path resolution.
 
 ## Getting Started
 

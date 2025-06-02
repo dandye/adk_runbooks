@@ -72,7 +72,7 @@ The CTI Researcher primarily utilizes the **`Google Threat Intelligence MCP serv
 CTI Researchers focus on runbooks related to intelligence gathering, analysis, hunting, and reporting:
 
 *   `investigate_a_gti_collection_id.md`
-*   `proactive_threat_hunting_based_on_gti_campain_or_actor.md`
+*   `proactive_threat_hunting_based_on_gti_campaign_or_actor.md`
 *   `compare_gti_collection_to_iocs_and_events.md`
 *   `ioc_threat_hunt.md`
 *   `apt_threat_hunt.md`
