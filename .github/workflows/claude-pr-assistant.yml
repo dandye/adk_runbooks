@@ -1,0 +1,51 @@
+name: Claude PR Assistant
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  claude-pr-review:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || (github.event_name == 'issue_comment' && github.event.issue.pull_request && startsWith(github.event.comment.body, '@claude'))
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.event.pull_request.head.ref }}
+
+      - name: Claude PR Assistant
+        uses: anthropics/claude-github-actions@v1
+        with:
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          # Optional: Customize the Claude model
+          # model: claude-3-5-sonnet-20241022
+          # Optional: Add project-specific instructions
+          instructions: |
+            You are reviewing code for the ADK Runbooks project, a multi-agent cybersecurity system built on Google's Agent Development Kit (ADK).
+            
+            Key areas to focus on:
+            - Security best practices for cybersecurity tools
+            - Agent configuration and tool integration patterns
+            - MCP (Model Context Protocol) server setup and usage
+            - Async/await patterns for agent initialization
+            - Resource management for long-running MCP connections
+            - Documentation consistency with the rules-bank structure
+            
+            When reviewing changes to:
+            - `multi-agent/manager/`: Pay attention to agent orchestration and delegation patterns
+            - `multi-agent/manager/tools/tools.py`: Check MCP toolset initialization and cleanup
+            - `rules-bank/`: Ensure runbooks follow established patterns and are properly referenced
+            - Requirements files: Verify compatibility with ADK and security tool dependencies
+            
+            Provide constructive feedback that helps maintain code quality while supporting the cybersecurity operations use case.
