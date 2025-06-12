@@ -2,6 +2,7 @@ from datetime import datetime
 import asyncio
 import contextlib
 import os
+import requests
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -17,8 +18,47 @@ def ask_follow_up_question(*args, **kwargs):
     pass
 
 
+def fetch_available_models(api_key):
+    """Fetches available models from the Google Gemini API.
+    
+    Args:
+        api_key (str): Google API key for authentication
+        
+    Returns:
+        list: List of available model names, or None if fetch fails
+    """
+    try:
+        url = "https://generativelanguage.googleapis.com/v1beta/models"
+        params = {
+            'key': api_key,
+            'pageSize': 100  # Get more models in one request
+        }
+        
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        
+        data = response.json()
+        models = data.get('models', [])
+        
+        # Extract model names and filter for text generation models
+        model_names = []
+        for model in models:
+            name = model.get('name', '')
+            if name.startswith('models/'):
+                model_name = name.replace('models/', '')
+                # Filter for text generation models (exclude image/video generation)
+                if any(keyword in model_name.lower() for keyword in ['gemini', 'text', 'chat']):
+                    model_names.append(model_name)
+        
+        return sorted(model_names)
+        
+    except Exception as e:
+        print(f"⚠️ Could not fetch models from API: {e}")
+        return None
+
+
 def get_configured_model():
-    """Gets the configured model from environment variables.
+    """Gets the configured model from environment variables with dynamic validation.
     
     Returns:
         str: The model name to use for agents. Defaults to gemini-2.5-pro-preview-05-06.
@@ -26,18 +66,35 @@ def get_configured_model():
     default_model = "gemini-2.5-pro-preview-05-06"
     model = os.getenv('ADK_MODEL', default_model)
     
-    # Validate model name (basic check for common patterns)
-    valid_models = [
+    # Static fallback list for when API is unavailable
+    fallback_models = [
         "gemini-2.0-flash",
         "gemini-2.5-flash-preview-05-20", 
         "gemini-2.5-pro-preview-05-06",
+        "gemini-2.5-pro-preview-06-05",
         "gemini-1.5-pro",
         "gemini-1.5-flash"
     ]
     
+    # Try to fetch live model list if API key is available
+    api_key = os.getenv('GOOGLE_API_KEY')
+    if api_key:
+        live_models = fetch_available_models(api_key)
+        if live_models:
+            valid_models = live_models
+            print(f"✓ Fetched {len(live_models)} available models from Google API")
+        else:
+            valid_models = fallback_models
+            print(f"⚠️ Using fallback model list ({len(fallback_models)} models)")
+    else:
+        valid_models = fallback_models
+        print("⚠️ No API key available, using fallback model list")
+    
+    # Validate the selected model
     if model not in valid_models:
-        print(f"⚠️  Warning: Model '{model}' not in known valid models list. Using anyway.")
-        print(f"   Valid models: {', '.join(valid_models)}")
+        print(f"⚠️  Warning: Model '{model}' not in available models list. Using anyway.")
+        print(f"   Available models: {', '.join(valid_models[:5])}{'...' if len(valid_models) > 5 else ''}")
+        print(f"   Total models available: {len(valid_models)}")
     
     print(f"✓ Using model: {model}")
     return model
@@ -80,7 +137,7 @@ def validate_env_config():
     # Validate Google API Key format
     api_key = config['GOOGLE_API_KEY']
     if not api_key.startswith('AI') or len(api_key) < 20:
-        warnings.append(f"⚠️ GOOGLE_API_KEY doesn't look like a valid Google AI API key (should start with 'AI')")
+        warnings.append("⚠️ GOOGLE_API_KEY doesn't look like a valid Google AI API key (should start with 'AI')")
     
     # Validate Chronicle configuration if provided
     project_id = os.getenv('CHRONICLE_PROJECT_ID')
@@ -150,7 +207,7 @@ def validate_mcp_paths():
                     f"Please ensure the MCP server is properly installed and configured."
                 )
     
-    print(f"✓ All MCP paths validated successfully")
+    print("✓ All MCP paths validated successfully")
     return paths
 
 

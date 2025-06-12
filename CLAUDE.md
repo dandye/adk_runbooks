@@ -82,10 +82,12 @@ The manager agent uses `DeferredInitializationAgent` to handle async initializat
 
 2. **Configuration Features**: 
    - **Complete .env Configuration**: All settings are now in .env - no code editing required
+   - **Dynamic Model Discovery**: Fetches available models from Google API for real-time validation
    - **Automatic Validation**: System validates all paths and configuration on startup
    - **Helpful Error Messages**: Clear guidance when configuration issues are detected
    - **Common Mistake Detection**: Warns about swapped PROJECT_ID/CUSTOMER_ID and other issues
    - **Cross-Platform Support**: Examples provided for Windows, macOS, and Linux paths
+   - **Model List Utility**: Run `python manager/list_models.py` to see all available models
 
 ## Important Context Files
 
