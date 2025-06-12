@@ -62,6 +62,9 @@ The manager agent uses `DeferredInitializationAgent` to handle async initializat
    ```
    GOOGLE_API_KEY=your_api_key_here
    
+   # Model Configuration
+   ADK_MODEL=gemini-2.5-pro-preview-05-06
+   
    # MCP Security Tool Paths - Update these to match your installation
    MCP_SIEM_DIR=/path/to/mcp_security/server/secops/secops_mcp
    MCP_SOAR_DIR=/path/to/mcp_security/server/secops-soar/secops_soar_mcp
@@ -71,9 +74,10 @@ The manager agent uses `DeferredInitializationAgent` to handle async initializat
    
    Use the provided `.env.example` template for guidance.
 
-2. **MCP Tool Configuration**: 
-   - The system now validates MCP paths on startup and provides clear error messages
-   - No more hardcoded paths in `tools.py` - everything is configurable via environment variables
+2. **Configuration Features**: 
+   - **Model Selection**: Use `ADK_MODEL` to specify which Gemini model all agents should use
+   - **MCP Tool Paths**: All paths are configurable via environment variables with validation
+   - **Path Validation**: System validates MCP paths on startup with clear error messages
    - Each MCP directory must contain a `server.py` file for validation to pass
 
 ## Important Context Files

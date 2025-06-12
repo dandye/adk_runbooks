@@ -17,6 +17,32 @@ def ask_follow_up_question(*args, **kwargs):
     pass
 
 
+def get_configured_model():
+    """Gets the configured model from environment variables.
+    
+    Returns:
+        str: The model name to use for agents. Defaults to gemini-2.5-pro-preview-05-06.
+    """
+    default_model = "gemini-2.5-pro-preview-05-06"
+    model = os.getenv('ADK_MODEL', default_model)
+    
+    # Validate model name (basic check for common patterns)
+    valid_models = [
+        "gemini-2.0-flash",
+        "gemini-2.5-flash-preview-05-20", 
+        "gemini-2.5-pro-preview-05-06",
+        "gemini-1.5-pro",
+        "gemini-1.5-flash"
+    ]
+    
+    if model not in valid_models:
+        print(f"⚠️  Warning: Model '{model}' not in known valid models list. Using anyway.")
+        print(f"   Valid models: {', '.join(valid_models)}")
+    
+    print(f"✓ Using model: {model}")
+    return model
+
+
 def validate_mcp_paths():
     """Validates that all required MCP directories exist and are accessible.
     

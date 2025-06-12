@@ -1,7 +1,7 @@
 from pathlib import Path
 from google.adk.agents import Agent
 
-from ...tools.tools import load_persona_and_runbooks
+from ...tools.tools import load_persona_and_runbooks, get_configured_model
 
 
 # Changed to a synchronous function that accepts tools and exit_stack
@@ -40,7 +40,7 @@ def get_agent(tools, exit_stack):
 
   agent_instance = Agent( # Renamed to avoid conflict
       name="threat_hunter",
-      model="gemini-2.5-pro-preview-05-06",
+      model=get_configured_model(),
       description=persona_description,
       instruction="""You are a Threat Hunter agent.""",
       tools=tools, # Use passed-in tools
