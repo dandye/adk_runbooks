@@ -20,16 +20,23 @@ ADK Runbooks implements a manager-orchestrated multi-agent system where speciali
 
 ## Security Agents
 
-The system includes the following specialized agents:
+The system includes specialized agents organized by security function:
 
-1. **Manager Agent**: Orchestrates and delegates tasks to appropriate specialist agents
-2. **CTI Researcher**: Gathers and analyzes cyber threat intelligence
-3. **Detection Engineer**: Designs and maintains security detection rules
-4. **Incident Responder**: Manages security incident lifecycle and response
-5. **SOC Analyst Tier 1**: Performs initial alert triage and basic investigations
-6. **SOC Analyst Tier 2**: Handles escalated alerts and deeper investigations
-7. **SOC Analyst Tier 3**: Manages complex incidents and advanced analysis
-8. **Threat Hunter**: Proactively searches for threats and anomalies
+### Orchestration
+- **Manager Agent**: Orchestrates and delegates tasks to appropriate specialist agents
+
+### Security Operations Center (SOC)
+- **SOC Analyst Tier 1**: Performs initial alert triage and basic investigations
+- **SOC Analyst Tier 2**: Handles escalated alerts and deeper investigations  
+- **SOC Analyst Tier 3**: Manages complex incidents and advanced forensic analysis
+
+### Proactive Security
+- **Threat Hunter**: Proactively searches for threats, anomalies, and signs of compromise
+- **CTI Researcher**: Gathers and analyzes cyber threat intelligence to inform defensive strategies
+
+### Security Engineering
+- **Detection Engineer**: Designs, develops, and maintains security detection rules and analytics
+- **Incident Responder**: Executes incident response plans for containment, eradication, and recovery
 
 ## Project Structure
 
