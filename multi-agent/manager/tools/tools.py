@@ -85,65 +85,66 @@ async def get_agent_tools():
 
   Returns:
       tuple: A tuple containing:
-          - tuple: A combined tuple of all initialized MCP tools (*siem_tools, *soar_tools, *gti_tools).
+          - tuple: A combined tuple of all initialized MCP toolsets and built-in tools.
           - contextlib.AsyncExitStack: The exit stack managing the MCP server connections.
   """
   common_exit_stack = contextlib.AsyncExitStack()
-  siem_tools, common_exit_stack = await asyncio.shield(MCPToolset.from_server(
+  
+  # Create MCPToolset instances using the new constructor
+  siem_toolset = MCPToolset(
     connection_params=StdioServerParameters(
-    command='uv',
-    args=[
-        "--directory",
-        "/Users/dandye/Projects/mcp_security_debugging/server/secops/secops_mcp",
-        "run",
-        "--env-file",
-        "/Users/dandye/Projects/google-mcp-security/.env",
-        "server.py"
-      ],
-    ),
-    async_exit_stack=common_exit_stack
-  ))
-
-  await asyncio.sleep(2)  # Give the first server time to stabilize
-  soar_tools, common_exit_stack = await asyncio.shield(MCPToolset.from_server(
-     connection_params=StdioServerParameters(
-     command='uv',
-     args=[
-         "--directory",
-         "/Users/dandye/Projects/mcp_security_debugging/server/secops-soar/secops_soar_mcp",
-         "run",
-        #"--python", "3.13",
-        #"--refresh",
-         "--env-file",
-         "/Users/dandye/Projects/google-mcp-security/.env",
-         "server.py",
-         "--integrations",
-         "CSV,GoogleChronicle,Siemplify,SiemplifyUtilities"
-       ],
-     ),
-     async_exit_stack=common_exit_stack
-  ))
-  await asyncio.sleep(2)  # Give the first server time to stabilize
-  gti_tools, common_exit_stack = await MCPToolset.from_server(
-    connection_params=StdioServerParameters(
-    command='uv',
-    args=[
-        "--directory",
-        "/Users/dandye/Projects/mcp_security_debugging/server/gti/gti_mcp",
-        "run",
-        "--refresh",
-        "--env-file",
-        "/Users/dandye/Projects/google-mcp-security/.env",
-        "server.py"
-      ],
-    ),
-    async_exit_stack=common_exit_stack
+      command='uv',
+      args=[
+          "--directory",
+          "/Users/dandye/Projects/mcp_security_debugging/server/secops/secops_mcp",
+          "run",
+          "--env-file",
+          "/Users/dandye/Projects/google-mcp-security/.env",
+          "server.py"
+        ],
+      )
   )
+  
+  soar_toolset = MCPToolset(
+    connection_params=StdioServerParameters(
+      command='uv',
+      args=[
+          "--directory",
+          "/Users/dandye/Projects/mcp_security_debugging/server/secops-soar/secops_soar_mcp",
+          "run",
+          "--env-file",
+          "/Users/dandye/Projects/google-mcp-security/.env",
+          "server.py",
+          "--integrations",
+          "CSV,GoogleChronicle,Siemplify,SiemplifyUtilities"
+        ],
+      )
+  )
+  
+  gti_toolset = MCPToolset(
+    connection_params=StdioServerParameters(
+      command='uv',
+      args=[
+          "--directory",
+          "/Users/dandye/Projects/mcp_security_debugging/server/gti/gti_mcp",
+          "run",
+          "--refresh",
+          "--env-file",
+          "/Users/dandye/Projects/google-mcp-security/.env",
+          "server.py"
+        ],
+      )
+  )
+  
+  # Register toolsets for cleanup
+  common_exit_stack.push_async_callback(siem_toolset.close)
+  common_exit_stack.push_async_callback(soar_toolset.close)
+  common_exit_stack.push_async_callback(gti_toolset.close)
 
   return (
-      *siem_tools,
-      *soar_tools,
-      *gti_tools,
+      siem_toolset,
+      soar_toolset,
+      gti_toolset,
       write_report,
       get_current_time,
   ), common_exit_stack
