@@ -30,10 +30,20 @@ adk run manager
 
 ## Configuration
 
-There are two places to configure for your environment:
- * `./multi-agent/manager/.env` file in
- * `./multi-agent/manager/tools/tools.py` needs your MCP Security configuration
-   * Fix the hard-coded paths in that file like `/Users/dandye/Projects/mcp_security/server/...`
+**All configuration is now done through the `.env` file - no code editing required!**
+
+1. **Copy the example configuration**:
+   ```bash
+   cd multi-agent/manager
+   cp .env.example .env
+   ```
+
+2. **Edit `.env` with your settings**:
+   - Add your `GOOGLE_API_KEY` 
+   - Update MCP paths to match your local installation
+   - See `.env.example` for detailed guidance and examples
+
+The system will validate your configuration on startup and provide helpful error messages if anything needs to be fixed.
 
 ## Multi-Agent Systems in ADK
 

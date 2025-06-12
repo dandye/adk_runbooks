@@ -58,27 +58,34 @@ The manager agent uses `DeferredInitializationAgent` to handle async initializat
 - **Path validation** ensures all MCP directories exist and contain required files before startup
 
 ### Configuration Requirements
-1. Create `.env` file in `multi-agent/manager/` with:
+1. **Copy and configure .env file**:
+   ```bash
+   cd multi-agent/manager
+   cp .env.example .env
+   # Edit .env with your actual values
    ```
+   
+   **Required settings** (see `.env.example` for full details):
+   ```bash
+   # Required: Google AI API Key
    GOOGLE_API_KEY=your_api_key_here
    
-   # Model Configuration
-   ADK_MODEL=gemini-2.5-pro-preview-05-06
-   
-   # MCP Security Tool Paths - Update these to match your installation
+   # Required: MCP Security Tool Paths (absolute paths)
    MCP_SIEM_DIR=/path/to/mcp_security/server/secops/secops_mcp
    MCP_SOAR_DIR=/path/to/mcp_security/server/secops-soar/secops_soar_mcp
    MCP_GTI_DIR=/path/to/mcp_security/server/gti/gti_mcp
    MCP_ENV_FILE=/path/to/mcp_security/.env
-   ```
    
-   Use the provided `.env.example` template for guidance.
+   # Optional: Model selection
+   ADK_MODEL=gemini-2.5-pro-preview-05-06
+   ```
 
 2. **Configuration Features**: 
-   - **Model Selection**: Use `ADK_MODEL` to specify which Gemini model all agents should use
-   - **MCP Tool Paths**: All paths are configurable via environment variables with validation
-   - **Path Validation**: System validates MCP paths on startup with clear error messages
-   - Each MCP directory must contain a `server.py` file for validation to pass
+   - **Complete .env Configuration**: All settings are now in .env - no code editing required
+   - **Automatic Validation**: System validates all paths and configuration on startup
+   - **Helpful Error Messages**: Clear guidance when configuration issues are detected
+   - **Common Mistake Detection**: Warns about swapped PROJECT_ID/CUSTOMER_ID and other issues
+   - **Cross-Platform Support**: Examples provided for Windows, macOS, and Linux paths
 
 ## Important Context Files
 

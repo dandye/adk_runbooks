@@ -43,32 +43,102 @@ def get_configured_model():
     return model
 
 
+def validate_env_config():
+    """Comprehensive validation of .env configuration with helpful error messages.
+    
+    Returns:
+        dict: A dictionary with validated configuration or raises detailed errors.
+    """
+    errors = []
+    warnings = []
+    
+    # Required fields check
+    required_fields = {
+        'GOOGLE_API_KEY': 'Google API key for Gemini models',
+        'MCP_SIEM_DIR': 'Path to MCP SIEM server directory',
+        'MCP_SOAR_DIR': 'Path to MCP SOAR server directory', 
+        'MCP_GTI_DIR': 'Path to MCP GTI server directory',
+        'MCP_ENV_FILE': 'Path to MCP environment file'
+    }
+    
+    config = {}
+    for field, description in required_fields.items():
+        value = os.getenv(field)
+        if not value:
+            errors.append(f"❌ Missing required field: {field} ({description})")
+        else:
+            config[field] = value
+    
+    # Stop early if required fields missing
+    if errors:
+        raise ValueError(
+            "Configuration errors found:\n" + 
+            "\n".join(errors) + 
+            "\n\nPlease update your .env file. See .env.example for guidance."
+        )
+    
+    # Validate Google API Key format
+    api_key = config['GOOGLE_API_KEY']
+    if not api_key.startswith('AI') or len(api_key) < 20:
+        warnings.append(f"⚠️ GOOGLE_API_KEY doesn't look like a valid Google AI API key (should start with 'AI')")
+    
+    # Validate Chronicle configuration if provided
+    project_id = os.getenv('CHRONICLE_PROJECT_ID')
+    customer_id = os.getenv('CHRONICLE_CUSTOMER_ID')
+    
+    if project_id or customer_id:
+        if project_id and customer_id:
+            # Check for common format mistakes
+            if len(project_id) == 36 and '-' in project_id and len(project_id.split('-')) >= 4:
+                warnings.append(
+                    "⚠️ CHRONICLE_PROJECT_ID looks like a UUID format - did you swap PROJECT_ID and CUSTOMER_ID?\n"
+                    "   PROJECT_ID should be like 'my-security-project-123' (GCP project format)\n"
+                    "   CUSTOMER_ID should be like '12345678-abcd-1234-efgh-123456789012' (UUID format)"
+                )
+            if customer_id and len(customer_id) < 36:
+                warnings.append(
+                    "⚠️ CHRONICLE_CUSTOMER_ID looks too short for UUID format\n"
+                    "   Should be 36 characters like '12345678-abcd-1234-efgh-123456789012'"
+                )
+        else:
+            warnings.append("⚠️ Only one of CHRONICLE_PROJECT_ID/CHRONICLE_CUSTOMER_ID set - both are needed for Chronicle integration")
+    
+    # Print warnings
+    for warning in warnings:
+        print(warning)
+    
+    return config
+
+
 def validate_mcp_paths():
     """Validates that all required MCP directories exist and are accessible.
     
     Returns:
         dict: A dictionary with validated paths or raises FileNotFoundError if paths are invalid.
     """
-    # Get MCP paths from environment variables
-    siem_dir = os.getenv('MCP_SIEM_DIR', '/Users/dandye/Projects/mcp_security/server/secops/secops_mcp')
-    soar_dir = os.getenv('MCP_SOAR_DIR', '/Users/dandye/Projects/mcp_security/server/secops-soar/secops_soar_mcp')
-    gti_dir = os.getenv('MCP_GTI_DIR', '/Users/dandye/Projects/mcp_security/server/gti/gti_mcp')
-    env_file = os.getenv('MCP_ENV_FILE', '/Users/dandye/Projects/google-mcp-security/.env')
+    # Get validated config first
+    config = validate_env_config()
     
     paths = {
-        'siem_dir': siem_dir,
-        'soar_dir': soar_dir,
-        'gti_dir': gti_dir,
-        'env_file': env_file
+        'siem_dir': config['MCP_SIEM_DIR'],
+        'soar_dir': config['MCP_SOAR_DIR'],
+        'gti_dir': config['MCP_GTI_DIR'],
+        'env_file': config['MCP_ENV_FILE']
     }
     
     # Validate each path exists
     for name, path in paths.items():
         path_obj = Path(path)
         if not path_obj.exists():
+            suggestion = ""
+            if name == 'env_file':
+                suggestion = "\n   Try copying .env.example to create your MCP .env file"
+            else:
+                suggestion = "\n   Make sure you've cloned and set up the mcp_security repository"
+            
             raise FileNotFoundError(
-                f"MCP path '{name}' does not exist: {path}\n"
-                f"Please update your .env file or create the required directory structure."
+                f"❌ MCP path '{name}' does not exist: {path}{suggestion}\n"
+                f"Please update your .env file with the correct path."
             )
         
         # For directories, ensure they contain expected files
@@ -76,8 +146,8 @@ def validate_mcp_paths():
             server_py = path_obj / 'server.py'
             if not server_py.exists():
                 raise FileNotFoundError(
-                    f"MCP directory '{name}' missing server.py: {path}\n"
-                    f"Please ensure the MCP server is properly configured."
+                    f"❌ MCP directory '{name}' missing server.py: {path}\n"
+                    f"Please ensure the MCP server is properly installed and configured."
                 )
     
     print(f"✓ All MCP paths validated successfully")
@@ -153,7 +223,7 @@ async def get_agent_tools():
   paths from environment variables. It validates all paths before attempting to connect
   and manages the lifecycle of these connections using an AsyncExitStack.
 
-  Environment Variables (with defaults):
+  Environment Variables (required - set in .env file):
       MCP_SIEM_DIR: Path to SecOps MCP server directory
       MCP_SOAR_DIR: Path to SecOps-SOAR MCP server directory  
       MCP_GTI_DIR: Path to GTI MCP server directory
@@ -166,14 +236,22 @@ async def get_agent_tools():
           
   Raises:
       FileNotFoundError: If any required MCP paths don't exist or are invalid.
+      ValueError: If required .env configuration is missing or invalid.
   """
+  print("🔧 Starting ADK Runbooks initialization...")
+  print("📋 Validating configuration...")
+  
   common_exit_stack = contextlib.AsyncExitStack()
   
   # Validate and get MCP paths from environment
   try:
     paths = validate_mcp_paths()
-  except FileNotFoundError as e:
-    print(f"❌ MCP Configuration Error: {e}")
+  except (FileNotFoundError, ValueError) as e:
+    print(f"❌ Configuration Error: {e}")
+    print("\n💡 Quick fix:")
+    print("   1. Copy .env.example to .env: cp manager/.env.example manager/.env")
+    print("   2. Edit .env and update the paths to match your system")
+    print("   3. Ensure all MCP paths point to existing directories with server.py files")
     raise
   
   # Create MCPToolset instances using validated paths
