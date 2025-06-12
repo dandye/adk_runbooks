@@ -1,51 +1,54 @@
-name: Claude PR Assistant
+name: Claude Code Action
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
   issue_comment:
+    types: [created]
+  pull_request_review_comment:
     types: [created]
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
   issues: write
 
 jobs:
-  claude-pr-review:
+  claude:
+    if: >
+      github.event_name == 'issue_comment' && 
+      github.event.issue.pull_request != null && 
+      contains(github.event.comment.body, '@claude')
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' || (github.event_name == 'issue_comment' && github.event.issue.pull_request && startsWith(github.event.comment.body, '@claude'))
-    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Claude Code Action
+        uses: anthropics/claude-code-action@v1
         with:
-          fetch-depth: 0
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.event.pull_request.head.ref }}
-
-      - name: Claude PR Assistant
-        uses: anthropics/claude-github-actions@v1
-        with:
-          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          # Optional: Customize the Claude model
-          # model: claude-3-5-sonnet-20241022
-          # Optional: Add project-specific instructions
-          instructions: |
-            You are reviewing code for the ADK Runbooks project, a multi-agent cybersecurity system built on Google's Agent Development Kit (ADK).
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Optional: Specify Claude model (defaults to claude-3-5-sonnet-20241022)
+          # anthropic-model: claude-3-5-sonnet-20241022
+          # Optional: Add project-specific context
+          system-prompt: |
+            You are assisting with the ADK Runbooks project, a multi-agent cybersecurity system built on Google's Agent Development Kit (ADK).
             
-            Key areas to focus on:
+            Project Context:
+            - Multi-agent system for cybersecurity operations (SOC, incident response, threat hunting)
+            - Built using Google ADK with specialized security agents
+            - Uses MCP (Model Context Protocol) servers for tool integration
+            - Implements async/await patterns for agent initialization
+            - Contains runbooks and personas for cybersecurity workflows
+            
+            Key Areas of Focus:
             - Security best practices for cybersecurity tools
             - Agent configuration and tool integration patterns
-            - MCP (Model Context Protocol) server setup and usage
+            - MCP server setup and resource management
             - Async/await patterns for agent initialization
-            - Resource management for long-running MCP connections
-            - Documentation consistency with the rules-bank structure
+            - Documentation consistency with rules-bank structure
+            - ADK compatibility and version management
             
-            When reviewing changes to:
-            - `multi-agent/manager/`: Pay attention to agent orchestration and delegation patterns
-            - `multi-agent/manager/tools/tools.py`: Check MCP toolset initialization and cleanup
-            - `rules-bank/`: Ensure runbooks follow established patterns and are properly referenced
-            - Requirements files: Verify compatibility with ADK and security tool dependencies
+            When reviewing or helping with code changes:
+            - `multi-agent/manager/`: Agent orchestration and delegation patterns
+            - `multi-agent/manager/tools/tools.py`: MCP toolset initialization and cleanup
+            - `rules-bank/`: Runbook patterns and agent persona configurations
+            - Requirements files: ADK and security tool dependency compatibility
             
-            Provide constructive feedback that helps maintain code quality while supporting the cybersecurity operations use case.
+            Provide constructive, security-focused feedback that maintains code quality while supporting cybersecurity operations use cases.
