@@ -53,16 +53,41 @@ make html  # From project root
 The manager agent uses `DeferredInitializationAgent` to handle async initialization of sub-agents and MCP tools. This allows synchronous registration while deferring expensive setup operations.
 
 ### Tool Integration
-- **MCP Security Tools**: Configured in `multi-agent/manager/tools/tools.py`
-  - IMPORTANT: Update hardcoded paths like `/Users/dandye/Projects/mcp_security/server/...`
+- **MCP Security Tools**: Configured via environment variables in `.env` file
 - **Shared tools** are initialized once and passed to all sub-agents to avoid redundant connections
+- **Path validation** ensures all MCP directories exist and contain required files before startup
 
 ### Configuration Requirements
-1. Create `.env` file in `multi-agent/manager/` with:
+1. **Copy and configure .env file**:
+   ```bash
+   cd multi-agent/manager
+   cp .env.example .env
+   # Edit .env with your actual values
    ```
+   
+   **Required settings** (see `.env.example` for full details):
+   ```bash
+   # Required: Google AI API Key
    GOOGLE_API_KEY=your_api_key_here
+   
+   # Required: MCP Security Tool Paths (absolute paths)
+   MCP_SIEM_DIR=/path/to/mcp_security/server/secops/secops_mcp
+   MCP_SOAR_DIR=/path/to/mcp_security/server/secops-soar/secops_soar_mcp
+   MCP_GTI_DIR=/path/to/mcp_security/server/gti/gti_mcp
+   MCP_ENV_FILE=/path/to/mcp_security/.env
+   
+   # Optional: Model selection
+   ADK_MODEL=gemini-2.5-pro-preview-05-06
    ```
-2. Update MCP tool paths in `multi-agent/manager/tools/tools.py`
+
+2. **Configuration Features**: 
+   - **Complete .env Configuration**: All settings are now in .env - no code editing required
+   - **Dynamic Model Discovery**: Fetches available models from Google API for real-time validation
+   - **Automatic Validation**: System validates all paths and configuration on startup
+   - **Helpful Error Messages**: Clear guidance when configuration issues are detected
+   - **Common Mistake Detection**: Warns about swapped PROJECT_ID/CUSTOMER_ID and other issues
+   - **Cross-Platform Support**: Examples provided for Windows, macOS, and Linux paths
+   - **Model List Utility**: Run `python manager/list_models.py` to see all available models
 
 ## Important Context Files
 

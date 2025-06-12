@@ -1,7 +1,7 @@
 from pathlib import Path
 from google.adk.agents import Agent
 
-from ...tools.tools import load_persona_and_runbooks
+from ...tools.tools import load_persona_and_runbooks, get_configured_model
 
 
 # Changed to a synchronous function that accepts tools and exit_stack
@@ -42,7 +42,7 @@ def get_agent(tools, exit_stack):
 
   agent_instance = Agent( # Renamed to avoid conflict
       name="soc_analyst_tier3",
-      model="gemini-2.5-pro-preview-05-06",
+      model=get_configured_model(),
       description=persona_description,
       instruction="""You are a Tier 3 SOC Analyst. You handle escalated incidents, perform deep-dive analysis, and lead response efforts.""",
       tools=tools, # Use passed-in tools

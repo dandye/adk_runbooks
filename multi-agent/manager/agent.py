@@ -12,7 +12,7 @@ from .sub_agents.soc_analyst_tier3 import agent as soc_analyst_tier3_agent_modul
 from .sub_agents.incident_responder import agent as incident_responder_agent_module
 from .sub_agents.detection_engineer import agent as detection_engineer_agent_module
 
-from .tools.tools import get_current_time, write_report, get_agent_tools, load_persona_and_runbooks
+from .tools.tools import get_current_time, write_report, get_agent_tools, load_persona_and_runbooks, get_configured_model
 
 # Set the root logger to output debug messages
 logging.basicConfig(level=logging.ERROR)
@@ -81,9 +81,7 @@ async def initialize_actual_manager_agent():
 
     return Agent(
         name="manager", # This name should match the one used in DeferredInitializationAgent
-        #model="gemini-2.0-flash",
-        model="gemini-2.5-pro-preview-05-06",
-        #model="gemini-2.5-flash-preview-05-20",
+        model=get_configured_model(),
         description=persona_description,
         instruction="""
         You are the SOC Manager agent, responsible for overseeing and orchestrating the work of specialized sub-agents. Your primary goal is to ensure efficient and effective incident response and SOC operations.
