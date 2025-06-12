@@ -2,14 +2,60 @@ from datetime import datetime
 import asyncio
 import contextlib
 import os
+from pathlib import Path
+from dotenv import load_dotenv
 
 from google.adk.agents import Agent
 from ..utils.custom_adk_patches import CustomMCPToolset as MCPToolset
 from google.adk.tools.mcp_tool.mcp_session_manager import StdioServerParameters
 
+# Load environment variables
+load_dotenv()
+
 
 def ask_follow_up_question(*args, **kwargs):
     pass
+
+
+def validate_mcp_paths():
+    """Validates that all required MCP directories exist and are accessible.
+    
+    Returns:
+        dict: A dictionary with validated paths or raises FileNotFoundError if paths are invalid.
+    """
+    # Get MCP paths from environment variables
+    siem_dir = os.getenv('MCP_SIEM_DIR', '/Users/dandye/Projects/mcp_security/server/secops/secops_mcp')
+    soar_dir = os.getenv('MCP_SOAR_DIR', '/Users/dandye/Projects/mcp_security/server/secops-soar/secops_soar_mcp')
+    gti_dir = os.getenv('MCP_GTI_DIR', '/Users/dandye/Projects/mcp_security/server/gti/gti_mcp')
+    env_file = os.getenv('MCP_ENV_FILE', '/Users/dandye/Projects/google-mcp-security/.env')
+    
+    paths = {
+        'siem_dir': siem_dir,
+        'soar_dir': soar_dir,
+        'gti_dir': gti_dir,
+        'env_file': env_file
+    }
+    
+    # Validate each path exists
+    for name, path in paths.items():
+        path_obj = Path(path)
+        if not path_obj.exists():
+            raise FileNotFoundError(
+                f"MCP path '{name}' does not exist: {path}\n"
+                f"Please update your .env file or create the required directory structure."
+            )
+        
+        # For directories, ensure they contain expected files
+        if name.endswith('_dir'):
+            server_py = path_obj / 'server.py'
+            if not server_py.exists():
+                raise FileNotFoundError(
+                    f"MCP directory '{name}' missing server.py: {path}\n"
+                    f"Please ensure the MCP server is properly configured."
+                )
+    
+    print(f"✓ All MCP paths validated successfully")
+    return paths
 
 
 def get_current_time() -> dict:
@@ -77,31 +123,43 @@ def load_persona_and_runbooks(persona_file_path: str, runbook_files: list, defau
 async def get_agent_tools():
   """Initializes and returns MCP toolsets for SIEM, SOAR, and GTI functionalities.
 
-  This function sets up connections to locally running MCP servers specified by
-  their command-line arguments. It manages the lifecycle of these connections
-  using an AsyncExitStack.
+  This function sets up connections to locally running MCP servers using configurable
+  paths from environment variables. It validates all paths before attempting to connect
+  and manages the lifecycle of these connections using an AsyncExitStack.
 
-  Assumes that the necessary MCP servers (SecOps, SecOps-SOAR, GTI) can be
-  started using the `uv run` commands with paths and environment files
-  as defined within this function.
+  Environment Variables (with defaults):
+      MCP_SIEM_DIR: Path to SecOps MCP server directory
+      MCP_SOAR_DIR: Path to SecOps-SOAR MCP server directory  
+      MCP_GTI_DIR: Path to GTI MCP server directory
+      MCP_ENV_FILE: Path to environment file for MCP servers
 
   Returns:
       tuple: A tuple containing:
           - tuple: A combined tuple of all initialized MCP toolsets and built-in tools.
           - contextlib.AsyncExitStack: The exit stack managing the MCP server connections.
+          
+  Raises:
+      FileNotFoundError: If any required MCP paths don't exist or are invalid.
   """
   common_exit_stack = contextlib.AsyncExitStack()
   
-  # Create MCPToolset instances using the new constructor
+  # Validate and get MCP paths from environment
+  try:
+    paths = validate_mcp_paths()
+  except FileNotFoundError as e:
+    print(f"❌ MCP Configuration Error: {e}")
+    raise
+  
+  # Create MCPToolset instances using validated paths
   siem_toolset = MCPToolset(
     connection_params=StdioServerParameters(
       command='uv',
       args=[
           "--directory",
-          "/Users/dandye/Projects/mcp_security_debugging/server/secops/secops_mcp",
+          paths['siem_dir'],
           "run",
           "--env-file",
-          "/Users/dandye/Projects/google-mcp-security/.env",
+          paths['env_file'],
           "server.py"
         ],
       )
@@ -112,10 +170,10 @@ async def get_agent_tools():
       command='uv',
       args=[
           "--directory",
-          "/Users/dandye/Projects/mcp_security_debugging/server/secops-soar/secops_soar_mcp",
+          paths['soar_dir'],
           "run",
           "--env-file",
-          "/Users/dandye/Projects/google-mcp-security/.env",
+          paths['env_file'],
           "server.py",
           "--integrations",
           "CSV,GoogleChronicle,Siemplify,SiemplifyUtilities"
@@ -128,11 +186,11 @@ async def get_agent_tools():
       command='uv',
       args=[
           "--directory",
-          "/Users/dandye/Projects/mcp_security_debugging/server/gti/gti_mcp",
+          paths['gti_dir'],
           "run",
           "--refresh",
           "--env-file",
-          "/Users/dandye/Projects/google-mcp-security/.env",
+          paths['env_file'],
           "server.py"
         ],
       )

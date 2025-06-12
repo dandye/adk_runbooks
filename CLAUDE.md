@@ -53,16 +53,28 @@ make html  # From project root
 The manager agent uses `DeferredInitializationAgent` to handle async initialization of sub-agents and MCP tools. This allows synchronous registration while deferring expensive setup operations.
 
 ### Tool Integration
-- **MCP Security Tools**: Configured in `multi-agent/manager/tools/tools.py`
-  - IMPORTANT: Update hardcoded paths like `/Users/dandye/Projects/mcp_security/server/...`
+- **MCP Security Tools**: Configured via environment variables in `.env` file
 - **Shared tools** are initialized once and passed to all sub-agents to avoid redundant connections
+- **Path validation** ensures all MCP directories exist and contain required files before startup
 
 ### Configuration Requirements
 1. Create `.env` file in `multi-agent/manager/` with:
    ```
    GOOGLE_API_KEY=your_api_key_here
+   
+   # MCP Security Tool Paths - Update these to match your installation
+   MCP_SIEM_DIR=/path/to/mcp_security/server/secops/secops_mcp
+   MCP_SOAR_DIR=/path/to/mcp_security/server/secops-soar/secops_soar_mcp
+   MCP_GTI_DIR=/path/to/mcp_security/server/gti/gti_mcp
+   MCP_ENV_FILE=/path/to/mcp_security/.env
    ```
-2. Update MCP tool paths in `multi-agent/manager/tools/tools.py`
+   
+   Use the provided `.env.example` template for guidance.
+
+2. **MCP Tool Configuration**: 
+   - The system now validates MCP paths on startup and provides clear error messages
+   - No more hardcoded paths in `tools.py` - everything is configurable via environment variables
+   - Each MCP directory must contain a `server.py` file for validation to pass
 
 ## Important Context Files
 
