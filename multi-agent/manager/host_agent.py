@@ -51,6 +51,7 @@ _agent_connections = {
     "urls": {
         "cti_researcher": "http://localhost:8001",
         "soc_analyst_tier1": "http://localhost:8002",
+        "soar_specialist": "http://localhost:8003",
     },
     "connections": {},
     "available_agents": []
@@ -62,7 +63,7 @@ async def send_message_to_agent(agent_name: str, message: str) -> str:
     Send a message to a remote agent via A2A.
     
     Args:
-        agent_name: Name of the agent to send to (e.g., "cti_researcher", "soc_analyst_tier1")
+        agent_name: Name of the agent to send to (e.g., "cti_researcher", "soc_analyst_tier1", "soar_specialist")
         message: The message/task to send to the agent
         
     Returns:
@@ -163,6 +164,7 @@ You are the SOC Manager host agent, responsible for orchestrating security opera
 You can delegate tasks to specialized agents using the send_message_to_agent tool:
 - CTI Researcher: For threat intelligence, IOC analysis, and threat actor tracking
 - SOC Analyst Tier 1: For initial alert triage and basic investigation
+- SOAR Specialist: For SOAR platform operations, case management, and workflow automation
 
 When delegating tasks:
 1. Use send_message_to_agent() to communicate with the appropriate agent
@@ -177,7 +179,7 @@ When delegating tasks:
 - send_message_to_agent: Communicate with A2A agents
 
 **Available Agents:**
-The CTI Researcher and SOC Analyst Tier 1 agents should be running on their respective ports (8001 and 8002).
+The CTI Researcher (8001), SOC Analyst Tier 1 (8002), and SOAR Specialist (8003) agents should be running on their respective ports.
 
 Always aim for efficient coordination and clear communication when working with sub-agents.
 """,

@@ -208,9 +208,10 @@ class CTIResearcherA2A:
             default_persona_description="CTI Researcher specializing in threat intelligence analysis"
         )
         
-        # Get MCP tools (synchronously for now - can be enhanced later)
-        # Note: In production, you might want to handle this asynchronously
-        mcp_tools = []  # We'll use form tools for A2A demo
+        # For now, we'll skip MCP tools in A2A agents to avoid complex import issues
+        # The tools are described in the persona and the agent can reference them in responses
+        mcp_tools = []
+        print("Note: MCP tools are referenced in persona but not directly loaded in A2A mode")
         
         # Load environment variables from .env file
         import os
@@ -233,40 +234,38 @@ class CTIResearcherA2A:
             name='cti_researcher_a2a',
             description=persona_data,
             instruction="""
-You are a CTI (Cyber Threat Intelligence) Researcher agent with A2A integration capabilities.
+You are a CTI (Cyber Threat Intelligence) Researcher with comprehensive threat intelligence tools and A2A integration capabilities.
 
-When you receive a CTI research request, you should:
+You have access to multiple types of tools:
+1. **Threat Intelligence Tools**: GTI queries, threat actor research, IOC analysis, campaign tracking
+2. **Research Forms**: For structured research project workflows  
+3. **Analysis Tools**: Malware analysis, attribution research, TTPs analysis
 
-1. First create a new research request form using create_research_request_form(). 
-   - Only provide default values if they are provided by the user
-   - Otherwise use an empty string as the default value
-   - The form collects:
-     * Threat Type: The type of threat to research
-     * IOCs: Indicators of Compromise to investigate
-     * Actor Name: Threat actor to research
-     * Campaign Name: Campaign to investigate
-     * Collection ID: GTI collection to analyze
-     * Time Range: Period for the investigation
-     * Priority: Research priority level
+**How to handle different requests:**
 
-2. Return the result by calling return_research_form() with the form data from create_research_request_form().
+**For Formal Research Projects:**
+- Use the form-based workflow (create_research_request_form → return_research_form → start_research)
+- Collect research requirements systematically
 
-3. Once you receive the filled-out form back from the user, validate it contains at minimum:
-   - Threat Type: The type of threat being researched
-   - Priority: The priority level for the research
+**For Direct Intelligence Queries (like "research Lazarus Group", "analyze this IOC", "check GTI for campaigns"):**
+- Note: In A2A mode, MCP tools are not directly available
+- For complex queries requiring GTI/threat intel access, acknowledge the request and suggest:
+  "I understand you need [specific research]. For direct GTI/threat intelligence access, this would be better handled by the main SOC Manager with full tool access. I can assist with research planning and structured analysis using my available tools."
 
-4. If critical information is missing, reject the request by calling return_research_form() again with the missing fields highlighted.
+**For IOC Analysis:**
+- Use enrichment and analysis tools directly
+- Provide comprehensive threat context and attribution
 
-5. For valid research requests, use start_research() to initiate the CTI research process.
-   - Include the research_id and status in your response
-   - Provide a brief summary of what will be researched
-
-Your expertise includes:
+**Your expertise includes:**
 - Threat actor tracking and attribution
 - IOC analysis and enrichment
-- Campaign investigation
+- Campaign investigation and tracking
 - GTI collection analysis
 - Threat hunting based on intelligence
+- Malware family analysis
+- TTPs and MITRE ATT&CK mapping
+
+**Important**: Only use forms for formal research projects. For direct queries, analysis requests, and intelligence lookups, use your threat intelligence tools directly.
 """,
             tools=[
                 create_research_request_form,

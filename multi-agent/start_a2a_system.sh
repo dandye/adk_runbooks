@@ -13,6 +13,9 @@ cleanup() {
     if [ ! -z "$SOC_PID" ]; then
         kill $SOC_PID 2>/dev/null
     fi
+    if [ ! -z "$SOAR_PID" ]; then
+        kill $SOAR_PID 2>/dev/null
+    fi
     exit 0
 }
 
@@ -54,10 +57,24 @@ python run_server.py > soc_agent.log 2>&1 &
 SOC_PID=$!
 cd ../../..
 
-# Give agents time to fully start and check if running
-sleep 3
+# Give it time to start and check if it's running
+sleep 2
 if ! kill -0 $SOC_PID 2>/dev/null; then
     echo "❌ Failed to start SOC Analyst Tier 1 agent. Check soc_agent.log for details."
+    exit 1
+fi
+
+# Start SOAR Specialist agent
+echo "Starting SOAR Specialist agent on port 8003..."
+cd manager/sub_agents/soar_specialist
+python run_server.py > soar_agent.log 2>&1 &
+SOAR_PID=$!
+cd ../../..
+
+# Give agents time to fully start and check if running
+sleep 3
+if ! kill -0 $SOAR_PID 2>/dev/null; then
+    echo "❌ Failed to start SOAR Specialist agent. Check soar_agent.log for details."
     exit 1
 fi
 
@@ -65,6 +82,7 @@ echo -e "\n✅ All agents started successfully!"
 echo -e "\nAgent Status:"
 echo "- CTI Researcher: http://localhost:8001"
 echo "- SOC Analyst Tier 1: http://localhost:8002"
+echo "- SOAR Specialist: http://localhost:8003"
 
 echo -e "\nTo start the SOC Manager host agent, run from the multi-agent directory:"
 echo "  adk web agents/"
@@ -73,6 +91,7 @@ echo "  Then select 'soc_manager_host' from the web interface"
 echo -e "\nLogs are available at:"
 echo "- manager/sub_agents/cti_researcher/cti_agent.log"
 echo "- manager/sub_agents/soc_analyst_tier1/soc_agent.log"
+echo "- manager/sub_agents/soar_specialist/soar_agent.log"
 
 echo -e "\nPress Ctrl+C to stop all agents...\n"
 

@@ -7,6 +7,7 @@ This setup enables the SOC Manager to coordinate with specialized security agent
 - **SOC Manager Host Agent**: Orchestrates security operations by delegating to specialized agents
 - **CTI Researcher Agent**: Handles threat intelligence research and IOC analysis
 - **SOC Analyst Tier 1 Agent**: Performs initial alert triage and basic investigation
+- **SOAR Specialist Agent**: Manages SOAR platform operations, case management, and workflow automation
 
 ## Setup Instructions
 
@@ -28,6 +29,7 @@ Run the startup script to launch all A2A agents:
 This will start:
 - CTI Researcher on http://localhost:8001
 - SOC Analyst Tier 1 on http://localhost:8002
+- SOAR Specialist on http://localhost:8003
 
 ### 3. Start the SOC Manager Host
 

@@ -214,8 +214,10 @@ class SOCAnalystTier1A2A:
             default_persona_description="SOC Tier 1 Analyst specializing in alert triage and initial investigation"
         )
         
-        # MCP tools would be added here in production
-        mcp_tools = []  # We'll use form tools for A2A demo
+        # For now, we'll skip MCP tools in A2A agents to avoid complex import issues
+        # The tools are described in the persona and the agent can reference them in responses
+        mcp_tools = []
+        print("Note: MCP tools are referenced in persona but not directly loaded in A2A mode")
         
         # Load environment variables from .env file
         import os
@@ -238,42 +240,37 @@ class SOCAnalystTier1A2A:
             name='soc_analyst_tier1_a2a',
             description=persona_data,
             instruction="""
-You are a SOC (Security Operations Center) Tier 1 Analyst with A2A integration capabilities.
+You are a SOC (Security Operations Center) Tier 1 Analyst with comprehensive security tools and A2A integration capabilities.
 
-When you receive an alert triage request, you should:
+You have access to multiple types of tools:
+1. **Security Operations Tools**: SIEM queries, SOAR case management, threat intelligence, sandbox analysis
+2. **Alert Triage Forms**: For structured alert processing workflows
+3. **Investigation Tools**: IOC enrichment, log analysis, and forensic capabilities
 
-1. First create a new alert triage form using create_alert_triage_form(). 
-   - Only provide default values if they are provided by the user
-   - Otherwise use an empty string as the default value
-   - The form collects:
-     * Alert ID: Identifier from the SIEM or security system
-     * Alert Type: Type of security alert (malware, phishing, etc.)
-     * Severity: Criticality level of the alert
-     * Source System: System that generated the alert
-     * Affected Assets: Impacted systems, users, or IP addresses
-     * Event Time: When the security event occurred
-     * Description: Brief description of the alert
-     * Initial Indicators: IOCs or suspicious indicators
+**How to handle different requests:**
 
-2. Return the result by calling return_alert_form() with the form data from create_alert_triage_form().
+**For Alert Triage Requests:**
+- Use the form-based workflow (create_alert_triage_form → return_alert_form → start_triage)
+- Collect alert details systematically
 
-3. Once you receive the filled-out form back from the user, validate it contains at minimum:
-   - Alert Type: The type of security alert
-   - Severity: The severity level of the alert
+**For Information Requests (like "list SOAR cases", "query SIEM", "check threat intel"):**
+- Note: In A2A mode, MCP tools are not directly available
+- For complex queries requiring SOAR/SIEM access, acknowledge the request and suggest:
+  "I understand you need [specific request]. For direct SOAR/SIEM access, this would be better handled by the main SOC Manager with full tool access. I can assist with alert triage and basic analysis using my available tools."
 
-4. If critical information is missing, reject the request by calling return_alert_form() again with the missing fields highlighted.
+**For IOC Analysis:**
+- Use enrichment and analysis tools directly
+- Provide comprehensive threat context
 
-5. For valid triage requests, use start_triage() to initiate the alert triage process.
-   - Include the triage_id and status in your response
-   - Provide a brief summary of the triage approach
-
-Your responsibilities include:
+**Your core responsibilities:**
 - Initial alert triage and classification
+- Security system queries and case management
 - Basic IOC enrichment and analysis
 - Identifying false positives and duplicates
 - Escalating complex cases to Tier 2
-- Grouping related alerts
 - Documenting findings and recommendations
+
+**Important**: Only use forms for formal alert triage workflows. For general queries, investigations, and information requests, use your security tools directly.
 """,
             tools=[
                 create_alert_triage_form,
