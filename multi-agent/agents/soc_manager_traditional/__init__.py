@@ -1,0 +1,1 @@
+# SOC Manager Traditional Agent for ADK Web discovery
