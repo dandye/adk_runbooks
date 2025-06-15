@@ -1,6 +1,5 @@
 import json
 import random
-import asyncio
 import contextlib
 import sys
 from typing import Any, AsyncIterable, Optional
@@ -39,61 +38,61 @@ def load_persona_and_runbooks(persona_file_path: str, runbook_files: list, defau
     return persona_description
 
 
-# Local cache of created alert_ids for demo purposes.
-alert_ids = set()
+# Local cache of created investigation IDs for demo purposes.
+investigation_ids = set()
 
 
-def create_alert_triage_form(
-    alert_id: Optional[str] = None,
-    alert_type: Optional[str] = None,
-    severity: Optional[str] = None,
-    source_system: Optional[str] = None,
-    affected_assets: Optional[str] = None,
-    event_time: Optional[str] = None,
-    description: Optional[str] = None,
-    initial_indicators: Optional[str] = None,
+def create_advanced_investigation_form(
+    case_id: Optional[str] = None,
+    threat_type: Optional[str] = None,
+    complexity: Optional[str] = None,
+    investigation_scope: Optional[str] = None,
+    threat_actors: Optional[str] = None,
+    attack_timeline: Optional[str] = None,
+    campaign_indicators: Optional[str] = None,
+    attribution_confidence: Optional[str] = None,
 ) -> dict[str, Any]:
     """
-    Create an alert triage form for the SOC analyst to fill out.
+    Create an advanced investigation form for the SOC Tier 3 analyst to fill out.
 
     Args:
-        alert_id (str): Alert ID from the SIEM/security system. Can be empty.
-        alert_type (str): Type of security alert (e.g., malware, phishing, suspicious login). Can be empty.
-        severity (str): Alert severity level (critical/high/medium/low). Can be empty.
-        source_system (str): System that generated the alert. Can be empty.
-        affected_assets (str): Affected systems, users, or IP addresses. Can be empty.
-        event_time (str): When the security event occurred. Can be empty.
-        description (str): Brief description of the alert. Can be empty.
-        initial_indicators (str): Initial IOCs or suspicious indicators. Can be empty.
+        case_id (str): Case ID from the case management system. Can be empty.
+        threat_type (str): Type of advanced threat (e.g., APT, sophisticated malware, nation-state). Can be empty.
+        complexity (str): Investigation complexity level (critical/high/medium/low). Can be empty.
+        investigation_scope (str): Scope of the investigation (enterprise-wide, multi-vector, long-term). Can be empty.
+        threat_actors (str): Suspected threat actors or groups. Can be empty.
+        attack_timeline (str): Timeline of the attack progression. Can be empty.
+        campaign_indicators (str): Campaign-level IOCs and TTPs. Can be empty.
+        attribution_confidence (str): Confidence level in threat attribution. Can be empty.
 
     Returns:
-        dict[str, Any]: A dictionary containing the alert triage form data.
+        dict[str, Any]: A dictionary containing the advanced investigation form data.
     """
-    triage_id = 'soc_triage_' + str(random.randint(1000000, 9999999))
-    alert_ids.add(triage_id)
+    investigation_id = 'advanced_investigation_' + str(random.randint(1000000, 9999999))
+    investigation_ids.add(investigation_id)
     return {
-        'triage_id': triage_id,
-        'alert_id': '<SIEM alert ID>' if not alert_id else alert_id,
-        'alert_type': '<e.g., malware, phishing, suspicious login>' if not alert_type else alert_type,
-        'severity': '<critical/high/medium/low>' if not severity else severity,
-        'source_system': '<e.g., Splunk, QRadar, CrowdStrike>' if not source_system else source_system,
-        'affected_assets': '<affected systems, users, IPs>' if not affected_assets else affected_assets,
-        'event_time': '<YYYY-MM-DD HH:MM:SS or relative time>' if not event_time else event_time,
-        'description': '<brief alert description>' if not description else description,
-        'initial_indicators': '<IOCs, suspicious files, IPs, domains>' if not initial_indicators else initial_indicators,
+        'investigation_id': investigation_id,
+        'case_id': '<case management system ID>' if not case_id else case_id,
+        'threat_type': '<e.g., APT, sophisticated malware, nation-state>' if not threat_type else threat_type,
+        'complexity': '<critical/high/medium/low>' if not complexity else complexity,
+        'investigation_scope': '<enterprise-wide, multi-vector, long-term>' if not investigation_scope else investigation_scope,
+        'threat_actors': '<suspected threat actors or groups>' if not threat_actors else threat_actors,
+        'attack_timeline': '<timeline of attack progression>' if not attack_timeline else attack_timeline,
+        'campaign_indicators': '<campaign-level IOCs, TTPs, infrastructure>' if not campaign_indicators else campaign_indicators,
+        'attribution_confidence': '<high/medium/low confidence>' if not attribution_confidence else attribution_confidence,
     }
 
 
-def return_alert_form(
+def return_advanced_investigation_form(
     form_request: dict[str, Any],
     tool_context: ToolContext,
     instructions: Optional[str] = None,
 ) -> dict[str, Any]:
     """
-    Returns a structured json object indicating an alert triage form to complete.
+    Returns a structured json object indicating an advanced investigation form to complete.
 
     Args:
-        form_request (dict[str, Any]): The alert triage form data.
+        form_request (dict[str, Any]): The advanced investigation form data.
         tool_context (ToolContext): The context in which the tool operates.
         instructions (str): Instructions for completing the form. Can be empty.
 
@@ -110,75 +109,76 @@ def return_alert_form(
         'form': {
             'type': 'object',
             'properties': {
-                'alert_id': {
+                'case_id': {
                     'type': 'string',
-                    'description': 'Alert ID from the SIEM or security system',
-                    'title': 'Alert ID',
+                    'description': 'Case ID from the case management system',
+                    'title': 'Case ID',
                 },
-                'alert_type': {
+                'threat_type': {
                     'type': 'string',
-                    'description': 'Type of security alert',
-                    'title': 'Alert Type',
-                    'enum': ['Malware', 'Phishing', 'Suspicious Login', 'Data Exfiltration', 'Brute Force', 'Anomalous Activity', 'Policy Violation', 'Other'],
+                    'description': 'Type of advanced threat',
+                    'title': 'Threat Type',
+                    'enum': ['APT', 'Nation-State', 'Sophisticated Malware', 'Ransomware Campaign', 'Supply Chain Attack', 'Zero-Day Exploit', 'Insider Threat', 'Multi-Stage Attack'],
                 },
-                'severity': {
+                'complexity': {
                     'type': 'string',
-                    'description': 'Alert severity level',
-                    'title': 'Severity',
+                    'description': 'Investigation complexity level',
+                    'title': 'Complexity',
                     'enum': ['Critical', 'High', 'Medium', 'Low'],
                 },
-                'source_system': {
+                'investigation_scope': {
                     'type': 'string',
-                    'description': 'System that generated the alert',
-                    'title': 'Source System',
-                    'enum': ['Splunk', 'QRadar', 'CrowdStrike', 'Sentinel', 'Elastic', 'Other'],
+                    'description': 'Scope of the investigation',
+                    'title': 'Investigation Scope',
+                    'enum': ['Enterprise-wide', 'Multi-Vector Attack', 'Long-term Campaign', 'Cross-Network', 'Single Advanced Threat', 'Attribution Required'],
                 },
-                'affected_assets': {
+                'threat_actors': {
                     'type': 'string',
-                    'description': 'Affected systems, users, or IP addresses (comma-separated)',
-                    'title': 'Affected Assets',
+                    'description': 'Suspected threat actors or groups (comma-separated)',
+                    'title': 'Threat Actors',
                 },
-                'event_time': {
+                'attack_timeline': {
                     'type': 'string',
-                    'description': 'When the security event occurred',
-                    'title': 'Event Time',
+                    'description': 'Timeline of the attack progression',
+                    'title': 'Attack Timeline',
                 },
-                'description': {
+                'campaign_indicators': {
                     'type': 'string',
-                    'description': 'Brief description of the alert',
-                    'title': 'Alert Description',
+                    'description': 'Campaign-level IOCs, TTPs, and infrastructure (comma-separated)',
+                    'title': 'Campaign Indicators',
                 },
-                'initial_indicators': {
+                'attribution_confidence': {
                     'type': 'string',
-                    'description': 'Initial IOCs or suspicious indicators (comma-separated)',
-                    'title': 'Initial Indicators',
+                    'description': 'Confidence level in threat attribution',
+                    'title': 'Attribution Confidence',
+                    'enum': ['High Confidence', 'Medium Confidence', 'Low Confidence', 'Insufficient Data'],
                 },
-                'triage_id': {
+                'investigation_id': {
                     'type': 'string',
-                    'description': 'Triage request ID',
-                    'title': 'Triage ID',
+                    'description': 'Advanced investigation tracking ID',
+                    'title': 'Investigation ID',
                     'readOnly': True,
                 },
             },
-            'required': ['alert_type', 'severity', 'triage_id'],
+            'required': ['threat_type', 'complexity', 'investigation_id'],
         },
         'form_data': form_request,
-        'instructions': instructions or 'Please fill out the alert triage form with at least the alert type and severity.',
+        'instructions': instructions or 'Please fill out the advanced investigation form with at least the threat type and complexity.',
     }
     return json.dumps(form_dict)
 
 
-def start_triage(triage_id: str) -> dict[str, Any]:
-    """Begin alert triage for a given triage_id."""
-    if triage_id not in alert_ids:
+def initiate_advanced_investigation(investigation_id: str) -> dict[str, Any]:
+    """Begin advanced investigation for a given investigation_id."""
+    if investigation_id not in investigation_ids:
         return {
-            'triage_id': triage_id,
-            'status': 'Error: Invalid triage_id.',
+            'investigation_id': investigation_id,
+            'status': 'Error: Invalid investigation_id.',
         }
     return {
-        'triage_id': triage_id,
-        'status': 'Triage initiated',
-        'message': 'Alert triage has been started. Initial analysis will be performed.'
+        'investigation_id': investigation_id,
+        'status': 'Advanced investigation initiated',
+        'message': 'Advanced threat investigation has been started. Deep analysis, threat hunting, and attribution research will be conducted.'
     }
 
 
@@ -197,7 +197,7 @@ class SOCAnalystTier3A2A:
         self._runner = None
 
     def get_processing_message(self) -> str:
-        return 'Processing alert triage request...'
+        return 'Processing advanced investigation request...'
 
     async def _initialize_mcp_tools(self):
         """Initialize MCP tools for all available servers."""
@@ -212,12 +212,12 @@ class SOCAnalystTier3A2A:
                     command='/Users/dandye/homebrew/bin/uv',
                     args=[
                         "--directory",
-                        "external/mcp-security/server/secops/secops_mcp",
+                        "../../../external/mcp-security/server/secops/secops_mcp",
                         "run",
                         "--reinstall-package",
                         "secops-mcp",
                         "--env-file",
-                        "external/mcp-security/.env",
+                        "../../../external/mcp-security/.env",
                         "server.py"
                     ],
                 )
@@ -231,10 +231,10 @@ class SOCAnalystTier3A2A:
                     command='/Users/dandye/homebrew/bin/uv',
                     args=[
                         "--directory",
-                        "external/mcp-security/server/gti",
+                        "../../../external/mcp-security/server/gti",
                         "run",
                         "--env-file",
-                        "external/mcp-security/.env",
+                        "../../../external/mcp-security/.env",
                         "gti_mcp"
                     ],
                 )
@@ -248,10 +248,10 @@ class SOCAnalystTier3A2A:
                     command='uv',
                     args=[
                         "--directory",
-                        "external/mcp-security/server/secops-soar/secops_soar_mcp",
+                        "../../../external/mcp-security/server/secops-soar/secops_soar_mcp",
                         "run",
                         "--env-file",
-                        "external/mcp-security/.env",
+                        "../../../external/mcp-security/.env",
                         "server.py",
                         "--integrations",
                         "CSV,GoogleChronicle,Siemplify,SiemplifyUtilities"
@@ -267,7 +267,7 @@ class SOCAnalystTier3A2A:
                     command='uv',
                     args=[
                         "--directory",
-                        "external/mcp-security/server/scc",
+                        "../../../external/mcp-security/server/scc",
                         "run",
                         "scc_mcp.py"
                     ],
@@ -326,12 +326,11 @@ class SOCAnalystTier3A2A:
 
         # Use the MCP tools that were initialized
         if self._mcp_tools:
-            print(f"SOC Analyst Tier 2 A2A agent initialized with {len(self._mcp_tools)} MCP tools")
+            print(f"SOC Analyst Tier 3 A2A agent initialized with {len(self._mcp_tools)} MCP tools")
         else:
-            print("SOC Analyst Tier 2 A2A agent initialized with form-based alert triage tools only")
+            print("SOC Analyst Tier 3 A2A agent initialized with form-based advanced investigation tools only")
 
         # Load environment variables from .env file
-        import os
         from dotenv import load_dotenv
 
         # Try multiple locations for .env file
@@ -355,47 +354,52 @@ You are a SOC (Security Operations Center) Tier 3 Analyst with comprehensive sec
 
 You have access to multiple types of tools:
 1. **Threat Intelligence Tools** (via MCP): Full access to GTI operations including:
-   - Get threat actor information (secops_gti.get_threat_actor)
-   - Get malware information (secops_gti.get_malware)
-   - Get vulnerability details (secops_gti.get_vulnerability)
-   - Get indicator information (secops_gti.get_indicator)
-   - Search for threats (secops_gti.search_threats)
-   - And many more GTI operations
-2. **Alert Triage Forms**: For structured alert processing workflows
-3. **Investigation Tools**: IOC enrichment, log analysis, and forensic capabilities
+   - Get threat actor information for attribution and campaign analysis
+   - Get malware information for advanced behavioral analysis
+   - Get vulnerability details for threat landscape assessment
+   - Get indicator information for comprehensive IOC correlation
+   - Search for threats to identify complex attack patterns
+   - And many more GTI operations for deep threat analysis
+2. **Advanced Investigation Forms**: For structured complex investigation workflows
+3. **Security Platform Tools**: SIEM, SOAR, and SCC integration for enterprise-level analysis
+4. **Forensic Tools**: Advanced log analysis, timeline reconstruction, and attribution capabilities
 
 **How to handle different requests:**
 
-**For Alert Triage Requests:**
-- Use the form-based workflow (create_alert_triage_form → return_alert_form → start_triage)
-- Collect alert details systematically
-- Enrich IOCs using GTI tools during triage
+**For Advanced Investigation Requests:**
+- Use the form-based workflow (create_advanced_investigation_form → return_advanced_investigation_form → initiate_advanced_investigation)
+- Collect complex investigation requirements systematically
+- Use GTI tools for deep threat actor attribution and campaign analysis
+- Conduct enterprise-wide threat hunting and correlation
 
-**For Threat Intelligence Queries (like "check threat intel", "lookup IOC", "get malware info"):**
-- Use the appropriate MCP GTI tools directly
-- For example, use secops_gti.get_indicator to lookup specific IOCs
-- Use secops_gti.search_threats to find threat information
-- Use secops_gti.get_malware for malware analysis
+**For APT and Nation-State Investigation:**
+- Use GTI tools to understand sophisticated threat actor TTPs
+- Research long-term campaigns and infrastructure patterns
+- Analyze advanced persistent threats and their evolution
+- Provide high-confidence attribution assessments
 
-**For IOC Analysis:**
-- Use GTI enrichment tools directly for comprehensive analysis
-- Provide threat context from intelligence sources
-- Cross-reference with known threat actors and campaigns
+**For Complex Threat Analysis:**
+- Use GTI tools for comprehensive threat landscape analysis
+- Correlate indicators across multiple attack vectors
+- Reconstruct attack timelines and progression
+- Identify zero-day exploits and novel attack techniques
 
 **Your core responsibilities:**
-- Initial alert triage and classification with threat intelligence enrichment
-- IOC analysis using GTI tools
-- Threat actor and malware identification
-- Identifying false positives using threat intelligence
-- Escalating complex cases to Tier 2 with enriched context
-- Documenting findings with threat intelligence insights
+- Leading complex security investigations and APT analysis
+- Advanced threat hunting across enterprise environments
+- Threat actor attribution and campaign tracking
+- Deep forensic analysis and timeline reconstruction
+- Mentoring junior analysts and providing expert guidance
+- Coordinating with external threat intelligence sources
+- Developing advanced detection strategies and hunt hypotheses
+- Managing critical incidents requiring expert-level analysis
 
-You have full access to Global Threat Intelligence (GTI) capabilities through MCP tools. Use them to enrich your alert triage and investigations.
+You have full access to advanced security platforms and threat intelligence for expert-level security analysis and investigation.
 """,
             tools=[
-                create_alert_triage_form,
-                return_alert_form,
-                start_triage,
+                create_advanced_investigation_form,
+                return_advanced_investigation_form,
+                initiate_advanced_investigation,
             ] + (self._mcp_tools or []),
         )
 

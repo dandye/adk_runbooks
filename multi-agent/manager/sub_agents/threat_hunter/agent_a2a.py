@@ -39,61 +39,61 @@ def load_persona_and_runbooks(persona_file_path: str, runbook_files: list, defau
     return persona_description
 
 
-# Local cache of created alert_ids for demo purposes.
-alert_ids = set()
+# Local cache of created hunt campaign IDs for demo purposes.
+hunt_campaign_ids = set()
 
 
-def create_alert_triage_form(
-    alert_id: Optional[str] = None,
-    alert_type: Optional[str] = None,
-    severity: Optional[str] = None,
-    source_system: Optional[str] = None,
-    affected_assets: Optional[str] = None,
-    event_time: Optional[str] = None,
-    description: Optional[str] = None,
-    initial_indicators: Optional[str] = None,
+def create_threat_hunt_form(
+    hunt_name: Optional[str] = None,
+    hunt_hypothesis: Optional[str] = None,
+    threat_actor: Optional[str] = None,
+    ttps: Optional[str] = None,
+    hunt_scope: Optional[str] = None,
+    time_range: Optional[str] = None,
+    hunt_techniques: Optional[str] = None,
+    iocs_to_hunt: Optional[str] = None,
 ) -> dict[str, Any]:
     """
-    Create an alert triage form for the SOC analyst to fill out.
+    Create a threat hunting campaign form for the threat hunter to fill out.
 
     Args:
-        alert_id (str): Alert ID from the SIEM/security system. Can be empty.
-        alert_type (str): Type of security alert (e.g., malware, phishing, suspicious login). Can be empty.
-        severity (str): Alert severity level (critical/high/medium/low). Can be empty.
-        source_system (str): System that generated the alert. Can be empty.
-        affected_assets (str): Affected systems, users, or IP addresses. Can be empty.
-        event_time (str): When the security event occurred. Can be empty.
-        description (str): Brief description of the alert. Can be empty.
-        initial_indicators (str): Initial IOCs or suspicious indicators. Can be empty.
+        hunt_name (str): Name of the threat hunting campaign. Can be empty.
+        hunt_hypothesis (str): Threat hunting hypothesis to test. Can be empty.
+        threat_actor (str): Suspected threat actor or group to hunt for. Can be empty.
+        ttps (str): Tactics, techniques, and procedures to hunt for. Can be empty.
+        hunt_scope (str): Scope of the hunt (network, endpoints, cloud, etc.). Can be empty.
+        time_range (str): Time range for the hunting campaign. Can be empty.
+        hunt_techniques (str): Specific hunting techniques to employ. Can be empty.
+        iocs_to_hunt (str): IOCs and indicators to hunt for. Can be empty.
 
     Returns:
-        dict[str, Any]: A dictionary containing the alert triage form data.
+        dict[str, Any]: A dictionary containing the threat hunt campaign form data.
     """
-    triage_id = 'soc_triage_' + str(random.randint(1000000, 9999999))
-    alert_ids.add(triage_id)
+    hunt_id = 'threat_hunt_' + str(random.randint(1000000, 9999999))
+    hunt_campaign_ids.add(hunt_id)
     return {
-        'triage_id': triage_id,
-        'alert_id': '<SIEM alert ID>' if not alert_id else alert_id,
-        'alert_type': '<e.g., malware, phishing, suspicious login>' if not alert_type else alert_type,
-        'severity': '<critical/high/medium/low>' if not severity else severity,
-        'source_system': '<e.g., Splunk, QRadar, CrowdStrike>' if not source_system else source_system,
-        'affected_assets': '<affected systems, users, IPs>' if not affected_assets else affected_assets,
-        'event_time': '<YYYY-MM-DD HH:MM:SS or relative time>' if not event_time else event_time,
-        'description': '<brief alert description>' if not description else description,
-        'initial_indicators': '<IOCs, suspicious files, IPs, domains>' if not initial_indicators else initial_indicators,
+        'hunt_id': hunt_id,
+        'hunt_name': '<descriptive hunt campaign name>' if not hunt_name else hunt_name,
+        'hunt_hypothesis': '<hypothesis to test through hunting>' if not hunt_hypothesis else hunt_hypothesis,
+        'threat_actor': '<suspected threat actor or group>' if not threat_actor else threat_actor,
+        'ttps': '<tactics, techniques, procedures to hunt>' if not ttps else ttps,
+        'hunt_scope': '<network, endpoints, cloud, enterprise-wide>' if not hunt_scope else hunt_scope,
+        'time_range': '<e.g., last 30 days, last 6 months>' if not time_range else time_range,
+        'hunt_techniques': '<behavioral analysis, IOC matching, anomaly detection>' if not hunt_techniques else hunt_techniques,
+        'iocs_to_hunt': '<IOCs, file hashes, domains, IPs, TTPs>' if not iocs_to_hunt else iocs_to_hunt,
     }
 
 
-def return_alert_form(
+def return_threat_hunt_form(
     form_request: dict[str, Any],
     tool_context: ToolContext,
     instructions: Optional[str] = None,
 ) -> dict[str, Any]:
     """
-    Returns a structured json object indicating an alert triage form to complete.
+    Returns a structured json object indicating a threat hunting campaign form to complete.
 
     Args:
-        form_request (dict[str, Any]): The alert triage form data.
+        form_request (dict[str, Any]): The threat hunt campaign form data.
         tool_context (ToolContext): The context in which the tool operates.
         instructions (str): Instructions for completing the form. Can be empty.
 
@@ -110,75 +110,75 @@ def return_alert_form(
         'form': {
             'type': 'object',
             'properties': {
-                'alert_id': {
+                'hunt_name': {
                     'type': 'string',
-                    'description': 'Alert ID from the SIEM or security system',
-                    'title': 'Alert ID',
+                    'description': 'Name of the threat hunting campaign',
+                    'title': 'Hunt Name',
                 },
-                'alert_type': {
+                'hunt_hypothesis': {
                     'type': 'string',
-                    'description': 'Type of security alert',
-                    'title': 'Alert Type',
-                    'enum': ['Malware', 'Phishing', 'Suspicious Login', 'Data Exfiltration', 'Brute Force', 'Anomalous Activity', 'Policy Violation', 'Other'],
+                    'description': 'Threat hunting hypothesis to test',
+                    'title': 'Hunt Hypothesis',
                 },
-                'severity': {
+                'threat_actor': {
                     'type': 'string',
-                    'description': 'Alert severity level',
-                    'title': 'Severity',
-                    'enum': ['Critical', 'High', 'Medium', 'Low'],
+                    'description': 'Suspected threat actor or group to hunt for',
+                    'title': 'Threat Actor',
+                    'enum': ['APT29', 'APT28', 'Lazarus Group', 'FIN7', 'Carbanak', 'Unknown APT', 'Ransomware Group', 'Other'],
                 },
-                'source_system': {
+                'ttps': {
                     'type': 'string',
-                    'description': 'System that generated the alert',
-                    'title': 'Source System',
-                    'enum': ['Splunk', 'QRadar', 'CrowdStrike', 'Sentinel', 'Elastic', 'Other'],
+                    'description': 'Tactics, techniques, and procedures to hunt for (MITRE ATT&CK)',
+                    'title': 'TTPs',
                 },
-                'affected_assets': {
+                'hunt_scope': {
                     'type': 'string',
-                    'description': 'Affected systems, users, or IP addresses (comma-separated)',
-                    'title': 'Affected Assets',
+                    'description': 'Scope of the hunting campaign',
+                    'title': 'Hunt Scope',
+                    'enum': ['Network Traffic', 'Endpoint Logs', 'Cloud Infrastructure', 'Email/Communication', 'Enterprise-wide', 'Specific Systems'],
                 },
-                'event_time': {
+                'time_range': {
                     'type': 'string',
-                    'description': 'When the security event occurred',
-                    'title': 'Event Time',
+                    'description': 'Time range for the hunting campaign',
+                    'title': 'Time Range',
+                    'enum': ['Last 24 hours', 'Last 7 days', 'Last 30 days', 'Last 90 days', 'Last 6 months', 'Custom Range'],
                 },
-                'description': {
+                'hunt_techniques': {
                     'type': 'string',
-                    'description': 'Brief description of the alert',
-                    'title': 'Alert Description',
+                    'description': 'Specific hunting techniques to employ (comma-separated)',
+                    'title': 'Hunt Techniques',
                 },
-                'initial_indicators': {
+                'iocs_to_hunt': {
                     'type': 'string',
-                    'description': 'Initial IOCs or suspicious indicators (comma-separated)',
-                    'title': 'Initial Indicators',
+                    'description': 'IOCs and indicators to hunt for (comma-separated)',
+                    'title': 'IOCs to Hunt',
                 },
-                'triage_id': {
+                'hunt_id': {
                     'type': 'string',
-                    'description': 'Triage request ID',
-                    'title': 'Triage ID',
+                    'description': 'Threat hunt campaign ID',
+                    'title': 'Hunt ID',
                     'readOnly': True,
                 },
             },
-            'required': ['alert_type', 'severity', 'triage_id'],
+            'required': ['hunt_name', 'hunt_hypothesis', 'hunt_id'],
         },
         'form_data': form_request,
-        'instructions': instructions or 'Please fill out the alert triage form with at least the alert type and severity.',
+        'instructions': instructions or 'Please fill out the threat hunting campaign form with at least the hunt name and hypothesis.',
     }
     return json.dumps(form_dict)
 
 
-def start_triage(triage_id: str) -> dict[str, Any]:
-    """Begin alert triage for a given triage_id."""
-    if triage_id not in alert_ids:
+def initiate_threat_hunt(hunt_id: str) -> dict[str, Any]:
+    """Begin threat hunting campaign for a given hunt_id."""
+    if hunt_id not in hunt_campaign_ids:
         return {
-            'triage_id': triage_id,
-            'status': 'Error: Invalid triage_id.',
+            'hunt_id': hunt_id,
+            'status': 'Error: Invalid hunt_id.',
         }
     return {
-        'triage_id': triage_id,
-        'status': 'Triage initiated',
-        'message': 'Alert triage has been started. Initial analysis will be performed.'
+        'hunt_id': hunt_id,
+        'status': 'Threat hunt initiated',
+        'message': 'Threat hunting campaign has been started. Proactive hunting for indicators, TTPs, and threat actor activity will be conducted.'
     }
 
 
@@ -197,7 +197,7 @@ class ThreatHunterA2A:
         self._runner = None
 
     def get_processing_message(self) -> str:
-        return 'Processing alert triage request...'
+        return 'Processing threat hunting request...'
 
     async def _initialize_mcp_tools(self):
         """Initialize MCP tools for all available servers."""
@@ -328,9 +328,9 @@ class ThreatHunterA2A:
 
         # Use the MCP tools that were initialized
         if self._mcp_tools:
-            print(f"SOC Analyst Tier 2 A2A agent initialized with {len(self._mcp_tools)} MCP tools")
+            print(f"Threat Hunter A2A agent initialized with {len(self._mcp_tools)} MCP tools")
         else:
-            print("SOC Analyst Tier 2 A2A agent initialized with form-based alert triage tools only")
+            print("Threat Hunter A2A agent initialized with form-based threat hunting tools only")
 
         # Load environment variables from .env file
         import os
