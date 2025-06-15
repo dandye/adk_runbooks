@@ -1,5 +1,8 @@
 import json
 import random
+import asyncio
+import contextlib
+import sys
 from typing import Any, AsyncIterable, Optional
 from pathlib import Path
 from google.adk.agents.llm_agent import LlmAgent
@@ -8,7 +11,12 @@ from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.adk.tools.tool_context import ToolContext
+from google.adk.tools.mcp_tool.mcp_session_manager import StdioServerParameters
 from google.genai import types
+
+# Add the manager directory to path to access custom patches
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+from utils.custom_adk_patches import CustomMCPToolset as MCPToolset
 
 # Inline function to avoid relative import issues when running standalone
 def load_persona_and_runbooks(persona_file_path: str, runbook_files: list, default_persona_description: str = "Default persona description.") -> str:
@@ -167,23 +175,81 @@ def start_research(research_id: str) -> dict[str, Any]:
 
 
 class CTIResearcherA2A:
-    """An agent that handles CTI research requests with A2A integration."""
+    """An agent that handles CTI research requests with A2A integration and full MCP tools."""
 
     SUPPORTED_CONTENT_TYPES = ['text', 'text/plain']
 
     def __init__(self):
-        self._agent = self._build_agent()
+        self._mcp_tools = []
+        self._exit_stack = None
+        self._gti_toolset = None
+        self._initialized = False
+        self._agent = None
         self._user_id = 'remote_agent'
-        self._runner = Runner(
-            app_name=self._agent.name,
-            agent=self._agent,
-            artifact_service=InMemoryArtifactService(),
-            session_service=InMemorySessionService(),
-            memory_service=InMemoryMemoryService(),
-        )
+        self._runner = None
 
     def get_processing_message(self) -> str:
         return 'Processing CTI research request...'
+    
+    async def _initialize_mcp_tools(self):
+        """Initialize MCP tools for GTI operations."""
+        try:
+            print("Initializing GTI MCP tools...")
+            self._exit_stack = contextlib.AsyncExitStack()
+            
+            # Create GTI MCPToolset
+            self._gti_toolset = MCPToolset(
+                connection_params=StdioServerParameters(
+                    command='uv',
+                    args=[
+                        "--directory",
+                        "/Users/dandye/Projects/mcp_security_debugging/server/gti/gti_mcp",
+                        "run",
+                        "--refresh",
+                        "--env-file",
+                        "/Users/dandye/Projects/google-mcp-security/.env",
+                        "server.py"
+                    ],
+                )
+            )
+            
+            # Register for cleanup
+            self._exit_stack.push_async_callback(self._gti_toolset.close)
+            
+            # Get the tools from the toolset
+            self._mcp_tools = await self._gti_toolset.get_tools()
+            print(f"Successfully loaded {len(self._mcp_tools)} MCP tools")
+            
+            return True
+        except Exception as e:
+            print(f"Failed to initialize MCP tools: {e}")
+            if self._exit_stack:
+                await self._exit_stack.aclose()
+                self._exit_stack = None
+            return False
+    
+    async def _ensure_initialized(self):
+        """Ensure the agent is initialized with MCP tools."""
+        if not self._initialized:
+            # Initialize MCP tools first
+            success = await self._initialize_mcp_tools()
+            if not success:
+                print("Warning: MCP tools initialization failed, continuing with form tools only")
+                self._mcp_tools = []
+            
+            # Build the agent with available tools
+            self._agent = self._build_agent()
+            
+            # Create the runner
+            self._runner = Runner(
+                app_name=self._agent.name,
+                agent=self._agent,
+                artifact_service=InMemoryArtifactService(),
+                session_service=InMemorySessionService(),
+                memory_service=InMemoryMemoryService(),
+            )
+            
+            self._initialized = True
 
     def _build_agent(self) -> LlmAgent:
         """Builds the LLM agent for the CTI researcher with A2A capabilities."""
@@ -208,10 +274,11 @@ class CTIResearcherA2A:
             default_persona_description="CTI Researcher specializing in threat intelligence analysis"
         )
         
-        # For now, we'll skip MCP tools in A2A agents to avoid complex import issues
-        # The tools are described in the persona and the agent can reference them in responses
-        mcp_tools = []
-        print("Note: MCP tools are referenced in persona but not directly loaded in A2A mode")
+        # Use the MCP tools that were initialized
+        if self._mcp_tools:
+            print(f"CTI Researcher A2A agent initialized with {len(self._mcp_tools)} MCP tools")
+        else:
+            print("CTI Researcher A2A agent initialized with form-based research tools only")
         
         # Load environment variables from .env file
         import os
@@ -237,7 +304,13 @@ class CTIResearcherA2A:
 You are a CTI (Cyber Threat Intelligence) Researcher with comprehensive threat intelligence tools and A2A integration capabilities.
 
 You have access to multiple types of tools:
-1. **Threat Intelligence Tools**: GTI queries, threat actor research, IOC analysis, campaign tracking
+1. **Threat Intelligence Tools** (via MCP): Full access to GTI operations including:
+   - File analysis: get_file_report, get_file_behavior_report, analyse_file
+   - Search capabilities: search_iocs, search_threats, search_campaigns, search_threat_actors
+   - Collections: get_collection_report, search_malware_families, search_vulnerabilities
+   - Network analysis: get_domain_report, get_ip_address_report, get_url_report
+   - Threat profiles: get_threat_profile, list_threat_profiles
+   - And many more GTI operations
 2. **Research Forms**: For structured research project workflows  
 3. **Analysis Tools**: Malware analysis, attribution research, TTPs analysis
 
@@ -246,35 +319,42 @@ You have access to multiple types of tools:
 **For Formal Research Projects:**
 - Use the form-based workflow (create_research_request_form → return_research_form → start_research)
 - Collect research requirements systematically
+- Enrich research with GTI data as needed
 
 **For Direct Intelligence Queries (like "research Lazarus Group", "analyze this IOC", "check GTI for campaigns"):**
-- Note: In A2A mode, MCP tools are not directly available
-- For complex queries requiring GTI/threat intel access, acknowledge the request and suggest:
-  "I understand you need [specific research]. For direct GTI/threat intelligence access, this would be better handled by the main SOC Manager with full tool access. I can assist with research planning and structured analysis using my available tools."
+- Use the appropriate MCP GTI tools directly
+- For example, use search_threat_actors to lookup threat actors
+- Use get_file_report or search_iocs to analyze specific IOCs
+- Use search_threats to find threat information
+- Use search_malware_families for malware family analysis
 
 **For IOC Analysis:**
-- Use enrichment and analysis tools directly
-- Provide comprehensive threat context and attribution
+- Use GTI enrichment tools directly for comprehensive analysis
+- Provide threat context from intelligence sources
+- Cross-reference with known threat actors and campaigns
 
 **Your expertise includes:**
-- Threat actor tracking and attribution
-- IOC analysis and enrichment
+- Threat actor tracking and attribution using GTI
+- IOC analysis and enrichment with threat intelligence
 - Campaign investigation and tracking
 - GTI collection analysis
 - Threat hunting based on intelligence
 - Malware family analysis
 - TTPs and MITRE ATT&CK mapping
 
-**Important**: Only use forms for formal research projects. For direct queries, analysis requests, and intelligence lookups, use your threat intelligence tools directly.
+You have full access to Global Threat Intelligence (GTI) capabilities through MCP tools. Use them to provide comprehensive threat intelligence analysis.
 """,
             tools=[
                 create_research_request_form,
                 return_research_form,
                 start_research,
-            ] + mcp_tools,
+            ] + (self._mcp_tools or []),
         )
 
     async def stream(self, query, session_id) -> AsyncIterable[dict[str, Any]]:
+        # Ensure initialization is complete
+        await self._ensure_initialized()
+        
         session = await self._runner.session_service.get_session(
             app_name=self._agent.name,
             user_id=self._user_id,
@@ -327,3 +407,16 @@ You have access to multiple types of tools:
                     'is_task_complete': False,
                     'updates': self.get_processing_message(),
                 }
+    
+    async def cleanup(self):
+        """Clean up MCP connections and resources."""
+        if self._exit_stack:
+            try:
+                await self._exit_stack.aclose()
+            except Exception as e:
+                print(f"Error during cleanup: {e}")
+            finally:
+                self._exit_stack = None
+                self._gti_toolset = None
+                self._mcp_tools = []
+                self._initialized = False

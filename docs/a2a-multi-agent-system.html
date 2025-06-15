@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ADK Security Operations - A2A Multi-Agent System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .hero {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 60px 40px;
+            text-align: center;
+            margin-bottom: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+        }
+        
+        .hero h1 {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .hero p {
+            font-size: 1.3rem;
+            color: #666;
+            max-width: 800px;
+            margin: 0 auto 30px;
+        }
+        
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1.1rem;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .cta-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+        }
+        
+        .content-section {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 40px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+        
+        .content-section h2 {
+            font-size: 2.5rem;
+            font-weight: 600;
+            margin-bottom: 30px;
+            color: #2c3e50;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+        
+        .content-section h3 {
+            font-size: 1.8rem;
+            font-weight: 600;
+            margin: 30px 0 15px;
+            color: #34495e;
+        }
+        
+        .content-section h4 {
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin: 25px 0 12px;
+            color: #34495e;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin: 30px 0;
+        }
+        
+        .card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 25px;
+            border-left: 4px solid #667eea;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.1);
+        }
+        
+        .card h4 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+        
+        .code-block {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9rem;
+            overflow-x: auto;
+        }
+        
+        .code-block .comment {
+            color: #68d391;
+        }
+        
+        .code-block .command {
+            color: #fbb6ce;
+        }
+        
+        .architecture-diagram {
+            background: #f8f9fa;
+            border: 2px dashed #667eea;
+            border-radius: 10px;
+            padding: 30px;
+            margin: 30px 0;
+            text-align: center;
+            font-family: monospace;
+            font-size: 0.9rem;
+            line-height: 1.8;
+        }
+        
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        
+        .feature {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 25px;
+            border-radius: 15px;
+            text-align: center;
+        }
+        
+        .feature h4 {
+            color: white;
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+        }
+        
+        .agent-status {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+        
+        .status-ready {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-coming {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .step-number {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 30px;
+            font-weight: 600;
+            margin-right: 15px;
+        }
+        
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid #f39c12;
+        }
+        
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid #28a745;
+        }
+        
+        ul, ol {
+            margin: 15px 0 15px 30px;
+        }
+        
+        li {
+            margin: 8px 0;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        
+        th {
+            background: #667eea;
+            color: white;
+            font-weight: 600;
+        }
+        
+        tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+            
+            .hero p {
+                font-size: 1.1rem;
+            }
+            
+            .content-section {
+                padding: 25px;
+            }
+            
+            .content-section h2 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Hero Section -->
+        <div class="hero">
+            <h1>🤖 ADK Security Operations</h1>
+            <p>Next-generation cybersecurity powered by AI agents using Agent-to-Agent (A2A) communication for distributed, intelligent security operations.</p>
+            <a href="#quick-start" class="cta-button">🚀 Get Started</a>
+        </div>
+
+        <!-- Overview Section -->
+        <div class="content-section">
+            <h2>🎯 System Overview</h2>
+            <p>The ADK Security Operations platform revolutionizes cybersecurity by orchestrating specialized AI agents that collaborate through the Agent-to-Agent (A2A) protocol. Each agent brings focused expertise in areas like threat intelligence, alert triage, incident response, and threat hunting.</p>
+            
+            <div class="architecture-diagram">
+                <strong>A2A Multi-Agent Architecture</strong><br><br>
+                ┌─────────────────┐    REST API     ┌──────────────────┐<br>
+                │  SOC Manager    │◄─────────────────►│ CTI Researcher   │<br>
+                │  (Host Agent)   │   (Port 8001)    │ (Threat Intel)   │<br>
+                │                 │                  └──────────────────┘<br>
+                │                 │    REST API     ┌──────────────────┐<br>
+                │  • Orchestration│◄─────────────────►│ SOC Analyst T1   │<br>
+                │  • IRP Execution│   (Port 8002)    │ (Alert Triage)   │<br>
+                └─────────────────┘                  └──────────────────┘
+            </div>
+
+            <div class="features-grid">
+                <div class="feature">
+                    <h4>🧠 Specialized Intelligence</h4>
+                    <p>Each agent focuses on specific security domains with deep expertise and tailored toolsets.</p>
+                </div>
+                <div class="feature">
+                    <h4>🔄 Distributed Architecture</h4>
+                    <p>Agents communicate via A2A protocol, enabling scalable and resilient operations.</p>
+                </div>
+                <div class="feature">
+                    <h4>📋 Form-Based Interactions</h4>
+                    <p>Structured data collection through interactive forms for precise task execution.</p>
+                </div>
+                <div class="feature">
+                    <h4>🛡️ Security-First Design</h4>
+                    <p>Built specifically for cybersecurity operations with industry-standard workflows.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Available Agents -->
+        <div class="content-section">
+            <h2>🤖 Available Security Agents</h2>
+            <p>Our multi-agent system includes specialized agents for different aspects of security operations:</p>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Agent</th>
+                        <th>Specialty</th>
+                        <th>A2A Status</th>
+                        <th>Primary Functions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>SOC Manager</strong></td>
+                        <td>Orchestration</td>
+                        <td><span class="agent-status status-ready">Host Agent</span></td>
+                        <td>Coordinates operations, executes IRPs, delegates tasks</td>
+                    </tr>
+                    <tr>
+                        <td><strong>CTI Researcher</strong></td>
+                        <td>Threat Intelligence</td>
+                        <td><span class="agent-status status-ready">A2A Ready</span></td>
+                        <td>IOC analysis, threat actor research, campaign tracking</td>
+                    </tr>
+                    <tr>
+                        <td><strong>SOC Analyst Tier 1</strong></td>
+                        <td>Alert Triage</td>
+                        <td><span class="agent-status status-ready">A2A Ready</span></td>
+                        <td>Initial investigation, basic enrichment, false positive detection</td>
+                    </tr>
+                    <tr>
+                        <td><strong>SOC Analyst Tier 2</strong></td>
+                        <td>Investigation</td>
+                        <td><span class="agent-status status-coming">Coming Soon</span></td>
+                        <td>Deep analysis, SOAR integration, complex alert handling</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Threat Hunter</strong></td>
+                        <td>Proactive Defense</td>
+                        <td><span class="agent-status status-coming">Coming Soon</span></td>
+                        <td>Hypothesis-driven hunting, TTP analysis, advanced queries</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Incident Responder</strong></td>
+                        <td>Crisis Management</td>
+                        <td><span class="agent-status status-coming">Coming Soon</span></td>
+                        <td>Containment, eradication, recovery procedures</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Quick Start -->
+        <div class="content-section" id="quick-start">
+            <h2>🚀 Quick Start Guide</h2>
+            
+            <h3>Prerequisites</h3>
+            <ul>
+                <li>Python 3.10 or higher</li>
+                <li>Google API Key (for Gemini models)</li>
+                <li>Virtual environment (recommended)</li>
+                <li>Git (for cloning the repository)</li>
+            </ul>
+
+            <h3>Installation Steps</h3>
+            
+            <h4><span class="step-number">1</span>Clone and Setup</h4>
+            <div class="code-block">
+<span class="comment"># Clone the repository</span>
+git clone https://github.com/your-org/adk-runbooks.git
+cd adk-runbooks/multi-agent
+
+<span class="comment"># Create virtual environment</span>
+python -m venv venv
+source venv/bin/activate  <span class="comment"># macOS/Linux</span>
+<span class="comment"># venv\Scripts\activate  # Windows</span>
+
+<span class="comment"># Install dependencies</span>
+pip install -r requirements.txt
+            </div>
+
+            <h4><span class="step-number">2</span>Configure Environment</h4>
+            <div class="code-block">
+<span class="comment"># Create .env file in multi-agent/manager/</span>
+echo "GOOGLE_API_KEY=your_api_key_here" > manager/.env
+
+<span class="comment"># Update MCP tool paths in manager/tools/tools.py if needed</span>
+            </div>
+
+            <h4><span class="step-number">3</span>Start A2A System</h4>
+            <div class="code-block">
+<span class="comment"># Start the A2A agents (CTI Researcher + SOC Tier 1)</span>
+./start_a2a_system.sh
+            </div>
+
+            <div class="success">
+                <strong>✅ Success!</strong> You should see agents starting on ports 8001 and 8002.
+            </div>
+
+            <h4><span class="step-number">4</span>Launch Host Agent</h4>
+            <div class="code-block">
+<span class="comment"># In a new terminal, from the multi-agent directory</span>
+adk web agents/
+
+<span class="comment"># This will show both available agents in the web interface:</span>
+<span class="comment"># - soc_manager_host (A2A-enabled)</span>
+<span class="comment"># - soc_manager_traditional (integrated sub-agents)</span>
+            </div>
+
+            <div class="success">
+                <strong>🎉 Ready!</strong> Access the SOC Manager at the ADK web interface URL.
+            </div>
+        </div>
+
+        <!-- Usage Examples -->
+        <div class="content-section">
+            <h2>💼 Usage Examples</h2>
+            
+            <div class="grid">
+                <div class="card">
+                    <h4>🔍 Threat Intelligence Research</h4>
+                    <p><strong>Command:</strong> "Send to cti_researcher: Research the latest Lazarus Group campaigns targeting cryptocurrency exchanges"</p>
+                    <p><strong>Result:</strong> CTI Researcher provides comprehensive threat actor analysis, IOCs, and attribution details.</p>
+                </div>
+
+                <div class="card">
+                    <h4>🚨 Alert Triage</h4>
+                    <p><strong>Command:</strong> "Send to soc_analyst_tier1: Triage high-priority malware alert ALT-2024-001 from CrowdStrike"</p>
+                    <p><strong>Result:</strong> SOC Tier 1 performs initial investigation, enriches IOCs, and provides triage assessment.</p>
+                </div>
+
+                <div class="card">
+                    <h4>📋 Incident Response</h4>
+                    <p><strong>Command:</strong> "Start Malware IRP for CASE-2024-001"</p>
+                    <p><strong>Result:</strong> SOC Manager orchestrates the full incident response plan across multiple agents.</p>
+                </div>
+
+                <div class="card">
+                    <h4>🔄 Multi-Agent Coordination</h4>
+                    <p><strong>Command:</strong> "Investigate security incident: suspicious login from 192.168.1.100, then analyze any IOCs found"</p>
+                    <p><strong>Result:</strong> Manager delegates triage to SOC T1, then forwards IOCs to CTI Researcher for analysis.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Technical Architecture -->
+        <div class="content-section">
+            <h2>🏗️ Technical Architecture</h2>
+            
+            <h3>How A2A Communication Works</h3>
+            <ol>
+                <li><strong>Agent Registration:</strong> Each A2A agent exposes REST endpoints and agent cards</li>
+                <li><strong>Host Discovery:</strong> SOC Manager discovers available agents at startup</li>
+                <li><strong>Task Delegation:</strong> Manager sends structured messages to appropriate agents</li>
+                <li><strong>Form Interactions:</strong> Agents return interactive forms for data collection</li>
+                <li><strong>Response Processing:</strong> Manager synthesizes results and provides comprehensive analysis</li>
+            </ol>
+
+            <h3>Key Components</h3>
+            <div class="grid">
+                <div class="card">
+                    <h4>🎭 Agent Cards</h4>
+                    <p>JSON descriptors containing agent capabilities, tools, and communication protocols.</p>
+                </div>
+
+                <div class="card">
+                    <h4>📝 Interactive Forms</h4>
+                    <p>JSON Schema-based forms for structured data collection with validation and escalation.</p>
+                </div>
+
+                <div class="card">
+                    <h4>🔗 MCP Integration</h4>
+                    <p>Model Context Protocol tools for SIEM queries, threat intelligence, and security APIs.</p>
+                </div>
+
+                <div class="card">
+                    <h4>📚 Rules Bank</h4>
+                    <p>Curated personas, runbooks, and incident response plans guiding agent behavior.</p>
+                </div>
+            </div>
+
+            <h3>Data Flow</h3>
+            <div class="architecture-diagram">
+                User Input → SOC Manager → Agent Selection → A2A Message<br>
+                ↓<br>
+                Agent Processing → Form Return → User Completion → Agent Execution<br>
+                ↓<br>
+                Results Synthesis → Report Generation → User Response
+            </div>
+        </div>
+
+        <!-- Configuration -->
+        <div class="content-section">
+            <h2>⚙️ Advanced Configuration</h2>
+            
+            <h3>Adding New A2A Agents</h3>
+            <ol>
+                <li>Create agent with A2A capabilities (see <code>agent_a2a.py</code> examples)</li>
+                <li>Implement FastAPI server with <code>/</code> and <code>/message</code> endpoints</li>
+                <li>Add agent URL to host agent configuration</li>
+                <li>Update startup scripts to include new agent</li>
+            </ol>
+
+            <h3>Customizing Agent Behavior</h3>
+            <div class="code-block">
+<span class="comment"># Update personas in rules-bank/personas/</span>
+vi rules-bank/personas/cti_researcher.md
+
+<span class="comment"># Add new runbooks in rules-bank/run_books/</span>
+vi rules-bank/run_books/your_custom_workflow.md
+
+<span class="comment"># Configure MCP tools in manager/tools/tools.py</span>
+vi manager/tools/tools.py
+            </div>
+
+            <h3>Environment Variables</h3>
+            <div class="code-block">
+<span class="comment"># Core configuration</span>
+GOOGLE_API_KEY=your_gemini_api_key
+ANTHROPIC_API_KEY=your_claude_api_key  <span class="comment"># Optional</span>
+
+<span class="comment"># A2A configuration</span>
+CTI_RESEARCHER_URL=http://localhost:8001
+SOC_TIER1_URL=http://localhost:8002
+
+<span class="comment"># MCP tool configuration</span>
+MCP_SECURITY_TOOLS_PATH=/path/to/mcp_security/server
+            </div>
+        </div>
+
+        <!-- Troubleshooting -->
+        <div class="content-section">
+            <h2>🔧 Troubleshooting</h2>
+            
+            <h3>Common Issues</h3>
+            
+            <h4>Agent Connection Errors</h4>
+            <div class="warning">
+                <strong>Issue:</strong> "Failed to connect to agent at localhost:8001"<br>
+                <strong>Solution:</strong> Ensure A2A agents are running before starting the host agent. Check ports are not in use.
+            </div>
+
+            <h4>Import Errors</h4>
+            <div class="warning">
+                <strong>Issue:</strong> "ModuleNotFoundError: No module named 'a2a_sdk'"<br>
+                <strong>Solution:</strong> Activate virtual environment and run <code>pip install -r requirements.txt</code>
+            </div>
+
+            <h4>API Key Issues</h4>
+            <div class="warning">
+                <strong>Issue:</strong> "Invalid API key for Google Gemini"<br>
+                <strong>Solution:</strong> Verify GOOGLE_API_KEY in manager/.env file and ensure API access is enabled.
+            </div>
+
+            <h3>Debug Mode</h3>
+            <div class="code-block">
+<span class="comment"># Enable debug logging</span>
+export ADK_LOG_LEVEL=DEBUG
+
+<span class="comment"># Run agents with verbose output</span>
+python run_server.py --debug
+            </div>
+
+            <h3>Port Configuration</h3>
+            <p>If default ports (8001, 8002) are in use, update the configurations:</p>
+            <ul>
+                <li>Modify port numbers in <code>run_server.py</code> files</li>
+                <li>Update agent URLs in <code>host_agent.py</code></li>
+                <li>Adjust startup script port references</li>
+            </ul>
+        </div>
+
+        <!-- Performance & Scaling -->
+        <div class="content-section">
+            <h2>📈 Performance & Scaling</h2>
+            
+            <h3>System Requirements</h3>
+            <table>
+                <tr>
+                    <th>Component</th>
+                    <th>Minimum</th>
+                    <th>Recommended</th>
+                </tr>
+                <tr>
+                    <td>CPU</td>
+                    <td>2 cores</td>
+                    <td>4+ cores</td>
+                </tr>
+                <tr>
+                    <td>Memory</td>
+                    <td>4GB RAM</td>
+                    <td>8GB+ RAM</td>
+                </tr>
+                <tr>
+                    <td>Storage</td>
+                    <td>2GB</td>
+                    <td>10GB+ (for logs/reports)</td>
+                </tr>
+                <tr>
+                    <td>Network</td>
+                    <td>Stable internet</td>
+                    <td>High-speed connection</td>
+                </tr>
+            </table>
+
+            <h3>Scaling Considerations</h3>
+            <ul>
+                <li><strong>Horizontal Scaling:</strong> Deploy agents across multiple servers</li>
+                <li><strong>Load Balancing:</strong> Use multiple instances of the same agent type</li>
+                <li><strong>Caching:</strong> Implement response caching for frequently accessed data</li>
+                <li><strong>Monitoring:</strong> Set up health checks and performance monitoring</li>
+            </ul>
+        </div>
+
+        <!-- Footer -->
+        <div class="content-section">
+            <h2>🎯 Ready to Get Started?</h2>
+            <p>The ADK Security Operations platform represents the future of AI-powered cybersecurity. With specialized agents, distributed architecture, and intelligent coordination, you can revolutionize your security operations.</p>
+            
+            <div style="text-align: center; margin-top: 30px;">
+                <a href="#quick-start" class="cta-button">🚀 Start Your Security Transformation</a>
+            </div>
+            
+            <div style="text-align: center; margin-top: 40px; color: #666; font-size: 0.9rem;">
+                <p>Built with ❤️ using Google's Agent Development Kit (ADK)</p>
+                <p>© 2024 ADK Security Operations. Licensed under ADK terms.</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

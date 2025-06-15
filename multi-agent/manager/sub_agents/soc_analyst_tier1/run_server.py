@@ -73,6 +73,13 @@ async def handle_message(request: MessageRequest) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Clean up resources on shutdown."""
+    logger.info("Shutting down SOC Analyst Tier 1 agent...")
+    await agent.cleanup()
+
+
 if __name__ == "__main__":
     # Run the server
     uvicorn.run(app, host="0.0.0.0", port=8002)

@@ -1,5 +1,8 @@
 import json
 import random
+import asyncio
+import contextlib
+import sys
 from typing import Any, AsyncIterable, Optional
 from pathlib import Path
 from google.adk.agents.llm_agent import LlmAgent
@@ -8,7 +11,12 @@ from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.adk.tools.tool_context import ToolContext
+from google.adk.tools.mcp_tool.mcp_session_manager import StdioServerParameters
 from google.genai import types
+
+# Add the manager directory to path to access custom patches
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+from utils.custom_adk_patches import CustomMCPToolset as MCPToolset
 
 # Inline function to avoid relative import issues when running standalone
 def load_persona_and_runbooks(persona_file_path: str, runbook_files: list, default_persona_description: str = "Default persona description.") -> str:
@@ -175,23 +183,84 @@ def start_triage(triage_id: str) -> dict[str, Any]:
 
 
 class SOCAnalystTier1A2A:
-    """An agent that handles SOC Tier 1 alert triage with A2A integration."""
+    """An agent that handles SOC Tier 1 alert triage with A2A integration and full MCP tools."""
 
     SUPPORTED_CONTENT_TYPES = ['text', 'text/plain']
 
     def __init__(self):
-        self._agent = self._build_agent()
+        self._mcp_tools = []
+        self._exit_stack = None
+        self._gti_toolset = None
+        self._initialized = False
+        self._agent = None
         self._user_id = 'remote_agent'
-        self._runner = Runner(
-            app_name=self._agent.name,
-            agent=self._agent,
-            artifact_service=InMemoryArtifactService(),
-            session_service=InMemorySessionService(),
-            memory_service=InMemoryMemoryService(),
-        )
+        self._runner = None
 
     def get_processing_message(self) -> str:
         return 'Processing alert triage request...'
+    
+    async def _initialize_mcp_tools(self):
+        """Initialize MCP tools for GTI operations."""
+        try:
+            print("Initializing GTI MCP tools...")
+            self._exit_stack = contextlib.AsyncExitStack()
+            
+            # Create GTI MCPToolset
+            self._gti_toolset = MCPToolset(
+                connection_params=StdioServerParameters(
+                    command='uv',
+                    args=[
+                        "--directory",
+                        "/Users/dandye/Projects/mcp_security_debugging/server/secops-gti/secops_gti_mcp",
+                        "run",
+                        "--env-file",
+                        "/Users/dandye/Projects/google-mcp-security/.env",
+                        "server.py",
+                        "--source",
+                        "mandiant-ti",
+                        "--integrations",
+                        "MandiantAdvantage"
+                    ],
+                )
+            )
+            
+            # Register for cleanup
+            self._exit_stack.push_async_callback(self._gti_toolset.close)
+            
+            # Get the tools from the toolset
+            self._mcp_tools = await self._gti_toolset.get_tools()
+            print(f"Successfully loaded {len(self._mcp_tools)} MCP tools")
+            
+            return True
+        except Exception as e:
+            print(f"Failed to initialize MCP tools: {e}")
+            if self._exit_stack:
+                await self._exit_stack.aclose()
+                self._exit_stack = None
+            return False
+    
+    async def _ensure_initialized(self):
+        """Ensure the agent is initialized with MCP tools."""
+        if not self._initialized:
+            # Initialize MCP tools first
+            success = await self._initialize_mcp_tools()
+            if not success:
+                print("Warning: MCP tools initialization failed, continuing with form tools only")
+                self._mcp_tools = []
+            
+            # Build the agent with available tools
+            self._agent = self._build_agent()
+            
+            # Create the runner
+            self._runner = Runner(
+                app_name=self._agent.name,
+                agent=self._agent,
+                artifact_service=InMemoryArtifactService(),
+                session_service=InMemorySessionService(),
+                memory_service=InMemoryMemoryService(),
+            )
+            
+            self._initialized = True
 
     def _build_agent(self) -> LlmAgent:
         """Builds the LLM agent for the SOC Tier 1 analyst with A2A capabilities."""
@@ -214,10 +283,11 @@ class SOCAnalystTier1A2A:
             default_persona_description="SOC Tier 1 Analyst specializing in alert triage and initial investigation"
         )
         
-        # For now, we'll skip MCP tools in A2A agents to avoid complex import issues
-        # The tools are described in the persona and the agent can reference them in responses
-        mcp_tools = []
-        print("Note: MCP tools are referenced in persona but not directly loaded in A2A mode")
+        # Use the MCP tools that were initialized
+        if self._mcp_tools:
+            print(f"SOC Analyst Tier 1 A2A agent initialized with {len(self._mcp_tools)} MCP tools")
+        else:
+            print("SOC Analyst Tier 1 A2A agent initialized with form-based alert triage tools only")
         
         # Load environment variables from .env file
         import os
@@ -243,7 +313,13 @@ class SOCAnalystTier1A2A:
 You are a SOC (Security Operations Center) Tier 1 Analyst with comprehensive security tools and A2A integration capabilities.
 
 You have access to multiple types of tools:
-1. **Security Operations Tools**: SIEM queries, SOAR case management, threat intelligence, sandbox analysis
+1. **Threat Intelligence Tools** (via MCP): Full access to GTI operations including:
+   - Get threat actor information (secops_gti.get_threat_actor)
+   - Get malware information (secops_gti.get_malware)
+   - Get vulnerability details (secops_gti.get_vulnerability)
+   - Get indicator information (secops_gti.get_indicator)
+   - Search for threats (secops_gti.search_threats)
+   - And many more GTI operations
 2. **Alert Triage Forms**: For structured alert processing workflows
 3. **Investigation Tools**: IOC enrichment, log analysis, and forensic capabilities
 
@@ -252,34 +328,40 @@ You have access to multiple types of tools:
 **For Alert Triage Requests:**
 - Use the form-based workflow (create_alert_triage_form → return_alert_form → start_triage)
 - Collect alert details systematically
+- Enrich IOCs using GTI tools during triage
 
-**For Information Requests (like "list SOAR cases", "query SIEM", "check threat intel"):**
-- Note: In A2A mode, MCP tools are not directly available
-- For complex queries requiring SOAR/SIEM access, acknowledge the request and suggest:
-  "I understand you need [specific request]. For direct SOAR/SIEM access, this would be better handled by the main SOC Manager with full tool access. I can assist with alert triage and basic analysis using my available tools."
+**For Threat Intelligence Queries (like "check threat intel", "lookup IOC", "get malware info"):**
+- Use the appropriate MCP GTI tools directly
+- For example, use secops_gti.get_indicator to lookup specific IOCs
+- Use secops_gti.search_threats to find threat information
+- Use secops_gti.get_malware for malware analysis
 
 **For IOC Analysis:**
-- Use enrichment and analysis tools directly
-- Provide comprehensive threat context
+- Use GTI enrichment tools directly for comprehensive analysis
+- Provide threat context from intelligence sources
+- Cross-reference with known threat actors and campaigns
 
 **Your core responsibilities:**
-- Initial alert triage and classification
-- Security system queries and case management
-- Basic IOC enrichment and analysis
-- Identifying false positives and duplicates
-- Escalating complex cases to Tier 2
-- Documenting findings and recommendations
+- Initial alert triage and classification with threat intelligence enrichment
+- IOC analysis using GTI tools
+- Threat actor and malware identification
+- Identifying false positives using threat intelligence
+- Escalating complex cases to Tier 2 with enriched context
+- Documenting findings with threat intelligence insights
 
-**Important**: Only use forms for formal alert triage workflows. For general queries, investigations, and information requests, use your security tools directly.
+You have full access to Global Threat Intelligence (GTI) capabilities through MCP tools. Use them to enrich your alert triage and investigations.
 """,
             tools=[
                 create_alert_triage_form,
                 return_alert_form,
                 start_triage,
-            ] + mcp_tools,
+            ] + (self._mcp_tools or []),
         )
 
     async def stream(self, query, session_id) -> AsyncIterable[dict[str, Any]]:
+        # Ensure initialization is complete
+        await self._ensure_initialized()
+        
         session = await self._runner.session_service.get_session(
             app_name=self._agent.name,
             user_id=self._user_id,
@@ -332,3 +414,16 @@ You have access to multiple types of tools:
                     'is_task_complete': False,
                     'updates': self.get_processing_message(),
                 }
+    
+    async def cleanup(self):
+        """Clean up MCP connections and resources."""
+        if self._exit_stack:
+            try:
+                await self._exit_stack.aclose()
+            except Exception as e:
+                print(f"Error during cleanup: {e}")
+            finally:
+                self._exit_stack = None
+                self._gti_toolset = None
+                self._mcp_tools = []
+                self._initialized = False
