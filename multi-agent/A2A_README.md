@@ -7,6 +7,11 @@ This setup enables the SOC Manager to coordinate with specialized security agent
 - **SOC Manager Host Agent**: Orchestrates security operations by delegating to specialized agents
 - **CTI Researcher Agent**: Handles threat intelligence research and IOC analysis
 - **SOC Analyst Tier 1 Agent**: Performs initial alert triage and basic investigation
+- **SOC Analyst Tier 2 Agent**: Conducts deeper investigation and threat analysis
+- **SOC Analyst Tier 3 Agent**: Handles complex incidents and advanced threat hunting
+- **Threat Hunter Agent**: Proactively searches for threats and anomalies
+- **Detection Engineer Agent**: Develops and maintains detection rules and signatures
+- **Incident Responder Agent**: Manages incident containment and recovery operations
 - **SOAR Specialist Agent**: Manages SOAR platform operations, case management, and workflow automation
 
 ## Setup Instructions
@@ -30,6 +35,11 @@ This will start:
 - CTI Researcher on http://localhost:8001
 - SOC Analyst Tier 1 on http://localhost:8002
 - SOAR Specialist on http://localhost:8003
+- SOC Analyst Tier 2 on http://localhost:8004
+- Threat Hunter on http://localhost:8005
+- Detection Engineer on http://localhost:8006
+- Incident Responder on http://localhost:8007
+- SOC Analyst Tier 3 on http://localhost:8008
 
 ### 3. Start the SOC Manager Host
 
@@ -43,7 +53,7 @@ This will start ADK Web with agent discovery. You'll see both available agents:
 - **soc_manager_host**: A2A-enabled SOC Manager that coordinates with remote agents
 - **soc_manager_traditional**: Traditional multi-agent system with integrated sub-agents
 
-Select **soc_manager_host** to use the A2A system. The host agent will automatically discover and connect to the A2A agents running on ports 8001 and 8002.
+Select **soc_manager_host** to use the A2A system. The host agent will automatically discover and connect to all A2A agents running on ports 8001-8008.
 
 ## Using the System
 
@@ -59,7 +69,32 @@ Once all components are running, you can interact with the SOC Manager through t
    - "Investigate suspicious login from IP 192.168.1.100"
    - "Analyze critical phishing alert ALT-2024-001"
 
-3. **Coordinate Multiple Agents**:
+3. **Delegate to SOC Analyst Tier 2**:
+   - "Perform deep analysis of ransomware incident"
+   - "Investigate complex multi-stage attack"
+   - "Analyze lateral movement patterns"
+
+4. **Delegate to SOC Analyst Tier 3**:
+   - "Handle advanced persistent threat investigation"
+   - "Perform forensic analysis of compromised systems"
+   - "Lead critical incident response"
+
+5. **Delegate to Threat Hunter**:
+   - "Hunt for signs of APT29 in our environment"
+   - "Search for anomalous PowerShell activity"
+   - "Investigate potential data exfiltration"
+
+6. **Delegate to Detection Engineer**:
+   - "Create SIEM rule for ransomware behavior"
+   - "Develop detection for new phishing campaign"
+   - "Tune false positive alerts"
+
+7. **Delegate to Incident Responder**:
+   - "Contain ransomware outbreak on finance servers"
+   - "Execute incident response plan for data breach"
+   - "Coordinate recovery efforts"
+
+8. **Coordinate Multiple Agents**:
    - "Investigate security incident CASE-123: Start with alert triage, then perform threat intelligence analysis"
 
 ## Example Interactions
@@ -92,10 +127,11 @@ The system uses the A2A SDK for agent communication:
 
 ### Form-Based Interactions
 
-Both CTI Researcher and SOC Analyst Tier 1 use form-based interactions:
+All A2A agents use form-based interactions:
 - Agents return structured forms for data collection
 - Forms use JSON Schema for validation
 - A2A escalation is triggered via `tool_context.actions`
+- Each agent has specialized forms for their domain
 
 ### Adding New Agents
 
@@ -123,6 +159,13 @@ cat manager/sub_agents/cti_researcher/cti_agent.log
 
 # View SOC Analyst Tier 1 logs
 cat manager/sub_agents/soc_analyst_tier1/soc_agent.log
+
+# View other agent logs
+cat manager/sub_agents/soc_analyst_tier2/soc_tier2_agent.log
+cat manager/sub_agents/soc_analyst_tier3/soc_tier3_agent.log
+cat manager/sub_agents/threat_hunter/threat_hunter_agent.log
+cat manager/sub_agents/detection_engineer/detection_engineer_agent.log
+cat manager/sub_agents/incident_responder/incident_responder_agent.log
 ```
 
 ### Manual Agent Testing
