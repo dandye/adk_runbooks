@@ -182,8 +182,8 @@ def start_triage(triage_id: str) -> dict[str, Any]:
     }
 
 
-class SOCAnalystTier1A2A:
-    """An agent that handles SOC Tier 1 alert triage with A2A integration and full MCP tools."""
+class IncidentResponderA2A:
+    """An agent that handles Incident Response with A2A integration and full MCP tools."""
 
     SUPPORTED_CONTENT_TYPES = ['text', 'text/plain']
 
@@ -309,31 +309,27 @@ class SOCAnalystTier1A2A:
             self._initialized = True
 
     def _build_agent(self) -> LlmAgent:
-        """Builds the LLM agent for the SOC Tier 1 analyst with A2A capabilities."""
+        """Builds the LLM agent for the Incident Responder with A2A capabilities."""
         # Load persona and runbooks
         BASE_DIR = Path(__file__).resolve().parent
-        persona_file_path = (BASE_DIR / "../../../../rules-bank/personas/soc_analyst_tier_1.md").resolve()
+        persona_file_path = (BASE_DIR / "../../../../rules-bank/personas/incident_responder.md").resolve()
         runbook_files = [
-            (BASE_DIR / "../../../../rules-bank/run_books/triage_alerts.md").resolve(),
-            (BASE_DIR / "../../../../rules-bank/run_books/close_duplicate_or_similar_cases.md").resolve(),
-            (BASE_DIR / "../../../../rules-bank/run_books/investgate_a_case_w_external_tools.md").resolve(),
-            (BASE_DIR / "../../../../rules-bank/run_books/group_cases.md").resolve(),
-            (BASE_DIR / "../../../../rules-bank/run_books/group_cases_v2.md").resolve(),
-            (BASE_DIR / "../../../../rules-bank/run_books/basic_ioc_enrichment.md").resolve(),
-            (BASE_DIR / "../../../../rules-bank/run_books/suspicious_login_triage.md").resolve(),
-            (BASE_DIR / "../../../../rules-bank/run_books/guidelines/report_writing.md").resolve(),
+            (BASE_DIR / "../../../../rules-bank/run_books/irps/malware_incident_response.md").resolve(),
+            (BASE_DIR / "../../../../rules-bank/run_books/irps/phishing_response.md").resolve(),
+            (BASE_DIR / "../../../../rules-bank/run_books/irps/compromised_user_account_response.md").resolve(),
+            (BASE_DIR / "../../../../rules-bank/run_books/irps/ransomware_response.md").resolve(),
         ]
         persona_data = load_persona_and_runbooks(
             persona_file_path,
             runbook_files,
-            default_persona_description="SOC Tier 1 Analyst specializing in alert triage and initial investigation"
+            default_persona_description="Incident Responder specializing in containing and eradicating threats."
         )
 
         # Use the MCP tools that were initialized
         if self._mcp_tools:
-            print(f"SOC Analyst Tier 1 A2A agent initialized with {len(self._mcp_tools)} MCP tools")
+            print(f"SOC Analyst Tier 2 A2A agent initialized with {len(self._mcp_tools)} MCP tools")
         else:
-            print("SOC Analyst Tier 1 A2A agent initialized with form-based alert triage tools only")
+            print("SOC Analyst Tier 2 A2A agent initialized with form-based alert triage tools only")
 
         # Load environment variables from .env file
         import os
@@ -353,10 +349,10 @@ class SOCAnalystTier1A2A:
         # LlmAgent will automatically use GOOGLE_API_KEY from environment
         return LlmAgent(
             model='gemini-2.5-pro-preview-05-06',
-            name='soc_analyst_tier1_a2a',
+            name='incident_responder_a2a',
             description=persona_data,
             instruction="""
-You are a SOC (Security Operations Center) Tier 1 Analyst with comprehensive security tools and A2A integration capabilities.
+You are an Incident Responder with comprehensive security tools and A2A integration capabilities.
 
 You have access to multiple types of tools:
 1. **Threat Intelligence Tools** (via MCP): Full access to GTI operations including:

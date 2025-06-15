@@ -52,6 +52,10 @@ _agent_connections = {
         "cti_researcher": "http://localhost:8001",
         "soc_analyst_tier1": "http://localhost:8002",
         "soc_analyst_tier2": "http://localhost:8004",
+        "soc_analyst_tier3": "http://localhost:8008",
+        "threat_hunter": "http://localhost:8005",
+        "detection_engineer": "http://localhost:8006",
+        "incident_responder": "http://localhost:8007",
         "soar_specialist": "http://localhost:8003",
     },
     "connections": {},
@@ -166,6 +170,10 @@ You can delegate tasks to specialized agents using the send_message_to_agent too
 - CTI Researcher: For threat intelligence, IOC analysis, and threat actor tracking
 - SOC Analyst Tier 1: For initial alert triage and basic investigation
 - SOC Analyst Tier 2: For advanced alert triage and investigation
+- Threat Hunter: For proactive threat hunting and hypothesis-driven investigation
+- Detection Engineer: For creating and tuning detection rules
+- Incident Responder: For containing and eradicating threats
+- SOC Analyst Tier 3: For advanced investigation and threat hunting
 - SOAR Specialist: For SOAR platform operations, case management, and workflow automation
 
 When delegating tasks:
@@ -181,7 +189,7 @@ When delegating tasks:
 - send_message_to_agent: Communicate with A2A agents
 
 **Available Agents:**
-The CTI Researcher (8001), SOC Analyst Tier 1 (8002), SOC Analyst Tier 2 (8004), and SOAR Specialist (8003) agents should be running on their respective ports.
+The CTI Researcher (8001), SOC Analyst Tier 1 (8002), SOC Analyst Tier 2 (8004), SOC Analyst Tier 3 (8008), Threat Hunter (8005), Detection Engineer (8006), Incident Responder (8007), and SOAR Specialist (8003) agents should be running on their respective ports.
 
 Always aim for efficient coordination and clear communication when working with sub-agents.
 """,

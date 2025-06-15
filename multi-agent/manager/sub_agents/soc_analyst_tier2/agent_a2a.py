@@ -200,34 +200,83 @@ class SOCAnalystTier2A2A:
         return 'Processing alert triage request...'
 
     async def _initialize_mcp_tools(self):
-        """Initialize MCP tools for GTI operations."""
+        """Initialize MCP tools for all available servers."""
         try:
-            print("Initializing GTI MCP tools...")
+            print("Initializing MCP tools...")
             self._exit_stack = contextlib.AsyncExitStack()
+            self._mcp_tools = []
 
-            # Create GTI MCPToolset
-            self._gti_toolset = MCPToolset(
+            # SecOps MCP
+            self._secops_toolset = MCPToolset(
                 connection_params=StdioServerParameters(
-                    command='uv',
+                    command='/Users/dandye/homebrew/bin/uv',
                     args=[
                         "--directory",
-                        "/Users/dandye/Projects/mcp_security_debugging/server/gti/gti_mcp",
+                        "/Users/dandye/Projects/google-mcp-security/server/secops/secops_mcp",
                         "run",
-                        "--refresh",
+                        "--reinstall-package",
+                        "secops-mcp",
                         "--env-file",
                         "/Users/dandye/Projects/google-mcp-security/.env",
                         "server.py"
                     ],
                 )
             )
+            self._exit_stack.push_async_callback(self._secops_toolset.close)
+            self._mcp_tools.extend(await self._secops_toolset.get_tools())
 
-            # Register for cleanup
+            # GTI MCP
+            self._gti_toolset = MCPToolset(
+                connection_params=StdioServerParameters(
+                    command='/Users/dandye/homebrew/bin/uv',
+                    args=[
+                        "--directory",
+                        "/Users/dandye/Projects/google-mcp-security/server/gti",
+                        "run",
+                        "--env-file",
+                        "/Users/dandye/Projects/google-mcp-security/.env",
+                        "gti_mcp"
+                    ],
+                )
+            )
             self._exit_stack.push_async_callback(self._gti_toolset.close)
+            self._mcp_tools.extend(await self._gti_toolset.get_tools())
 
-            # Get the tools from the toolset
-            self._mcp_tools = await self._gti_toolset.get_tools()
+            # SOAR MCP
+            self._soar_toolset = MCPToolset(
+                connection_params=StdioServerParameters(
+                    command='uv',
+                    args=[
+                        "--directory",
+                        "/Users/dandye/Projects/google-mcp-security/server/secops-soar/secops_soar_mcp",
+                        "run",
+                        "--env-file",
+                        "/Users/dandye/Projects/google-mcp-security/.env",
+                        "server.py",
+                        "--integrations",
+                        "CSV,GoogleChronicle,Siemplify,SiemplifyUtilities"
+                    ],
+                )
+            )
+            self._exit_stack.push_async_callback(self._soar_toolset.close)
+            self._mcp_tools.extend(await self._soar_toolset.get_tools())
+
+            # SCC MCP
+            self._scc_toolset = MCPToolset(
+                connection_params=StdioServerParameters(
+                    command='uv',
+                    args=[
+                        "--directory",
+                        "/Users/dandye/Projects/google-mcp-security/server/scc",
+                        "run",
+                        "scc_mcp.py"
+                    ],
+                )
+            )
+            self._exit_stack.push_async_callback(self._scc_toolset.close)
+            self._mcp_tools.extend(await self._scc_toolset.get_tools())
+
             print(f"Successfully loaded {len(self._mcp_tools)} MCP tools")
-
             return True
         except Exception as e:
             print(f"Failed to initialize MCP tools: {e}")
