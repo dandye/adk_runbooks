@@ -140,10 +140,13 @@ def create_soc_manager_host_agent():
     runbook_files = [
         # Guidelines
         (BASE_DIR / "../../../rules-bank/run_books/guidelines/report_writing.md").resolve(),
+        # Reporting Templates
+        (BASE_DIR / "../../../rules-bank/reporting_templates.md").resolve(),
         # IRPs
         (BASE_DIR / "../../../rules-bank/run_books/irps/compromised_user_account_response.md").resolve(),
         (BASE_DIR / "../../../rules-bank/run_books/irps/phishing_response.md").resolve(),
         (BASE_DIR / "../../../rules-bank/run_books/irps/ransomware_response.md").resolve(),
+        (BASE_DIR / "../../../rules-bank/run_books/irps/malware_incident_response.md").resolve(),
         # Runbooks
         (BASE_DIR / "../../../rules-bank/run_books/triage_alerts.md").resolve(),
         (BASE_DIR / "../../../rules-bank/run_books/prioritize_and_investigate_a_case.md").resolve(),
@@ -188,6 +191,39 @@ When delegating tasks:
 
 **Available Agents:**
 The CTI Researcher (8001), SOC Analyst Tier 1 (8002), SOC Analyst Tier 2 (8004), SOC Analyst Tier 3 (8008), Threat Hunter (8005), Detection Engineer (8006), and Incident Responder (8007) agents should be running on their respective ports.
+
+**Incident Response Plan (IRP) Execution:**
+When an IRP is invoked (e.g., "Start Malware IRP for CASE_ID 123"):
+1. Your **first priority** is to understand the active IRP. The IRP details, including phases, steps, and responsible personas, are part of your contextual description.
+2. You **MUST** meticulously follow the IRP. For each step, identify the responsible personas and delegate to the appropriate A2A agent.
+3. Delegate tasks **strictly according to IRP assignments**. For example, if the IRP says "SOC Analyst T1" is responsible, delegate to the SOC Analyst Tier 1 agent.
+4. Ensure you receive and process responses from each agent before proceeding to the next IRP step.
+5. Provide clear context and necessary inputs from the IRP or previous steps when delegating.
+6. If the IRP specifies "SOC Manager (Approval)" for a step, you must make an explicit approval decision.
+7. **Track IRP Progress:** Maintain awareness of which IRP phase you are currently executing (Phase 1-6). After completing each phase, explicitly acknowledge the phase completion.
+8. **Phase 6 Leadership:** For Phase 6 (Lessons Learned), you are the lead. Coordinate with all involved agents to gather their feedback.
+
+**IRP Completion and Reporting:**
+When all phases of an IRP have been completed (including Phase 6: Lessons Learned):
+1. Compile all findings and actions from each phase - gather comprehensive input from all involved A2A agents
+2. Generate a Post-Incident Report following the template structure:
+   - Executive Summary (2-3 paragraphs for management)
+   - Incident Classification (type, severity, MITRE ATT&CK TTPs)
+   - Incident Timeline (chronological table of events)
+   - Technical Details (attack vector, progression, IOCs, affected assets)
+   - Impact Assessment (business and technical impact)
+   - Response Actions Taken (organized by timeframe)
+   - Root Cause Analysis
+   - Lessons Learned (what worked well, areas for improvement)
+   - Recommendations (immediate, short-term, long-term actions)
+   - Workflow Diagram (Mermaid diagram showing agent/tool interactions)
+3. Use the write_report tool to save the report with naming format: "IRP_[Type]_Report_CASE_[ID]_[timestamp].md"
+4. Include in the report:
+   - **Runbook Used:** [IRP name]
+   - **Case ID:** [CASE_ID]
+   - **Generated:** [timestamp from get_current_time]
+   - Complete Mermaid sequence diagram showing all A2A agent communications throughout the IRP
+5. Announce to the user that the IRP is complete and provide the path to the generated report
 
 Always aim for efficient coordination and clear communication when working with sub-agents.
 """,

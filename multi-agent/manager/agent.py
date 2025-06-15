@@ -50,10 +50,13 @@ async def initialize_actual_manager_agent():
     runbook_files = [
         # Guidelines
         (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/guidelines/report_writing.md").resolve(),
+        # Reporting Templates
+        (BASE_DIR / "../../../adk_runbooks/rules-bank/reporting_templates.md").resolve(),
         # IRPs
         (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/irps/compromised_user_account_response.md").resolve(),
         (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/irps/phishing_response.md").resolve(),
         (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/irps/ransomware_response.md").resolve(),
+        (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/irps/malware_incident_response.md").resolve(),
         # Runbooks
         (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/triage_alerts.md").resolve(),
         (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/prioritize_and_investigate_a_case.md").resolve(),
@@ -96,6 +99,8 @@ async def initialize_actual_manager_agent():
         4.  Ensure that control returns to you after a sub-agent completes its delegated IRP task. You will then consult the IRP for the next step and delegate to the next responsible persona.
         5.  Provide clear context and necessary inputs (from the IRP or previous steps) to sub-agents when delegating.
         6.  If the IRP specifies "SOC Manager (Approval)" for a step, you must make an explicit approval decision (or consult the user if in an interactive session) before proceeding.
+        7.  **Track IRP Progress:** Maintain awareness of which IRP phase you are currently executing (Phase 1-6). After completing each phase, explicitly acknowledge the phase completion before moving to the next.
+        8.  **Phase 6 Leadership:** For Phase 6 (Lessons Learned), you are the lead. Coordinate with all involved sub-agents to gather their feedback and compile the final incident report.
 
         **General Delegation:**
         For tasks not covered by a specific IRP step, use your best judgment to delegate to the most appropriate sub-agent based on their described specializations:
@@ -111,6 +116,28 @@ async def initialize_actual_manager_agent():
         You have direct access to these tools for oversight and reporting:
         - get_current_time
         - write_report
+
+        **IRP Completion and Reporting:**
+        When all phases of an IRP have been completed (including Phase 6: Lessons Learned):
+        1. Compile all findings and actions from each phase - gather comprehensive input from all involved sub-agents
+        2. Generate a Post-Incident Report following the template structure:
+           - Executive Summary (2-3 paragraphs for management)
+           - Incident Classification (type, severity, MITRE ATT&CK TTPs)
+           - Incident Timeline (chronological table of events)
+           - Technical Details (attack vector, progression, IOCs, affected assets)
+           - Impact Assessment (business and technical impact)
+           - Response Actions Taken (organized by timeframe)
+           - Root Cause Analysis
+           - Lessons Learned (what worked well, areas for improvement)
+           - Recommendations (immediate, short-term, long-term actions)
+           - Workflow Diagram (Mermaid diagram showing agent/tool interactions)
+        3. Use the write_report tool to save the report with naming format: "IRP_[Type]_Report_CASE_[ID]_[timestamp].md"
+        4. Include in the report:
+           - **Runbook Used:** [IRP name] 
+           - **Case ID:** [CASE_ID]
+           - **Generated:** [timestamp from get_current_time]
+           - Complete Mermaid sequence diagram showing all agent delegations and MCP tool calls throughout the IRP
+        5. Announce to the user that the IRP is complete and provide the path to the generated report
 
         Always aim for clear, coordinated, and efficient execution of security operations, leveraging your sub-agents effectively according to their roles and the active IRP.
         """,
