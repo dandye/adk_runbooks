@@ -212,12 +212,12 @@ class SOCAnalystTier3A2A:
                     command='/Users/dandye/homebrew/bin/uv',
                     args=[
                         "--directory",
-                        "/Users/dandye/Projects/google-mcp-security/server/secops/secops_mcp",
+                        "external/mcp-security/server/secops/secops_mcp",
                         "run",
                         "--reinstall-package",
                         "secops-mcp",
                         "--env-file",
-                        "/Users/dandye/Projects/google-mcp-security/.env",
+                        "external/mcp-security/.env",
                         "server.py"
                     ],
                 )
@@ -231,10 +231,10 @@ class SOCAnalystTier3A2A:
                     command='/Users/dandye/homebrew/bin/uv',
                     args=[
                         "--directory",
-                        "/Users/dandye/Projects/google-mcp-security/server/gti",
+                        "external/mcp-security/server/gti",
                         "run",
                         "--env-file",
-                        "/Users/dandye/Projects/google-mcp-security/.env",
+                        "external/mcp-security/.env",
                         "gti_mcp"
                     ],
                 )
@@ -248,10 +248,10 @@ class SOCAnalystTier3A2A:
                     command='uv',
                     args=[
                         "--directory",
-                        "/Users/dandye/Projects/google-mcp-security/server/secops-soar/secops_soar_mcp",
+                        "external/mcp-security/server/secops-soar/secops_soar_mcp",
                         "run",
                         "--env-file",
-                        "/Users/dandye/Projects/google-mcp-security/.env",
+                        "external/mcp-security/.env",
                         "server.py",
                         "--integrations",
                         "CSV,GoogleChronicle,Siemplify,SiemplifyUtilities"
@@ -267,7 +267,7 @@ class SOCAnalystTier3A2A:
                     command='uv',
                     args=[
                         "--directory",
-                        "/Users/dandye/Projects/google-mcp-security/server/scc",
+                        "external/mcp-security/server/scc",
                         "run",
                         "scc_mcp.py"
                     ],
