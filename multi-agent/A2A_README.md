@@ -12,7 +12,6 @@ This setup enables the SOC Manager to coordinate with specialized security agent
 - **Threat Hunter Agent**: Proactively searches for threats and anomalies
 - **Detection Engineer Agent**: Develops and maintains detection rules and signatures
 - **Incident Responder Agent**: Manages incident containment and recovery operations
-- **SOAR Specialist Agent**: Manages SOAR platform operations, case management, and workflow automation
 
 ## Setup Instructions
 
@@ -34,7 +33,6 @@ Run the startup script to launch all A2A agents:
 This will start:
 - CTI Researcher on http://localhost:8001
 - SOC Analyst Tier 1 on http://localhost:8002
-- SOAR Specialist on http://localhost:8003
 - SOC Analyst Tier 2 on http://localhost:8004
 - Threat Hunter on http://localhost:8005
 - Detection Engineer on http://localhost:8006
@@ -53,7 +51,7 @@ This will start ADK Web with agent discovery. You'll see both available agents:
 - **soc_manager_host**: A2A-enabled SOC Manager that coordinates with remote agents
 - **soc_manager_traditional**: Traditional multi-agent system with integrated sub-agents
 
-Select **soc_manager_host** to use the A2A system. The host agent will automatically discover and connect to all A2A agents running on ports 8001-8008.
+Select **soc_manager_host** to use the A2A system. The host agent will automatically discover and connect to all A2A agents running on their respective ports.
 
 ## Using the System
 

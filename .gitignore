@@ -12,3 +12,8 @@ rules-bank/.jupyter_cache/
 .buildinfo
 build/doctrees/
 build/**
+
+
+#
+hello-a2a
+multi-agent/manager/sub_agents/*/*.log

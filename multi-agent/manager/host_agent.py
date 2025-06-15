@@ -56,7 +56,6 @@ _agent_connections = {
         "threat_hunter": "http://localhost:8005",
         "detection_engineer": "http://localhost:8006",
         "incident_responder": "http://localhost:8007",
-        "soar_specialist": "http://localhost:8003",
     },
     "connections": {},
     "available_agents": []
@@ -68,7 +67,7 @@ async def send_message_to_agent(agent_name: str, message: str) -> str:
     Send a message to a remote agent via A2A.
 
     Args:
-        agent_name: Name of the agent to send to (e.g., "cti_researcher", "soc_analyst_tier1", "soar_specialist")
+        agent_name: Name of the agent to send to (e.g., "cti_researcher", "soc_analyst_tier1", "soc_analyst_tier2")
         message: The message/task to send to the agent
 
     Returns:
@@ -174,7 +173,6 @@ You can delegate tasks to specialized agents using the send_message_to_agent too
 - Detection Engineer: For creating and tuning detection rules
 - Incident Responder: For containing and eradicating threats
 - SOC Analyst Tier 3: For advanced investigation and threat hunting
-- SOAR Specialist: For SOAR platform operations, case management, and workflow automation
 
 When delegating tasks:
 1. Use send_message_to_agent() to communicate with the appropriate agent
@@ -189,7 +187,7 @@ When delegating tasks:
 - send_message_to_agent: Communicate with A2A agents
 
 **Available Agents:**
-The CTI Researcher (8001), SOC Analyst Tier 1 (8002), SOC Analyst Tier 2 (8004), SOC Analyst Tier 3 (8008), Threat Hunter (8005), Detection Engineer (8006), Incident Responder (8007), and SOAR Specialist (8003) agents should be running on their respective ports.
+The CTI Researcher (8001), SOC Analyst Tier 1 (8002), SOC Analyst Tier 2 (8004), SOC Analyst Tier 3 (8008), Threat Hunter (8005), Detection Engineer (8006), and Incident Responder (8007) agents should be running on their respective ports.
 
 Always aim for efficient coordination and clear communication when working with sub-agents.
 """,

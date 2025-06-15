@@ -39,7 +39,6 @@ adk web
                         A2A Protocol                      
     SOC Manager     ┌─────────────────┬─► CTI Researcher (8001)
     (Host Agent)    │                 ├─► SOC Analyst T1 (8002)
-                    │                 ├─► SOAR Specialist (8003)
                     │                 ├─► SOC Analyst T2 (8004)
                     │                 ├─► Threat Hunter (8005)
                     │                 ├─► Detection Engineer (8006)

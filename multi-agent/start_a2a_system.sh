@@ -28,9 +28,6 @@ cleanup() {
     if [ ! -z "$IR_PID" ]; then
         kill $IR_PID 2>/dev/null
     fi
-    if [ ! -z "$SOAR_PID" ]; then
-        kill $SOAR_PID 2>/dev/null
-    fi
     exit 0
 }
 
@@ -149,19 +146,6 @@ if ! kill -0 $SOC_T3_PID 2>/dev/null; then
     exit 1
 fi
 
-# Start SOAR Specialist agent
-echo "Starting SOAR Specialist agent on port 8003..."
-cd manager/sub_agents/soar_specialist
-python run_server.py > soar_agent.log 2>&1 &
-SOAR_PID=$!
-cd ../../..
-
-# Give agents time to fully start and check if running
-sleep 3
-if ! kill -0 $SOAR_PID 2>/dev/null; then
-    echo "❌ Failed to start SOAR Specialist agent. Check soar_agent.log for details."
-    exit 1
-fi
 
 echo -e "\n✅ All agents started successfully!"
 echo -e "\nAgent Status:"
@@ -172,7 +156,6 @@ echo "- SOC Analyst Tier 3: http://localhost:8008"
 echo "- Threat Hunter: http://localhost:8005"
 echo "- Detection Engineer: http://localhost:8006"
 echo "- Incident Responder: http://localhost:8007"
-echo "- SOAR Specialist: http://localhost:8003"
 
 echo -e "\nTo start the SOC Manager host agent, run from the multi-agent directory:"
 echo "  adk web agents/"
@@ -186,7 +169,7 @@ echo "- manager/sub_agents/soc_analyst_tier3/soc_agent.log"
 echo "- manager/sub_agents/threat_hunter/th_agent.log"
 echo "- manager/sub_agents/detection_engineer/de_agent.log"
 echo "- manager/sub_agents/incident_responder/ir_agent.log"
-echo "- manager/sub_agents/soar_specialist/soar_agent.log"
+echo ""
 
 echo -e "\nPress Ctrl+C to stop all agents...\n"
 
