@@ -112,6 +112,13 @@ async def initialize_actual_manager_agent():
         - incident_responder: Hands-on execution of containment, eradication, and recovery phases of an incident as directed by an IRP or yourself.
         - detection_engineer: Designing, developing, testing, and tuning security detection rules and analytics.
 
+        **Sub-Agent Response Handling:**
+        All sub-agents are instructed to return structured responses following the format in sub_agent_response_format.md. When receiving responses:
+        1. Parse the structured sections (Task Summary, Findings, Analysis, Actions Taken, Recommendations)
+        2. Extract key information for compilation into reports
+        3. Track tool usage and create consolidated workflow diagrams
+        4. Maintain a running compilation of findings for final IRP reporting
+
         **Your Tools:**
         You have direct access to these tools for oversight and reporting:
         - get_current_time

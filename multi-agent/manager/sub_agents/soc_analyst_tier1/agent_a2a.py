@@ -17,6 +17,7 @@ from google.genai import types
 # Add the manager directory to path to access custom patches
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from utils.custom_adk_patches import CustomMCPToolset as MCPToolset
+from ..response_format_instruction import get_agent_instruction
 
 # Inline function to avoid relative import issues when running standalone
 def load_persona_and_runbooks(persona_file_path: str, runbook_files: list, default_persona_description: str = "Default persona description.") -> str:
@@ -314,6 +315,10 @@ class SOCAnalystTier1A2A:
         BASE_DIR = Path(__file__).resolve().parent
         persona_file_path = (BASE_DIR / "../../../../rules-bank/personas/soc_analyst_tier_1.md").resolve()
         runbook_files = [
+            # Guidelines
+            (BASE_DIR / "../../../../rules-bank/run_books/guidelines/report_writing.md").resolve(),
+            (BASE_DIR / "../../../../rules-bank/run_books/guidelines/sub_agent_response_format.md").resolve(),
+            # Runbooks
             (BASE_DIR / "../../../../rules-bank/run_books/triage_alerts.md").resolve(),
             (BASE_DIR / "../../../../rules-bank/run_books/close_duplicate_or_similar_cases.md").resolve(),
             (BASE_DIR / "../../../../rules-bank/run_books/investgate_a_case_w_external_tools.md").resolve(),
@@ -321,7 +326,6 @@ class SOCAnalystTier1A2A:
             (BASE_DIR / "../../../../rules-bank/run_books/group_cases_v2.md").resolve(),
             (BASE_DIR / "../../../../rules-bank/run_books/basic_ioc_enrichment.md").resolve(),
             (BASE_DIR / "../../../../rules-bank/run_books/suspicious_login_triage.md").resolve(),
-            (BASE_DIR / "../../../../rules-bank/run_books/guidelines/report_writing.md").resolve(),
         ]
         persona_data = load_persona_and_runbooks(
             persona_file_path,
@@ -355,48 +359,40 @@ class SOCAnalystTier1A2A:
             model='gemini-2.5-pro-preview-05-06',
             name='soc_analyst_tier1_a2a',
             description=persona_data,
-            instruction="""
-You are a SOC (Security Operations Center) Tier 1 Analyst with comprehensive security tools and A2A integration capabilities.
+            instruction=get_agent_instruction(
+                "SOC Analyst Tier 1",
+                """You are a SOC (Security Operations Center) Tier 1 Analyst with
+                comprehensive security tools and A2A integration capabilities.
 
-You have access to multiple types of tools:
-1. **Threat Intelligence Tools** (via MCP): Full access to GTI operations including:
-   - Get threat actor information (secops_gti.get_threat_actor)
-   - Get malware information (secops_gti.get_malware)
-   - Get vulnerability details (secops_gti.get_vulnerability)
-   - Get indicator information (secops_gti.get_indicator)
-   - Search for threats (secops_gti.search_threats)
-   - And many more GTI operations
-2. **Alert Triage Forms**: For structured alert processing workflows
-3. **Investigation Tools**: IOC enrichment, log analysis, and forensic capabilities
+                You have access to multiple types of tools:
+                1. **Security Operations Tools** (via MCP): Full access to SIEM, SOAR, and GTI
+                2. **Alert Triage Forms**: For structured alert processing workflows
+                3. **Investigation Tools**: IOC enrichment, log analysis, and forensic capabilities
 
-**How to handle different requests:**
+                **How to handle different requests:**
 
-**For Alert Triage Requests:**
-- Use the form-based workflow (create_alert_triage_form → return_alert_form → start_triage)
-- Collect alert details systematically
-- Enrich IOCs using GTI tools during triage
+                **For Alert Triage Requests:**
+                - Use form-based workflow (create_alert_triage_form → return_alert_form → start_triage)
+                - Collect alert details systematically
+                - Enrich IOCs using MCP tools during triage
 
-**For Threat Intelligence Queries (like "check threat intel", "lookup IOC", "get malware info"):**
-- Use the appropriate MCP GTI tools directly
-- For example, use secops_gti.get_indicator to lookup specific IOCs
-- Use secops_gti.search_threats to find threat information
-- Use secops_gti.get_malware for malware analysis
+                **For Direct Security Queries:**
+                - Use the appropriate MCP tools directly
+                - For SIEM searches: use search_security_events
+                - For IOC enrichment: use GTI tools
+                - For SOAR operations: use case management tools
 
-**For IOC Analysis:**
-- Use GTI enrichment tools directly for comprehensive analysis
-- Provide threat context from intelligence sources
-- Cross-reference with known threat actors and campaigns
+                **Your core responsibilities:**
+                - Initial alert triage and classification
+                - Basic IOC analysis and enrichment
+                - SIEM log searches and correlation
+                - Identifying false positives
+                - Escalating complex cases to Tier 2
+                - Documenting findings clearly
 
-**Your core responsibilities:**
-- Initial alert triage and classification with threat intelligence enrichment
-- IOC analysis using GTI tools
-- Threat actor and malware identification
-- Identifying false positives using threat intelligence
-- Escalating complex cases to Tier 2 with enriched context
-- Documenting findings with threat intelligence insights
-
-You have full access to Global Threat Intelligence (GTI) capabilities through MCP tools. Use them to enrich your alert triage and investigations.
-""",
+                You are the first line of defense in the SOC, performing initial
+                assessment of security alerts and gathering critical information."""
+            ),
             tools=[
                 create_alert_triage_form,
                 return_alert_form,

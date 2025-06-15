@@ -17,6 +17,7 @@ from google.genai import types
 # Add the manager directory to path to access custom patches
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from utils.custom_adk_patches import CustomMCPToolset as MCPToolset
+from ..response_format_instruction import get_agent_instruction
 
 # Inline function to avoid relative import issues when running standalone
 def load_persona_and_runbooks(persona_file_path: str, runbook_files: list, default_persona_description: str = "Default persona description.") -> str:

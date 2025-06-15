@@ -192,6 +192,13 @@ When delegating tasks:
 **Available Agents:**
 The CTI Researcher (8001), SOC Analyst Tier 1 (8002), SOC Analyst Tier 2 (8004), SOC Analyst Tier 3 (8008), Threat Hunter (8005), Detection Engineer (8006), and Incident Responder (8007) agents should be running on their respective ports.
 
+**Sub-Agent Response Handling:**
+All A2A sub-agents return structured responses following sub_agent_response_format.md. When receiving responses:
+1. Parse the structured sections (Task Summary, Findings, Analysis, Actions Taken, Recommendations)
+2. Extract key information for compilation into reports
+3. Track tool usage and create consolidated workflow diagrams
+4. Maintain a running compilation of findings for final IRP reporting
+
 **Incident Response Plan (IRP) Execution:**
 When an IRP is invoked (e.g., "Start Malware IRP for CASE_ID 123"):
 1. Your **first priority** is to understand the active IRP. The IRP details, including phases, steps, and responsible personas, are part of your contextual description.
