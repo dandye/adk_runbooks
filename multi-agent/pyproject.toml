@@ -1,0 +1,32 @@
+[project]
+name = "adk-soc-manager"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "google-adk>=1.3.0",
+    "a2a-sdk>=0.2.5",
+    "nest-asyncio>=1.6.0",
+    "python-dotenv",
+    "click",
+    "uvicorn",
+    "google-generativeai",
+    "httpx",
+    "aiohttp",
+    "rich",
+    "pydantic",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "black",
+    "ruff",
+]
+
+[tool.uv]
+package = true
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

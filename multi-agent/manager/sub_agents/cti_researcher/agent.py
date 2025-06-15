@@ -2,6 +2,7 @@ from pathlib import Path
 from google.adk.agents import Agent
 
 from ...tools.tools import load_persona_and_runbooks
+from ..response_format_instruction import get_agent_instruction
 
 
 # Changed to a synchronous function that accepts tools and exit_stack
@@ -26,6 +27,7 @@ def get_agent(tools, exit_stack):
     # Guidelines
     (BASE_DIR / "../../../../rules-bank/run_books/guidelines/threat_intel_workflows.md").resolve(),
     (BASE_DIR / "../../../../rules-bank/run_books/guidelines/report_writing.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/guidelines/sub_agent_response_format.md").resolve(),
     # Runbooks
     (BASE_DIR / "../../../../rules-bank/run_books/investigate_a_gti_collection_id.md").resolve(),
     (BASE_DIR / "../../../../rules-bank/run_books/proactive_threat_hunting_based_on_gti_campain_or_actor.md").resolve(),
@@ -43,7 +45,13 @@ def get_agent(tools, exit_stack):
       name="cti_researcher",
       model="gemini-2.5-pro-preview-05-06",
       description=persona_data,
-      instruction="You are a CTI Researcher.",
+      instruction=get_agent_instruction(
+          "CTI Researcher",
+          """You are a CTI Researcher specializing in threat intelligence analysis,
+          IOC enrichment, threat actor profiling, and malware analysis. You provide
+          deep technical analysis and strategic intelligence to support security
+          operations."""
+      ),
       tools=tools, # Use passed-in tools
   )
   return agent_instance # Only return the agent instance

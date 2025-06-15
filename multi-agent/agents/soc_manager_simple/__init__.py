@@ -1,0 +1,1 @@
+# Simple SOC Manager without A2A dependencies

@@ -2,6 +2,7 @@ from pathlib import Path
 from google.adk.agents import Agent
 
 from ...tools.tools import load_persona_and_runbooks
+from ..response_format_instruction import get_agent_instruction
 
 
 # Changed to a synchronous function that accepts tools and exit_stack
@@ -26,6 +27,7 @@ def get_agent(tools, exit_stack):
   runbook_files = [
     # Guidelines
     (BASE_DIR / "../../../../rules-bank/run_books/guidelines/report_writing.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/guidelines/sub_agent_response_format.md").resolve(),
     # Runboosk
     (BASE_DIR / "../../../../rules-bank/run_books/case_event_timeline_and_process_analysis.md").resolve(),
     (BASE_DIR / "../../../../rules-bank/run_books/cloud_vulnerability_triage_and_contextualization.md").resolve(),

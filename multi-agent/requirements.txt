@@ -1,3 +1,11 @@
-google-adk==1.2.1
-google-generativeai==0.8.5
+google-adk>=1.3.0
+google-generativeai>=0.8.5
 python-dotenv==1.1.0
+a2a-sdk>=0.2.5
+nest-asyncio>=1.6.0
+httpx
+aiohttp
+uvicorn
+fastapi
+pydantic
+rich
