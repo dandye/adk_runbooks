@@ -1,6 +1,5 @@
 import json
 import random
-import asyncio
 import contextlib
 import sys
 from typing import Any, AsyncIterable, Optional
@@ -39,61 +38,61 @@ def load_persona_and_runbooks(persona_file_path: str, runbook_files: list, defau
     return persona_description
 
 
-# Local cache of created alert_ids for demo purposes.
-alert_ids = set()
+# Local cache of created incident IDs for demo purposes.
+incident_ids = set()
 
 
-def create_alert_triage_form(
-    alert_id: Optional[str] = None,
-    alert_type: Optional[str] = None,
+def create_incident_response_form(
+    incident_id: Optional[str] = None,
+    incident_type: Optional[str] = None,
     severity: Optional[str] = None,
-    source_system: Optional[str] = None,
-    affected_assets: Optional[str] = None,
-    event_time: Optional[str] = None,
-    description: Optional[str] = None,
-    initial_indicators: Optional[str] = None,
+    affected_systems: Optional[str] = None,
+    incident_scope: Optional[str] = None,
+    detection_time: Optional[str] = None,
+    containment_status: Optional[str] = None,
+    threat_indicators: Optional[str] = None,
 ) -> dict[str, Any]:
     """
-    Create an alert triage form for the SOC analyst to fill out.
+    Create an incident response form for the incident responder to fill out.
 
     Args:
-        alert_id (str): Alert ID from the SIEM/security system. Can be empty.
-        alert_type (str): Type of security alert (e.g., malware, phishing, suspicious login). Can be empty.
-        severity (str): Alert severity level (critical/high/medium/low). Can be empty.
-        source_system (str): System that generated the alert. Can be empty.
-        affected_assets (str): Affected systems, users, or IP addresses. Can be empty.
-        event_time (str): When the security event occurred. Can be empty.
-        description (str): Brief description of the alert. Can be empty.
-        initial_indicators (str): Initial IOCs or suspicious indicators. Can be empty.
+        incident_id (str): Incident ID from the incident management system. Can be empty.
+        incident_type (str): Type of security incident (e.g., malware, phishing, data breach, ransomware). Can be empty.
+        severity (str): Incident severity level (critical/high/medium/low). Can be empty.
+        affected_systems (str): Systems, networks, or assets affected by the incident. Can be empty.
+        incident_scope (str): Scope of the incident (single host, network segment, enterprise-wide). Can be empty.
+        detection_time (str): When the incident was first detected. Can be empty.
+        containment_status (str): Current containment status. Can be empty.
+        threat_indicators (str): IOCs and threat indicators associated with the incident. Can be empty.
 
     Returns:
-        dict[str, Any]: A dictionary containing the alert triage form data.
+        dict[str, Any]: A dictionary containing the incident response form data.
     """
-    triage_id = 'soc_triage_' + str(random.randint(1000000, 9999999))
-    alert_ids.add(triage_id)
+    response_id = 'incident_response_' + str(random.randint(1000000, 9999999))
+    incident_ids.add(response_id)
     return {
-        'triage_id': triage_id,
-        'alert_id': '<SIEM alert ID>' if not alert_id else alert_id,
-        'alert_type': '<e.g., malware, phishing, suspicious login>' if not alert_type else alert_type,
+        'response_id': response_id,
+        'incident_id': '<incident management system ID>' if not incident_id else incident_id,
+        'incident_type': '<e.g., malware, phishing, data breach, ransomware>' if not incident_type else incident_type,
         'severity': '<critical/high/medium/low>' if not severity else severity,
-        'source_system': '<e.g., Splunk, QRadar, CrowdStrike>' if not source_system else source_system,
-        'affected_assets': '<affected systems, users, IPs>' if not affected_assets else affected_assets,
-        'event_time': '<YYYY-MM-DD HH:MM:SS or relative time>' if not event_time else event_time,
-        'description': '<brief alert description>' if not description else description,
-        'initial_indicators': '<IOCs, suspicious files, IPs, domains>' if not initial_indicators else initial_indicators,
+        'affected_systems': '<affected systems, networks, assets>' if not affected_systems else affected_systems,
+        'incident_scope': '<single host, network segment, enterprise-wide>' if not incident_scope else incident_scope,
+        'detection_time': '<YYYY-MM-DD HH:MM:SS or relative time>' if not detection_time else detection_time,
+        'containment_status': '<not contained, partially contained, fully contained>' if not containment_status else containment_status,
+        'threat_indicators': '<IOCs, file hashes, IPs, domains, TTPs>' if not threat_indicators else threat_indicators,
     }
 
 
-def return_alert_form(
+def return_incident_response_form(
     form_request: dict[str, Any],
     tool_context: ToolContext,
     instructions: Optional[str] = None,
 ) -> dict[str, Any]:
     """
-    Returns a structured json object indicating an alert triage form to complete.
+    Returns a structured json object indicating an incident response form to complete.
 
     Args:
-        form_request (dict[str, Any]): The alert triage form data.
+        form_request (dict[str, Any]): The incident response form data.
         tool_context (ToolContext): The context in which the tool operates.
         instructions (str): Instructions for completing the form. Can be empty.
 
@@ -110,75 +109,76 @@ def return_alert_form(
         'form': {
             'type': 'object',
             'properties': {
-                'alert_id': {
+                'incident_id': {
                     'type': 'string',
-                    'description': 'Alert ID from the SIEM or security system',
-                    'title': 'Alert ID',
+                    'description': 'Incident ID from the incident management system',
+                    'title': 'Incident ID',
                 },
-                'alert_type': {
+                'incident_type': {
                     'type': 'string',
-                    'description': 'Type of security alert',
-                    'title': 'Alert Type',
-                    'enum': ['Malware', 'Phishing', 'Suspicious Login', 'Data Exfiltration', 'Brute Force', 'Anomalous Activity', 'Policy Violation', 'Other'],
+                    'description': 'Type of security incident',
+                    'title': 'Incident Type',
+                    'enum': ['Malware', 'Phishing', 'Data Breach', 'Ransomware', 'APT', 'Insider Threat', 'DDoS', 'Compromise', 'Other'],
                 },
                 'severity': {
                     'type': 'string',
-                    'description': 'Alert severity level',
+                    'description': 'Incident severity level',
                     'title': 'Severity',
                     'enum': ['Critical', 'High', 'Medium', 'Low'],
                 },
-                'source_system': {
+                'affected_systems': {
                     'type': 'string',
-                    'description': 'System that generated the alert',
-                    'title': 'Source System',
-                    'enum': ['Splunk', 'QRadar', 'CrowdStrike', 'Sentinel', 'Elastic', 'Other'],
+                    'description': 'Systems, networks, or assets affected by the incident',
+                    'title': 'Affected Systems',
                 },
-                'affected_assets': {
+                'incident_scope': {
                     'type': 'string',
-                    'description': 'Affected systems, users, or IP addresses (comma-separated)',
-                    'title': 'Affected Assets',
+                    'description': 'Scope of the incident impact',
+                    'title': 'Incident Scope',
+                    'enum': ['Single Host', 'Multiple Hosts', 'Network Segment', 'Multiple Networks', 'Enterprise-wide', 'External Impact'],
                 },
-                'event_time': {
+                'detection_time': {
                     'type': 'string',
-                    'description': 'When the security event occurred',
-                    'title': 'Event Time',
+                    'description': 'When the incident was first detected',
+                    'title': 'Detection Time',
                 },
-                'description': {
+                'containment_status': {
                     'type': 'string',
-                    'description': 'Brief description of the alert',
-                    'title': 'Alert Description',
+                    'description': 'Current containment status of the incident',
+                    'title': 'Containment Status',
+                    'enum': ['Not Contained', 'Partially Contained', 'Fully Contained', 'Eradicated'],
                 },
-                'initial_indicators': {
+                'threat_indicators': {
                     'type': 'string',
-                    'description': 'Initial IOCs or suspicious indicators (comma-separated)',
-                    'title': 'Initial Indicators',
+                    'description': 'IOCs and threat indicators associated with the incident (comma-separated)',
+                    'title': 'Threat Indicators',
                 },
-                'triage_id': {
+                'response_id': {
                     'type': 'string',
-                    'description': 'Triage request ID',
-                    'title': 'Triage ID',
+                    'description': 'Incident response tracking ID',
+                    'title': 'Response ID',
                     'readOnly': True,
                 },
             },
-            'required': ['alert_type', 'severity', 'triage_id'],
+            'required': ['incident_type', 'severity', 'response_id'],
         },
         'form_data': form_request,
-        'instructions': instructions or 'Please fill out the alert triage form with at least the alert type and severity.',
+        'instructions': instructions or 'Please fill out the incident response form with at least the incident type and severity.',
     }
     return json.dumps(form_dict)
 
 
-def start_triage(triage_id: str) -> dict[str, Any]:
-    """Begin alert triage for a given triage_id."""
-    if triage_id not in alert_ids:
+def initiate_incident_response(response_id: str) -> dict[str, Any]:
+    """Begin incident response for a given response_id."""
+    if response_id not in incident_ids:
         return {
-            'triage_id': triage_id,
-            'status': 'Error: Invalid triage_id.',
+            'response_id': response_id,
+            'status': 'Error: Invalid response_id.',
         }
     return {
-        'triage_id': triage_id,
-        'status': 'Triage initiated',
-        'message': 'Alert triage has been started. Initial analysis will be performed.'
+        'response_id': response_id,
+        'status': 'Incident response initiated',
+        'message': 'Incident response has been started. Containment, eradication, and recovery procedures will be executed.'
     }
 
 
@@ -197,7 +197,7 @@ class IncidentResponderA2A:
         self._runner = None
 
     def get_processing_message(self) -> str:
-        return 'Processing alert triage request...'
+        return 'Processing incident response request...'
 
     async def _initialize_mcp_tools(self):
         """Initialize MCP tools for all available servers."""
@@ -327,12 +327,11 @@ class IncidentResponderA2A:
 
         # Use the MCP tools that were initialized
         if self._mcp_tools:
-            print(f"SOC Analyst Tier 2 A2A agent initialized with {len(self._mcp_tools)} MCP tools")
+            print(f"Incident Responder A2A agent initialized with {len(self._mcp_tools)} MCP tools")
         else:
-            print("SOC Analyst Tier 2 A2A agent initialized with form-based alert triage tools only")
+            print("Incident Responder A2A agent initialized with form-based incident response tools only")
 
         # Load environment variables from .env file
-        import os
         from dotenv import load_dotenv
 
         # Try multiple locations for .env file
@@ -356,47 +355,52 @@ You are an Incident Responder with comprehensive security tools and A2A integrat
 
 You have access to multiple types of tools:
 1. **Threat Intelligence Tools** (via MCP): Full access to GTI operations including:
-   - Get threat actor information (secops_gti.get_threat_actor)
-   - Get malware information (secops_gti.get_malware)
-   - Get vulnerability details (secops_gti.get_vulnerability)
-   - Get indicator information (secops_gti.get_indicator)
-   - Search for threats (secops_gti.search_threats)
-   - And many more GTI operations
-2. **Alert Triage Forms**: For structured alert processing workflows
-3. **Investigation Tools**: IOC enrichment, log analysis, and forensic capabilities
+   - Get threat actor information for attribution and TTPs
+   - Get malware information for containment strategies
+   - Get vulnerability details for remediation planning
+   - Get indicator information for threat hunting
+   - Search for threats to understand attack scope
+   - And many more GTI operations for incident analysis
+2. **Incident Response Forms**: For structured incident management workflows
+3. **Security Platform Tools**: SIEM, SOAR, and SCC integration for response coordination
+4. **Investigation Tools**: IOC enrichment, log analysis, and forensic capabilities
 
 **How to handle different requests:**
 
-**For Alert Triage Requests:**
-- Use the form-based workflow (create_alert_triage_form → return_alert_form → start_triage)
-- Collect alert details systematically
-- Enrich IOCs using GTI tools during triage
+**For Incident Response Requests:**
+- Use the form-based workflow (create_incident_response_form → return_incident_response_form → initiate_incident_response)
+- Collect incident details systematically
+- Use GTI tools to understand threat context and attribution
+- Execute containment, eradication, and recovery procedures
 
-**For Threat Intelligence Queries (like "check threat intel", "lookup IOC", "get malware info"):**
-- Use the appropriate MCP GTI tools directly
-- For example, use secops_gti.get_indicator to lookup specific IOCs
-- Use secops_gti.search_threats to find threat information
-- Use secops_gti.get_malware for malware analysis
+**For Threat Intelligence Research (for incident context):**
+- Use GTI tools to understand threat actor TTPs and motivations
+- Research malware families for containment and eradication strategies
+- Analyze attack patterns to predict next steps
+- Get IOC intelligence for threat hunting and indicator blocking
 
-**For IOC Analysis:**
-- Use GTI enrichment tools directly for comprehensive analysis
-- Provide threat context from intelligence sources
-- Cross-reference with known threat actors and campaigns
+**For Incident Analysis and Attribution:**
+- Use GTI tools for comprehensive threat analysis
+- Provide threat actor context and campaign attribution
+- Cross-reference with known attack patterns and TTPs
+- Assess threat capability and likely next actions
 
 **Your core responsibilities:**
-- Initial alert triage and classification with threat intelligence enrichment
-- IOC analysis using GTI tools
-- Threat actor and malware identification
-- Identifying false positives using threat intelligence
-- Escalating complex cases to Tier 2 with enriched context
-- Documenting findings with threat intelligence insights
+- Leading incident containment to prevent spread
+- Coordinating eradication of threats from the environment
+- Managing recovery and restoration of affected systems
+- Conducting forensic analysis and evidence collection
+- Threat hunting to identify additional compromised assets
+- Coordinating with stakeholders and external parties
+- Documenting lessons learned and improving procedures
+- Managing communication during critical incidents
 
-You have full access to Global Threat Intelligence (GTI) capabilities through MCP tools. Use them to enrich your alert triage and investigations.
+You have full access to security platforms and threat intelligence to effectively contain, eradicate, and recover from security incidents.
 """,
             tools=[
-                create_alert_triage_form,
-                return_alert_form,
-                start_triage,
+                create_incident_response_form,
+                return_incident_response_form,
+                initiate_incident_response,
             ] + (self._mcp_tools or []),
         )
 
