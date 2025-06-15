@@ -1,6 +1,5 @@
 import json
 import random
-import asyncio
 import contextlib
 import sys
 from typing import Any, AsyncIterable, Optional
@@ -39,61 +38,61 @@ def load_persona_and_runbooks(persona_file_path: str, runbook_files: list, defau
     return persona_description
 
 
-# Local cache of created alert_ids for demo purposes.
-alert_ids = set()
+# Local cache of created detection rule IDs for demo purposes.
+detection_rule_ids = set()
 
 
-def create_alert_triage_form(
-    alert_id: Optional[str] = None,
-    alert_type: Optional[str] = None,
+def create_detection_rule_form(
+    rule_name: Optional[str] = None,
+    rule_type: Optional[str] = None,
     severity: Optional[str] = None,
-    source_system: Optional[str] = None,
-    affected_assets: Optional[str] = None,
-    event_time: Optional[str] = None,
-    description: Optional[str] = None,
-    initial_indicators: Optional[str] = None,
+    platform: Optional[str] = None,
+    detection_logic: Optional[str] = None,
+    mitre_tactics: Optional[str] = None,
+    iocs: Optional[str] = None,
+    false_positive_rate: Optional[str] = None,
 ) -> dict[str, Any]:
     """
-    Create an alert triage form for the SOC analyst to fill out.
+    Create a detection rule development form for the detection engineer to fill out.
 
     Args:
-        alert_id (str): Alert ID from the SIEM/security system. Can be empty.
-        alert_type (str): Type of security alert (e.g., malware, phishing, suspicious login). Can be empty.
-        severity (str): Alert severity level (critical/high/medium/low). Can be empty.
-        source_system (str): System that generated the alert. Can be empty.
-        affected_assets (str): Affected systems, users, or IP addresses. Can be empty.
-        event_time (str): When the security event occurred. Can be empty.
-        description (str): Brief description of the alert. Can be empty.
-        initial_indicators (str): Initial IOCs or suspicious indicators. Can be empty.
+        rule_name (str): Name of the detection rule. Can be empty.
+        rule_type (str): Type of detection rule (e.g., SIEM, YARA, Sigma, custom). Can be empty.
+        severity (str): Rule severity level (critical/high/medium/low). Can be empty.
+        platform (str): Target platform (e.g., Splunk, QRadar, Chronicle, Elastic). Can be empty.
+        detection_logic (str): The detection logic/query. Can be empty.
+        mitre_tactics (str): MITRE ATT&CK tactics/techniques. Can be empty.
+        iocs (str): IOCs or indicators this rule detects. Can be empty.
+        false_positive_rate (str): Expected false positive rate. Can be empty.
 
     Returns:
-        dict[str, Any]: A dictionary containing the alert triage form data.
+        dict[str, Any]: A dictionary containing the detection rule form data.
     """
-    triage_id = 'soc_triage_' + str(random.randint(1000000, 9999999))
-    alert_ids.add(triage_id)
+    rule_id = 'detection_rule_' + str(random.randint(1000000, 9999999))
+    detection_rule_ids.add(rule_id)
     return {
-        'triage_id': triage_id,
-        'alert_id': '<SIEM alert ID>' if not alert_id else alert_id,
-        'alert_type': '<e.g., malware, phishing, suspicious login>' if not alert_type else alert_type,
+        'rule_id': rule_id,
+        'rule_name': '<descriptive rule name>' if not rule_name else rule_name,
+        'rule_type': '<e.g., SIEM, YARA, Sigma, custom>' if not rule_type else rule_type,
         'severity': '<critical/high/medium/low>' if not severity else severity,
-        'source_system': '<e.g., Splunk, QRadar, CrowdStrike>' if not source_system else source_system,
-        'affected_assets': '<affected systems, users, IPs>' if not affected_assets else affected_assets,
-        'event_time': '<YYYY-MM-DD HH:MM:SS or relative time>' if not event_time else event_time,
-        'description': '<brief alert description>' if not description else description,
-        'initial_indicators': '<IOCs, suspicious files, IPs, domains>' if not initial_indicators else initial_indicators,
+        'platform': '<e.g., Splunk, QRadar, Chronicle, Elastic>' if not platform else platform,
+        'detection_logic': '<detection query/logic>' if not detection_logic else detection_logic,
+        'mitre_tactics': '<MITRE ATT&CK tactics/techniques>' if not mitre_tactics else mitre_tactics,
+        'iocs': '<IOCs, file hashes, domains, IPs>' if not iocs else iocs,
+        'false_positive_rate': '<expected FP rate>' if not false_positive_rate else false_positive_rate,
     }
 
 
-def return_alert_form(
+def return_detection_rule_form(
     form_request: dict[str, Any],
     tool_context: ToolContext,
     instructions: Optional[str] = None,
 ) -> dict[str, Any]:
     """
-    Returns a structured json object indicating an alert triage form to complete.
+    Returns a structured json object indicating a detection rule development form to complete.
 
     Args:
-        form_request (dict[str, Any]): The alert triage form data.
+        form_request (dict[str, Any]): The detection rule form data.
         tool_context (ToolContext): The context in which the tool operates.
         instructions (str): Instructions for completing the form. Can be empty.
 
@@ -110,75 +109,76 @@ def return_alert_form(
         'form': {
             'type': 'object',
             'properties': {
-                'alert_id': {
+                'rule_name': {
                     'type': 'string',
-                    'description': 'Alert ID from the SIEM or security system',
-                    'title': 'Alert ID',
+                    'description': 'Name of the detection rule',
+                    'title': 'Rule Name',
                 },
-                'alert_type': {
+                'rule_type': {
                     'type': 'string',
-                    'description': 'Type of security alert',
-                    'title': 'Alert Type',
-                    'enum': ['Malware', 'Phishing', 'Suspicious Login', 'Data Exfiltration', 'Brute Force', 'Anomalous Activity', 'Policy Violation', 'Other'],
+                    'description': 'Type of detection rule',
+                    'title': 'Rule Type',
+                    'enum': ['SIEM', 'YARA', 'Sigma', 'Custom', 'Correlation', 'Behavioral', 'Statistical'],
                 },
                 'severity': {
                     'type': 'string',
-                    'description': 'Alert severity level',
+                    'description': 'Rule severity level',
                     'title': 'Severity',
-                    'enum': ['Critical', 'High', 'Medium', 'Low'],
+                    'enum': ['Critical', 'High', 'Medium', 'Low', 'Informational'],
                 },
-                'source_system': {
+                'platform': {
                     'type': 'string',
-                    'description': 'System that generated the alert',
-                    'title': 'Source System',
-                    'enum': ['Splunk', 'QRadar', 'CrowdStrike', 'Sentinel', 'Elastic', 'Other'],
+                    'description': 'Target platform for the rule',
+                    'title': 'Platform',
+                    'enum': ['Splunk', 'QRadar', 'Chronicle', 'Elastic', 'Sentinel', 'Universal'],
                 },
-                'affected_assets': {
+                'detection_logic': {
                     'type': 'string',
-                    'description': 'Affected systems, users, or IP addresses (comma-separated)',
-                    'title': 'Affected Assets',
+                    'description': 'The detection logic, query, or rule content',
+                    'title': 'Detection Logic',
                 },
-                'event_time': {
+                'mitre_tactics': {
                     'type': 'string',
-                    'description': 'When the security event occurred',
-                    'title': 'Event Time',
+                    'description': 'MITRE ATT&CK tactics and techniques (comma-separated)',
+                    'title': 'MITRE ATT&CK',
                 },
-                'description': {
+                'iocs': {
                     'type': 'string',
-                    'description': 'Brief description of the alert',
-                    'title': 'Alert Description',
+                    'description': 'IOCs or indicators this rule detects (comma-separated)',
+                    'title': 'Target IOCs',
                 },
-                'initial_indicators': {
+                'false_positive_rate': {
                     'type': 'string',
-                    'description': 'Initial IOCs or suspicious indicators (comma-separated)',
-                    'title': 'Initial Indicators',
+                    'description': 'Expected false positive rate',
+                    'title': 'False Positive Rate',
+                    'enum': ['Very Low (<1%)', 'Low (1-5%)', 'Medium (5-15%)', 'High (>15%)', 'Unknown'],
                 },
-                'triage_id': {
+                'rule_id': {
                     'type': 'string',
-                    'description': 'Triage request ID',
-                    'title': 'Triage ID',
+                    'description': 'Detection rule ID',
+                    'title': 'Rule ID',
                     'readOnly': True,
                 },
             },
-            'required': ['alert_type', 'severity', 'triage_id'],
+            'required': ['rule_name', 'rule_type', 'severity', 'rule_id'],
         },
         'form_data': form_request,
-        'instructions': instructions or 'Please fill out the alert triage form with at least the alert type and severity.',
+        'instructions': instructions or 'Please fill out the detection rule development form with at least the rule name, type, and severity.',
     }
     return json.dumps(form_dict)
 
 
-def start_triage(triage_id: str) -> dict[str, Any]:
-    """Begin alert triage for a given triage_id."""
-    if triage_id not in alert_ids:
+def create_detection_rule(rule_id: str) -> dict[str, Any]:
+    """Begin detection rule development for a given rule_id."""
+    if rule_id not in detection_rule_ids:
         return {
-            'triage_id': triage_id,
-            'status': 'Error: Invalid triage_id.',
+            'rule_id': rule_id,
+            'status': 'Error: Invalid rule_id.',
         }
     return {
-        'triage_id': triage_id,
-        'status': 'Triage initiated',
-        'message': 'Alert triage has been started. Initial analysis will be performed.'
+        'rule_id': rule_id,
+        'status': 'Rule development initiated',
+        'message': 'Detection rule development has been started. Rule will be created and validated.'
     }
 
 
@@ -197,7 +197,7 @@ class DetectionEngineerA2A:
         self._runner = None
 
     def get_processing_message(self) -> str:
-        return 'Processing alert triage request...'
+        return 'Processing detection rule development request...'
 
     async def _initialize_mcp_tools(self):
         """Initialize MCP tools for all available servers."""
@@ -325,12 +325,11 @@ class DetectionEngineerA2A:
 
         # Use the MCP tools that were initialized
         if self._mcp_tools:
-            print(f"SOC Analyst Tier 2 A2A agent initialized with {len(self._mcp_tools)} MCP tools")
+            print(f"Detection Engineer A2A agent initialized with {len(self._mcp_tools)} MCP tools")
         else:
-            print("SOC Analyst Tier 2 A2A agent initialized with form-based alert triage tools only")
+            print("Detection Engineer A2A agent initialized with form-based detection rule tools only")
 
         # Load environment variables from .env file
-        import os
         from dotenv import load_dotenv
 
         # Try multiple locations for .env file
@@ -354,47 +353,52 @@ You are a Detection Engineer with comprehensive security tools and A2A integrati
 
 You have access to multiple types of tools:
 1. **Threat Intelligence Tools** (via MCP): Full access to GTI operations including:
-   - Get threat actor information (secops_gti.get_threat_actor)
-   - Get malware information (secops_gti.get_malware)
-   - Get vulnerability details (secops_gti.get_vulnerability)
-   - Get indicator information (secops_gti.get_indicator)
-   - Search for threats (secops_gti.search_threats)
-   - And many more GTI operations
-2. **Alert Triage Forms**: For structured alert processing workflows
-3. **Investigation Tools**: IOC enrichment, log analysis, and forensic capabilities
+   - Get threat actor information for detection rule context
+   - Get malware information for signature development
+   - Get vulnerability details for detection coverage
+   - Get indicator information for IOC-based rules
+   - Search for threats to understand attack patterns
+   - And many more GTI operations for detection development
+2. **Detection Rule Development Forms**: For structured detection rule creation workflows
+3. **Security Platform Tools**: SIEM, SOAR, and SCC integration for rule deployment
+4. **Analysis Tools**: For rule validation, tuning, and false positive analysis
 
 **How to handle different requests:**
 
-**For Alert Triage Requests:**
-- Use the form-based workflow (create_alert_triage_form → return_alert_form → start_triage)
-- Collect alert details systematically
-- Enrich IOCs using GTI tools during triage
+**For Detection Rule Development:**
+- Use the form-based workflow (create_detection_rule_form → return_detection_rule_form → create_detection_rule)
+- Collect rule requirements systematically
+- Use GTI tools to research threat patterns and IOCs
+- Develop detection logic based on threat intelligence
 
-**For Threat Intelligence Queries (like "check threat intel", "lookup IOC", "get malware info"):**
-- Use the appropriate MCP GTI tools directly
-- For example, use secops_gti.get_indicator to lookup specific IOCs
-- Use secops_gti.search_threats to find threat information
-- Use secops_gti.get_malware for malware analysis
+**For Threat Intelligence Research (for detection development):**
+- Use GTI tools to understand threat actor TTPs
+- Research malware families for behavioral detection
+- Analyze attack patterns for correlation rules
+- Get IOC intelligence for signature-based detection
 
-**For IOC Analysis:**
-- Use GTI enrichment tools directly for comprehensive analysis
-- Provide threat context from intelligence sources
-- Cross-reference with known threat actors and campaigns
+**For Rule Tuning and Validation:**
+- Use security platform tools to test and deploy rules
+- Analyze false positive rates using historical data
+- Tune detection logic based on environment feedback
+- Validate rule effectiveness against known threats
 
 **Your core responsibilities:**
-- Initial alert triage and classification with threat intelligence enrichment
-- IOC analysis using GTI tools
-- Threat actor and malware identification
-- Identifying false positives using threat intelligence
-- Escalating complex cases to Tier 2 with enriched context
-- Documenting findings with threat intelligence insights
+- Developing detection rules for SIEM platforms (Splunk, QRadar, Chronicle, etc.)
+- Creating YARA rules for malware detection
+- Building Sigma rules for universal detection
+- Researching threat intelligence to inform detection logic
+- Validating and tuning detection rules to reduce false positives
+- Mapping detections to MITRE ATT&CK framework
+- Implementing detection-as-code workflows
+- Collaborating with threat hunters and analysts on detection gaps
 
-You have full access to Global Threat Intelligence (GTI) capabilities through MCP tools. Use them to enrich your alert triage and investigations.
+You have full access to security platforms and threat intelligence to develop effective, low-noise detection capabilities.
 """,
             tools=[
-                create_alert_triage_form,
-                return_alert_form,
-                start_triage,
+                create_detection_rule_form,
+                return_detection_rule_form,
+                create_detection_rule,
             ] + (self._mcp_tools or []),
         )
 
