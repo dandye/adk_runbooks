@@ -10,8 +10,11 @@ cleanup() {
     if [ ! -z "$CTI_PID" ]; then
         kill $CTI_PID 2>/dev/null
     fi
-    if [ ! -z "$SOC_PID" ]; then
-        kill $SOC_PID 2>/dev/null
+    if [ ! -z "$SOC_T1_PID" ]; then
+        kill $SOC_T1_PID 2>/dev/null
+    fi
+    if [ ! -z "$SOC_T2_PID" ]; then
+        kill $SOC_T2_PID 2>/dev/null
     fi
     if [ ! -z "$SOAR_PID" ]; then
         kill $SOAR_PID 2>/dev/null
@@ -54,13 +57,27 @@ fi
 echo "Starting SOC Analyst Tier 1 agent on port 8002..."
 cd manager/sub_agents/soc_analyst_tier1
 python run_server.py > soc_agent.log 2>&1 &
-SOC_PID=$!
+SOC_T1_PID=$!
 cd ../../..
 
 # Give it time to start and check if it's running
 sleep 2
-if ! kill -0 $SOC_PID 2>/dev/null; then
+if ! kill -0 $SOC_T1_PID 2>/dev/null; then
     echo "❌ Failed to start SOC Analyst Tier 1 agent. Check soc_agent.log for details."
+    exit 1
+fi
+
+# Start SOC Analyst Tier 2 agent
+echo "Starting SOC Analyst Tier 2 agent on port 8004..."
+cd manager/sub_agents/soc_analyst_tier2
+python run_server.py > soc_agent.log 2>&1 &
+SOC_T2_PID=$!
+cd ../../..
+
+# Give it time to start and check if it's running
+sleep 2
+if ! kill -0 $SOC_T2_PID 2>/dev/null; then
+    echo "❌ Failed to start SOC Analyst Tier 2 agent. Check soc_agent.log for details."
     exit 1
 fi
 
@@ -82,6 +99,7 @@ echo -e "\n✅ All agents started successfully!"
 echo -e "\nAgent Status:"
 echo "- CTI Researcher: http://localhost:8001"
 echo "- SOC Analyst Tier 1: http://localhost:8002"
+echo "- SOC Analyst Tier 2: http://localhost:8004"
 echo "- SOAR Specialist: http://localhost:8003"
 
 echo -e "\nTo start the SOC Manager host agent, run from the multi-agent directory:"
@@ -91,6 +109,7 @@ echo "  Then select 'soc_manager_host' from the web interface"
 echo -e "\nLogs are available at:"
 echo "- manager/sub_agents/cti_researcher/cti_agent.log"
 echo "- manager/sub_agents/soc_analyst_tier1/soc_agent.log"
+echo "- manager/sub_agents/soc_analyst_tier2/soc_agent.log"
 echo "- manager/sub_agents/soar_specialist/soar_agent.log"
 
 echo -e "\nPress Ctrl+C to stop all agents...\n"
