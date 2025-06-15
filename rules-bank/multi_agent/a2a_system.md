@@ -194,6 +194,48 @@ MCP_SERVERS = {
 }
 ```
 
+#### Technical Implementation Details
+
+A2A agents with MCP tool access use an async initialization pattern:
+
+```python
+# Example from SOAR Specialist agent
+async def _initialize_mcp_tools(self):
+    """Initialize MCP tools asynchronously"""
+    if self.tools is None:
+        self.exit_stack = contextlib.ExitStack()
+        self.tools = await CustomMCPToolset.create(
+            stdio_servers=[
+                StdioServerParameters(
+                    command='uv',
+                    args=[
+                        "--directory", "/path/to/mcp-server",
+                        "run", "server.py",
+                        "--integrations", "CSV,GoogleChronicle,Siemplify"
+                    ]
+                )
+            ],
+            exit_stack=self.exit_stack
+        )
+
+async def _ensure_initialized(self):
+    """Lazy initialization on first request"""
+    if not self.initialized:
+        await self._initialize_mcp_tools()
+        self.initialized = True
+
+def cleanup(self):
+    """Proper resource cleanup"""
+    if hasattr(self, 'exit_stack') and self.exit_stack:
+        self.exit_stack.close()
+```
+
+**Key Benefits:**
+- **Async Loading**: MCP tools initialize without blocking agent startup
+- **Resource Management**: Proper cleanup prevents connection leaks  
+- **Timeout Handling**: Custom timeout (60s) prevents premature disconnections
+- **Lazy Initialization**: Tools load only when first needed
+
 ## Troubleshooting
 
 ### Common Issues
@@ -210,6 +252,21 @@ MCP_SERVERS = {
 #### MCP Tool Failures
 **Problem:** MCP tools not initializing  
 **Solution:** Update tool paths in `manager/tools/tools.py` and ensure MCP servers are accessible.
+
+#### MCP Timeout Issues
+**Problem:** MCP tools failing with timeout errors  
+**Solution:** Use `CustomMCPToolset` with extended timeout (60s) instead of default (5s):
+```python
+from utils.custom_adk_patches import CustomMCPToolset
+```
+
+#### Port Conflicts  
+**Problem:** "Address already in use" when starting agents  
+**Solution:** Check for existing processes and kill if needed:
+```bash
+# Find processes using ports 8001-8008
+lsof -ti:8001-8008 | xargs kill -9
+```
 
 ### Checking Logs
 
