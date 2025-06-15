@@ -3,8 +3,8 @@
 
 import sys
 import os
-# Add the parent directory to the path to import the agent module
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add the multi-agent directory to the path to import modules properly
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 
 import asyncio
 import json
@@ -15,7 +15,7 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from agent_a2a import ThreatHunterA2A
+from manager.sub_agents.threat_hunter.agent_a2a import ThreatHunterA2A
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)

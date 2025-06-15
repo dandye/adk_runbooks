@@ -204,21 +204,27 @@ class SOCAnalystTier2A2A:
         """Initialize MCP tools for all available servers."""
         try:
             print("Initializing MCP tools...")
+            # Get absolute path to the project root
+            from pathlib import Path
+            project_root = Path(__file__).resolve().parent.parent.parent.parent.parent
+            env_file_path = project_root / "external" / "mcp-security" / ".env"
+            print(f"Using .env file at: {env_file_path}")
+            
             self._exit_stack = contextlib.AsyncExitStack()
             self._mcp_tools = []
 
             # SecOps MCP
             self._secops_toolset = MCPToolset(
                 connection_params=StdioServerParameters(
-                    command='/Users/dandye/homebrew/bin/uv',
+                    command='uv',
                     args=[
                         "--directory",
-                        "external/mcp-security/server/secops/secops_mcp",
+                        "../external/mcp-security/server/secops/secops_mcp",
                         "run",
                         "--reinstall-package",
                         "secops-mcp",
                         "--env-file",
-                        "external/mcp-security/.env",
+                        str(env_file_path),
                         "server.py"
                     ],
                 )
@@ -229,13 +235,13 @@ class SOCAnalystTier2A2A:
             # GTI MCP
             self._gti_toolset = MCPToolset(
                 connection_params=StdioServerParameters(
-                    command='/Users/dandye/homebrew/bin/uv',
+                    command='uv',
                     args=[
                         "--directory",
-                        "external/mcp-security/server/gti",
+                        "../external/mcp-security/server/gti",
                         "run",
                         "--env-file",
-                        "external/mcp-security/.env",
+                        str(env_file_path),
                         "gti_mcp"
                     ],
                 )
@@ -249,10 +255,10 @@ class SOCAnalystTier2A2A:
                     command='uv',
                     args=[
                         "--directory",
-                        "external/mcp-security/server/secops-soar/secops_soar_mcp",
+                        "../external/mcp-security/server/secops-soar/secops_soar_mcp",
                         "run",
                         "--env-file",
-                        "external/mcp-security/.env",
+                        str(env_file_path),
                         "server.py",
                         "--integrations",
                         "CSV,GoogleChronicle,Siemplify,SiemplifyUtilities"
@@ -268,7 +274,7 @@ class SOCAnalystTier2A2A:
                     command='uv',
                     args=[
                         "--directory",
-                        "external/mcp-security/server/scc",
+                        "../external/mcp-security/server/scc",
                         "run",
                         "scc_mcp.py"
                     ],
@@ -328,7 +334,6 @@ class SOCAnalystTier2A2A:
             print("SOC Analyst Tier 2 A2A agent initialized with form-based alert triage tools only")
 
         # Load environment variables from .env file
-        import os
         from dotenv import load_dotenv
 
         # Try multiple locations for .env file

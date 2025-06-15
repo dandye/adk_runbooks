@@ -50,10 +50,8 @@ fi
 
 # Start CTI Researcher agent
 echo "Starting CTI Researcher agent on port 8001..."
-cd manager/sub_agents/cti_researcher
-python run_server.py > cti_agent.log 2>&1 &
+python -m manager.sub_agents.cti_researcher.run_server > manager/sub_agents/cti_researcher/cti_agent.log 2>&1 &
 CTI_PID=$!
-cd ../../..
 
 # Give it time to start and check if it's running
 sleep 2
@@ -64,10 +62,8 @@ fi
 
 # Start SOC Analyst Tier 1 agent
 echo "Starting SOC Analyst Tier 1 agent on port 8002..."
-cd manager/sub_agents/soc_analyst_tier1
-python run_server.py > soc_agent.log 2>&1 &
+python -m manager.sub_agents.soc_analyst_tier1.run_server > manager/sub_agents/soc_analyst_tier1/soc_agent.log 2>&1 &
 SOC_T1_PID=$!
-cd ../../..
 
 # Give it time to start and check if it's running
 sleep 2
@@ -78,10 +74,8 @@ fi
 
 # Start SOC Analyst Tier 2 agent
 echo "Starting SOC Analyst Tier 2 agent on port 8004..."
-cd manager/sub_agents/soc_analyst_tier2
-python run_server.py > soc_agent.log 2>&1 &
+python -m manager.sub_agents.soc_analyst_tier2.run_server > manager/sub_agents/soc_analyst_tier2/soc_agent.log 2>&1 &
 SOC_T2_PID=$!
-cd ../../..
 
 # Give it time to start and check if it's running
 sleep 2
@@ -92,10 +86,8 @@ fi
 
 # Start Threat Hunter agent
 echo "Starting Threat Hunter agent on port 8005..."
-cd manager/sub_agents/threat_hunter
-python run_server.py > th_agent.log 2>&1 &
+python -m manager.sub_agents.threat_hunter.run_server > manager/sub_agents/threat_hunter/th_agent.log 2>&1 &
 TH_PID=$!
-cd ../../..
 
 # Give it time to start and check if it's running
 sleep 2
@@ -106,10 +98,8 @@ fi
 
 # Start Detection Engineer agent
 echo "Starting Detection Engineer agent on port 8006..."
-cd manager/sub_agents/detection_engineer
-python run_server.py > de_agent.log 2>&1 &
+python -m manager.sub_agents.detection_engineer.run_server > manager/sub_agents/detection_engineer/de_agent.log 2>&1 &
 DE_PID=$!
-cd ../../..
 
 # Give it time to start and check if it's running
 sleep 2
@@ -120,10 +110,8 @@ fi
 
 # Start Incident Responder agent
 echo "Starting Incident Responder agent on port 8007..."
-cd manager/sub_agents/incident_responder
-python run_server.py > ir_agent.log 2>&1 &
+python -m manager.sub_agents.incident_responder.run_server > manager/sub_agents/incident_responder/ir_agent.log 2>&1 &
 IR_PID=$!
-cd ../../..
 
 # Give it time to start and check if it's running
 sleep 2
@@ -134,10 +122,8 @@ fi
 
 # Start SOC Analyst Tier 3 agent
 echo "Starting SOC Analyst Tier 3 agent on port 8008..."
-cd manager/sub_agents/soc_analyst_tier3
-python run_server.py > soc_agent.log 2>&1 &
+python -m manager.sub_agents.soc_analyst_tier3.run_server > manager/sub_agents/soc_analyst_tier3/soc_agent.log 2>&1 &
 SOC_T3_PID=$!
-cd ../../..
 
 # Give it time to start and check if it's running
 sleep 2
@@ -173,5 +159,5 @@ echo ""
 
 echo -e "\nPress Ctrl+C to stop all agents...\n"
 
-# Wait indefinitely
-wait
+# Wait for all background processes
+wait $CTI_PID $SOC_T1_PID $SOC_T2_PID $SOC_T3_PID $TH_PID $DE_PID $IR_PID
