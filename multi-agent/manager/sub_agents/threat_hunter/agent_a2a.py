@@ -1,6 +1,5 @@
 import json
 import random
-import asyncio
 import contextlib
 import sys
 from typing import Any, AsyncIterable, Optional
@@ -212,12 +211,12 @@ class ThreatHunterA2A:
                     command='/Users/dandye/homebrew/bin/uv',
                     args=[
                         "--directory",
-                        "/Users/dandye/Projects/google-mcp-security/server/secops/secops_mcp",
+                        "../../../external/mcp-security/server/secops/secops_mcp",
                         "run",
                         "--reinstall-package",
                         "secops-mcp",
                         "--env-file",
-                        "/Users/dandye/Projects/google-mcp-security/.env",
+                        "../../../external/mcp-security/.env",
                         "server.py"
                     ],
                 )
@@ -231,10 +230,10 @@ class ThreatHunterA2A:
                     command='/Users/dandye/homebrew/bin/uv',
                     args=[
                         "--directory",
-                        "/Users/dandye/Projects/google-mcp-security/server/gti",
+                        "../../../external/mcp-security/server/gti",
                         "run",
                         "--env-file",
-                        "/Users/dandye/Projects/google-mcp-security/.env",
+                        "../../../external/mcp-security/.env",
                         "gti_mcp"
                     ],
                 )
@@ -248,10 +247,10 @@ class ThreatHunterA2A:
                     command='uv',
                     args=[
                         "--directory",
-                        "/Users/dandye/Projects/google-mcp-security/server/secops-soar/secops_soar_mcp",
+                        "../../../external/mcp-security/server/secops-soar/secops_soar_mcp",
                         "run",
                         "--env-file",
-                        "/Users/dandye/Projects/google-mcp-security/.env",
+                        "../../../external/mcp-security/.env",
                         "server.py",
                         "--integrations",
                         "CSV,GoogleChronicle,Siemplify,SiemplifyUtilities"
@@ -267,7 +266,7 @@ class ThreatHunterA2A:
                     command='uv',
                     args=[
                         "--directory",
-                        "/Users/dandye/Projects/google-mcp-security/server/scc",
+                        "../../../external/mcp-security/server/scc",
                         "run",
                         "scc_mcp.py"
                     ],
@@ -333,7 +332,6 @@ class ThreatHunterA2A:
             print("Threat Hunter A2A agent initialized with form-based threat hunting tools only")
 
         # Load environment variables from .env file
-        import os
         from dotenv import load_dotenv
 
         # Try multiple locations for .env file
@@ -357,47 +355,52 @@ You are a Threat Hunter with comprehensive security tools and A2A integration ca
 
 You have access to multiple types of tools:
 1. **Threat Intelligence Tools** (via MCP): Full access to GTI operations including:
-   - Get threat actor information (secops_gti.get_threat_actor)
-   - Get malware information (secops_gti.get_malware)
-   - Get vulnerability details (secops_gti.get_vulnerability)
-   - Get indicator information (secops_gti.get_indicator)
-   - Search for threats (secops_gti.search_threats)
-   - And many more GTI operations
-2. **Alert Triage Forms**: For structured alert processing workflows
-3. **Investigation Tools**: IOC enrichment, log analysis, and forensic capabilities
+   - Get threat actor information for hunting campaign development
+   - Get malware information for behavioral hunting patterns
+   - Get vulnerability details for exploit hunting
+   - Get indicator information for proactive IOC hunting
+   - Search for threats to develop hunting hypotheses
+   - And many more GTI operations for threat hunting intelligence
+2. **Threat Hunt Campaign Forms**: For structured proactive hunting workflows
+3. **Security Platform Tools**: SIEM, SOAR, and SCC integration for hunting data sources
+4. **Hunting Tools**: Advanced log analysis, behavioral detection, and anomaly hunting capabilities
 
 **How to handle different requests:**
 
-**For Alert Triage Requests:**
-- Use the form-based workflow (create_alert_triage_form → return_alert_form → start_triage)
-- Collect alert details systematically
-- Enrich IOCs using GTI tools during triage
+**For Threat Hunting Campaign Requests:**
+- Use the form-based workflow (create_threat_hunt_form → return_threat_hunt_form → initiate_threat_hunt)
+- Develop hypothesis-driven hunting campaigns
+- Use GTI tools to research threat actor TTPs and develop hunt queries
+- Execute proactive hunting across enterprise environments
 
-**For Threat Intelligence Queries (like "check threat intel", "lookup IOC", "get malware info"):**
-- Use the appropriate MCP GTI tools directly
-- For example, use secops_gti.get_indicator to lookup specific IOCs
-- Use secops_gti.search_threats to find threat information
-- Use secops_gti.get_malware for malware analysis
+**For Threat Intelligence Research (for hunt development):**
+- Use GTI tools to understand threat actor behaviors and TTPs
+- Research recent campaigns and attack patterns for hunt hypotheses
+- Analyze IOCs and infrastructure for proactive hunting
+- Develop hunting signatures based on threat intelligence
 
-**For IOC Analysis:**
-- Use GTI enrichment tools directly for comprehensive analysis
-- Provide threat context from intelligence sources
-- Cross-reference with known threat actors and campaigns
+**For Proactive Threat Detection:**
+- Use GTI tools for comprehensive threat landscape analysis
+- Develop behavioral hunting queries and detection logic
+- Hunt for unknown threats using anomaly detection
+- Search for indicators of compromise before they become alerts
 
 **Your core responsibilities:**
-- Initial alert triage and classification with threat intelligence enrichment
-- IOC analysis using GTI tools
-- Threat actor and malware identification
-- Identifying false positives using threat intelligence
-- Escalating complex cases to Tier 2 with enriched context
-- Documenting findings with threat intelligence insights
+- Developing and executing hypothesis-driven threat hunting campaigns
+- Proactive threat detection and anomaly hunting
+- Creating hunting queries and detection signatures
+- Researching threat actor TTPs for hunting opportunities
+- Hunting for advanced persistent threats and stealth malware
+- Developing threat hunting methodologies and best practices
+- Collaborating with threat intelligence teams for hunt development
+- Training SOC analysts on threat hunting techniques
 
-You have full access to Global Threat Intelligence (GTI) capabilities through MCP tools. Use them to enrich your alert triage and investigations.
+You have full access to security platforms and threat intelligence for proactive threat hunting and detection.
 """,
             tools=[
-                create_alert_triage_form,
-                return_alert_form,
-                start_triage,
+                create_threat_hunt_form,
+                return_threat_hunt_form,
+                initiate_threat_hunt,
             ] + (self._mcp_tools or []),
         )
 
