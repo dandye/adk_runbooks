@@ -24,11 +24,20 @@ pip install -r requirements-docs.txt  # For documentation
 ```
 
 ### Running the Multi-Agent System
+
+#### A2A Mode (Distributed Agents)
+```bash
+cd multi-agent
+./start_a2a_system.sh  # Start all 8 A2A agents
+adk web agents/        # In new terminal, select soc_manager_host
+```
+
+#### Traditional Mode (Integrated Agents)
 ```bash
 cd multi-agent
 adk run manager  # Run the manager agent
 # or
-adk web  # Run web UI (from multi-agent directory)
+adk web         # Run web UI, select soc_manager_traditional
 ```
 
 ### Documentation
@@ -44,10 +53,13 @@ make html  # From project root
 - **Manager Agent** (`multi-agent/manager/`): Root orchestrator that delegates to specialized sub-agents
 - **Sub-agents** (`multi-agent/manager/sub_agents/`): 
   - CTI Researcher: Threat intelligence gathering and analysis
-  - SOC Analyst Tier 1/2/3: Alert triage and investigation at different levels
+  - SOC Analyst Tier 1: Initial alert triage and investigation
+  - SOC Analyst Tier 2: Deep investigation and SOAR integration
+  - SOC Analyst Tier 3: Advanced incident response and forensics
   - Threat Hunter: Proactive threat detection
   - Incident Responder: Incident containment and recovery
   - Detection Engineer: Security rule development
+  - SOAR Specialist: SOAR platform operations and automation
 
 ### Deferred Initialization Pattern
 The manager agent uses `DeferredInitializationAgent` to handle async initialization of sub-agents and MCP tools. This allows synchronous registration while deferring expensive setup operations.
@@ -90,6 +102,8 @@ Each agent loads its persona and relevant runbooks using `load_persona_and_runbo
 2. Add `__init__.py` and `agent.py` following existing patterns
 3. Import in manager's `agent.py`
 4. Add to sub_agents list in manager initialization
+5. For A2A support: Create `agent_a2a.py` and `run_server.py` files
+6. Update `start_a2a_system.sh` to include the new agent
 
 ### Modifying Tool Configuration
 Edit `multi-agent/manager/tools/tools.py` to update MCP server paths or add new tools.

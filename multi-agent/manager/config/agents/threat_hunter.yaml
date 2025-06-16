@@ -1,0 +1,60 @@
+agent_name: threat_hunter
+display_name: "Threat Hunter"
+description: "Proactive threat detection and hypothesis-driven investigation specialist"
+
+expertise_areas:
+  - proactive_threat_hunting
+  - hypothesis_development
+  - behavioral_analysis
+  - ttps_identification
+  - anomaly_detection
+  - hunting_campaign_development
+
+mcp_servers:
+  - name: siem_toolset
+    description: "Threat hunting investigations"
+    tools:
+      - search_security_events
+      - get_rule_detections
+      - search_security_rules
+      - list_security_rules
+      - get_threat_intel
+  - name: gti_toolset
+    description: "Threat hunting intelligence"
+    tools:
+      - get_hunting_ruleset
+      - get_entities_related_to_a_hunting_ruleset
+      - search_threats
+      - search_threat_actors
+      - get_file_behavior_report
+      - get_file_behavior_summary
+      - get_collection_mitre_tree
+
+delegation_triggers:
+  - "threat hunting"
+  - "proactive detection"
+  - "hunt hypothesis"
+  - "behavioral analysis"
+  - "TTP identification"
+  - "anomaly investigation"
+  - "hunting campaign"
+
+capabilities:
+  collaborates_with:
+    - detection_engineer
+    - cti_researcher
+    - soc_analyst_tier3
+  hunting_types:
+    - hypothesis_driven
+    - intel_driven
+    - indicator_driven
+    - ttp_based
+  provides_output:
+    - new_detections
+    - threat_reports
+    - hunting_playbooks
+  
+tool_cards:
+  - start_research
+  - create_research_request_form
+  - return_research_form

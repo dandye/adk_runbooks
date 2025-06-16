@@ -1,0 +1,1 @@
+# SOC Manager Host Agent for ADK Web discovery

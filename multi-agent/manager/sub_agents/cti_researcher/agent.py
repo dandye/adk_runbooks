@@ -2,6 +2,7 @@ from pathlib import Path
 from google.adk.agents import Agent
 
 from ...tools.tools import load_persona_and_runbooks
+from ..response_format_instruction import get_agent_instruction
 
 
 # Changed to a synchronous function that accepts tools and exit_stack
@@ -26,6 +27,7 @@ def get_agent(tools, exit_stack):
     # Guidelines
     (BASE_DIR / "../../../../rules-bank/run_books/guidelines/threat_intel_workflows.md").resolve(),
     (BASE_DIR / "../../../../rules-bank/run_books/guidelines/report_writing.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/guidelines/sub_agent_response_format.md").resolve(),
     # Runbooks
     (BASE_DIR / "../../../../rules-bank/run_books/investigate_a_gti_collection_id.md").resolve(),
     (BASE_DIR / "../../../../rules-bank/run_books/proactive_threat_hunting_based_on_gti_campain_or_actor.md").resolve(),
@@ -43,7 +45,20 @@ def get_agent(tools, exit_stack):
       name="cti_researcher",
       model="gemini-2.5-pro-preview-05-06",
       description=persona_data,
-      instruction="You are a CTI Researcher.",
+      instruction=get_agent_instruction("""You are a CTI Researcher specializing in threat intelligence analysis.
+
+        **Your MCP Tool Access:**
+        - **GTI tools** - Google Threat Intelligence platform for IOC lookups, threat actor profiles, malware analysis
+        - **SIEM tools** - Query security logs to correlate with threat intelligence
+        - **SOAR tools** - Access case data for threat intelligence context
+        
+        **Key Capabilities:**
+        - When asked about any hash, IP, domain, or URL - use GTI tools immediately
+        - Perform threat actor attribution and campaign analysis
+        - Analyze malware families and their behaviors
+        - Provide strategic threat intelligence assessments
+        
+        Always use your GTI MCP tools proactively when any IOC or threat intelligence is requested."""),
       tools=tools, # Use passed-in tools
   )
   return agent_instance # Only return the agent instance

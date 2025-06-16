@@ -22,7 +22,7 @@ from mcp.client.stdio import stdio_client
 from mcp.client.streamable_http import streamablehttp_client
 
 # Configure your desired timeout for stdio-based MCP connections
-CUSTOM_STDIO_TIMEOUT_SECONDS = 60  # 60 seconds instead of the default 5 seconds
+CUSTOM_STDIO_TIMEOUT_SECONDS = 300  # 300 seconds (5 minutes) instead of the default 5 seconds
 
 
 class CustomMcpSessionManager(MCPSessionManager):

@@ -1,0 +1,57 @@
+agent_name: soar_specialist
+display_name: "SOAR Specialist"
+description: "SOAR platform automation and orchestration specialist"
+
+expertise_areas:
+  - soar_automation
+  - playbook_development
+  - workflow_orchestration
+  - integration_management
+  - case_automation
+  - response_automation
+
+mcp_servers:
+  - name: soar_toolset
+    description: "Full SOAR platform capabilities"
+    tools:
+      - list_cases
+      - get_case_full_details
+      - list_alerts_by_case
+      - list_events_by_alert
+      - post_case_comment
+      - change_case_priority
+      - search_entity
+      - get_entity_details
+      - list_alert_group_identifiers_by_case
+      - get_entities_by_alert_group_identifiers
+
+delegation_triggers:
+  - "SOAR automation"
+  - "playbook development"
+  - "workflow automation"
+  - "SOAR integration"
+  - "case automation"
+  - "orchestration"
+  - "SOAR platform"
+
+capabilities:
+  automation_areas:
+    - incident_response
+    - threat_enrichment
+    - case_management
+    - alert_triage
+    - remediation_actions
+  integrations:
+    - siem_platforms
+    - threat_intel_feeds
+    - ticketing_systems
+    - communication_tools
+  playbook_types:
+    - investigation
+    - containment
+    - enrichment
+    - notification
+  
+tool_cards:
+  - create_incident_response_form
+  - return_incident_response_form

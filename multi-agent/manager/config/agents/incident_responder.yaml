@@ -1,0 +1,59 @@
+agent_name: incident_responder
+display_name: "Incident Responder"
+description: "Incident response coordination and execution specialist"
+
+expertise_areas:
+  - incident_coordination
+  - containment_strategies
+  - recovery_planning
+  - evidence_collection
+  - stakeholder_communication
+  - post_incident_analysis
+
+mcp_servers:
+  - name: soar_toolset
+    description: "Incident case coordination"
+    tools:
+      - list_cases
+      - get_case_full_details
+      - post_case_comment
+      - change_case_priority
+  - name: siem_toolset
+    description: "Incident investigation and response"
+    tools:
+      - search_security_events
+      - get_security_alerts
+      - do_update_security_alert
+      - lookup_entity
+  - name: scc_toolset
+    description: "Security posture during incidents"
+    tools:
+      - top_vulnerability_findings
+      - get_finding_remediation
+
+delegation_triggers:
+  - "incident response"
+  - "containment"
+  - "recovery"
+  - "incident coordination"
+  - "evidence collection"
+  - "stakeholder communication"
+  - "incident management"
+
+capabilities:
+  coordinates_with:
+    - soc_analyst_tier2
+    - soc_analyst_tier3
+    - threat_hunter
+  incident_types:
+    - malware
+    - ransomware
+    - data_breach
+    - phishing
+    - insider_threat
+  response_time: "immediate"
+  
+tool_cards:
+  - initiate_incident_response
+  - create_incident_response_form
+  - return_incident_response_form

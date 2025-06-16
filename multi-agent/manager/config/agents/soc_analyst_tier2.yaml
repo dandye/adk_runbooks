@@ -1,0 +1,68 @@
+agent_name: soc_analyst_tier2
+display_name: "SOC Analyst Tier 2"
+description: "Deep investigation and SOAR case management specialist"
+
+expertise_areas:
+  - deep_investigation
+  - soar_case_management
+  - advanced_ioc_analysis
+  - entity_investigation
+  - threat_correlation
+  - case_prioritization
+
+mcp_servers:
+  - name: soar_toolset
+    description: "SOAR platform operations"
+    tools:
+      - list_cases
+      - get_case_full_details
+      - list_alerts_by_case
+      - list_events_by_alert
+      - post_case_comment
+      - change_case_priority
+      - search_entity
+      - get_entity_details
+      - list_alert_group_identifiers_by_case
+      - get_entities_by_alert_group_identifiers
+  - name: siem_toolset
+    description: "Advanced security investigation"
+    tools:
+      - search_security_events
+      - get_security_alerts
+      - lookup_entity
+      - get_rule_detections
+      - search_security_rules
+  - name: gti_toolset
+    description: "Advanced threat intelligence"
+    tools:
+      - search_threats
+      - search_threat_actors
+      - search_malware_families
+      - get_file_behavior_report
+      - get_entities_related_to_a_file
+      - get_entities_related_to_a_domain
+      - get_entities_related_to_an_ip_address
+
+delegation_triggers:
+  - "SOAR case"
+  - "deep investigation"
+  - "case management"
+  - "advanced analysis"
+  - "entity investigation"
+  - "threat correlation"
+  - "SOAR operations"
+
+capabilities:
+  can_escalate_to:
+    - soc_analyst_tier3
+    - incident_responder
+    - threat_hunter
+  handles_alert_severity:
+    - medium
+    - high
+  response_time: "minutes"
+  
+tool_cards:
+  - initiate_advanced_investigation
+  - create_advanced_investigation_form
+  - return_advanced_investigation_form

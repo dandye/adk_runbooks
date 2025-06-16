@@ -100,6 +100,15 @@ This area houses a broader collection of runbooks for various security operation
 run_books/index
 ```
 
+### Security Tools
+Documentation for MCP security tools and integrations used by the multi-agent system.
+```{toctree}
+:maxdepth: 2
+:caption: Security Tools:
+
+tools/index
+```
+
 ### Templates and Use Cases
 Here you'll find templates to help standardize the creation of new runbooks and documentation detailing specific detection use cases.
 ```{toctree}

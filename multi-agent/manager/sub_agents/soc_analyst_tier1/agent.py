@@ -2,6 +2,7 @@ from pathlib import Path
 from google.adk.agents import Agent
 
 from ...tools.tools import load_persona_and_runbooks
+from ..response_format_instruction import get_agent_instruction
 
 
 # Changed to a synchronous function that accepts tools and exit_stack
@@ -23,6 +24,10 @@ def get_agent(tools, exit_stack):
   BASE_DIR = Path(__file__).resolve().parent
   persona_file_path = (BASE_DIR / "../../../../rules-bank/personas/soc_analyst_tier_1.md").resolve()
   runbook_files = [
+    # Guidelines
+    (BASE_DIR / "../../../../rules-bank/run_books/guidelines/report_writing.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/guidelines/sub_agent_response_format.md").resolve(),
+    # Runbooks
     (BASE_DIR / "../../../../rules-bank/run_books/triage_alerts.md").resolve(),
     (BASE_DIR / "../../../../rules-bank/run_books/close_duplicate_or_similar_cases.md").resolve(),
     (BASE_DIR / "../../../../rules-bank/run_books/investgate_a_case_w_external_tools.md").resolve(),
@@ -30,7 +35,6 @@ def get_agent(tools, exit_stack):
     (BASE_DIR / "../../../../rules-bank/run_books/group_cases_v2.md").resolve(),
     (BASE_DIR / "../../../../rules-bank/run_books/basic_ioc_enrichment.md").resolve(),
     (BASE_DIR / "../../../../rules-bank/run_books/suspicious_login_triage.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/guidelines/report_writing.md").resolve(),
   ]
 
   persona_description = load_persona_and_runbooks(
@@ -43,7 +47,20 @@ def get_agent(tools, exit_stack):
       name="soc_analyst_tier1",
       model="gemini-2.5-pro-preview-05-06",
       description=persona_description,
-      instruction="""You are a Tier 1 SOC Analyst.""",
+      instruction=get_agent_instruction("""You are SOC Analyst Tier 1 responsible for initial alert triage and investigation.
+
+        **Your MCP Tool Access:**
+        - **SIEM tools** - Query security logs, search for IOCs, analyze basic events
+        - **SOAR tools** - View cases for context during triage
+        - **GTI tools** - Basic IOC lookups for enrichment
+        
+        **Key Capabilities:**
+        - Perform initial alert triage using SIEM queries
+        - Search for IOCs across security logs
+        - Basic endpoint analysis and data gathering
+        - Initial assessment of security alerts
+        
+        Always use your SIEM MCP tools proactively to investigate alerts and gather evidence."""),
       tools=tools,
   )
   return agent_instance # Only return the agent instance

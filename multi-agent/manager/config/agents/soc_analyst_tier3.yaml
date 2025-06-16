@@ -1,0 +1,64 @@
+agent_name: soc_analyst_tier3
+display_name: "SOC Analyst Tier 3"
+description: "Advanced incident response and security architecture specialist"
+
+expertise_areas:
+  - critical_incident_response
+  - advanced_forensics
+  - malware_analysis
+  - security_architecture
+  - vulnerability_assessment
+  - threat_mitigation_strategy
+
+mcp_servers:
+  - name: siem_toolset
+    description: "Expert-level security investigation"
+    tools:
+      - search_security_events
+      - get_security_alerts
+      - do_update_security_alert
+      - list_security_rules
+      - list_rule_errors
+      - get_threat_intel
+  - name: gti_toolset
+    description: "Expert threat intelligence analysis"
+    tools:
+      - analyse_file
+      - get_file_behavior_summary
+      - get_collection_report
+      - get_collection_mitre_tree
+      - get_collection_timeline_events
+      - search_campaigns
+      - search_vulnerabilities
+      - get_threat_profile
+      - get_threat_profile_recommendations
+  - name: scc_toolset
+    description: "Security posture and vulnerability management"
+    tools:
+      - top_vulnerability_findings
+      - get_finding_remediation
+
+delegation_triggers:
+  - "critical incident"
+  - "advanced forensics"
+  - "malware analysis"
+  - "security architecture"
+  - "expert analysis"
+  - "APT investigation"
+  - "vulnerability assessment"
+
+capabilities:
+  can_delegate_to:
+    - incident_responder
+    - detection_engineer
+    - threat_hunter
+  handles_alert_severity:
+    - high
+    - critical
+  response_time: "urgent"
+  expertise_level: "expert"
+  
+tool_cards:
+  - initiate_incident_response
+  - create_incident_response_form
+  - return_incident_response_form

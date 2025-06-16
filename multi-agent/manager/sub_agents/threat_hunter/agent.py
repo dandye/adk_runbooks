@@ -2,6 +2,7 @@ from pathlib import Path
 from google.adk.agents import Agent
 
 from ...tools.tools import load_persona_and_runbooks
+from ..response_format_instruction import get_agent_instruction
 
 
 # Changed to a synchronous function that accepts tools and exit_stack
@@ -29,7 +30,8 @@ def get_agent(tools, exit_stack):
     (BASE_DIR / "../../../../rules-bank/run_books/guided_ttp_hunt_credential_access.md").resolve(),
     (BASE_DIR / "../../../../rules-bank/run_books/lateral_movement_hunt_psexec_wmi.md").resolve(),
     (BASE_DIR / "../../../../rules-bank/run_books/proactive_threat_hunting_based_on_gti_campain_or_actor.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/guidelines/report_writing.md").resolve(), # Added report writing
+    (BASE_DIR / "../../../../rules-bank/run_books/guidelines/report_writing.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/guidelines/sub_agent_response_format.md").resolve(), # Added report writing
   ]
 
   persona_description = load_persona_and_runbooks(

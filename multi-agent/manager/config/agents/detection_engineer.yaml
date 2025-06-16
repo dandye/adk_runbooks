@@ -1,0 +1,58 @@
+agent_name: detection_engineer
+display_name: "Detection Engineer"
+description: "Security detection rule development and tuning specialist"
+
+expertise_areas:
+  - detection_rule_development
+  - rule_optimization
+  - false_positive_reduction
+  - detection_coverage_mapping
+  - rule_testing
+  - detection_effectiveness
+
+mcp_servers:
+  - name: siem_toolset
+    description: "Detection rule management"
+    tools:
+      - search_security_rules
+      - list_security_rules
+      - list_rule_errors
+      - get_rule_detections
+      - search_security_events
+  - name: gti_toolset
+    description: "Threat-based detection development"
+    tools:
+      - get_collection_mitre_tree
+      - search_threats
+      - search_malware_families
+      - get_hunting_ruleset
+
+delegation_triggers:
+  - "detection rule"
+  - "rule development"
+  - "detection engineering"
+  - "rule tuning"
+  - "false positive"
+  - "detection coverage"
+  - "SIEM rule"
+
+capabilities:
+  creates_rules_for:
+    - mitre_techniques
+    - threat_actors
+    - malware_families
+    - suspicious_behaviors
+  rule_types:
+    - correlation_rules
+    - behavioral_rules
+    - threshold_rules
+    - ml_based_rules
+  output_formats:
+    - yara_rules
+    - sigma_rules
+    - siem_queries
+  
+tool_cards:
+  - create_detection_rule
+  - create_detection_rule_form
+  - return_detection_rule_form
