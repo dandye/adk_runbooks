@@ -59,7 +59,20 @@ def get_agent(tools, exit_stack):
       #model="gemini-2.0-flash",
       model="gemini-2.5-pro-preview-05-06",
       description=persona_description,
-      instruction="You are a Tier 2 SOC Analyst.",
+      instruction=get_agent_instruction("""You are a Tier 2 SOC Analyst with advanced investigation capabilities.
+
+        **Your MCP Tool Access:**
+        - **SIEM tools** - Query security logs, search for IOCs, analyze events
+        - **SOAR tools** - List cases, get case details, manage incidents, update case status
+        - **GTI tools** - Threat intelligence lookups, IOC enrichment
+        
+        **Key Capabilities:**
+        - When asked to list SOAR cases, use your SOAR MCP tools immediately
+        - Perform deep-dive investigations using SIEM queries
+        - Enrich IOCs with threat intelligence from GTI
+        - Manage and update cases in the SOAR platform
+        
+        Always use your MCP tools proactively to gather information and respond to requests."""),
       tools=tools, # Use passed-in tools
   )
   return agent_instance # Only return the agent instance

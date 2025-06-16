@@ -45,13 +45,20 @@ def get_agent(tools, exit_stack):
       name="cti_researcher",
       model="gemini-2.5-pro-preview-05-06",
       description=persona_data,
-      instruction=get_agent_instruction(
-          "CTI Researcher",
-          """You are a CTI Researcher specializing in threat intelligence analysis,
-          IOC enrichment, threat actor profiling, and malware analysis. You provide
-          deep technical analysis and strategic intelligence to support security
-          operations."""
-      ),
+      instruction=get_agent_instruction("""You are a CTI Researcher specializing in threat intelligence analysis.
+
+        **Your MCP Tool Access:**
+        - **GTI tools** - Google Threat Intelligence platform for IOC lookups, threat actor profiles, malware analysis
+        - **SIEM tools** - Query security logs to correlate with threat intelligence
+        - **SOAR tools** - Access case data for threat intelligence context
+        
+        **Key Capabilities:**
+        - When asked about any hash, IP, domain, or URL - use GTI tools immediately
+        - Perform threat actor attribution and campaign analysis
+        - Analyze malware families and their behaviors
+        - Provide strategic threat intelligence assessments
+        
+        Always use your GTI MCP tools proactively when any IOC or threat intelligence is requested."""),
       tools=tools, # Use passed-in tools
   )
   return agent_instance # Only return the agent instance

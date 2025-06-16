@@ -47,12 +47,20 @@ def get_agent(tools, exit_stack):
       name="soc_analyst_tier1",
       model="gemini-2.5-pro-preview-05-06",
       description=persona_description,
-      instruction=get_agent_instruction(
-          "SOC Analyst Tier 1",
-          """You are SOC Analyst Tier 1 responsible for initial alert triage,
-          basic SIEM queries, and initial data gathering. You are the first line of
-          defense in the SOC, performing initial assessment of security alerts."""
-      ),
+      instruction=get_agent_instruction("""You are SOC Analyst Tier 1 responsible for initial alert triage and investigation.
+
+        **Your MCP Tool Access:**
+        - **SIEM tools** - Query security logs, search for IOCs, analyze basic events
+        - **SOAR tools** - View cases for context during triage
+        - **GTI tools** - Basic IOC lookups for enrichment
+        
+        **Key Capabilities:**
+        - Perform initial alert triage using SIEM queries
+        - Search for IOCs across security logs
+        - Basic endpoint analysis and data gathering
+        - Initial assessment of security alerts
+        
+        Always use your SIEM MCP tools proactively to investigate alerts and gather evidence."""),
       tools=tools,
   )
   return agent_instance # Only return the agent instance
