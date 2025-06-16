@@ -20,8 +20,8 @@ from utils.custom_adk_patches import CustomMCPToolset as MCPToolset
 from ..response_format_instruction import get_agent_instruction
 
 # Inline function to avoid relative import issues when running standalone
-def load_persona_and_runbooks(persona_file_path: str, runbook_files: list, default_persona_description: str = "Default persona description.") -> str:
-    """Loads persona description from a file and appends contents from runbook files."""
+def load_persona_and_runbooks(persona_file_path: str, runbook_files: list, tool_card_files: list, default_persona_description: str = "Default persona description.") -> str:
+    """Loads persona description from a file and appends contents from runbook and tool card files."""
     persona_description = ""
     try:
         with open(persona_file_path, 'r') as f:
@@ -37,6 +37,14 @@ def load_persona_and_runbooks(persona_file_path: str, runbook_files: list, defau
             persona_description += "\n\n" + runbook_content
         except FileNotFoundError:
             print(f"Warning: Runbook file not found at {runbook_file}. Skipping.")
+
+    for tool_card_file in tool_card_files:
+        try:
+            with open(tool_card_file, 'r') as f:
+                tool_card_content = f.read()
+            persona_description += "\n\n" + tool_card_content
+        except FileNotFoundError:
+            print(f"Warning: Tool card file not found at {tool_card_file}. Skipping.")
     return persona_description
 
 
@@ -209,7 +217,7 @@ class SOCAnalystTier2A2A:
             project_root = Path(__file__).resolve().parent.parent.parent.parent.parent
             env_file_path = project_root / "external" / "mcp-security" / ".env"
             print(f"Using .env file at: {env_file_path}")
-            
+
             self._exit_stack = contextlib.AsyncExitStack()
             self._mcp_tools = []
 
@@ -321,9 +329,67 @@ class SOCAnalystTier2A2A:
         BASE_DIR = Path(__file__).resolve().parent
         persona_file_path = (BASE_DIR / "../../../../rules-bank/personas/soc_analyst_tier_2.md").resolve()
         runbook_files = []
+        tool_card_files = [
+            (BASE_DIR / "../../tool_cards/create_alert_triage_form.md").resolve(),
+            (BASE_DIR / "../../tool_cards/return_alert_form.md").resolve(),
+            (BASE_DIR / "../../tool_cards/start_triage.md").resolve(),
+            (BASE_DIR / "../../tool_cards/secops_mcp_search_security_events.md").resolve(),
+            (BASE_DIR / "../../tool_cards/secops_mcp_get_security_alerts.md").resolve(),
+            (BASE_DIR / "../../tool_cards/secops_mcp_get_security_alert_by_id.md").resolve(),
+            (BASE_DIR / "../../tool_cards/secops_mcp_do_update_security_alert.md").resolve(),
+            (BASE_DIR / "../../tool_cards/secops_mcp_lookup_entity.md").resolve(),
+            (BASE_DIR / "../../tool_cards/secops_mcp_list_security_rules.md").resolve(),
+            (BASE_DIR / "../../tool_cards/secops_mcp_search_security_rules.md").resolve(),
+            (BASE_DIR / "../../tool_cards/secops_mcp_get_rule_detections.md").resolve(),
+            (BASE_DIR / "../../tool_cards/secops_mcp_list_rule_errors.md").resolve(),
+            (BASE_DIR / "../../tool_cards/secops_mcp_get_ioc_matches.md").resolve(),
+            (BASE_DIR / "../../tool_cards/secops_mcp_get_threat_intel.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_collection_report.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_entities_related_to_a_collection.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_search_threats.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_search_campaigns.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_search_threat_actors.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_search_malware_families.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_search_software_toolkits.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_search_threat_reports.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_search_vulnerabilities.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_collection_timeline_events.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_collection_mitre_tree.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_file_report.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_entities_related_to_a_file.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_file_behavior_report.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_file_behavior_summary.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_analyse_file.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_search_iocs.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_hunting_ruleset.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_entities_related_to_a_hunting_ruleset.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_domain_report.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_entities_related_to_a_domain.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_ip_address_report.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_entities_related_to_an_ip_address.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_list_threat_profiles.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_threat_profile.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_threat_profile_recommendations.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_threat_profile_associations_timeline.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_url_report.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_entities_related_to_an_url.md").resolve(),
+            (BASE_DIR / "../../tool_cards/soar_mcp_list_cases.md").resolve(),
+            (BASE_DIR / "../../tool_cards/soar_mcp_post_case_comment.md").resolve(),
+            (BASE_DIR / "../../tool_cards/soar_mcp_list_alerts_by_case.md").resolve(),
+            (BASE_DIR / "../../tool_cards/soar_mcp_list_alert_group_identifiers_by_case.md").resolve(),
+            (BASE_DIR / "../../tool_cards/soar_mcp_list_events_by_alert.md").resolve(),
+            (BASE_DIR / "../../tool_cards/soar_mcp_change_case_priority.md").resolve(),
+            (BASE_DIR / "../../tool_cards/soar_mcp_get_entities_by_alert_group_identifiers.md").resolve(),
+            (BASE_DIR / "../../tool_cards/soar_mcp_get_entity_details.md").resolve(),
+            (BASE_DIR / "../../tool_cards/soar_mcp_search_entity.md").resolve(),
+            (BASE_DIR / "../../tool_cards/soar_mcp_get_case_full_details.md").resolve(),
+            (BASE_DIR / "../../tool_cards/scc_mcp_top_vulnerability_findings.md").resolve(),
+            (BASE_DIR / "../../tool_cards/scc_mcp_get_finding_remediation.md").resolve(),
+        ]
         persona_data = load_persona_and_runbooks(
             persona_file_path,
             runbook_files,
+            tool_card_files,
             default_persona_description="SOC Tier 2 Analyst specializing in alert triage and initial investigation"
         )
 
@@ -355,7 +421,7 @@ class SOCAnalystTier2A2A:
             instruction=get_agent_instruction("""You are a Tier 2 SOC Analyst with advanced investigation capabilities.
 
 **Your MCP Tool Access:**
-- **SIEM tools** - Query security logs, search for IOCs, analyze events  
+- **SIEM tools** - Query security logs, search for IOCs, analyze events
 - **SOAR tools** - List cases, get case details, manage incidents, update case status
 - **GTI tools** - Threat intelligence lookups, IOC enrichment
 - **SCC tools** - Security Command Center findings and vulnerabilities

@@ -20,8 +20,8 @@ from utils.custom_adk_patches import CustomMCPToolset as MCPToolset
 from ..response_format_instruction import get_agent_instruction
 
 # Inline function to avoid relative import issues when running standalone
-def load_persona_and_runbooks(persona_file_path: str, runbook_files: list, default_persona_description: str = "Default persona description.") -> str:
-    """Loads persona description from a file and appends contents from runbook files."""
+def load_persona_and_runbooks(persona_file_path: str, runbook_files: list, tool_card_files: list, default_persona_description: str = "Default persona description.") -> str:
+    """Loads persona description from a file and appends contents from runbook and tool card files."""
     persona_description = ""
     try:
         with open(persona_file_path, 'r') as f:
@@ -37,6 +37,14 @@ def load_persona_and_runbooks(persona_file_path: str, runbook_files: list, defau
             persona_description += "\n\n" + runbook_content
         except FileNotFoundError:
             print(f"Warning: Runbook file not found at {runbook_file}. Skipping.")
+
+    for tool_card_file in tool_card_files:
+        try:
+            with open(tool_card_file, 'r') as f:
+                tool_card_content = f.read()
+            persona_description += "\n\n" + tool_card_content
+        except FileNotFoundError:
+            print(f"Warning: Tool card file not found at {tool_card_file}. Skipping.")
     return persona_description
 
 
@@ -191,13 +199,13 @@ class CTIResearcherA2A:
 
     def get_processing_message(self) -> str:
         return 'Processing CTI research request...'
-    
+
     async def _initialize_mcp_tools(self):
         """Initialize MCP tools for GTI operations."""
         try:
             print("Initializing GTI MCP tools...")
             self._exit_stack = contextlib.AsyncExitStack()
-            
+
             # Create GTI MCPToolset
             self._gti_toolset = MCPToolset(
                 connection_params=StdioServerParameters(
@@ -213,14 +221,14 @@ class CTIResearcherA2A:
                     ],
                 )
             )
-            
+
             # Register for cleanup
             self._exit_stack.push_async_callback(self._gti_toolset.close)
-            
+
             # Get the tools from the toolset
             self._mcp_tools = await self._gti_toolset.get_tools()
             print(f"Successfully loaded {len(self._mcp_tools)} MCP tools")
-            
+
             return True
         except Exception as e:
             print(f"Failed to initialize MCP tools: {e}")
@@ -228,7 +236,7 @@ class CTIResearcherA2A:
                 await self._exit_stack.aclose()
                 self._exit_stack = None
             return False
-    
+
     async def _ensure_initialized(self):
         """Ensure the agent is initialized with MCP tools."""
         if not self._initialized:
@@ -237,10 +245,10 @@ class CTIResearcherA2A:
             if not success:
                 print("Warning: MCP tools initialization failed, continuing with form tools only")
                 self._mcp_tools = []
-            
+
             # Build the agent with available tools
             self._agent = self._build_agent()
-            
+
             # Create the runner
             self._runner = Runner(
                 app_name=self._agent.name,
@@ -249,7 +257,7 @@ class CTIResearcherA2A:
                 session_service=InMemorySessionService(),
                 memory_service=InMemoryMemoryService(),
             )
-            
+
             self._initialized = True
 
     def _build_agent(self) -> LlmAgent:
@@ -270,33 +278,68 @@ class CTIResearcherA2A:
             (BASE_DIR / "../../../../rules-bank/run_books/apt_threat_hunt.md").resolve(),
             (BASE_DIR / "../../../../rules-bank/run_books/deep_dive_ioc_analysis.md").resolve(),
         ]
+        tool_card_files = [
+            (BASE_DIR / "../../tool_cards/create_research_request_form.md").resolve(),
+            (BASE_DIR / "../../tool_cards/return_research_form.md").resolve(),
+            (BASE_DIR / "../../tool_cards/start_research.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_collection_report.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_entities_related_to_a_collection.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_search_threats.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_search_campaigns.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_search_threat_actors.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_search_malware_families.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_search_software_toolkits.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_search_threat_reports.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_search_vulnerabilities.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_collection_timeline_events.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_collection_mitre_tree.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_file_report.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_entities_related_to_a_file.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_file_behavior_report.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_file_behavior_summary.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_analyse_file.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_search_iocs.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_hunting_ruleset.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_entities_related_to_a_hunting_ruleset.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_domain_report.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_entities_related_to_a_domain.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_ip_address_report.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_entities_related_to_an_ip_address.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_list_threat_profiles.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_threat_profile.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_threat_profile_recommendations.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_threat_profile_associations_timeline.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_url_report.md").resolve(),
+            (BASE_DIR / "../../tool_cards/gti_mcp_get_entities_related_to_an_url.md").resolve(),
+        ]
         persona_data = load_persona_and_runbooks(
             persona_file_path,
             runbook_files,
+            tool_card_files,
             default_persona_description="CTI Researcher specializing in threat intelligence analysis"
         )
-        
+
         # Use the MCP tools that were initialized
         if self._mcp_tools:
             print(f"CTI Researcher A2A agent initialized with {len(self._mcp_tools)} MCP tools")
         else:
             print("CTI Researcher A2A agent initialized with form-based research tools only")
-        
+
         # Load environment variables from .env file
         import os
         from dotenv import load_dotenv
-        
+
         # Try multiple locations for .env file
         env_paths = [
             Path(__file__).parent.parent.parent / ".env",  # manager/.env
             Path(__file__).parent.parent.parent.parent / ".env",  # multi-agent/.env
         ]
-        
+
         for env_path in env_paths:
             if env_path.exists():
                 load_dotenv(env_path)
                 break
-        
+
         # LlmAgent will automatically use GOOGLE_API_KEY from environment
         return LlmAgent(
             model='gemini-2.5-pro-preview-05-06',
@@ -314,7 +357,7 @@ class CTIResearcherA2A:
                    - Collections: get_collection_report, search_malware_families
                    - Network analysis: get_domain_report, get_ip_address_report, get_url_report
                    - Threat profiles: get_threat_profile, list_threat_profiles
-                2. **Research Forms**: For structured research project workflows  
+                2. **Research Forms**: For structured research project workflows
                 3. **Analysis Tools**: Malware analysis, attribution research, TTPs analysis
 
                 **How to handle different requests:**
@@ -359,7 +402,7 @@ class CTIResearcherA2A:
     async def stream(self, query, session_id) -> AsyncIterable[dict[str, Any]]:
         # Ensure initialization is complete
         await self._ensure_initialized()
-        
+
         session = await self._runner.session_service.get_session(
             app_name=self._agent.name,
             user_id=self._user_id,
@@ -412,7 +455,7 @@ class CTIResearcherA2A:
                     'is_task_complete': False,
                     'updates': self.get_processing_message(),
                 }
-    
+
     async def cleanup(self):
         """Clean up MCP connections and resources."""
         if self._exit_stack:
