@@ -1,0 +1,212 @@
+# Tool to Agent Mapping Registry
+# Maps specific MCP tools to the agents that use them
+
+tool_mappings:
+  # SOAR Tools
+  list_cases:
+    primary_agents:
+      - soc_analyst_tier2
+      - soar_specialist
+    secondary_agents:
+      - incident_responder
+    use_cases:
+      - "View and manage SOAR cases"
+      - "Case prioritization"
+  
+  get_case_full_details:
+    primary_agents:
+      - soc_analyst_tier2
+      - soar_specialist
+    secondary_agents:
+      - incident_responder
+    use_cases:
+      - "Deep case investigation"
+      - "Case context gathering"
+  
+  post_case_comment:
+    primary_agents:
+      - soc_analyst_tier2
+      - soar_specialist
+      - incident_responder
+    use_cases:
+      - "Case documentation"
+      - "Investigation updates"
+  
+  # SIEM/SecOps Tools
+  search_security_events:
+    primary_agents:
+      - soc_analyst_tier1
+      - soc_analyst_tier2
+      - soc_analyst_tier3
+    secondary_agents:
+      - threat_hunter
+      - incident_responder
+      - detection_engineer
+    use_cases:
+      - "Event investigation"
+      - "Threat hunting"
+      - "IOC search"
+  
+  get_security_alerts:
+    primary_agents:
+      - soc_analyst_tier1
+      - soc_analyst_tier2
+      - soc_analyst_tier3
+    use_cases:
+      - "Alert triage"
+      - "Alert investigation"
+  
+  do_update_security_alert:
+    primary_agents:
+      - soc_analyst_tier3
+    secondary_agents:
+      - incident_responder
+    use_cases:
+      - "Alert status updates"
+      - "Alert remediation"
+  
+  search_security_rules:
+    primary_agents:
+      - detection_engineer
+    secondary_agents:
+      - soc_analyst_tier2
+      - threat_hunter
+    use_cases:
+      - "Rule management"
+      - "Detection coverage"
+  
+  # GTI Tools
+  search_threats:
+    primary_agents:
+      - cti_researcher
+    secondary_agents:
+      - soc_analyst_tier2
+      - threat_hunter
+      - detection_engineer
+    use_cases:
+      - "Threat research"
+      - "Threat actor investigation"
+  
+  search_iocs:
+    primary_agents:
+      - soc_analyst_tier1
+      - cti_researcher
+    secondary_agents:
+      - soc_analyst_tier2
+    use_cases:
+      - "IOC lookup"
+      - "Indicator enrichment"
+  
+  get_file_behavior_report:
+    primary_agents:
+      - soc_analyst_tier3
+      - cti_researcher
+    secondary_agents:
+      - soc_analyst_tier2
+      - threat_hunter
+    use_cases:
+      - "Malware analysis"
+      - "Behavioral analysis"
+  
+  analyse_file:
+    primary_agents:
+      - soc_analyst_tier3
+    secondary_agents:
+      - cti_researcher
+    use_cases:
+      - "Deep file analysis"
+      - "Malware investigation"
+  
+  # SCC Tools
+  top_vulnerability_findings:
+    primary_agents:
+      - soc_analyst_tier3
+    secondary_agents:
+      - incident_responder
+    use_cases:
+      - "Vulnerability assessment"
+      - "Security posture review"
+  
+  get_finding_remediation:
+    primary_agents:
+      - soc_analyst_tier3
+    secondary_agents:
+      - incident_responder
+    use_cases:
+      - "Remediation guidance"
+      - "Vulnerability fixing"
+
+# Agent expertise matrix for delegation decisions
+expertise_matrix:
+  alert_triage:
+    best_agent: soc_analyst_tier1
+    alternatives:
+      - soc_analyst_tier2
+  
+  deep_investigation:
+    best_agent: soc_analyst_tier2
+    alternatives:
+      - soc_analyst_tier3
+  
+  malware_analysis:
+    best_agent: soc_analyst_tier3
+    alternatives:
+      - cti_researcher
+  
+  threat_intelligence:
+    best_agent: cti_researcher
+    alternatives:
+      - threat_hunter
+  
+  incident_response:
+    best_agent: incident_responder
+    alternatives:
+      - soc_analyst_tier3
+  
+  threat_hunting:
+    best_agent: threat_hunter
+    alternatives:
+      - soc_analyst_tier3
+  
+  detection_engineering:
+    best_agent: detection_engineer
+    alternatives: []
+  
+  soar_automation:
+    best_agent: soar_specialist
+    alternatives:
+      - soc_analyst_tier2
+
+# Request pattern matching for delegation
+request_patterns:
+  - pattern: "triage.*alert|investigate.*alert|initial.*investigation"
+    agent: soc_analyst_tier1
+    confidence: high
+  
+  - pattern: "SOAR.*case|case.*management|deep.*investigation"
+    agent: soc_analyst_tier2
+    confidence: high
+  
+  - pattern: "malware.*analysis|critical.*incident|advanced.*forensics"
+    agent: soc_analyst_tier3
+    confidence: high
+  
+  - pattern: "threat.*intelligence|threat.*actor|CTI|campaign.*analysis"
+    agent: cti_researcher
+    confidence: high
+  
+  - pattern: "incident.*response|containment|recovery"
+    agent: incident_responder
+    confidence: high
+  
+  - pattern: "threat.*hunt|proactive.*detection|hunting"
+    agent: threat_hunter
+    confidence: high
+  
+  - pattern: "detection.*rule|SIEM.*rule|rule.*development"
+    agent: detection_engineer
+    confidence: high
+  
+  - pattern: "SOAR.*automation|playbook|workflow.*automation"
+    agent: soar_specialist
+    confidence: high

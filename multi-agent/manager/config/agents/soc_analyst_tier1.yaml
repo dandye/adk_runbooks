@@ -1,0 +1,50 @@
+agent_name: soc_analyst_tier1
+display_name: "SOC Analyst Tier 1"
+description: "Initial security alert triage and investigation specialist"
+
+expertise_areas:
+  - alert_triage
+  - initial_investigation
+  - ioc_analysis
+  - security_event_search
+  - basic_threat_assessment
+
+mcp_servers:
+  - name: siem_toolset
+    description: "Security event and alert management"
+    tools:
+      - search_security_events
+      - get_security_alerts
+      - get_security_alert_by_id
+      - lookup_entity
+      - get_ioc_matches
+  - name: gti_toolset
+    description: "Basic threat intelligence lookups"
+    tools:
+      - search_iocs
+      - get_domain_report
+      - get_ip_address_report
+      - get_file_report
+      - get_url_report
+
+delegation_triggers:
+  - "alert triage"
+  - "initial investigation"
+  - "security event search"
+  - "basic analysis"
+  - "IOC lookup"
+  - "first response"
+
+capabilities:
+  can_escalate_to:
+    - soc_analyst_tier2
+    - incident_responder
+  handles_alert_severity:
+    - low
+    - medium
+  response_time: "immediate"
+  
+tool_cards:
+  - start_triage
+  - create_alert_triage_form
+  - return_alert_form

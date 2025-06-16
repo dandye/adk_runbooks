@@ -1,0 +1,77 @@
+# MCP Tools Configuration
+# Centralized configuration for all MCP tool servers
+
+mcp_servers:
+  soar_toolset:
+    name: "SOAR Platform Integration"
+    server_path: "/Users/dandye/Projects/mcp_security/server/src/soar/index.js"
+    node_args: ["node"]
+    description: "Google SOAR (Siemplify) platform operations"
+    categories:
+      - case_management
+      - incident_response
+      - automation
+    
+  siem_toolset:
+    name: "SIEM/SecOps Integration"
+    server_path: "/Users/dandye/Projects/mcp_security/server/src/secops/index.js"
+    node_args: ["node"]
+    description: "Google SecOps SIEM platform operations"
+    categories:
+      - security_events
+      - alerts
+      - detection_rules
+      - threat_intel
+    
+  gti_toolset:
+    name: "Google Threat Intelligence"
+    server_path: "/Users/dandye/Projects/mcp_security/server/src/gti/dist/index.js"
+    node_args: ["node"]
+    description: "Google Threat Intelligence platform"
+    categories:
+      - threat_research
+      - ioc_analysis
+      - threat_actors
+      - malware_analysis
+    
+  scc_toolset:
+    name: "Security Command Center"
+    server_path: "/Users/dandye/Projects/mcp_security/server/src/scc/index.js"
+    node_args: ["node"]
+    description: "Google Cloud Security Command Center"
+    categories:
+      - vulnerability_management
+      - security_findings
+      - cloud_security
+
+# Tool categories mapping for easier lookup
+tool_categories:
+  incident_response:
+    - soar_toolset
+    - siem_toolset
+  
+  threat_intelligence:
+    - gti_toolset
+    - siem_toolset
+  
+  investigation:
+    - siem_toolset
+    - gti_toolset
+    - soar_toolset
+  
+  vulnerability_management:
+    - scc_toolset
+  
+  detection_engineering:
+    - siem_toolset
+    - gti_toolset
+
+# Environment-specific overrides (optional)
+environments:
+  development:
+    base_path: "/Users/dandye/Projects/mcp_security"
+  production:
+    base_path: "/opt/mcp_security"
+  
+# Default environment
+default_environment: "development"

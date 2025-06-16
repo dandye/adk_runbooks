@@ -1,0 +1,58 @@
+agent_name: cti_researcher
+display_name: "CTI Researcher"
+description: "Cyber Threat Intelligence researcher and analyst"
+
+expertise_areas:
+  - threat_intelligence_research
+  - threat_actor_profiling
+  - campaign_analysis
+  - ioc_enrichment
+  - threat_landscape_analysis
+  - intelligence_reporting
+
+mcp_servers:
+  - name: gti_toolset
+    description: "Comprehensive threat intelligence platform"
+    tools:
+      - search_threats
+      - search_threat_actors
+      - search_malware_families
+      - search_campaigns
+      - search_software_toolkits
+      - search_vulnerabilities
+      - search_threat_reports
+      - list_threat_profiles
+      - get_threat_profile
+      - get_threat_profile_associations_timeline
+      - get_threat_profile_recommendations
+      - get_hunting_ruleset
+      - get_entities_related_to_a_hunting_ruleset
+      - get_collection_report
+      - get_collection_mitre_tree
+      - get_collection_timeline_events
+      - get_entities_related_to_a_collection
+
+delegation_triggers:
+  - "threat intelligence"
+  - "threat actor"
+  - "CTI research"
+  - "campaign analysis"
+  - "threat profiling"
+  - "IOC enrichment"
+  - "threat landscape"
+  - "intelligence gathering"
+
+capabilities:
+  provides_intel_to:
+    - soc_analyst_tier1
+    - soc_analyst_tier2
+    - soc_analyst_tier3
+    - threat_hunter
+    - detection_engineer
+  response_time: "thorough"
+  output_type: "intelligence_reports"
+  
+tool_cards:
+  - start_research
+  - create_research_request_form
+  - return_research_form
