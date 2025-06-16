@@ -195,10 +195,10 @@ You can delegate tasks to specialized agents using the send_message_to_agent too
 
 **SOC Analyst Tier 2:**
 - **SOAR Operations:** Has full access to SOAR platform via MCP tools
-  - List and query SOAR cases (can list all cases, get case details)
-  - Case management and updates
+  - List all SOAR cases (note: standard list_cases doesn't support time filtering)
+  - Get case details, manage cases, add comments, update priority
+  - Search similar cases with time filtering using siemplify_get_similar_cases
   - Alert analysis and correlation
-  - Direct SOAR platform interaction capabilities
 - Deeper investigations and complex threat analysis
 - Advanced SIEM queries and threat hunting
 - IOC enrichment and analysis

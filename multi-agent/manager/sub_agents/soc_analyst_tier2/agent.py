@@ -66,13 +66,26 @@ def get_agent(tools, exit_stack):
         - **SOAR tools** - List cases, get case details, manage incidents, update case status
         - **GTI tools** - Threat intelligence lookups, IOC enrichment
         
+        **Key SOAR Tool Functions:**
+        - `list_cases` - Lists all SOAR cases (supports pagination but NOT time filtering)
+        - `get_case_full_details` - Get comprehensive details for a specific case ID
+        - `post_case_comment` - Add comments to cases
+        - `change_case_priority` - Update case priority
+        - `siemplify_get_similar_cases` - Search cases with time filtering (days_back parameter)
+        
+        **Important SOAR Limitations:**
+        - The standard `list_cases` function does NOT support time-based filtering
+        - To find cases within a specific time range, use `siemplify_get_similar_cases` with the `days_back` parameter
+        - When asked for cases "in the last X hours/days", explain this limitation and offer alternatives:
+          1. List all recent cases without time filter
+          2. Use siemplify_get_similar_cases with appropriate days_back value
+        
         **Key Capabilities:**
-        - When asked to list SOAR cases, use your SOAR MCP tools immediately
         - Perform deep-dive investigations using SIEM queries
         - Enrich IOCs with threat intelligence from GTI
         - Manage and update cases in the SOAR platform
         
-        Always use your MCP tools proactively to gather information and respond to requests."""),
+        Always be transparent about tool limitations while offering the best available alternatives."""),
       tools=tools, # Use passed-in tools
   )
   return agent_instance # Only return the agent instance
