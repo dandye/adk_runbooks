@@ -10,6 +10,13 @@ ADK Runbooks is a multi-agent system for cybersecurity operations built on Googl
 
 ### Initial Setup
 ```bash
+# Clone with submodules
+git clone --recurse-submodules https://github.com/dandye/adk_runbooks.git
+cd adk_runbooks
+
+# Or if already cloned:
+git submodule update --init --recursive
+
 # Create virtual environment
 python -m venv venv
 
@@ -54,7 +61,7 @@ The manager agent uses `DeferredInitializationAgent` to handle async initializat
 
 ### Tool Integration
 - **MCP Security Tools**: Configured in `multi-agent/manager/tools/tools.py`
-  - IMPORTANT: Update hardcoded paths like `/Users/dandye/Projects/mcp_security/server/...`
+  - Tools now use relative paths from the `external/mcp-security` git submodule
 - **Shared tools** are initialized once and passed to all sub-agents to avoid redundant connections
 
 ### Configuration Requirements
@@ -62,7 +69,15 @@ The manager agent uses `DeferredInitializationAgent` to handle async initializat
    ```
    GOOGLE_API_KEY=your_api_key_here
    ```
-2. Update MCP tool paths in `multi-agent/manager/tools/tools.py`
+2. Configure MCP Security tools in `external/mcp-security/.env`:
+   ```
+   CHRONICLE_PROJECT_ID=your_gcp_project_id
+   CHRONICLE_CUSTOMER_ID=your_chronicle_customer_id
+   CHRONICLE_REGION=us
+   SOAR_URL=https://your-soar-instance.example.com
+   SOAR_APP_KEY=your_soar_app_key
+   VT_APIKEY=your_virustotal_api_key
+   ```
 
 ## Important Context Files
 
@@ -92,7 +107,7 @@ Each agent loads its persona and relevant runbooks using `load_persona_and_runbo
 4. Add to sub_agents list in manager initialization
 
 ### Modifying Tool Configuration
-Edit `multi-agent/manager/tools/tools.py` to update MCP server paths or add new tools.
+Edit `multi-agent/manager/tools/tools.py` to add new tools or modify tool initialization. The MCP Security tools are loaded from the `external/mcp-security` submodule with relative paths.
 
 ### Testing Individual Agents
 While there's no formal test suite, you can test agents by:

@@ -1,8 +1,8 @@
 ![Screenshot 2025-05-18 at 4 16 04 PM](https://github.com/user-attachments/assets/338a92af-1721-4b6f-9c9c-c451c9581129)
 
-# Claude Setup Guide
+# Project Setup Guide
 
-This guide covers the setup and configuration steps for running ADK Runbooks with Claude.
+This guide covers the setup and configuration steps for running ADK Runbooks.
 
 ## Setup
 
@@ -10,7 +10,7 @@ Do *NOT* use `uv` to run `adk` with a pyproject.yaml file. (It causes intractabl
 
 Instead, do this:
 ```
-git clone https://github.com/dandy/adk_runbooks.git
+git clone --recurse-submodules https://github.com/dandye/adk_runbooks.git
 cd adk_runbooks/multi-agent
 python -m venv .venv
 source .venv/bin/activate
@@ -20,7 +20,7 @@ adk run manager
 
 # Or with uv as pip replacement:
 ```
-git clone https://github.com/dandy/adk_runbooks.git
+git clone --recurse-submodules https://github.com/dandye/adk_runbooks.git
 cd adk_runbooks/multi-agent
 python -m venv .venv
 source .venv/bin/activate
@@ -28,12 +28,33 @@ uv pip sync requirements.txt
 adk run manager
 ```
 
+# If you already cloned without submodules:
+```
+cd adk_runbooks
+git submodule update --init --recursive
+```
+
 ## Configuration
 
 There are two places to configure for your environment:
- * `./multi-agent/manager/.env` file in
- * `./multi-agent/manager/tools/tools.py` needs your MCP Security configuration
-   * Fix the hard-coded paths in that file like `/Users/dandye/Projects/mcp_security/server/...`
+
+### 1. ADK Environment Variables
+Copy and configure the ADK environment file:
+```bash
+cp ./multi-agent/manager/.env.example ./multi-agent/manager/.env
+# Edit .env and add your GOOGLE_API_KEY
+```
+
+### 2. MCP Security Tools Configuration
+The MCP Security tools are now included as a git submodule. Configure them:
+```bash
+cp ./external/mcp-security/.env.example ./external/mcp-security/.env
+# Edit .env and add your security tool API keys:
+# - CHRONICLE_PROJECT_ID
+# - CHRONICLE_CUSTOMER_ID
+# - SOAR_URL and SOAR_APP_KEY
+# - VT_APIKEY (for VirusTotal)
+```
 
 ## Multi-Agent Systems in ADK
 

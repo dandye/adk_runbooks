@@ -26,7 +26,7 @@ project_root/
 │   │       │   ├── __init__.py
 │   │       │   └── agent.py
 │   │       ├── ... (other security agents)
-│   │       └── tools.py         # Configure paths to MCP Security in this file
+│   │       └── tools.py         # MCP Security tools configuration (uses git submodule)
 ├── .venv/                       # Virtual environment (example location)
 └── README.md                    # This file
 ```
