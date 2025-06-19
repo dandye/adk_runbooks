@@ -2,6 +2,7 @@ from datetime import datetime
 import contextlib
 import os
 import re
+from pathlib import Path
 
 from google.adk.tools.mcp_tool import MCPToolset, StdioConnectionParams
 from google.adk.tools.mcp_tool.mcp_session_manager import StdioServerParameters
@@ -106,6 +107,10 @@ async def get_agent_tools():
           - contextlib.AsyncExitStack: The exit stack managing the MCP server connections.
   """
   common_exit_stack = contextlib.AsyncExitStack()
+  
+  # Get the base path of the project (adk_runbooks directory)
+  base_path = Path(__file__).resolve().parent.parent.parent.parent
+  mcp_security_path = base_path / "external" / "mcp-security"
 
   # Create MCPToolset instances using the new constructor
   siem_toolset = MCPToolset(
@@ -114,10 +119,10 @@ async def get_agent_tools():
         command='uv',
         args=[
             "--directory",
-            "/Users/dandye/Projects/mcp_security_debugging/server/secops/secops_mcp",
+            str(mcp_security_path / "server" / "secops" / "secops_mcp"),
             "run",
             "--env-file",
-            "/Users/dandye/Projects/google-mcp-security/.env",
+            str(mcp_security_path / ".env"),
             "server.py"
           ],
         ),
@@ -131,10 +136,10 @@ async def get_agent_tools():
         command='uv',
         args=[
             "--directory",
-            "/Users/dandye/Projects/mcp_security_debugging/server/secops-soar/secops_soar_mcp",
+            str(mcp_security_path / "server" / "secops-soar" / "secops_soar_mcp"),
             "run",
             "--env-file",
-            "/Users/dandye/Projects/google-mcp-security/.env",
+            str(mcp_security_path / ".env"),
             "server.py",
             "--integrations",
             "CSV,GoogleChronicle,Siemplify,SiemplifyUtilities"
@@ -150,11 +155,11 @@ async def get_agent_tools():
         command='uv',
         args=[
             "--directory",
-            "/Users/dandye/Projects/mcp_security_debugging/server/gti/gti_mcp",
+            str(mcp_security_path / "server" / "gti" / "gti_mcp"),
             "run",
             "--refresh",
             "--env-file",
-            "/Users/dandye/Projects/google-mcp-security/.env",
+            str(mcp_security_path / ".env"),
             "server.py"
           ],
         ),

@@ -29,7 +29,7 @@ Do *NOT* use `uv` to run `adk` with a `pyproject.toml` file. (It causes intracta
 
 Instead, do this:
 ```bash
-git clone https://github.com/dandy/adk_runbooks.git
+git clone --recurse-submodules https://github.com/dandye/adk_runbooks.git
 cd adk_runbooks/multi-agent
 python -m venv .venv
 source .venv/bin/activate
@@ -39,7 +39,7 @@ adk run manager
 
 Or with uv as pip replacement:
 ```bash
-git clone https://github.com/dandy/adk_runbooks.git
+git clone --recurse-submodules https://github.com/dandye/adk_runbooks.git
 cd adk_runbooks/multi-agent
 python -m venv .venv
 source .venv/bin/activate
@@ -47,12 +47,24 @@ uv pip sync requirements.txt
 adk run manager
 ```
 
+If you already cloned without submodules:
+```bash
+cd adk_runbooks
+git submodule update --init --recursive
+```
+
 **Configuration**
 
 There are two places to configure for your environment:
- * `./multi-agent/manager/.env` file in
- * `./multi-agent/manager/tools/tools.py` needs your MCP Security configuration
-   * Fix the hard-coded paths in that file like `/Users/dandye/Projects/mcp_security/server/...`
+
+1. **ADK Environment Variables**
+   * Copy `./multi-agent/manager/.env.example` to `./multi-agent/manager/.env`
+   * Add your `GOOGLE_API_KEY` to the `.env` file
+
+2. **MCP Security Tools**
+   * The MCP Security tools are included as a git submodule in `external/mcp-security/`
+   * Copy `./external/mcp-security/.env.example` to `./external/mcp-security/.env`
+   * Configure your security tool API keys (Chronicle, SOAR, VirusTotal)
 
 ### Core Documents
 These documents outline the foundational strategies, protocols, and plans for the ADK Runbooks project and the Rules Bank. They provide high-level guidance and operational frameworks.

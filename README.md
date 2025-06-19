@@ -66,9 +66,12 @@ For detailed setup instructions, see [SETUP_CLAUDE.md](SETUP_CLAUDE.md).
 ### Basic Setup
 
 ```bash
-# Clone the repository
-git clone https://github.com/dandye/adk_runbooks.git
+# Clone the repository with submodules
+git clone --recurse-submodules https://github.com/dandye/adk_runbooks.git
 cd adk_runbooks
+
+# If you already cloned without submodules:
+# git submodule update --init --recursive
 
 # Set up virtual environment
 cd multi-agent
@@ -81,6 +84,10 @@ pip install -r requirements.txt
 # Configure environment
 cp manager/.env.example manager/.env
 # Edit .env and add your GOOGLE_API_KEY
+
+# Configure MCP Security tools
+cp ../external/mcp-security/.env.example ../external/mcp-security/.env
+# Edit .env and add your security tool API keys
 
 # Run the system
 adk run manager
