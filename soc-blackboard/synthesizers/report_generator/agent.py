@@ -8,7 +8,7 @@ Creates executive summaries and detailed technical analysis reports.
 from google.adk.agents import Agent
 
 
-def get_agent(tools, blackboard, exit_stack):
+def get_agent(tools, exit_stack):
     """Create Report Generator agent for SOC investigations."""
     
     persona = """
@@ -260,54 +260,10 @@ Create reports that enable informed decision-making and effective response.
         model="gemini-2.5-pro-preview-05-06",
         description="Comprehensive investigation report writing specialist",
         instruction=instructions,
-        tools=tools + [
-            create_blackboard_read_tool(blackboard),
-            create_blackboard_export_tool(blackboard),
-            create_blackboard_stats_tool(blackboard),
-            create_blackboard_timeline_tool(blackboard)
-        ]
+        tools=tools
     )
 
 
-def create_blackboard_read_tool(blackboard):
-    async def blackboard_read(area: str = None):
-        try:
-            return await blackboard.read(area)
-        except Exception as e:
-            return {"error": f"Failed to read from blackboard: {str(e)}"}
-    return blackboard_read
-
-
-def create_blackboard_export_tool(blackboard):
-    async def blackboard_export(format: str = "dict"):
-        """Export complete investigation data."""
-        try:
-            return await blackboard.export(format)
-        except Exception as e:
-            return {"error": f"Failed to export blackboard: {str(e)}"}
-    return blackboard_export
-
-
-def create_blackboard_stats_tool(blackboard):
-    async def blackboard_stats():
-        """Get investigation statistics."""
-        try:
-            return await blackboard.get_statistics()
-        except Exception as e:
-            return {"error": f"Failed to get statistics: {str(e)}"}
-    return blackboard_stats
-
-
-def create_blackboard_timeline_tool(blackboard):
-    async def blackboard_timeline():
-        """Get chronological timeline of all findings."""
-        try:
-            return await blackboard.get_timeline()
-        except Exception as e:
-            return {"error": f"Failed to get timeline: {str(e)}"}
-    return blackboard_timeline
-
-
-async def initialize(shared_tools, blackboard, shared_exit_stack):
-    agent = get_agent(shared_tools, blackboard, shared_exit_stack)
+async def initialize(shared_tools, shared_exit_stack):
+    agent = get_agent(shared_tools, shared_exit_stack)
     return (agent, shared_exit_stack)

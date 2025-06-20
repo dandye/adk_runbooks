@@ -8,7 +8,7 @@ Writes correlation results and risk scores to the blackboard.
 from google.adk.agents import Agent
 
 
-def get_agent(tools, blackboard, exit_stack):
+def get_agent(tools, exit_stack):
     """Create Correlation Engine agent for SOC investigations."""
     
     persona = """
@@ -182,56 +182,10 @@ Your goal is to find the hidden patterns that explain what really happened.
         model="gemini-2.5-pro-preview-05-06",
         description="Multi-source correlation and pattern analysis specialist",
         instruction=instructions,
-        tools=tools + [
-            create_blackboard_read_tool(blackboard),
-            create_blackboard_write_tool(blackboard),
-            create_blackboard_query_tool(blackboard),
-            create_blackboard_stats_tool(blackboard)
-        ]
+        tools=tools
     )
 
 
-def create_blackboard_read_tool(blackboard):
-    async def blackboard_read(area: str = None):
-        try:
-            return await blackboard.read(area)
-        except Exception as e:
-            return {"error": f"Failed to read from blackboard: {str(e)}"}
-    return blackboard_read
-
-
-def create_blackboard_write_tool(blackboard):
-    async def blackboard_write(area: str, finding: dict, confidence: str = "medium", tags: list = None):
-        try:
-            finding_id = await blackboard.write(
-                area=area, finding=finding, agent_name="correlation_engine",
-                confidence=confidence, tags=tags or []
-            )
-            return {"success": True, "finding_id": finding_id}
-        except Exception as e:
-            return {"error": f"Failed to write to blackboard: {str(e)}"}
-    return blackboard_write
-
-
-def create_blackboard_query_tool(blackboard):
-    async def blackboard_query(filters: dict):
-        try:
-            return await blackboard.query(filters)
-        except Exception as e:
-            return {"error": f"Failed to query blackboard: {str(e)}"}
-    return blackboard_query
-
-
-def create_blackboard_stats_tool(blackboard):
-    async def blackboard_stats():
-        """Get statistics about the current investigation."""
-        try:
-            return await blackboard.get_statistics()
-        except Exception as e:
-            return {"error": f"Failed to get blackboard statistics: {str(e)}"}
-    return blackboard_stats
-
-
-async def initialize(shared_tools, blackboard, shared_exit_stack):
-    agent = get_agent(shared_tools, blackboard, shared_exit_stack)
+async def initialize(shared_tools, shared_exit_stack):
+    agent = get_agent(shared_tools, shared_exit_stack)
     return (agent, shared_exit_stack)

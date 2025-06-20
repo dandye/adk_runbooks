@@ -8,8 +8,17 @@ Writes findings to the 'timeline_events' knowledge area of the blackboard.
 from google.adk.agents import Agent
 
 
-def get_agent(tools, blackboard, exit_stack):
-    """Create Timeline Builder agent for SOC investigations."""
+def get_agent(tools, exit_stack):
+    """
+    Create Timeline Builder agent for SOC investigations.
+    
+    Args:
+        tools: Shared MCP security tools (tuple of toolsets)
+        exit_stack: Shared exit stack for resource management
+        
+    Returns:
+        Agent configured for timeline construction and analysis
+    """
     
     persona = """
 You are a Digital Forensics Timeline Analyst specializing in chronological event reconstruction.
@@ -145,6 +154,12 @@ Focus on building a coherent narrative that explains the sequence of events.
 - Tag findings by attack phase: [recon, initial_access, persistence, etc.]
 
 Build the most complete timeline possible from all available evidence.
+
+## Tool Usage
+You have access to:
+- MCP Security tools (Chronicle, GTI, SOAR)
+- Blackboard tools (blackboard_read, blackboard_write, blackboard_query)
+- Reporting tools (write_report, get_current_time)
 """
 
     return Agent(
@@ -152,45 +167,11 @@ Build the most complete timeline possible from all available evidence.
         model="gemini-2.5-pro-preview-05-06",
         description="Chronological event timeline construction specialist",
         instruction=instructions,
-        tools=tools + [
-            create_blackboard_read_tool(blackboard),
-            create_blackboard_write_tool(blackboard),
-            create_blackboard_query_tool(blackboard)
-        ]
+        tools=tools
     )
 
 
-def create_blackboard_read_tool(blackboard):
-    async def blackboard_read(area: str = None):
-        try:
-            return await blackboard.read(area)
-        except Exception as e:
-            return {"error": f"Failed to read from blackboard: {str(e)}"}
-    return blackboard_read
-
-
-def create_blackboard_write_tool(blackboard):
-    async def blackboard_write(area: str, finding: dict, confidence: str = "medium", tags: list = None):
-        try:
-            finding_id = await blackboard.write(
-                area=area, finding=finding, agent_name="timeline_builder",
-                confidence=confidence, tags=tags or []
-            )
-            return {"success": True, "finding_id": finding_id}
-        except Exception as e:
-            return {"error": f"Failed to write to blackboard: {str(e)}"}
-    return blackboard_write
-
-
-def create_blackboard_query_tool(blackboard):
-    async def blackboard_query(filters: dict):
-        try:
-            return await blackboard.query(filters)
-        except Exception as e:
-            return {"error": f"Failed to query blackboard: {str(e)}"}
-    return blackboard_query
-
-
-async def initialize(shared_tools, blackboard, shared_exit_stack):
-    agent = get_agent(shared_tools, blackboard, shared_exit_stack)
+async def initialize(shared_tools, shared_exit_stack):
+    """Async initialization wrapper for the timeline builder."""
+    agent = get_agent(shared_tools, shared_exit_stack)
     return (agent, shared_exit_stack)

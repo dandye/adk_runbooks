@@ -190,10 +190,17 @@ class BlackboardCoordinator:
         try:
             investigator_module = self.investigators[investigator_name]
             
-            # Initialize investigator agent
-            agent = investigator_module.get_agent(
-                self.shared_tools, blackboard, self.shared_exit_stack
-            )
+            # Create blackboard tools for this investigation
+            blackboard_tools = self._create_blackboard_tools(blackboard, investigator_name)
+            
+            # Combine shared tools with blackboard tools
+            if isinstance(self.shared_tools, tuple):
+                all_tools = self.shared_tools + tuple(blackboard_tools)
+            else:
+                all_tools = list(self.shared_tools) + blackboard_tools
+            
+            # Initialize investigator agent with combined tools
+            agent, _ = await investigator_module.initialize(all_tools, self.shared_exit_stack)
             
             # Create investigation prompt based on context
             prompt = self._create_investigator_prompt(investigator_name, context)
@@ -289,16 +296,56 @@ Remember to:
         
         return base_prompt
     
+    def _create_blackboard_tools(self, blackboard: InvestigationBlackboard, agent_name: str):
+        """Create blackboard interaction tools for an agent."""
+        
+        async def blackboard_read(area: str = None):
+            """Read findings from the investigation blackboard."""
+            try:
+                return await blackboard.read(area)
+            except Exception as e:
+                return {"error": f"Failed to read from blackboard: {str(e)}"}
+        
+        async def blackboard_write(area: str, finding: dict, confidence: str = "medium", tags: list = None):
+            """Write a finding to the investigation blackboard."""
+            try:
+                finding_id = await blackboard.write(
+                    area=area,
+                    finding=finding,
+                    agent_name=agent_name,
+                    confidence=confidence,
+                    tags=tags or []
+                )
+                return {"success": True, "finding_id": finding_id}
+            except Exception as e:
+                return {"error": f"Failed to write to blackboard: {str(e)}"}
+        
+        async def blackboard_query(filters: dict):
+            """Query the investigation blackboard with filters."""
+            try:
+                return await blackboard.query(filters)
+            except Exception as e:
+                return {"error": f"Failed to query blackboard: {str(e)}"}
+        
+        return [blackboard_read, blackboard_write, blackboard_query]
+    
     async def _run_correlation_analysis(self, blackboard: InvestigationBlackboard):
         """Run correlation analysis on all findings."""
         
         try:
             correlation_module = self.synthesizers["correlation_engine"]
             
+            # Create blackboard tools for correlation engine
+            blackboard_tools = self._create_blackboard_tools(blackboard, "correlation_engine")
+            
+            # Combine shared tools with blackboard tools
+            if isinstance(self.shared_tools, tuple):
+                all_tools = self.shared_tools + tuple(blackboard_tools)
+            else:
+                all_tools = list(self.shared_tools) + blackboard_tools
+            
             # Initialize correlation engine
-            agent = correlation_module.get_agent(
-                self.shared_tools, blackboard, self.shared_exit_stack
-            )
+            agent, _ = await correlation_module.initialize(all_tools, self.shared_exit_stack)
             
             # Run correlation analysis
             prompt = """
@@ -334,10 +381,17 @@ Focus on finding meaningful patterns that tell the story of what happened.
         try:
             report_module = self.synthesizers["report_generator"]
             
+            # Create blackboard tools for report generator
+            blackboard_tools = self._create_blackboard_tools(blackboard, "report_generator")
+            
+            # Combine shared tools with blackboard tools
+            if isinstance(self.shared_tools, tuple):
+                all_tools = self.shared_tools + tuple(blackboard_tools)
+            else:
+                all_tools = list(self.shared_tools) + blackboard_tools
+            
             # Initialize report generator
-            agent = report_module.get_agent(
-                self.shared_tools, blackboard, self.shared_exit_stack
-            )
+            agent, _ = await report_module.initialize(all_tools, self.shared_exit_stack)
             
             # Generate report
             prompt = """
@@ -460,7 +514,12 @@ Use the coordinator.investigate(context) method to start investigations.
     
     # Add investigation tools to the agent's toolset
     investigation_tools = [start_investigation, list_active_investigations]
-    all_tools = tools + investigation_tools
+    
+    # Convert tools tuple to list if needed and add investigation tools
+    if isinstance(tools, tuple):
+        all_tools = list(tools) + investigation_tools
+    else:
+        all_tools = tools + investigation_tools
     
     return Agent(
         name="blackboard_coordinator",
