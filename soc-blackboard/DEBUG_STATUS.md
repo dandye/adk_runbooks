@@ -17,9 +17,18 @@ The SOC Blackboard coordinator is experiencing issues with agent invocation. The
 4. **Fourth Error**: ValidationError when creating InvocationContext manually
    - **Fixed**: Switched to using Runner API instead of manual InvocationContext creation
 
-5. **Current Error**: `'coroutine' object has no attribute 'id'` on session creation
-   - **Partially Fixed**: Added `await` to async `create_session` calls
-   - **Status**: Need to verify if this completely resolves the issue
+5. **Fifth Error**: `'coroutine' object has no attribute 'id'` on session creation
+   - **Fixed**: Added `await` to async `create_session` calls
+
+6. **Sixth Error**: `ValueError: Default value None of parameter area: str = None`
+   - **Fixed**: Changed default to empty string for `blackboard_read`
+
+7. **Seventh Error**: `ValueError: Default value None of parameter tags: list = None`
+   - **Fixed**: Used `Optional[List[str]]` type annotation for `blackboard_write`
+
+8. **Current Error**: `400 INVALID_ARGUMENT ... tags.items: missing field`
+   - **Fixed**: Changed `list` to `List[str]` to properly define list item type
+   - **Status**: Need to test if this resolves the API schema validation issue
 
 ### What Was Changed
 1. Added explicit tool constraints to prevent `run_code` hallucinations
