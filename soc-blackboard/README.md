@@ -115,9 +115,9 @@ Located in `synthesizers/`:
    Or manually:
    ```bash
    pip install -r requirements.txt
-   pip install -e ../external/mcp-security/server/secops
+   pip install -e ../external/mcp-security/server/secops/secops_mcp
    pip install -e ../external/mcp-security/server/gti
-   pip install -e ../external/mcp-security/server/secops-soar
+   pip install -e ../external/mcp-security/server/secops_soar
    pip install -e ../external/mcp-security/server/scc
    ```
 
@@ -125,6 +125,10 @@ Located in `synthesizers/`:
    ```bash
    cp .env.example .env
    # Edit .env with your Google Cloud project and API keys
+   
+   # Also configure MCP security tools
+   cp ../external/mcp-security/.env.example ../external/mcp-security/.env
+   # Edit ../external/mcp-security/.env with security tool credentials
    ```
 
 5. **Set up Google Cloud authentication**:
@@ -134,12 +138,21 @@ Located in `synthesizers/`:
 
 ### Configuration
 
-Edit `.env` with your credentials:
+Edit `.env` in the soc-blackboard directory with your credentials:
 
 ```bash
 # Google AI
 GOOGLE_API_KEY=your_api_key_here
 
+# Investigation Settings
+MAX_INVESTIGATION_DURATION=3600
+DEFAULT_CONFIDENCE_THRESHOLD=0.7
+ENABLE_AUTO_CORRELATION=true
+```
+
+Edit `../external/mcp-security/.env` with your security tool credentials:
+
+```bash
 # Google Security Operations (Chronicle SIEM)
 CHRONICLE_PROJECT_ID=your_gcp_project_id
 CHRONICLE_CUSTOMER_ID=your_chronicle_customer_id
@@ -149,13 +162,11 @@ CHRONICLE_REGION=us
 SOAR_URL=https://your-soar-instance.example.com
 SOAR_APP_KEY=your_soar_app_key
 
+# Google Threat Intelligence (VirusTotal API)
+VT_APIKEY=your_virustotal_api_key
+
 # Google Threat Intelligence & Security Command Center
 # (Use same GCP project authentication as Chronicle)
-
-# Investigation Settings
-MAX_INVESTIGATION_DURATION=3600
-DEFAULT_CONFIDENCE_THRESHOLD=0.7
-ENABLE_AUTO_CORRELATION=true
 ```
 
 **Available MCP Security Tools:**
@@ -310,7 +321,13 @@ python -m pytest tests/test_blackboard.py
 
 ## MCP Security Tools Integration
 
-The SOC Blackboard system integrates with the real MCP security tools from `external/mcp-security`:
+The SOC Blackboard system integrates with the real MCP security tools from `external/mcp-security` git submodule. The system uses shared MCP tool instances that are initialized once and passed to all agents to avoid redundant connections.
+
+### MCP Tool Architecture
+- **Shared Tools**: MCP toolsets are initialized once in `tools.py` and shared across all agents
+- **Configuration**: Tools are configured to use the git submodule paths in `external/mcp-security`
+- **Resource Management**: Uses `AsyncExitStack` to properly manage tool lifecycles
+- **Fail-Fast**: System fails with clear error messages if MCP tools cannot be loaded
 
 ### Available Tool Categories
 
@@ -353,7 +370,10 @@ python test_mcp_integration.py
 1. **MCP tools not loading**:
    - Run `./setup_mcp_tools.sh` to install dependencies
    - Verify Google Cloud authentication: `gcloud auth application-default login`
-   - Check .env configuration matches your GCP project
+   - Check both `.env` files are configured:
+     - `soc-blackboard/.env` for Google AI API key
+     - `external/mcp-security/.env` for security tool credentials
+   - Ensure `uv` is installed and available in PATH: `which uv`
 
 2. **Agent not contributing findings**:
    - Check agent has blackboard write permissions

@@ -333,6 +333,51 @@ class BlackboardCoordinator:
         else:
             print("WARNING: No investigator tasks to run")
     
+    async def _retry_gemini_operation(self, operation_name: str, operation_func, *args, **kwargs):
+        """
+        Retry wrapper for Gemini API operations with rate limit handling.
+        
+        Args:
+            operation_name: Name of the operation for logging
+            operation_func: The async function to call
+            *args, **kwargs: Arguments for the function
+            
+        Returns:
+            The result from the successful operation
+        """
+        max_retries = 3
+        retry_delay = 60  # Start with 60 seconds
+        
+        for attempt in range(max_retries + 1):
+            try:
+                result = await operation_func(*args, **kwargs)
+                return result
+            except Exception as e:
+                error_str = str(e)
+                # Check for Gemini rate limit errors
+                if ('429' in error_str and 'RESOURCE_EXHAUSTED' in error_str) or \
+                   ('quota' in error_str.lower() and 'exceeded' in error_str.lower()):
+                    if attempt < max_retries:
+                        # Extract retry delay from error if available
+                        if 'retryDelay' in error_str:
+                            import re
+                            match = re.search(r"'retryDelay': '(\d+)s'", error_str)
+                            if match:
+                                retry_delay = int(match.group(1))
+                        
+                        print(f"WARNING: Gemini API rate limit hit for {operation_name}. "
+                              f"Waiting {retry_delay} seconds before retry "
+                              f"(attempt {attempt + 1}/{max_retries})")
+                        await asyncio.sleep(retry_delay)
+                        continue
+                    else:
+                        print(f"ERROR: Gemini API rate limit hit for {operation_name}. "
+                              f"All {max_retries} retries exhausted.")
+                        raise
+                else:
+                    # For non-rate-limit errors, raise immediately
+                    raise
+    
     async def _run_investigator(self, investigator_name: str, 
                               blackboard: InvestigationBlackboard, context: Dict[str, Any]):
         """Run a single investigator agent."""
@@ -387,17 +432,25 @@ class BlackboardCoordinator:
             # Create user message
             content = types.Content(role='user', parts=[types.Part(text=prompt)])
             
-            # Run the agent
-            results = []
-            async for event in runner.run_async(
-                session_id=session.id,
-                user_id=session.user_id,
-                new_message=content
-            ):
-                results.append(event)
-                if hasattr(event, 'response') and event.response:
-                    print(f"DEBUG: {investigator_name} generated response")
-            print(f"DEBUG: {investigator_name} completed successfully with {len(results)} events")
+            # Helper function to run the agent
+            async def run_agent_with_context():
+                results = []
+                async for event in runner.run_async(
+                    session_id=session.id,
+                    user_id=session.user_id,
+                    new_message=content
+                ):
+                    results.append(event)
+                    if hasattr(event, 'response') and event.response:
+                        print(f"DEBUG: {investigator_name} generated response")
+                print(f"DEBUG: {investigator_name} completed successfully with {len(results)} events")
+                return results
+            
+            # Run with retry logic
+            await self._retry_gemini_operation(
+                f"investigator_{investigator_name}",
+                run_agent_with_context
+            )
             
         except Exception as e:
             # Log error and write to blackboard
@@ -589,17 +642,25 @@ Focus on finding meaningful patterns that tell the story of what happened.
             # Create user message
             content = types.Content(role='user', parts=[types.Part(text=prompt)])
             
-            # Run the agent
-            results = []
-            async for event in runner.run_async(
-                session_id=session.id,
-                user_id=session.user_id,
-                new_message=content
-            ):
-                results.append(event)
-                if hasattr(event, 'response') and event.response:
-                    print(f"DEBUG: Correlation analysis generated response")
-            print(f"DEBUG: Correlation analysis completed successfully with {len(results)} events")
+            # Helper function to run the agent
+            async def run_correlation_with_context():
+                results = []
+                async for event in runner.run_async(
+                    session_id=session.id,
+                    user_id=session.user_id,
+                    new_message=content
+                ):
+                    results.append(event)
+                    if hasattr(event, 'response') and event.response:
+                        print(f"DEBUG: Correlation analysis generated response")
+                print(f"DEBUG: Correlation analysis completed successfully with {len(results)} events")
+                return results
+            
+            # Run with retry logic
+            await self._retry_gemini_operation(
+                "correlation_analysis",
+                run_correlation_with_context
+            )
             
         except Exception as e:
             print(f"ERROR: Correlation analysis failed: {type(e).__name__}: {e}")
@@ -684,24 +745,32 @@ Make the report actionable for both technical and executive audiences.
             # Create user message
             content = types.Content(role='user', parts=[types.Part(text=prompt)])
             
-            # Run the agent
-            report_results = []
-            report_result = None
-            async for event in runner.run_async(
-                session_id=session.id,
-                user_id=session.user_id,
-                new_message=content
-            ):
-                report_results.append(event)
-                if hasattr(event, 'response') and event.response:
-                    report_result = event.response
-                    print(f"DEBUG: Report generation generated response")
-                elif hasattr(event, 'content'):
-                    report_result = event.content
-            print(f"DEBUG: Report generation completed successfully with {len(report_results)} events")
+            # Helper function to run the agent
+            async def run_report_with_context():
+                report_results = []
+                report_result = None
+                async for event in runner.run_async(
+                    session_id=session.id,
+                    user_id=session.user_id,
+                    new_message=content
+                ):
+                    report_results.append(event)
+                    if hasattr(event, 'response') and event.response:
+                        report_result = event.response
+                        print(f"DEBUG: Report generation generated response")
+                    elif hasattr(event, 'content'):
+                        report_result = event.content
+                print(f"DEBUG: Report generation completed successfully with {len(report_results)} events")
+                
+                if not report_result:
+                    report_result = f"Report generated with {len(report_results)} events"
+                return report_result
             
-            if not report_result:
-                report_result = f"Report generated with {len(report_results)} events"
+            # Run with retry logic
+            report_result = await self._retry_gemini_operation(
+                "report_generation",
+                run_report_with_context
+            )
             
             # Also export raw blackboard data
             raw_data = await blackboard.export()
@@ -776,6 +845,15 @@ You ONLY have access to the security tools listed below and the blackboard tools
 3. **Parallel Investigation**: Run multiple investigators simultaneously
 4. **Correlation Analysis**: Find patterns across all findings
 5. **Report Generation**: Create comprehensive investigation report
+
+## SOAR Case Handling
+
+When you receive a request like "start an investigation for soar case XXXX":
+1. ALWAYS automatically use `get_case_full_details` to fetch complete case information
+2. Extract indicators, priority, title, and other context from the case details
+3. Use the case information to automatically construct the investigation context
+4. DO NOT ask the user for additional details - use what's available in the SOAR case
+5. If case details are incomplete, proceed with available information and note gaps in the investigation
 
 ## Available MCP Security Tools
 
