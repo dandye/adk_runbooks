@@ -7,12 +7,16 @@ This site serves as the central hub for documentation related to the Agent Devel
 This site contains detailed information about various components of the ADK Runbooks project. Explore the sections below to find specific documentation.
 
 ### ADK Multi-Agent System Overview
-Details on the multi-agent architecture, project structure, and how to run the example.
+Details on the multi-agent architecture, project structure, configuration system, and how to run the example.
 ```{toctree}
 :maxdepth: 2
 :caption: ADK Multi-Agent System
 
 multi_agent_overview
+multi_agent/README
+multi_agent/configuration_based_delegation
+multi_agent/config_quick_reference
+multi_agent/agent_workflow_references
 ```
 
 ### Setup & Configuration
@@ -104,12 +108,13 @@ atomic_runbooks/index
 ```
 
 ### General Security Runbooks
-This area houses a broader collection of runbooks for various security operations, including comprehensive investigation guides, triage procedures, and specific incident response plans.
+This area houses a broader collection of runbooks for various security operations, including comprehensive investigation guides, triage procedures, specific incident response plans, and detection engineering workflows.
 ```{toctree}
 :maxdepth: 2
 :caption: General Security Runbooks:
 
 run_books/index
+run_books/detection_as_code_rule_tuning
 ```
 
 ### Templates and Use Cases
@@ -132,11 +137,32 @@ Understanding the roles and responsibilities of different security team members 
 personas/index
 ```
 
+### Agent Workflow References
+Comprehensive collection of agent workflow patterns and operational procedures.
+```{toctree}
+:maxdepth: 2
+:caption: Agent Workflow References:
+
+agent_workflow_references
+```
+
+### MCP Tools Integration
+Documentation for the Model Control Protocol (MCP) tools integration and reference guides for various security platforms.
+```{toctree}
+:maxdepth: 2
+:caption: MCP Tools Integration:
+
+suggested_mcp_tools
+tools/SOAR_MCP_TOOLS_REFERENCE
+tools/SECOPS_MCP_TOOLS_REFERENCE
+tools/SCC_MCP_TOOLS_REFERENCE
+```
+
 ### Development and Planning
 This section includes documents related to ongoing development, future planning, and suggestions for the ADK Runbooks project.
 ```{toctree}
 :maxdepth: 2
 :caption: Development & Planning:
 
-suggested_mcp_tools
+project_plan
 ```
