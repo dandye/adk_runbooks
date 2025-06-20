@@ -79,23 +79,29 @@ source /Users/dandye/Projects/adk_runbooks/soc-blackboard/venv/bin/activate
 echo "start an investigation for soar case 3052" | adk run coordinator 2>&1 | tee out_final.log
 ```
 
-### Test Results Summary (Latest Update: Dec 20, 2024 10:48 UTC)
+### Test Results Summary (Latest Update: Dec 20, 2024 10:55 UTC)
 - ✅ Coordinator loads successfully with all 5 investigators and 2 synthesizers
 - ✅ Agent receives and processes the investigation request
 - ✅ No more parameter validation errors after fixes
 - ✅ DEBUG logging is now working correctly
 - ✅ Simple test commands work ("test" input gets proper response)
-- ❌ Full investigation testing blocked by external API issues:
-  - Chronicle API: 429 RESOURCE_EXHAUSTED (rate limits), 500 UNKNOWN ERROR 
-  - Gemini API: 500 INTERNAL ERROR (intermittent)
-  - Natural language search failing
-- ⚠️ Unable to verify full investigation flow due to external API issues
+- ✅ **NEW**: Gemini API is now working! Coordinator successfully:
+  - Queries SOAR case details
+  - Extracts initial indicators (file hashes, domains, IPs)
+  - Prepares investigation context
+  - Attempts to start the investigation
+- ❌ Full investigation still blocked by Chronicle API rate limits (429 RESOURCE_EXHAUSTED)
+- ⚠️ Unable to verify full investigation flow due to Chronicle API limits
 
-**Key Success:** All code-related issues have been resolved. The system works correctly when APIs are available.
+**Major Progress:** Gemini API is now functional. The coordinator successfully performs initial case analysis and indicator extraction.
 
-The parameter type fixes have successfully resolved all validation issues. The remaining challenges are external:
-1. Chronicle API availability/stability
-2. Gemini API intermittent 500 errors
+**Extracted Indicators from Test Case 3052:**
+- File Hash (SHA256): `7d99c80a1249a1ec9af0f3047c855778b06ea57e11943a271071985afe09e6c2`
+- Malware Domains: `SUPERLIST.TOP`, `SUPERSTARTS.TOP`
+- Source: `MALWARETEST-WIN` (192.168.30.20)
+- Destination IP: `193.106.191.163`
+
+The only remaining blocker is Chronicle API rate limits.
 
 ### Additional Test Commands Attempted
 ```bash
