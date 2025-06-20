@@ -15,7 +15,7 @@ We use the document as a reference when thinking about building agentic workflow
 * [Expanding ADK AI agent capabilities with tools](https://medium.com/google-cloud/expanding-adk-ai-agent-capabilities-with-tools-008a929d1ffb)
 
 
-# ToDo
+#### References to Research (ToDo)
   *  [ ] [Build a RAG Agent using Google ADK and Vertex AI RAG Engine](https://medium.com/google-cloud/build-a-rag-agent-using-google-adk-and-vertex-ai-rag-engine-bb1e6b1ee09d)
   *  [ ] [A practical guide to building Multi-Agents AI Systems with A2A](https://medium.com/google-cloud/a-practical-guide-to-building-multi-agents-ai-systems-with-a2a-2c0e3d77af24)
   *  [ ] [](https://medium.com/google-cloud/the-agent-as-tool-antipattern-analyzing-protocol-mismatches-in-peer-to-peer-multi-agent-36a44a5f724b)

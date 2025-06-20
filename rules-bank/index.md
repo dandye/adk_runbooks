@@ -137,6 +137,15 @@ Understanding the roles and responsibilities of different security team members 
 personas/index
 ```
 
+### Agent Workflow References
+Comprehensive collection of agent workflow patterns and operational procedures.
+```{toctree}
+:maxdepth: 2
+:caption: Agent Workflow References:
+
+agent_workflow_references
+```
+
 ### MCP Tools Integration
 Documentation for the Model Control Protocol (MCP) tools integration and reference guides for various security platforms.
 ```{toctree}
