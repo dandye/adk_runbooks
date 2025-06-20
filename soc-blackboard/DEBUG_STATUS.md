@@ -26,9 +26,13 @@ The SOC Blackboard coordinator is experiencing issues with agent invocation. The
 7. **Seventh Error**: `ValueError: Default value None of parameter tags: list = None`
    - **Fixed**: Used `Optional[List[str]]` type annotation for `blackboard_write`
 
-8. **Current Error**: `400 INVALID_ARGUMENT ... tags.items: missing field`
+8. **Eighth Error**: `400 INVALID_ARGUMENT ... tags.items: missing field`
    - **Fixed**: Changed `list` to `List[str]` to properly define list item type
-   - **Status**: Need to test if this resolves the API schema validation issue
+
+9. **Current Status**: Testing blocked by Chronicle API rate limits
+   - **Issue**: Chronicle API returning 429 RESOURCE_EXHAUSTED errors
+   - **Impact**: Cannot fully test the coordinator as it's hitting rate limits early
+   - **Note**: The parameter type fixes appear to be working (no more validation errors)
 
 ### What Was Changed
 1. Added explicit tool constraints to prevent `run_code` hallucinations
@@ -68,3 +72,18 @@ Test command:
 ```bash
 echo "start an investigation for soar case 3052" | adk run coordinator | tee out.log
 ```
+
+Actual test command run by Claude (includes error output and timeout):
+```bash
+source /Users/dandye/Projects/adk_runbooks/soc-blackboard/venv/bin/activate
+echo "start an investigation for soar case 3052" | adk run coordinator 2>&1 | tee out_final.log
+```
+
+### Test Results Summary
+- ✅ Coordinator loads successfully with all 5 investigators and 2 synthesizers
+- ✅ Agent receives and processes the investigation request
+- ✅ No more parameter validation errors after fixes
+- ❌ Testing blocked by Chronicle API rate limits (429 RESOURCE_EXHAUSTED)
+- ⚠️ Unable to verify full investigation flow due to API limits
+
+The parameter type fixes appear to have resolved the validation issues, but full end-to-end testing is blocked by external API rate limits.
