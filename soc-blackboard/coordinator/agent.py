@@ -69,6 +69,7 @@ class BlackboardCoordinator:
     """
     
     def __init__(self):
+        print("DEBUG: BlackboardCoordinator.__init__() called")
         self.blackboard_manager = BlackboardManager()
         self.shared_tools = None
         self.shared_exit_stack = None
@@ -76,13 +77,31 @@ class BlackboardCoordinator:
         # Agent registrations - will be loaded dynamically
         self.investigators = {}
         self.synthesizers = {}
+        print("DEBUG: About to call _load_agents()...")
         self._load_agents()
+        print(f"DEBUG: _load_agents() completed. Final counts - Investigators: {len(self.investigators)}, Synthesizers: {len(self.synthesizers)}")
     
     def _load_agents(self):
         """Load investigator and synthesizer agents dynamically."""
+        print("DEBUG: Starting agent loading...")
+        
+        # Load investigators
         try:
-            # Import investigators
-            from ..investigators import network_analyzer, endpoint_investigator, log_correlator, ioc_enricher, timeline_builder
+            print("DEBUG: Importing investigators...")
+            try:
+                from ..investigators import network_analyzer, endpoint_investigator, log_correlator, ioc_enricher, timeline_builder
+                print("DEBUG: Successfully imported using relative imports")
+            except ImportError as rel_error:
+                print(f"DEBUG: Relative import failed: {rel_error}, trying absolute imports...")
+                # Try absolute imports as fallback
+                import sys
+                from pathlib import Path
+                parent_dir = Path(__file__).parent.parent
+                if str(parent_dir) not in sys.path:
+                    sys.path.insert(0, str(parent_dir))
+                from investigators import network_analyzer, endpoint_investigator, log_correlator, ioc_enricher, timeline_builder
+                print("DEBUG: Successfully imported using absolute imports")
+                
             self.investigators = {
                 "network_analyzer": network_analyzer,
                 "endpoint_investigator": endpoint_investigator,
@@ -90,18 +109,42 @@ class BlackboardCoordinator:
                 "ioc_enricher": ioc_enricher,
                 "timeline_builder": timeline_builder
             }
-            
-            # Import synthesizers
-            from ..synthesizers import correlation_engine, report_generator
+            print(f"DEBUG: Successfully loaded {len(self.investigators)} investigators: {list(self.investigators.keys())}")
+        except Exception as e:
+            print(f"ERROR: Could not load investigators: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
+            self.investigators = {}
+        
+        # Load synthesizers  
+        try:
+            print("DEBUG: Importing synthesizers...")
+            try:
+                from ..synthesizers import correlation_engine, report_generator
+                print("DEBUG: Successfully imported synthesizers using relative imports")
+            except ImportError as rel_error:
+                print(f"DEBUG: Relative import failed for synthesizers: {rel_error}, trying absolute imports...")
+                # Try absolute imports as fallback
+                import sys
+                from pathlib import Path
+                parent_dir = Path(__file__).parent.parent
+                if str(parent_dir) not in sys.path:
+                    sys.path.insert(0, str(parent_dir))
+                from synthesizers import correlation_engine, report_generator
+                print("DEBUG: Successfully imported synthesizers using absolute imports")
+                
             self.synthesizers = {
                 "correlation_engine": correlation_engine,
                 "report_generator": report_generator
             }
-        except ImportError as e:
-            print(f"Warning: Could not load some agents: {e}")
-            # Set up minimal functionality for testing
-            self.investigators = {}
+            print(f"DEBUG: Successfully loaded {len(self.synthesizers)} synthesizers: {list(self.synthesizers.keys())}")
+        except Exception as e:
+            print(f"ERROR: Could not load synthesizers: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
             self.synthesizers = {}
+        
+        print(f"DEBUG: Agent loading complete. Investigators: {len(self.investigators)}, Synthesizers: {len(self.synthesizers)}")
     
     async def investigate(self, investigation_context: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -113,33 +156,89 @@ class BlackboardCoordinator:
         Returns:
             Investigation report with findings and recommendations
         """
+        print(f"DEBUG: ========== STARTING INVESTIGATION ==========")
         case_id = investigation_context.get("case_id", f"INV-{int(asyncio.get_event_loop().time())}")
+        print(f"DEBUG: Investigation Case ID: {case_id}")
+        print(f"DEBUG: Investigation Context: {investigation_context}")
+        
         # Create investigation blackboard
+        print("DEBUG: Creating investigation blackboard...")
         blackboard = await self.blackboard_manager.create_investigation(
             case_id, investigation_context
         )
+        print(f"DEBUG: Blackboard created for investigation: {blackboard.investigation_id}")
+        
+        investigation_successful = False
         
         try:
             # Phase 1: Initialize blackboard with initial context
+            print("DEBUG: Phase 1 - Initializing investigation...")
             await self._initialize_investigation(blackboard, investigation_context)
+            print("DEBUG: Phase 1 completed")
             
             # Phase 2: Activate relevant investigators
+            print("DEBUG: Phase 2 - Selecting investigators...")
             investigators = await self._select_investigators(investigation_context)
+            print(f"DEBUG: Selected investigators: {investigators}")
             
             # Phase 3: Run investigation in parallel
+            print("DEBUG: Phase 3 - Running parallel investigation...")
             await self._run_parallel_investigation(blackboard, investigators, investigation_context)
+            print("DEBUG: Phase 3 completed")
             
             # Phase 4: Run correlation analysis
+            print("DEBUG: Phase 4 - Running correlation analysis...")
             await self._run_correlation_analysis(blackboard)
+            print("DEBUG: Phase 4 completed")
             
             # Phase 5: Generate final report
+            print("DEBUG: Phase 5 - Generating report...")
             report = await self._generate_report(blackboard)
+            print("DEBUG: Phase 5 completed")
             
+            print("DEBUG: ========== INVESTIGATION COMPLETED ==========")
+            investigation_successful = True
             return report
             
+        except Exception as e:
+            print(f"ERROR: Investigation failed: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            # Write error to blackboard for debugging
+            await blackboard.write(
+                area="investigation_metadata",
+                finding={
+                    "type": "investigation_error",
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "phase": "unknown"
+                },
+                agent_name="coordinator",
+                confidence="high",
+                tags=["error", "investigation_failure"]
+            )
+            
+            # Return error report
+            raw_data = await blackboard.export()
+            stats = await blackboard.get_statistics()
+            return {
+                "report": f"Investigation failed: {str(e)}",
+                "raw_data": raw_data,
+                "statistics": stats,
+                "investigation_id": blackboard.investigation_id,
+                "error": str(e),
+                "error_type": type(e).__name__
+            }
+            
         finally:
-            # Clean up investigation
-            await self.blackboard_manager.close_investigation(case_id)
+            # Only clean up investigation if it completed successfully
+            # Keep failed investigations active for debugging
+            if investigation_successful:
+                print(f"DEBUG: Cleaning up successful investigation {case_id}")
+                await self.blackboard_manager.close_investigation(case_id)
+            else:
+                print(f"DEBUG: Keeping failed investigation {case_id} active for debugging")
     
     async def _initialize_investigation(self, blackboard: InvestigationBlackboard, context: Dict[str, Any]):
         """Initialize the blackboard with investigation context."""
@@ -207,23 +306,32 @@ class BlackboardCoordinator:
                                         investigators: List[str], context: Dict[str, Any]):
         """Run multiple investigators in parallel."""
         
+        print(f"DEBUG: Starting parallel investigation with {len(investigators)} investigators: {investigators}")
         
         if not self.shared_tools or not self.shared_exit_stack:
             raise RuntimeError("Shared tools not initialized. Call initialize_tools() first.")
         
+        print(f"DEBUG: Available investigators: {list(self.investigators.keys())}")
         
         # Create investigator tasks
         tasks = []
         for investigator_name in investigators:
             if investigator_name in self.investigators:
+                print(f"DEBUG: Creating task for {investigator_name}")
                 task = asyncio.create_task(
                     self._run_investigator(investigator_name, blackboard, context)
                 )
                 tasks.append(task)
+            else:
+                print(f"WARNING: Investigator {investigator_name} not found in available investigators")
         
         # Wait for all investigators to complete
         if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+            print(f"DEBUG: Running {len(tasks)} investigator tasks...")
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            print(f"DEBUG: All investigator tasks completed. Results: {[type(r).__name__ if isinstance(r, Exception) else 'Success' for r in results]}")
+        else:
+            print("WARNING: No investigator tasks to run")
     
     async def _run_investigator(self, investigator_name: str, 
                               blackboard: InvestigationBlackboard, context: Dict[str, Any]):
@@ -256,7 +364,40 @@ class BlackboardCoordinator:
             prompt = self._create_investigator_prompt(investigator_name, context)
             
             # Run the investigator
-            await agent.execute(prompt)
+            print(f"DEBUG: Running {investigator_name} with prompt: {prompt[:100]}...")
+            
+            # Use a Runner to properly invoke the agent
+            from google.adk.runners import Runner
+            from google.adk.sessions import InMemorySessionService
+            from google.genai import types
+            
+            # Create a temporary runner for this investigator
+            runner = Runner(
+                app_name='soc_blackboard',
+                agent=agent,
+                session_service=InMemorySessionService(),
+            )
+            
+            # Create a session
+            session = await runner.session_service.create_session(
+                app_name='soc_blackboard',
+                user_id='system'
+            )
+            
+            # Create user message
+            content = types.Content(role='user', parts=[types.Part(text=prompt)])
+            
+            # Run the agent
+            results = []
+            async for event in runner.run_async(
+                session_id=session.id,
+                user_id=session.user_id,
+                new_message=content
+            ):
+                results.append(event)
+                if hasattr(event, 'response') and event.response:
+                    print(f"DEBUG: {investigator_name} generated response")
+            print(f"DEBUG: {investigator_name} completed successfully with {len(results)} events")
             
         except Exception as e:
             # Log error and write to blackboard
@@ -381,20 +522,30 @@ Remember to:
     
     async def _run_correlation_analysis(self, blackboard: InvestigationBlackboard):
         """Run correlation analysis on all findings."""
+        print("DEBUG: Starting correlation analysis...")
         
         try:
+            print(f"DEBUG: Available synthesizers: {list(self.synthesizers.keys())}")
+            if "correlation_engine" not in self.synthesizers:
+                raise KeyError("correlation_engine not available in synthesizers")
+                
             correlation_module = self.synthesizers["correlation_engine"]
+            print(f"DEBUG: Got correlation_engine module: {correlation_module}")
             
             # Create blackboard tools for correlation engine
             blackboard_tools = self._create_blackboard_tools(blackboard, "correlation_engine")
+            print(f"DEBUG: Created blackboard tools, count: {len(blackboard_tools)}")
             
             # Combine shared tools with blackboard tools
             # Ensure both are lists before combining
             shared_tools_list = ensure_tools_list(self.shared_tools)
             all_tools = shared_tools_list + blackboard_tools
+            print(f"DEBUG: Combined tools, total count: {len(all_tools)}")
             
             # Initialize correlation engine
+            print("DEBUG: Initializing correlation engine...")
             agent, _ = await correlation_module.initialize(all_tools, self.shared_exit_stack)
+            print(f"DEBUG: Correlation engine initialized: {agent.name}")
             
             # Run correlation analysis
             prompt = """
@@ -409,15 +560,53 @@ Analyze all findings in the blackboard to identify patterns and correlations:
 Focus on finding meaningful patterns that tell the story of what happened.
 """
             
-            await agent.execute(prompt)
+            print("DEBUG: Running correlation analysis...")
+            
+            # Use a Runner to properly invoke the agent
+            from google.adk.runners import Runner
+            from google.adk.sessions import InMemorySessionService
+            from google.genai import types
+            
+            # Create a temporary runner for correlation
+            runner = Runner(
+                app_name='soc_blackboard',
+                agent=agent,
+                session_service=InMemorySessionService(),
+            )
+            
+            # Create a session
+            session = await runner.session_service.create_session(
+                app_name='soc_blackboard',
+                user_id='system'
+            )
+            
+            # Create user message
+            content = types.Content(role='user', parts=[types.Part(text=prompt)])
+            
+            # Run the agent
+            results = []
+            async for event in runner.run_async(
+                session_id=session.id,
+                user_id=session.user_id,
+                new_message=content
+            ):
+                results.append(event)
+                if hasattr(event, 'response') and event.response:
+                    print(f"DEBUG: Correlation analysis generated response")
+            print(f"DEBUG: Correlation analysis completed successfully with {len(results)} events")
             
         except Exception as e:
+            print(f"ERROR: Correlation analysis failed: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
+            
             # Log correlation error
             await blackboard.write(
                 area="investigation_metadata",
                 finding={
                     "type": "correlation_error",
-                    "error": str(e)
+                    "error": str(e),
+                    "error_type": type(e).__name__
                 },
                 agent_name="coordinator",
                 confidence="high",
@@ -426,20 +615,30 @@ Focus on finding meaningful patterns that tell the story of what happened.
     
     async def _generate_report(self, blackboard: InvestigationBlackboard) -> Dict[str, Any]:
         """Generate comprehensive investigation report."""
+        print("DEBUG: Starting report generation...")
         
         try:
+            print(f"DEBUG: Available synthesizers: {list(self.synthesizers.keys())}")
+            if "report_generator" not in self.synthesizers:
+                raise KeyError("report_generator not available in synthesizers")
+                
             report_module = self.synthesizers["report_generator"]
+            print(f"DEBUG: Got report_generator module: {report_module}")
             
             # Create blackboard tools for report generator
             blackboard_tools = self._create_blackboard_tools(blackboard, "report_generator")
+            print(f"DEBUG: Created blackboard tools, count: {len(blackboard_tools)}")
             
             # Combine shared tools with blackboard tools
             # Ensure both are lists before combining
             shared_tools_list = ensure_tools_list(self.shared_tools)
             all_tools = shared_tools_list + blackboard_tools
+            print(f"DEBUG: Combined tools, total count: {len(all_tools)}")
             
             # Initialize report generator
+            print("DEBUG: Initializing report generator...")
             agent, _ = await report_module.initialize(all_tools, self.shared_exit_stack)
+            print(f"DEBUG: Report generator initialized: {agent.name}")
             
             # Generate report
             prompt = """
@@ -456,7 +655,47 @@ Generate a comprehensive investigation report based on all blackboard findings:
 Make the report actionable for both technical and executive audiences.
 """
             
-            report_result = await agent.execute(prompt)
+            print("DEBUG: Running report generation...")
+            
+            # Use a Runner to properly invoke the agent
+            from google.adk.runners import Runner
+            from google.adk.sessions import InMemorySessionService
+            from google.genai import types
+            
+            # Create a temporary runner for report generation
+            runner = Runner(
+                app_name='soc_blackboard',
+                agent=agent,
+                session_service=InMemorySessionService(),
+            )
+            
+            # Create a session
+            session = await runner.session_service.create_session(
+                app_name='soc_blackboard',
+                user_id='system'
+            )
+            
+            # Create user message
+            content = types.Content(role='user', parts=[types.Part(text=prompt)])
+            
+            # Run the agent
+            report_results = []
+            report_result = None
+            async for event in runner.run_async(
+                session_id=session.id,
+                user_id=session.user_id,
+                new_message=content
+            ):
+                report_results.append(event)
+                if hasattr(event, 'response') and event.response:
+                    report_result = event.response
+                    print(f"DEBUG: Report generation generated response")
+                elif hasattr(event, 'content'):
+                    report_result = event.content
+            print(f"DEBUG: Report generation completed successfully with {len(report_results)} events")
+            
+            if not report_result:
+                report_result = f"Report generated with {len(report_results)} events"
             
             # Also export raw blackboard data
             raw_data = await blackboard.export()
@@ -470,6 +709,10 @@ Make the report actionable for both technical and executive audiences.
             }
             
         except Exception as e:
+            print(f"ERROR: Report generation failed: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
+            
             # Fallback: create basic report from blackboard data
             raw_data = await blackboard.export()
             stats = await blackboard.get_statistics()
@@ -479,7 +722,8 @@ Make the report actionable for both technical and executive audiences.
                 "raw_data": raw_data,
                 "statistics": stats,
                 "investigation_id": blackboard.investigation_id,
-                "error": str(e)
+                "error": str(e),
+                "error_type": type(e).__name__
             }
 
 
@@ -509,6 +753,15 @@ def get_agent(tools, exit_stack):
     
     # Add runbook instructions
     instructions = persona + """
+
+## IMPORTANT: Tool Constraints
+
+You DO NOT have access to code execution tools. Specifically:
+- There is NO `run_code` function available
+- There is NO `execute_code` function available
+- You cannot run arbitrary code
+
+You ONLY have access to the security tools listed below and the blackboard tools.
 
 ## Investigation Workflow
 
