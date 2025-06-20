@@ -83,7 +83,24 @@ echo "start an investigation for soar case 3052" | adk run coordinator 2>&1 | te
 - ✅ Coordinator loads successfully with all 5 investigators and 2 synthesizers
 - ✅ Agent receives and processes the investigation request
 - ✅ No more parameter validation errors after fixes
-- ❌ Testing blocked by Chronicle API rate limits (429 RESOURCE_EXHAUSTED)
-- ⚠️ Unable to verify full investigation flow due to API limits
+- ❌ Testing blocked by Chronicle API issues:
+  - Initially: 429 RESOURCE_EXHAUSTED (rate limits)
+  - Currently: 500 UNKNOWN ERROR (server errors)
+  - Natural language search failing with "no valid query could be generated"
+- ⚠️ Unable to verify full investigation flow due to external API issues
+- ⚠️ DEBUG output not appearing in logs (may need to check log configuration)
 
-The parameter type fixes appear to have resolved the validation issues, but full end-to-end testing is blocked by external API rate limits.
+The parameter type fixes appear to have resolved all the validation issues. The remaining challenges are:
+1. External Chronicle API availability/stability
+2. DEBUG logging may not be properly configured for the test environment
+
+### Additional Test Commands Attempted
+```bash
+# Test with more complete context
+echo "start an investigation for soar case 3052 with title 'Ursnif Malware Investigation' and priority critical" | adk run coordinator 2>&1 | tee out_final3.log
+
+# Direct function call attempt
+cat << 'EOF' | adk run coordinator 2>&1 | tee out_direct.log
+start_investigation({"case_id": "3052", "title": "Test Investigation", "priority": "high", "initial_indicators": [], "data_sources": ["chronicle"], "investigation_type": "test"})
+EOF
+```
