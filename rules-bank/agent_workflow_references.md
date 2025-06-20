@@ -388,9 +388,9 @@ graph TD
 ```mermaid
 sequenceDiagram
     participant C as Coordinator
-    participant A1 as Spanish Agent
-    participant A2 as French Agent
-    participant A3 as German Agent
+    participant A1 as Spanish Agent A
+    participant A2 as Spanish Agent B
+    participant A3 as Spanish Agent C
     participant A4 as Multi-lang Agent
 
     C->>+A1: Task Available: Translate to Spanish
@@ -399,8 +399,8 @@ sequenceDiagram
     C->>+A4: Task Available: Translate to Spanish
 
     A1-->>-C: Bid: Score=100, Load=Low
-    A2-->>-C: Bid: Score=30, Load=Medium
-    A3-->>-C: Bid: Score=20, Load=High
+    A2-->>-C: Bid: Score=90, Load=Medium
+    A3-->>-C: Bid: Score=95, Load=High
     A4-->>-C: Bid: Score=80, Load=Low
 
     C->>C: Evaluate bids
@@ -870,7 +870,7 @@ graph TD
     subgraph Pipeline
         A[Step1_Fetch] --> B[Step2_Process]
     end
-    A --> |output_key="data"| B
+    A --> |state data| B
     style A fill:#f9f,stroke:#333,stroke-width:2px
     style B fill:#f9f,stroke:#333,stroke-width:2px
     linkStyle 0 stroke-width:2px,fill:none,stroke:blue;
