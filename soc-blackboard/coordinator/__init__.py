@@ -50,6 +50,10 @@ class DeferredCoordinatorAgent(Agent):
             # Initialize tools
             tools, exit_stack = await get_shared_tools()
             
+            # Store the original tools for the coordinator to use
+            self._original_tools = tools
+            self._exit_stack = exit_stack
+            
             # Create the real agent with tools
             self._real_agent = get_agent(tools, exit_stack)
             

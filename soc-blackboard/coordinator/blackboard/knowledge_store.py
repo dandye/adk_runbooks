@@ -96,7 +96,16 @@ class InvestigationBlackboard:
             if area == "risk_scores":
                 # Risk scores are stored as a dict, not a list
                 self.knowledge_areas[area].update(finding)
+            elif area == "investigation_metadata":
+                # Investigation metadata is also a dict
+                self.knowledge_areas[area].update(finding)
             else:
+                # Ensure the area exists and is a list
+                if area not in self.knowledge_areas:
+                    self.knowledge_areas[area] = []
+                elif not isinstance(self.knowledge_areas[area], list):
+                    print(f"Warning: Knowledge area '{area}' is not a list, converting...")
+                    self.knowledge_areas[area] = []
                 self.knowledge_areas[area].append(finding_obj.to_dict())
             
             # Update investigation metadata

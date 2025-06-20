@@ -16,6 +16,47 @@ from google.adk.agents import Agent
 from .blackboard import InvestigationBlackboard, BlackboardManager
 
 
+def ensure_tools_list(tools):
+    """Ensure tools are in list format, handling various input types."""
+    if tools is None:
+        return []
+    elif isinstance(tools, list):
+        return tools
+    elif isinstance(tools, tuple):
+        return list(tools)
+    elif isinstance(tools, dict):
+        # If tools is a dict, it might be a processed format from ADK
+        # Try to extract the actual tools if possible
+        if 'tools' in tools:
+            return ensure_tools_list(tools['tools'])
+        elif hasattr(tools, 'values'):
+            # If it's a dict-like object, try to get the values
+            values = list(tools.values())
+            # Check if the values look like tools (callables)
+            if values and all(callable(v) or hasattr(v, '__call__') for v in values[:min(3, len(values))]):
+                return values
+            else:
+                print(f"Warning: Tools dict doesn't contain callable values")
+                return []
+        else:
+            print(f"Warning: Tools is a dict without 'tools' key: {list(tools.keys())[:5]}")
+            return []
+    elif hasattr(tools, '__iter__') and not isinstance(tools, str):
+        # Handle other iterables
+        try:
+            return list(tools)
+        except Exception as e:
+            print(f"Warning: Failed to convert tools to list: {e}")
+            return []
+    else:
+        # Single tool or unexpected type
+        if callable(tools) or hasattr(tools, '__call__'):
+            return [tools]
+        else:
+            print(f"Warning: Unexpected tools type: {type(tools)}")
+            return []
+
+
 class BlackboardCoordinator:
     """
     Coordinates SOC investigations using the Blackboard architectural pattern.
@@ -73,7 +114,6 @@ class BlackboardCoordinator:
             Investigation report with findings and recommendations
         """
         case_id = investigation_context.get("case_id", f"INV-{int(asyncio.get_event_loop().time())}")
-        
         # Create investigation blackboard
         blackboard = await self.blackboard_manager.create_investigation(
             case_id, investigation_context
@@ -167,8 +207,10 @@ class BlackboardCoordinator:
                                         investigators: List[str], context: Dict[str, Any]):
         """Run multiple investigators in parallel."""
         
+        
         if not self.shared_tools or not self.shared_exit_stack:
             raise RuntimeError("Shared tools not initialized. Call initialize_tools() first.")
+        
         
         # Create investigator tasks
         tasks = []
@@ -194,13 +236,21 @@ class BlackboardCoordinator:
             blackboard_tools = self._create_blackboard_tools(blackboard, investigator_name)
             
             # Combine shared tools with blackboard tools
-            if isinstance(self.shared_tools, tuple):
-                all_tools = self.shared_tools + tuple(blackboard_tools)
-            else:
-                all_tools = list(self.shared_tools) + blackboard_tools
+            # Ensure both are lists before combining
+            shared_tools_list = ensure_tools_list(self.shared_tools)
+            all_tools = shared_tools_list + blackboard_tools
+            
             
             # Initialize investigator agent with combined tools
-            agent, _ = await investigator_module.initialize(all_tools, self.shared_exit_stack)
+            try:
+                agent, _ = await investigator_module.initialize(all_tools, self.shared_exit_stack)
+            except Exception as init_error:
+                print(f"ERROR: Failed to initialize {investigator_name}: {type(init_error).__name__}: {init_error}")
+                
+                # Try to provide more context about the error
+                if "'dict' object has no attribute 'append'" in str(init_error):
+                    print(f"ERROR: Dict append error - tools format issue detected")
+                raise
             
             # Create investigation prompt based on context
             prompt = self._create_investigator_prompt(investigator_name, context)
@@ -339,10 +389,9 @@ Remember to:
             blackboard_tools = self._create_blackboard_tools(blackboard, "correlation_engine")
             
             # Combine shared tools with blackboard tools
-            if isinstance(self.shared_tools, tuple):
-                all_tools = self.shared_tools + tuple(blackboard_tools)
-            else:
-                all_tools = list(self.shared_tools) + blackboard_tools
+            # Ensure both are lists before combining
+            shared_tools_list = ensure_tools_list(self.shared_tools)
+            all_tools = shared_tools_list + blackboard_tools
             
             # Initialize correlation engine
             agent, _ = await correlation_module.initialize(all_tools, self.shared_exit_stack)
@@ -385,10 +434,9 @@ Focus on finding meaningful patterns that tell the story of what happened.
             blackboard_tools = self._create_blackboard_tools(blackboard, "report_generator")
             
             # Combine shared tools with blackboard tools
-            if isinstance(self.shared_tools, tuple):
-                all_tools = self.shared_tools + tuple(blackboard_tools)
-            else:
-                all_tools = list(self.shared_tools) + blackboard_tools
+            # Ensure both are lists before combining
+            shared_tools_list = ensure_tools_list(self.shared_tools)
+            all_tools = shared_tools_list + blackboard_tools
             
             # Initialize report generator
             agent, _ = await report_module.initialize(all_tools, self.shared_exit_stack)
@@ -449,7 +497,11 @@ def get_agent(tools, exit_stack):
     
     # Initialize coordinator with shared resources
     coordinator = BlackboardCoordinator()
-    coordinator.shared_tools = tools
+    
+    # Ensure tools are in list format
+    tools_list = ensure_tools_list(tools)
+    
+    coordinator.shared_tools = tools_list
     coordinator.shared_exit_stack = exit_stack
     
     # Load persona and instructions
@@ -538,7 +590,12 @@ Use the coordinator.investigate(context) method to start investigations.
         """Start a new SOC investigation with the given context."""
         import json
         try:
-            context = json.loads(context_json)
+            # Handle if context_json is already a dict (from ADK)
+            if isinstance(context_json, dict):
+                context = context_json
+            else:
+                context = json.loads(context_json)
+            
             result = await coordinator.investigate(context)
             return {"success": True, "result": result}
         except Exception as e:
@@ -555,11 +612,9 @@ Use the coordinator.investigate(context) method to start investigations.
     # Add investigation tools to the agent's toolset
     investigation_tools = [start_investigation, list_active_investigations]
     
-    # Convert tools tuple to list if needed and add investigation tools
-    if isinstance(tools, tuple):
-        all_tools = list(tools) + investigation_tools
-    else:
-        all_tools = tools + investigation_tools
+    # Convert tools to list and add investigation tools
+    tools_list = ensure_tools_list(tools)
+    all_tools = tools_list + investigation_tools
     
     return Agent(
         name="blackboard_coordinator",
