@@ -1,0 +1,60 @@
+alert:
+  group_by:
+  - source.hostname
+  - user.name
+  - process.name
+  priority: medium
+  suppress_duration: 300
+author: Detection Engineering Team
+description: Detects execution of RMM tools that could be abused by threat actors
+exclusions:
+- condition: user.name IN ('svc_helpdesk', 'admin_support')
+  expires: '2025-12-31'
+  reason: Authorized IT support personnel
+- condition: host.labels.environment = 'development'
+  expires: null
+  reason: Development environment testing
+id: rmm-tools-execution
+logic:
+  query: "event.type = \"process\" AND\nprocess.name IN (\"ScreenConnect.exe\", \"\
+    TeamViewer.exe\", \"AnyDesk.exe\", \"VNC.exe\", \"LogMeIn.exe\") AND\nNOT (\n\
+    \      (user.name = \"jack.torrance\" AND host.name = \"desktop-7xl2kp3\" AND\
+    \ process.name = \"ScreenConnect.exe\") OR\n      (\n      (user.name = \"jack.torrance\"\
+    \ AND host.name = \"desktop-7xl2kp3\" AND process.name = \"ScreenConnect.exe\"\
+    ) OR\n      (\n  // Exclude known authorized IT assets\n  process.signer CONTAINS\
+    \ \"IT_DEPARTMENT\" OR\n  source.labels.environment = \"IT_MANAGED\"\n)\n\n  \
+    \  )\n    )"
+metadata:
+  confidence: high
+  created_date: '2024-01-15'
+  data_sources:
+  - Windows Event Logs
+  - EDR Process Events
+  false_positive_rate: low
+  last_modified: '2025-06-18'
+  version: '1.4'
+mitre:
+  tactics:
+  - TA0011
+  techniques:
+  - T1219
+name: Remote Monitoring Management Tools Execution
+severity: medium
+status: active
+tags:
+- attack.t1219
+- remote_access
+- rmm_tools
+- endpoint
+validation:
+  test_cases:
+  - description: Legitimate IT support usage
+    event_data:
+      process.name: ScreenConnect.exe
+      user.name: svc_helpdesk
+    should_alert: false
+  - description: Unauthorized RMM execution
+    event_data:
+      process.name: TeamViewer.exe
+      user.name: john.doe
+    should_alert: true
