@@ -489,23 +489,29 @@ Remember to:
     
     def _create_blackboard_tools(self, blackboard: InvestigationBlackboard, agent_name: str):
         """Create blackboard interaction tools for an agent."""
+        from typing import Optional, List
         
-        async def blackboard_read(area: str = None):
-            """Read findings from the investigation blackboard."""
+        async def blackboard_read(area: str = ""):
+            """Read findings from the investigation blackboard. Leave area empty to read all areas."""
             try:
-                return await blackboard.read(area)
+                # Convert empty string to None for the actual call
+                area_param = area if area else None
+                return await blackboard.read(area_param)
             except Exception as e:
                 return {"error": f"Failed to read from blackboard: {str(e)}"}
         
-        async def blackboard_write(area: str, finding: dict, confidence: str = "medium", tags: list = None):
+        async def blackboard_write(area: str, finding: dict, confidence: str = "medium", tags: Optional[List[str]] = None):
             """Write a finding to the investigation blackboard."""
             try:
+                # Handle None tags properly
+                if tags is None:
+                    tags = []
                 finding_id = await blackboard.write(
                     area=area,
                     finding=finding,
                     agent_name=agent_name,
                     confidence=confidence,
-                    tags=tags or []
+                    tags=tags
                 )
                 return {"success": True, "finding_id": finding_id}
             except Exception as e:
