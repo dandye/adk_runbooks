@@ -16,7 +16,10 @@ from datetime import datetime
 from google.adk.tools.mcp_tool import MCPToolset, StdioConnectionParams
 from google.adk.tools.mcp_tool.mcp_session_manager import StdioServerParameters
 
-from .config import SOCBlackboardConfig
+try:
+    from .config import SOCBlackboardConfig
+except ImportError:
+    from config import SOCBlackboardConfig
 
 TIMEOUT = 60
 
@@ -94,11 +97,13 @@ async def initialize_mcp_tools(config: SOCBlackboardConfig, exit_stack: AsyncExi
     siem_toolset = MCPToolset(
         connection_params=StdioConnectionParams(
             server_params=StdioServerParameters(
-                command='uv',
+                command='/Users/dandye/homebrew/bin/uv',
                 args=[
                     "--directory",
                     str(mcp_security_path / "server" / "secops" / "secops_mcp"),
                     "run",
+                    "--reinstall-package",
+                    "secops-mcp",
                     "--env-file",
                     str(mcp_security_path / ".env"),
                     "server.py"
@@ -111,7 +116,7 @@ async def initialize_mcp_tools(config: SOCBlackboardConfig, exit_stack: AsyncExi
     soar_toolset = MCPToolset(
         connection_params=StdioConnectionParams(
             server_params=StdioServerParameters(
-                command='uv',
+                command='/Users/dandye/homebrew/bin/uv',
                 args=[
                     "--directory",
                     str(mcp_security_path / "server" / "secops-soar" / "secops_soar_mcp"),
@@ -130,15 +135,14 @@ async def initialize_mcp_tools(config: SOCBlackboardConfig, exit_stack: AsyncExi
     gti_toolset = MCPToolset(
         connection_params=StdioConnectionParams(
             server_params=StdioServerParameters(
-                command='uv',
+                command='/Users/dandye/homebrew/bin/uv',
                 args=[
                     "--directory",
-                    str(mcp_security_path / "server" / "gti" / "gti_mcp"),
+                    str(mcp_security_path / "server" / "gti"),
                     "run",
-                    "--refresh",
                     "--env-file",
                     str(mcp_security_path / ".env"),
-                    "server.py"
+                    "gti_mcp"
                 ],
             ),
             timeout=TIMEOUT,
@@ -171,7 +175,10 @@ async def get_shared_tools(config: Optional[SOCBlackboardConfig] = None) -> tupl
     """
     
     if config is None:
-        from .config import get_default_config
+        try:
+            from .config import get_default_config
+        except ImportError:
+            from config import get_default_config
         config = get_default_config()
     
     exit_stack = AsyncExitStack()

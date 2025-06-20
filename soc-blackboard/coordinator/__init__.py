@@ -3,72 +3,96 @@ SOC Blackboard Coordinator module.
 """
 
 from .agent import get_agent, initialize, BlackboardCoordinator
+from google.adk.agents import Agent
+import asyncio
+import sys
+from pathlib import Path
 
 # Lazy initialization for ADK discovery
 _root_agent = None
+_initialization_error = None
+
+class DeferredCoordinatorAgent(Agent):
+    """A coordinator agent that defers MCP tool initialization until first use."""
+    
+    def __init__(self):
+        # Initialize with minimal config
+        super().__init__(
+            name="blackboard_coordinator",
+            model="gemini-2.5-pro-preview-05-06", 
+            description="SOC Blackboard Coordinator - MCP tools pending initialization",
+            instruction="Initializing MCP security tools...",
+            tools=[]
+        )
+        self._initialized = False
+        self._real_agent = None
+        self._initialization_error = None
+        
+    async def _ensure_initialized(self):
+        """Initialize MCP tools and real agent on first async call."""
+        if self._initialized:
+            return
+            
+        if self._initialization_error:
+            raise self._initialization_error
+            
+        try:
+            # Add parent directory to Python path
+            parent_dir = Path(__file__).parent.parent
+            if str(parent_dir) not in sys.path:
+                sys.path.insert(0, str(parent_dir))
+                
+            try:
+                from ..tools import get_shared_tools
+            except ImportError:
+                from tools import get_shared_tools
+                
+            # Initialize tools
+            tools, exit_stack = await get_shared_tools()
+            
+            # Create the real agent with tools
+            self._real_agent = get_agent(tools, exit_stack)
+            
+            # Copy over the real agent's attributes
+            self.description = self._real_agent.description
+            self.instruction = self._real_agent.instruction
+            self.tools = self._real_agent.tools
+            
+            self._initialized = True
+            
+        except Exception as e:
+            self._initialization_error = RuntimeError(
+                f"Failed to initialize MCP security tools: {e}\n"
+                "Ensure that:\n"
+                "1. The external/mcp-security submodule is initialized\n"
+                "2. The .env file exists with proper credentials\n" 
+                "3. Python dependencies are installed"
+            )
+            raise self._initialization_error
+    
+    async def run_async(self, invocation_context):
+        """Override to ensure initialization before running."""
+        await self._ensure_initialized()
+        if self._real_agent:
+            async for event in self._real_agent.run_async(invocation_context):
+                yield event
+        else:
+            raise RuntimeError("Agent initialization failed")
+    
+    async def process_request(self, request, invocation_context=None, tools_code_execution_config=None):
+        """Override to ensure initialization before processing."""
+        await self._ensure_initialized()
+        if self._real_agent:
+            return await self._real_agent.process_request(
+                request, invocation_context, tools_code_execution_config
+            )
+        else:
+            raise RuntimeError("Agent initialization failed")
 
 def _create_coordinator_root_agent():
-    """Create the coordinator root agent with proper error handling."""
-    try:
-        from google.adk.agents import Agent
-        import sys
-        from pathlib import Path
-        # Add parent directory to Python path
-        parent_dir = Path(__file__).parent.parent
-        if str(parent_dir) not in sys.path:
-            sys.path.insert(0, str(parent_dir))
-        from tools import get_shared_tools
-        import asyncio
-        
-        # Check if we're already in an event loop
-        try:
-            loop = asyncio.get_running_loop()
-            # If we're in a loop, create fallback
-            print("Already in event loop, creating fallback coordinator")
-            return _create_fallback_coordinator()
-        except RuntimeError:
-            # No running loop, safe to use asyncio.run()
-            async def init_coordinator():
-                try:
-                    tools, exit_stack = await get_shared_tools()
-                    return get_agent(tools, exit_stack)
-                except Exception as e:
-                    print(f"Coordinator tools not available, using fallback: {e}")
-                    return _create_fallback_coordinator()
-            
-            return asyncio.run(init_coordinator())
-        
-    except Exception as e:
-        print(f"Coordinator initialization failed, using fallback: {e}")
-        return _create_fallback_coordinator()
+    """Create the coordinator root agent with deferred initialization."""
+    return DeferredCoordinatorAgent()
 
-def _create_fallback_coordinator():
-    """Create a minimal fallback coordinator agent."""
-    from google.adk.agents import Agent
-    return Agent(
-        name="blackboard_coordinator",
-        model="gemini-2.5-pro-preview-05-06",
-        description="SOC Blackboard coordinator (direct access)",
-        instruction="""
-You are the SOC Blackboard Coordinator agent.
-
-This is the direct coordinator agent that orchestrates SOC investigations using the Blackboard pattern.
-
-The full SOC Blackboard system with MCP security tools may not be available.
-You can provide guidance on:
-- Security investigation workflows
-- Blackboard pattern implementation
-- SOC coordination methodologies
-
-To enable full functionality:
-1. Install MCP security tools: ./setup_mcp_tools.sh
-2. Configure .env with your credentials
-3. Set up Google Cloud authentication
-
-For full system access, use: adk run soc-blackboard
-""",
-        tools=[]
-    )
 
 # Initialize root_agent on first access
 def __getattr__(name):

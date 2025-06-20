@@ -466,6 +466,38 @@ def get_agent(tools, exit_stack):
 4. **Correlation Analysis**: Find patterns across all findings
 5. **Report Generation**: Create comprehensive investigation report
 
+## Available MCP Security Tools
+
+You have access to the following MCP (Model Context Protocol) security tools:
+
+### SIEM Tools (Chronicle)
+- `search_security_events`: Search for security events in Chronicle
+- `get_security_alerts`: Retrieve security alerts
+- `lookup_entity`: Look up entity information
+- `list_security_rules`: List detection rules
+- `get_ioc_matches`: Get IOC matches
+- And more Chronicle-specific tools
+
+### SOAR Tools (Security Orchestration)
+- `list_cases`: List security cases
+- `post_case_comment`: Add comments to cases
+- `list_alerts_by_case`: Get alerts for a case
+- `change_case_priority`: Update case priority
+- `get_case_full_details`: Get complete case information
+- And many more SOAR capabilities
+
+### GTI Tools (Google Threat Intelligence/VirusTotal)
+- `get_collection_report`: Get threat intelligence reports
+- `search_threats`: Search for threats
+- `get_domain_report`: Analyze domains
+- `get_file_report`: Analyze files
+- `get_ip_address_report`: Analyze IP addresses
+- And more threat intelligence capabilities
+
+### Utility Tools
+- `write_report`: Write investigation reports to files
+- `get_current_time`: Get current timestamp
+
 ## Available Commands
 
 - `investigate(context)`: Start a new investigation with given context
@@ -487,6 +519,14 @@ def get_agent(tools, exit_stack):
     "investigation_type": "data_exfiltration"
 }
 ```
+
+## How Investigations Work
+
+1. You orchestrate the investigation by delegating to specialized investigator agents
+2. Each investigator writes findings to the shared blackboard
+3. The correlation engine analyzes patterns across all findings
+4. The report generator creates a comprehensive report
+5. All agents have access to the same MCP tools and can use them as needed
 
 Always use the blackboard pattern - agents communicate through shared knowledge, not directly.
 
