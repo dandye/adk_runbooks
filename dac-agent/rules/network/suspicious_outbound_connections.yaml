@@ -1,0 +1,59 @@
+# Suspicious Outbound Network Connections Detection Rule
+id: suspicious-outbound-connections
+name: "Suspicious Outbound Network Connections"
+description: "Detects potentially malicious outbound network connections"
+author: "Detection Engineering Team"
+severity: high
+status: active
+
+# Rule logic
+logic:
+  query: |
+    event.type = "network" AND
+    network.direction = "outbound" AND
+    (
+      destination.port IN (4444, 8080, 9999, 31337) OR
+      destination.domain MATCHES ".*\.tk$|.*\.ml$|.*\.ga$" OR
+      network.bytes_sent > 10485760  // > 10MB
+    ) AND
+    NOT (
+      source.labels.environment = "development" OR
+      destination.ip IN ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")
+    )
+
+# MITRE ATT&CK mapping
+mitre:
+  tactics:
+    - "TA0011"  # Command and Control
+    - "TA0010"  # Exfiltration
+  techniques:
+    - "T1071"   # Application Layer Protocol
+    - "T1041"   # Exfiltration Over C2 Channel
+
+# Detection metadata
+tags:
+  - attack.t1071
+  - attack.t1041
+  - network
+  - exfiltration
+  - c2
+
+# Alert configuration
+alert:
+  priority: high
+  suppress_duration: 600  # 10 minutes
+  group_by:
+    - "source.hostname"
+    - "destination.ip"
+    - "destination.port"
+
+# Metadata
+metadata:
+  created_date: "2024-02-01"
+  last_modified: "2024-06-19"
+  version: "1.1"
+  data_sources:
+    - "Network Logs"
+    - "Firewall Logs"
+  false_positive_rate: "medium"
+  confidence: "high"
