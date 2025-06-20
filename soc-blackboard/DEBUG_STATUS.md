@@ -50,3 +50,21 @@ The SOC Blackboard coordinator is experiencing issues with agent invocation. The
 - The Runner API is the recommended way to invoke agents programmatically
 - InvocationContext should not be manually created - it's handled by the framework
 - Session services may require async initialization
+
+### Testing Environment and Command
+We are testing the soc-blackboard with the following setup:
+```bash
+❯ pwd
+/Users/dandye/Projects/adk_runbooks/soc-blackboard
+❯ echo $VIRTUAL_ENV
+/Users/dandye/Projects/adk_runbooks/soc-blackboard/venv
+❯ which adk
+/Users/dandye/homebrew/Caskroom/miniconda/base/bin/adk
+❯ adk --version
+adk, version 1.3.0
+```
+
+Test command:
+```bash
+echo "start an investigation for soar case 3052" | adk run coordinator | tee out.log
+```
