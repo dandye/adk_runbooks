@@ -19,9 +19,11 @@ logic:
   query: "event.type = \"process\" AND\nprocess.name IN (\"ScreenConnect.exe\", \"\
     TeamViewer.exe\", \"AnyDesk.exe\", \"VNC.exe\", \"LogMeIn.exe\") AND\nNOT (\n\
     \      (user.name = \"jack.torrance\" AND host.name = \"desktop-7xl2kp3\" AND\
-    \ process.name = \"ScreenConnect.exe\") OR\n      (\n  // Exclude known authorized\
-    \ IT assets\n  process.signer CONTAINS \"IT_DEPARTMENT\" OR\n  source.labels.environment\
-    \ = \"IT_MANAGED\"\n)\n\n    )"
+    \ process.name = \"ScreenConnect.exe\") OR\n      (\n      (user.name = \"jack.torrance\"\
+    \ AND host.name = \"desktop-7xl2kp3\" AND process.name = \"ScreenConnect.exe\"\
+    ) OR\n      (\n  // Exclude known authorized IT assets\n  process.signer CONTAINS\
+    \ \"IT_DEPARTMENT\" OR\n  source.labels.environment = \"IT_MANAGED\"\n)\n\n  \
+    \  )\n    )"
 metadata:
   confidence: high
   created_date: '2024-01-15'
@@ -30,7 +32,7 @@ metadata:
   - EDR Process Events
   false_positive_rate: low
   last_modified: '2025-06-18'
-  version: '1.3'
+  version: '1.4'
 mitre:
   tactics:
   - TA0011
