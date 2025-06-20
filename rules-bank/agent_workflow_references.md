@@ -960,8 +960,8 @@ pipeline = SequentialAgent(name="CityInfo", sub_agents=[agent_A, agent_B])
 ```mermaid
 graph TD
     subgraph State Management
-        A[AgentA] --> |output_key="capital_city"| State(State)
-        State --> |read state['capital_city']| B[AgentB]
+        A[AgentA] --> |saves capital_city| State(State)
+        State --> |reads capital_city| B[AgentB]
     end
     A --> B
     style A fill:#f9f,stroke:#333,stroke-width:2px
@@ -1010,9 +1010,6 @@ graph TD
 ```
 
 ### Conceptual Setup: Agent as a Tool (Image Generation Example)
-```
-
-### Conceptual Setup: Agent as a Tool (Image Generation Example)
 
 ```python
 # Define a target agent (could be LlmAgent or custom BaseAgent)
@@ -1054,8 +1051,8 @@ artist_agent = LlmAgent(
 graph TD
     subgraph Agent as a Tool
         A[User Input] --> B[Artist Agent (LLM)]
-        B --> |"FunctionCall: ImageGen"| C[ImageGeneratorAgent (Tool)]
-        C --> |"Image Bytes"| B
+        B --> |FunctionCall: ImageGen| C[ImageGeneratorAgent (Tool)]
+        C --> |Image Bytes| B
         B --> D[Generated Image]
     end
     style A fill:#f9f,stroke:#333,stroke-width:2px
