@@ -292,6 +292,302 @@
             border-radius: 4px;
             margin: 1rem 0;
         }
+        
+        /* Questions styles */
+        .questions-container {
+            max-width: 1200px;
+        }
+        
+        .questions-header {
+            background: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .questions-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .stat-card {
+            text-align: center;
+            padding: 1rem;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+        }
+        
+        .stat-number {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #1976D2;
+        }
+        
+        .stat-label {
+            font-size: 0.875rem;
+            color: #666;
+            margin-top: 0.25rem;
+        }
+        
+        .questions-filters {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            align-items: center;
+        }
+        
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+        
+        .filter-label {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .question-view-toggle {
+            display: flex;
+            background: #e0e0e0;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-left: auto;
+        }
+        
+        .view-toggle-btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            font-size: 0.875rem;
+            color: #666;
+            transition: all 0.2s ease;
+        }
+        
+        .view-toggle-btn.active {
+            background: #1976D2;
+            color: white;
+        }
+        
+        .questions-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .question-card {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .no-questions-message {
+            text-align: center;
+            padding: 40px 20px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .no-questions-message h3 {
+            color: #666;
+            margin-bottom: 10px;
+        }
+        
+        .processing-errors {
+            margin-top: 20px;
+            padding: 15px;
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 5px;
+            text-align: left;
+        }
+        
+        .processing-errors h4 {
+            color: #856404;
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+        
+        .processing-errors ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        
+        .processing-errors li {
+            color: #856404;
+            margin-bottom: 5px;
+        }
+        
+        .question-header {
+            padding: 1rem;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .question-meta {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        
+        .question-id {
+            font-weight: 600;
+            color: #1976D2;
+        }
+        
+        .question-category {
+            background: #E3F2FD;
+            color: #1565C0;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+        
+        .question-priority {
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+        
+        .priority-critical {
+            background: #FFEBEE;
+            color: #C62828;
+        }
+        
+        .priority-high {
+            background: #FFF3E0;
+            color: #E65100;
+        }
+        
+        .priority-medium {
+            background: #F3E5F5;
+            color: #7B1FA2;
+        }
+        
+        .priority-low {
+            background: #E8F5E9;
+            color: #2E7D32;
+        }
+        
+        .question-body {
+            padding: 1rem;
+        }
+        
+        .question-text {
+            font-size: 1rem;
+            color: #333;
+            margin-bottom: 0.75rem;
+            font-weight: 500;
+        }
+        
+        .question-rationale {
+            font-size: 0.875rem;
+            color: #666;
+            margin-bottom: 1rem;
+            font-style: italic;
+        }
+        
+        .question-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            font-size: 0.875rem;
+        }
+        
+        .detail-group h4 {
+            color: #333;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+        
+        .detail-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.25rem;
+        }
+        
+        .detail-tag {
+            background: #f5f5f5;
+            color: #666;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+        }
+        
+        .tool-mappings {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e0e0e0;
+        }
+        
+        .tool-mappings h4 {
+            color: #1976D2;
+            margin-bottom: 0.75rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+        
+        .tools-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+        
+        .tool-category {
+            background: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 0.75rem;
+        }
+        
+        .tool-category h5 {
+            color: #333;
+            margin-bottom: 0.5rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .tool-item {
+            font-size: 0.75rem;
+            color: #666;
+            margin-bottom: 0.25rem;
+        }
+        
+        .tool-relevance {
+            color: #1976D2;
+            font-weight: 500;
+        }
+        
+        .tool-wishlist {
+            background: #FFF8E1;
+            border: 1px solid #FFE082;
+            border-radius: 6px;
+            padding: 0.75rem;
+            margin-top: 0.75rem;
+        }
+        
+        .wishlist-item {
+            font-size: 0.75rem;
+            color: #F57F17;
+            margin-bottom: 0.25rem;
+        }
     </style>
 </head>
 <body>
@@ -313,6 +609,7 @@
     <div class="content-tabs">
         <div class="tab active" data-tab="timeline">Timeline</div>
         <div class="tab" data-tab="activities">Activities</div>
+        <div class="tab" data-tab="questions">Questions</div>
         <div class="tab" data-tab="blackboard">Blackboard</div>
     </div>
     
@@ -341,6 +638,17 @@
             </div>
         </div>
         
+        <div class="tab-panel" id="questions-panel">
+            <div class="questions-container">
+                <div class="questions-header" id="questions-header">
+                    <div class="loading">Loading questions...</div>
+                </div>
+                <div class="questions-content" id="questions-content">
+                    <!-- Questions will be loaded here -->
+                </div>
+            </div>
+        </div>
+        
         <div class="tab-panel" id="blackboard-panel">
             <div class="blackboard-summary" id="blackboard-summary">
                 <div class="loading">Loading blackboard data...</div>
@@ -356,6 +664,7 @@
         let investigationData = null;
         let activitiesData = null;
         let blackboardData = null;
+        let questionsData = null;
         
         // Load Google Charts
         google.charts.load('current', {'packages':['gantt']});
@@ -379,6 +688,8 @@
                     drawTimeline();
                 } else if (tabName === 'activities' && !activitiesData) {
                     loadActivities();
+                } else if (tabName === 'questions' && !questionsData) {
+                    loadQuestions();
                 } else if (tabName === 'blackboard' && !blackboardData) {
                     loadBlackboard();
                 }
@@ -654,6 +965,325 @@
             }
             
             summary.innerHTML = html || '<div class="loading">No blackboard data available yet</div>';
+        }
+        
+        // Load questions
+        async function loadQuestions() {
+            try {
+                console.log('Loading questions for investigation:', investigationId);
+                const response = await fetch(`/api/investigations/${investigationId}/questions`);
+                console.log('Response status:', response.status);
+                
+                const data = await response.json();
+                console.log('Response data:', data);
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load questions');
+                }
+                
+                // Validate data structure
+                if (!data || typeof data !== 'object') {
+                    throw new Error('Invalid response data structure');
+                }
+                
+                questionsData = data;
+                console.log('Questions data loaded successfully:', questionsData);
+                displayQuestions();
+                
+            } catch (error) {
+                console.error('Error loading questions:', error);
+                console.error('Error stack:', error.stack);
+                document.getElementById('questions-header').innerHTML = 
+                    `<div class="error">Error loading questions: ${error.message}</div>`;
+                document.getElementById('questions-content').innerHTML = '';
+            }
+        }
+        
+        function displayQuestions() {
+            try {
+                console.log('displayQuestions called with data:', questionsData);
+                
+                if (!questionsData) {
+                    console.log('No questions data available');
+                    return;
+                }
+                
+                const header = document.getElementById('questions-header');
+                const content = document.getElementById('questions-content');
+                
+                if (!header || !content) {
+                    throw new Error('Questions DOM elements not found');
+                }
+                
+                // Handle both v1.x and v2.0 formats
+                let questions = [];
+                let schemaVersion = questionsData.schema_version || '1.x';
+                
+                if (schemaVersion === '2.0' && questionsData.questions) {
+                    // v2.0 format - use unified questions list
+                    questions = questionsData.questions || [];
+                } else if (questionsData.original_questions) {
+                    // v1.x format or compatibility mode
+                    questions = questionsData.original_questions || [];
+                }
+                
+                console.log('Using questions list:', questions);
+                
+                console.log('Questions data structure check:');
+                console.log('- total_questions:', questionsData.total_questions);
+                console.log('- categories:', questionsData.categories);
+                console.log('- categories type:', typeof questionsData.categories);
+                
+                // Check for schema version and adjust display
+                if (questionsData.total_questions === 0) {
+                    // No questions available
+                    header.innerHTML = `
+                        <div class="questions-stats">
+                            <div class="stat-card">
+                                <div class="stat-number">0</div>
+                                <div class="stat-label">Total Questions</div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    let messageHtml = `<div class="no-questions-message">
+                        <h3>No Investigation Questions Available</h3>
+                        <p>${questionsData.message || 'No investigation questions have been generated yet for this case.'}</p>`;
+                    
+                    // Show processing errors if available
+                    if (questionsData.processing_errors && questionsData.processing_errors.length > 0) {
+                        messageHtml += `
+                            <div class="processing-errors">
+                                <h4>Processing Issues:</h4>
+                                <ul>
+                                    ${questionsData.processing_errors.map(error => 
+                                        `<li><strong>${error.agent || 'Unknown'}:</strong> ${error.message || error.error || 'Unknown error'}</li>`
+                                    ).join('')}
+                                </ul>
+                            </div>
+                        `;
+                    }
+                    
+                    messageHtml += '</div>';
+                    content.innerHTML = messageHtml;
+                    return;
+                }
+                
+                // Display header with statistics
+                let statsHtml = `
+                    <div class="questions-stats">
+                        <div class="stat-card">
+                            <div class="stat-number">${questionsData.total_questions || 0}</div>
+                            <div class="stat-label">Total Questions</div>
+                        </div>
+                `;
+                
+                // Add category stats
+                if (questionsData.categories && typeof questionsData.categories === 'object') {
+                    console.log('Processing categories:', questionsData.categories);
+                    for (const [category, count] of Object.entries(questionsData.categories)) {
+                        console.log('Processing category:', category, 'count:', count);
+                        statsHtml += `
+                            <div class="stat-card">
+                                <div class="stat-number">${count}</div>
+                                <div class="stat-label">${category.replace(/_/g, ' ')}</div>
+                            </div>
+                        `;
+                    }
+                } else {
+                    console.log('No categories or categories is not an object');
+                }
+            
+            statsHtml += '</div>';
+            
+            // Add filters and view toggle
+            const filtersHtml = `
+                <div class="questions-filters">
+                    <div class="filter-group">
+                        <label class="filter-label">Category</label>
+                        <select class="filter-select" id="question-category-filter">
+                            <option value="">All Categories</option>
+                            ${Object.keys(questionsData.categories || {}).map(cat => 
+                                `<option value="${cat}">${cat.replace(/_/g, ' ')}</option>`
+                            ).join('')}
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">Priority</label>
+                        <select class="filter-select" id="question-priority-filter">
+                            <option value="">All Priorities</option>
+                            ${Object.keys(questionsData.priorities || {}).map(pri => 
+                                `<option value="${pri}">${pri}</option>`
+                            ).join('')}
+                        </select>
+                    </div>
+                    <div class="question-view-toggle">
+                        <button class="view-toggle-btn active" data-view="original">Original Questions</button>
+                        ${questionsData.has_tool_mappings ? 
+                            '<button class="view-toggle-btn" data-view="enhanced">With Tool Mappings</button>' : 
+                            '<button class="view-toggle-btn" disabled>Tool Mappings (Not Available)</button>'
+                        }
+                    </div>
+                </div>
+            `;
+            
+            header.innerHTML = statsHtml + filtersHtml;
+            
+            // Add event listeners for filters and view toggle
+            document.getElementById('question-category-filter').addEventListener('change', filterQuestions);
+            document.getElementById('question-priority-filter').addEventListener('change', filterQuestions);
+            
+            document.querySelectorAll('.view-toggle-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    if (btn.disabled) return;
+                    
+                    document.querySelectorAll('.view-toggle-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    
+                    const view = btn.dataset.view;
+                    displayQuestionsList(view);
+                });
+            });
+            
+            // Display initial questions list
+            displayQuestionsList('original');
+            
+            } catch (error) {
+                console.error('Error in displayQuestions:', error);
+                console.error('Error stack:', error.stack);
+                document.getElementById('questions-header').innerHTML = 
+                    `<div class="error">Error displaying questions: ${error.message}</div>`;
+                document.getElementById('questions-content').innerHTML = '';
+            }
+        }
+        
+        function displayQuestionsList(view = 'original') {
+            if (!questionsData) return;
+            
+            const questions = view === 'enhanced' && questionsData.enhanced_questions ? 
+                questionsData.enhanced_questions : questionsData.original_questions;
+            
+            const content = document.getElementById('questions-content');
+            
+            if (!questions || questions.length === 0) {
+                const message = questionsData.message || 'No questions available yet';
+                content.innerHTML = `<div class="loading">${message}</div>`;
+                return;
+            }
+            
+            const questionsHtml = questions.map(question => {
+                let cardHtml = `
+                    <div class="question-card" data-category="${question.category}" data-priority="${question.priority}">
+                        <div class="question-header">
+                            <div class="question-meta">
+                                <span class="question-id">${question.id}</span>
+                                <span class="question-category">${question.category?.replace(/_/g, ' ')}</span>
+                                <span class="question-priority priority-${question.priority}">${question.priority}</span>
+                            </div>
+                        </div>
+                        <div class="question-body">
+                            <div class="question-text">${question.question}</div>
+                            <div class="question-rationale">${question.rationale}</div>
+                            <div class="question-details">
+                                <div class="detail-group">
+                                    <h4>Investigation Areas</h4>
+                                    <div class="detail-list">
+                                        ${(question.investigation_areas || []).map(area => 
+                                            `<span class="detail-tag">${area}</span>`
+                                        ).join('')}
+                                    </div>
+                                </div>
+                                <div class="detail-group">
+                                    <h4>Expected Evidence</h4>
+                                    <div class="detail-list">
+                                        ${(question.expected_evidence_types || []).map(evidence => 
+                                            `<span class="detail-tag">${evidence}</span>`
+                                        ).join('')}
+                                    </div>
+                                </div>
+                            </div>
+                `;
+                
+                // Add tool mappings if available and in enhanced view
+                // Handle both v1.x (direct properties) and v2.0 (enhancement object) formats
+                const enhancement = question.enhancement || question;
+                if (view === 'enhanced' && (enhancement.available_tools || question.available_tools)) {
+                    cardHtml += `
+                        <div class="tool-mappings">
+                            <h4>🔧 Available Tools & Approach</h4>
+                            <div class="tools-grid">
+                    `;
+                    
+                    // Group tools by category - handle both formats
+                    const toolsByCategory = {};
+                    const availableTools = enhancement.available_tools || question.available_tools || [];
+                    availableTools.forEach(tool => {
+                        const category = tool.tool_category || 'other';
+                        if (!toolsByCategory[category]) toolsByCategory[category] = [];
+                        toolsByCategory[category].push(tool);
+                    });
+                    
+                    for (const [category, tools] of Object.entries(toolsByCategory)) {
+                        cardHtml += `
+                            <div class="tool-category">
+                                <h5>${category.toUpperCase()}</h5>
+                                ${tools.map(tool => `
+                                    <div class="tool-item">
+                                        <span class="tool-relevance">${tool.relevance}</span> - ${tool.tool_name}
+                                        <br><small>${tool.usage_description}</small>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `;
+                    }
+                    
+                    cardHtml += '</div>';
+                    
+                    // Handle suggested approach from both formats
+                    const suggestedApproach = enhancement.suggested_approach || question.suggested_approach;
+                    if (suggestedApproach) {
+                        cardHtml += `<p><strong>Suggested Approach:</strong> ${suggestedApproach}</p>`;
+                    }
+                    
+                    // Add tool wishlist if available - handle both formats
+                    const toolWishlist = enhancement.tool_wishlist || question.tool_wishlist;
+                    if (toolWishlist && toolWishlist.length > 0) {
+                        cardHtml += `
+                            <div class="tool-wishlist">
+                                <h5>🎯 Tool Wishlist</h5>
+                                ${toolWishlist.map(item => `
+                                    <div class="wishlist-item">
+                                        <strong>${item.tool_name}</strong> (${item.priority}): ${item.description}
+                                        <br><small>Why needed: ${item.why_needed}</small>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `;
+                    }
+                    
+                    cardHtml += '</div>';
+                }
+                
+                cardHtml += '</div></div>';
+                return cardHtml;
+            }).join('');
+            
+            content.innerHTML = `<div class="questions-list">${questionsHtml}</div>`;
+        }
+        
+        function filterQuestions() {
+            const categoryFilter = document.getElementById('question-category-filter').value;
+            const priorityFilter = document.getElementById('question-priority-filter').value;
+            
+            document.querySelectorAll('.question-card').forEach(card => {
+                const category = card.dataset.category;
+                const priority = card.dataset.priority;
+                
+                const show = (!categoryFilter || category === categoryFilter) && 
+                           (!priorityFilter || priority === priorityFilter);
+                
+                card.style.display = show ? 'block' : 'none';
+            });
         }
         
         // Initial load

@@ -172,6 +172,131 @@ def get_blackboard_summary(investigation_id):
     finally:
         loop.close()
 
+@app.route('/api/investigations/<investigation_id>/questions')
+def get_investigation_questions(investigation_id):
+    """Get investigation questions for an investigation (supports both v1.x and v2.0 formats)."""
+    from .schema_utils import extract_questions_any_format, get_processing_errors, detect_schema_version
+    
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        # First try to get from monitoring system
+        status = loop.run_until_complete(monitoring_dashboard.get_investigation_status(investigation_id))
+        blackboard_file = None
+        
+        if status and hasattr(status, 'blackboard_file') and status.blackboard_file:
+            blackboard_file = status.blackboard_file
+        else:
+            # If not in monitoring system, try to find blackboard file directly
+            blackboard_dir = Path("blackboard_data")
+            
+            # Check for v2 files first, then v1 files
+            potential_files = [
+                # v2 format files
+                blackboard_dir / "v2" / f"investigation_{investigation_id}.json",
+                blackboard_dir / "v2" / f"blackboard_{investigation_id}.json",
+                # v1 format files (original locations)
+                blackboard_dir / f"investigation_{investigation_id}.json",
+                blackboard_dir / f"{investigation_id}.json"
+            ]
+            
+            # Also look for timestamped blackboard files (most recent first)
+            timestamped_files_v2 = sorted(
+                (blackboard_dir / "v2").glob(f"blackboard_{investigation_id}_*.json") if (blackboard_dir / "v2").exists() else [],
+                key=lambda f: f.stat().st_mtime,
+                reverse=True
+            )
+            timestamped_files_v1 = sorted(
+                blackboard_dir.glob(f"blackboard_{investigation_id}_*.json"),
+                key=lambda f: f.stat().st_mtime,
+                reverse=True
+            )
+            
+            # Try v2 timestamped files first, then v1 timestamped files, then standard names
+            all_potential_files = list(timestamped_files_v2) + list(timestamped_files_v1) + potential_files
+            
+            for file_path in all_potential_files:
+                if file_path.exists():
+                    blackboard_file = str(file_path)
+                    break
+        
+        if not blackboard_file:
+            return jsonify({'error': 'Investigation not found'}), 404
+        
+        if not Path(blackboard_file).exists():
+            return jsonify({'error': 'Blackboard file not found'}), 404
+        
+        try:
+            with open(blackboard_file, 'r') as f:
+                blackboard_data = json.load(f)
+            
+            # Detect schema version and extract questions using utility
+            schema_version = detect_schema_version(blackboard_data)
+            questions_result = extract_questions_any_format(blackboard_data)
+            processing_errors = get_processing_errors(blackboard_data)
+            
+            # Extract questions data
+            summary = questions_result.get('summary', {})
+            questions = questions_result.get('items', [])
+            
+            total_questions = summary.get('total_count', 0)
+            categories = summary.get('by_category', {})
+            priorities = summary.get('by_priority', {})
+            generated_at = summary.get('generated_at')
+            
+            # If no questions found, return empty but valid response
+            if total_questions == 0:
+                error_messages = [error.get('message', '') for error in processing_errors]
+                message = 'No investigation questions have been generated yet for this case.'
+                if error_messages:
+                    message += f' Processing errors: {"; ".join(error_messages[:2])}'  # Show first 2 errors
+                
+                return jsonify({
+                    'investigation_id': investigation_id,
+                    'schema_version': schema_version,
+                    'questions_generated_at': generated_at,
+                    'total_questions': 0,
+                    'categories': {},
+                    'priorities': {},
+                    'questions': [],
+                    'has_tool_mappings': False,
+                    'processing_errors': processing_errors,
+                    'message': message
+                })
+            
+            # Separate questions with and without enhancements for compatibility
+            original_questions = []
+            enhanced_questions = []
+            
+            for question in questions:
+                if 'enhancement' in question:
+                    # This is an enhanced question
+                    enhanced_question = question.copy()
+                    enhanced_question.update(question['enhancement'])
+                    enhanced_questions.append(enhanced_question)
+                
+                # Always include in original questions list (without enhancement data)
+                original_question = {k: v for k, v in question.items() if k != 'enhancement'}
+                original_questions.append(original_question)
+            
+            return jsonify({
+                'investigation_id': investigation_id,
+                'schema_version': schema_version,
+                'questions_generated_at': generated_at,
+                'total_questions': total_questions,
+                'categories': categories,
+                'priorities': priorities,
+                'questions': questions,  # v2.0 format - unified questions list
+                'original_questions': original_questions,  # v1.x compatibility
+                'enhanced_questions': enhanced_questions,  # v1.x compatibility
+                'has_tool_mappings': len(enhanced_questions) > 0,
+                'processing_errors': processing_errors
+            })
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+    finally:
+        loop.close()
+
 @app.route('/api/stream')
 def stream():
     """Server-Sent Events endpoint."""

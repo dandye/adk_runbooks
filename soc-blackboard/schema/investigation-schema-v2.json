@@ -1,0 +1,345 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/soc-blackboard/investigation-schema-v2.json",
+  "title": "SOC Blackboard Investigation Schema v2.0",
+  "description": "Improved schema for SOC investigation blackboard data structure",
+  "type": "object",
+  "required": ["schema_version", "investigation", "questions", "findings", "processing"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": ["2.0"],
+      "description": "Schema version for validation and migration"
+    },
+    "investigation": {
+      "type": "object",
+      "required": ["id", "created_at", "updated_at", "status"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique investigation identifier"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp when investigation was created"
+        },
+        "updated_at": {
+          "type": "string", 
+          "format": "date-time",
+          "description": "ISO 8601 timestamp when investigation was last updated"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "completed", "failed", "suspended"],
+          "description": "Current investigation status"
+        },
+        "case_context": {
+          "type": "object",
+          "properties": {
+            "case_id": {"type": "string"},
+            "title": {"type": "string"},
+            "priority": {"type": "string", "enum": ["critical", "high", "medium", "low"]},
+            "initial_indicators": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["type", "value"],
+                "properties": {
+                  "type": {"type": "string"},
+                  "value": {"type": "string"}
+                }
+              }
+            },
+            "data_sources": {
+              "type": "array",
+              "items": {"type": "string"}
+            },
+            "investigation_type": {"type": "string"}
+          }
+        }
+      }
+    },
+    "questions": {
+      "type": "object",
+      "required": ["summary", "items"],
+      "properties": {
+        "summary": {
+          "type": "object",
+          "required": ["total_count", "generated_at"],
+          "properties": {
+            "total_count": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Total number of investigation questions"
+            },
+            "by_category": {
+              "type": "object",
+              "additionalProperties": {"type": "integer"},
+              "description": "Count of questions by category"
+            },
+            "by_priority": {
+              "type": "object", 
+              "additionalProperties": {"type": "integer"},
+              "description": "Count of questions by priority"
+            },
+            "generated_at": {
+              "type": "string",
+              "format": "date-time",
+              "description": "When questions were last generated"
+            }
+          }
+        },
+        "items": {
+          "type": "array",
+          "description": "Array of investigation questions",
+          "items": {
+            "type": "object",
+            "required": ["id", "question", "category", "priority", "created_at", "created_by"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Unique question identifier"
+              },
+              "question": {
+                "type": "string",
+                "description": "The investigation question text"
+              },
+              "category": {
+                "type": "string",
+                "description": "Question category (e.g., initial_assessment, technical_analysis, impact_assessment)"
+              },
+              "priority": {
+                "type": "string",
+                "enum": ["critical", "high", "medium", "low"],
+                "description": "Question priority level"
+              },
+              "rationale": {
+                "type": "string",
+                "description": "Why this question is important"
+              },
+              "investigation_areas": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Areas of investigation this question addresses"
+              },
+              "expected_evidence_types": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Types of evidence expected to answer this question"
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time",
+                "description": "When question was created"
+              },
+              "created_by": {
+                "type": "string",
+                "description": "Agent that created this question"
+              },
+              "enhancement": {
+                "type": "object",
+                "description": "Enhanced question with tool mappings and suggestions",
+                "properties": {
+                  "available_tools": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": ["tool_name", "tool_category", "relevance", "usage_description"],
+                      "properties": {
+                        "tool_name": {"type": "string"},
+                        "tool_category": {"type": "string"},
+                        "relevance": {"type": "string", "enum": ["high", "medium", "low"]},
+                        "usage_description": {"type": "string"}
+                      }
+                    }
+                  },
+                  "suggested_approach": {
+                    "type": "string",
+                    "description": "Recommended approach to answer this question"
+                  },
+                  "tool_wishlist": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "tool_name": {"type": "string"},
+                        "description": {"type": "string"},
+                        "why_needed": {"type": "string"},
+                        "priority": {"type": "string", "enum": ["high", "medium", "low"]}
+                      }
+                    }
+                  },
+                  "data_sources_needed": {
+                    "type": "array",
+                    "items": {"type": "string"}
+                  },
+                  "alternative_methods": {
+                    "type": "array", 
+                    "items": {"type": "string"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "findings": {
+      "type": "object",
+      "description": "Investigation findings organized by analysis area",
+      "properties": {
+        "network_analysis": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/finding"}
+        },
+        "endpoint_behaviors": {
+          "type": "array", 
+          "items": {"$ref": "#/definitions/finding"}
+        },
+        "log_correlations": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/finding"}
+        },
+        "ioc_enrichments": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/finding"}
+        },
+        "timeline_events": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/finding"}
+        },
+        "threat_intelligence": {
+          "type": "array",
+          "items": {"$ref": "#/definitions/finding"}
+        }
+      }
+    },
+    "processing": {
+      "type": "object",
+      "required": ["agents", "errors"],
+      "properties": {
+        "agents": {
+          "type": "object",
+          "description": "Status of each processing agent",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "status": {"type": "string", "enum": ["running", "completed", "failed", "pending"]},
+              "last_run": {"type": "string", "format": "date-time"},
+              "duration_seconds": {"type": "number"},
+              "findings_generated": {"type": "integer"}
+            }
+          }
+        },
+        "errors": {
+          "type": "array",
+          "description": "Processing errors separate from investigation data",
+          "items": {
+            "type": "object",
+            "required": ["id", "timestamp", "agent", "error_type", "message"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Unique error identifier"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time",
+                "description": "When error occurred"
+              },
+              "agent": {
+                "type": "string",
+                "description": "Agent that encountered the error"
+              },
+              "operation": {
+                "type": "string", 
+                "description": "What operation was being performed"
+              },
+              "error_type": {
+                "type": "string",
+                "description": "Classification of error"
+              },
+              "message": {
+                "type": "string",
+                "description": "Error message"
+              },
+              "context": {
+                "type": "object",
+                "description": "Additional context about the error"
+              },
+              "stack_trace": {
+                "type": "string",
+                "description": "Stack trace if available"
+              }
+            }
+          }
+        }
+      }
+    },
+    "risk_scores": {
+      "type": "object",
+      "description": "Overall risk assessment",
+      "properties": {
+        "overall_risk": {"type": "string", "enum": ["Critical", "High", "Medium", "Low"]},
+        "data_exposure_risk": {"type": "string", "enum": ["Critical", "High", "Medium", "Low"]},
+        "system_compromise_risk": {"type": "string", "enum": ["Critical", "High", "Medium", "Low"]},
+        "calculated_at": {"type": "string", "format": "date-time"}
+      }
+    }
+  },
+  "definitions": {
+    "finding": {
+      "type": "object",
+      "required": ["id", "timestamp", "agent", "area", "type", "data", "confidence"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique finding identifier"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When finding was created"
+        },
+        "agent": {
+          "type": "string",
+          "description": "Agent that generated this finding"
+        },
+        "area": {
+          "type": "string", 
+          "description": "Knowledge area this finding belongs to"
+        },
+        "type": {
+          "type": "string",
+          "description": "Specific type of finding within the area"
+        },
+        "data": {
+          "type": "object",
+          "description": "Finding-specific data (schema varies by type)"
+        },
+        "confidence": {
+          "type": "string",
+          "enum": ["high", "medium", "low"],
+          "description": "Confidence level in this finding"
+        },
+        "tags": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Tags for categorization and search"
+        },
+        "metadata": {
+          "type": "object",
+          "properties": {
+            "created_by": {"type": "string"},
+            "source": {"type": "string"},
+            "evidence_links": {
+              "type": "array",
+              "items": {"type": "string"}
+            }
+          }
+        }
+      }
+    }
+  }
+}

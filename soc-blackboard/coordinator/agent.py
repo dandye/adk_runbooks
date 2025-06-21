@@ -390,35 +390,51 @@ class BlackboardCoordinator:
             
             print(f"DEBUG: Generated {len(questions)} investigation questions")
             
-            # Persist questions to blackboard
-            for question in questions:
+            # If no questions were generated, use default questions
+            if not questions:
+                print("WARNING: No questions generated from AI, using default questions")
+                questions = question_generator._get_default_questions(case_details, context)
+                print(f"DEBUG: Using {len(questions)} default questions")
+            
+            # Generate enhanced questions with tool mappings if available
+            enhanced_questions = []
+            if hasattr(question_generator, 'enhance_questions_with_tools'):
+                try:
+                    enhanced_questions = await question_generator.enhance_questions_with_tools(questions)
+                except Exception as e:
+                    print(f"DEBUG: Could not enhance questions with tools: {e}")
+                    enhanced_questions = []
+            
+            # Persist questions to blackboard using v2.0 format (questions_batch)
+            if questions:
                 await blackboard.write(
                     area="investigation_questions",
                     finding={
-                        "type": "investigation_question",
-                        "question_data": question,
-                        "status": "pending",
+                        "type": "questions_batch",
+                        "original_questions": questions,
+                        "enhanced_questions": enhanced_questions,
                         "generated_at": blackboard.created_at.isoformat()
                     },
                     agent_name="coordinator",
                     confidence="high",
-                    tags=["question", question.get("category", "general"), question.get("priority", "medium")]
+                    tags=["questions", "batch_generated"]
                 )
             
-            # Also create a summary of questions by category
+            # Create a summary of questions by category
             categories = {}
+            priorities = {}
             for question in questions:
                 category = question.get("category", "general")
-                if category not in categories:
-                    categories[category] = []
-                categories[category].append(question)
+                priority = question.get("priority", "medium")
+                categories[category] = categories.get(category, 0) + 1
+                priorities[priority] = priorities.get(priority, 0) + 1
             
             await blackboard.write(
                 area="investigation_questions",
                 finding={
                     "type": "questions_summary",
                     "total_questions": len(questions),
-                    "questions_by_category": {cat: len(qs) for cat, qs in categories.items()},
+                    "questions_by_category": categories,
                     "categories": list(categories.keys()),
                     "generation_timestamp": blackboard.created_at.isoformat()
                 },
@@ -455,10 +471,16 @@ class BlackboardCoordinator:
             # Read the questions that were just generated
             questions_data = await blackboard.read(area="investigation_questions")
             
-            # Extract just the question objects
+            # Extract questions from v1.x format (compatible with existing blackboard structure)
             questions = []
             for finding in questions_data:
-                if finding.finding.get("type") == "investigation_question":
+                # Handle the existing v1.x blackboard format
+                if hasattr(finding, 'finding') and finding.finding.get("type") == "questions_batch":
+                    # Extract from questions_batch finding
+                    original_questions = finding.finding.get("original_questions", [])
+                    questions.extend(original_questions)
+                elif hasattr(finding, 'finding') and finding.finding.get("type") == "investigation_question":
+                    # Individual question finding (legacy format)
                     questions.append(finding.finding.get("question_data", {}))
             
             if not questions:

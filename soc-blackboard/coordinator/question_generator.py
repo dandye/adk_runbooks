@@ -67,6 +67,7 @@ class InvestigationQuestionGenerator:
             
             # Generate questions
             questions_response = None
+            response_text = ""
             async for event in runner.run_async(
                 session_id=session.id,
                 user_id=session.user_id,
@@ -74,14 +75,58 @@ class InvestigationQuestionGenerator:
             ):
                 if hasattr(event, 'response') and event.response:
                     questions_response = event.response
+                    # Handle different response types
+                    if hasattr(event.response, 'candidates') and event.response.candidates:
+                        # This is a GenerateContentResponse
+                        for candidate in event.response.candidates:
+                            if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
+                                for part in candidate.content.parts:
+                                    if hasattr(part, 'text'):
+                                        response_text += part.text
+                    elif hasattr(event.response, 'text'):
+                        response_text = event.response.text
+                    elif isinstance(event.response, str):
+                        response_text = event.response
                 elif hasattr(event, 'content') and event.content:
                     questions_response = event.content
+                    if isinstance(event.content, str):
+                        response_text = event.content
             
             # Parse and structure the questions
-            if questions_response:
-                questions = self._parse_questions_response(questions_response)
+            if response_text:
+                # print(f"DEBUG: Got response text of length {len(response_text)}")
+                # print(f"DEBUG: Response preview: {response_text[:200]}...")
+                questions = self._parse_questions_response(response_text)
                 return questions
+            elif questions_response:
+                # Try to convert the response object to string
+                # print(f"DEBUG: Got response object of type: {type(questions_response)}")
+                try:
+                    # Handle Content object from genai
+                    if hasattr(questions_response, 'parts'):
+                        response_str = ""
+                        for part in questions_response.parts:
+                            if hasattr(part, 'text'):
+                                response_str += part.text
+                    elif hasattr(questions_response, 'text'):
+                        response_str = questions_response.text
+                    else:
+                        response_str = str(questions_response)
+                    
+                    if response_str:
+                        # print(f"DEBUG: Extracted response text of length {len(response_str)}")
+                        questions = self._parse_questions_response(response_str)
+                        return questions
+                    else:
+                        print("DEBUG: No text content found in response object")
+                        return self._get_default_questions(case_details, investigation_context)
+                except Exception as e:
+                    print(f"DEBUG: Failed to parse response object: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    return self._get_default_questions(case_details, investigation_context)
             else:
+                print("DEBUG: No response received, using default questions")
                 return self._get_default_questions(case_details, investigation_context)
                 
         except Exception as e:
@@ -211,57 +256,143 @@ Provide your response in the specified JSON format with 15-25 detailed, actionab
     def _parse_questions_response(self, response: str) -> List[Dict[str, Any]]:
         """Parse the AI response into structured questions."""
         try:
+            # Debug: show what we're trying to parse
+            # print(f"DEBUG: Attempting to parse response of length {len(response)}")
+            
             # Try to extract JSON from the response
             if "```json" in response:
                 json_start = response.find("```json") + 7
                 json_end = response.find("```", json_start)
                 json_content = response[json_start:json_end].strip()
+                # print(f"DEBUG: Found JSON block, extracted {len(json_content)} characters")
             elif "{" in response and "}" in response:
                 json_start = response.find("{")
                 json_end = response.rfind("}") + 1
-                json_content = response[json_start:json_end]
+                json_content = response[json_start:json_end].strip()  # Added strip() here too
+                # print(f"DEBUG: Found JSON object, extracted {len(json_content)} characters")
             else:
+                # Try to find investigation_questions array directly
+                if '"investigation_questions"' in response:
+                    print("DEBUG: Found investigation_questions key but couldn't extract JSON structure")
+                print(f"DEBUG: Response preview: {response[:500]}...")
                 raise ValueError("No JSON found in response")
             
             parsed = json.loads(json_content)
-            return parsed.get("investigation_questions", [])
+            questions = parsed.get("investigation_questions", [])
+            # print(f"DEBUG: Successfully parsed {len(questions)} questions")
+            return questions
             
+        except json.JSONDecodeError as e:
+            print(f"ERROR: JSON parsing failed: {e}")
+            print(f"DEBUG: JSON content that failed to parse: {json_content[:200] if 'json_content' in locals() else 'N/A'}...")
+            return []
         except Exception as e:
-            print(f"Failed to parse questions response: {e}")
+            print(f"ERROR: Failed to parse questions response: {e}")
             return []
     
     def _get_default_questions(self, case_details: Dict[str, Any], 
                               investigation_context: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Generate default questions if AI generation fails."""
-        return [
+        print("INFO: Using default questions as fallback")
+        
+        # Extract indicators from context
+        indicators = investigation_context.get("initial_indicators", [])
+        indicator_summary = ", ".join([f"{ind.get('type', 'unknown')}: {ind.get('value', 'N/A')}" for ind in indicators])
+        
+        default_questions = [
             {
                 "id": "Q001",
                 "category": "initial_assessment",
                 "priority": "critical",
-                "question": "What specific indicators triggered this investigation?",
+                "question": f"What triggered this {investigation_context.get('investigation_type', 'security')} investigation and when did the suspicious activity begin?",
                 "rationale": "Understanding the initial detection is crucial for investigation scope",
                 "investigation_areas": ["all"],
                 "expected_evidence_types": ["alerts", "logs", "detections"]
             },
             {
-                "id": "Q002", 
+                "id": "Q002",
+                "category": "initial_assessment",
+                "priority": "critical", 
+                "question": f"Are the indicators ({indicator_summary}) associated with known threats or campaigns?",
+                "rationale": "Threat intelligence context helps understand adversary TTPs",
+                "investigation_areas": ["ioc_enrichment", "threat_intelligence"],
+                "expected_evidence_types": ["threat_intel_reports", "ioc_matches"]
+            },
+            {
+                "id": "Q003", 
                 "category": "technical_analysis",
                 "priority": "critical",
-                "question": "What systems and accounts are confirmed to be compromised?",
+                "question": "What systems, accounts, and processes are confirmed to be compromised or exhibiting suspicious behavior?",
                 "rationale": "Scope determination is critical for containment",
                 "investigation_areas": ["network_analysis", "endpoint_investigation", "log_correlation"],
                 "expected_evidence_types": ["authentication_logs", "process_logs", "network_traffic"]
             },
             {
-                "id": "Q003",
+                "id": "Q004",
+                "category": "technical_analysis",
+                "priority": "high",
+                "question": "What persistence mechanisms or backdoors have been established?",
+                "rationale": "Identifying persistence is crucial for complete remediation",
+                "investigation_areas": ["endpoint_investigation", "network_analysis"],
+                "expected_evidence_types": ["registry_modifications", "scheduled_tasks", "service_installations"]
+            },
+            {
+                "id": "Q005",
+                "category": "technical_analysis",
+                "priority": "high",
+                "question": "What lateral movement or privilege escalation activities occurred?",
+                "rationale": "Understanding attack progression helps assess full scope",
+                "investigation_areas": ["log_correlation", "network_analysis", "endpoint_investigation"],
+                "expected_evidence_types": ["authentication_logs", "process_creation", "network_connections"]
+            },
+            {
+                "id": "Q006",
                 "category": "impact_assessment", 
                 "priority": "high",
-                "question": "What sensitive data or systems may have been accessed?",
+                "question": "What sensitive data, systems, or credentials may have been accessed or exfiltrated?",
                 "rationale": "Understanding data exposure for regulatory and business impact",
-                "investigation_areas": ["endpoint_investigation", "log_correlation"],
-                "expected_evidence_types": ["file_access_logs", "database_logs", "network_traffic"]
+                "investigation_areas": ["endpoint_investigation", "log_correlation", "network_analysis"],
+                "expected_evidence_types": ["file_access_logs", "database_logs", "network_traffic", "data_staging"]
+            },
+            {
+                "id": "Q007",
+                "category": "impact_assessment",
+                "priority": "medium",
+                "question": "What is the business impact and are any critical services affected?",
+                "rationale": "Business context drives response prioritization",
+                "investigation_areas": ["all"],
+                "expected_evidence_types": ["service_logs", "availability_metrics"]
+            },
+            {
+                "id": "Q008",
+                "category": "attribution",
+                "priority": "medium",
+                "question": "What attack techniques (MITRE ATT&CK) and tools were used?",
+                "rationale": "TTP analysis helps with attribution and defense improvements",
+                "investigation_areas": ["all"],
+                "expected_evidence_types": ["malware_samples", "tool_artifacts", "command_history"]
+            },
+            {
+                "id": "Q009",
+                "category": "response",
+                "priority": "critical",
+                "question": "What immediate containment actions should be taken?",
+                "rationale": "Quick containment prevents further damage",
+                "investigation_areas": ["all"],
+                "expected_evidence_types": ["compromise_indicators", "affected_systems"]
+            },
+            {
+                "id": "Q010",
+                "category": "response",
+                "priority": "high",
+                "question": "What evidence needs to be preserved for forensics or legal purposes?",
+                "rationale": "Evidence preservation is crucial for thorough investigation",
+                "investigation_areas": ["all"],
+                "expected_evidence_types": ["memory_dumps", "disk_images", "log_archives"]
             }
         ]
+        
+        return default_questions
     
     async def update_questions_with_findings(self, questions: List[Dict[str, Any]], 
                                            findings: Dict[str, Any]) -> List[Dict[str, Any]]:
