@@ -27,6 +27,9 @@ python-dotenv>=1.0.0
 pathlib>=1.0.1
 uuid>=1.30
 
+# Web monitoring interface
+flask>=2.3.0
+
 # Date/time handling
 python-dateutil>=2.8.2
 

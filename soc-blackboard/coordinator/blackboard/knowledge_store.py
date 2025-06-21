@@ -34,11 +34,18 @@ class InvestigationBlackboard:
     Multiple agents can read from and write to this shared knowledge space.
     """
 
-    def __init__(self, investigation_id: str, case_context: Optional[Dict[str, Any]] = None):
+    def __init__(self, investigation_id: str, case_context: Optional[Dict[str, Any]] = None, 
+                 persistence_dir: str = "blackboard_data"):
         self.investigation_id = investigation_id
         self.created_at = datetime.now(timezone.utc)
         self.case_context = case_context or {}
         self.lock = asyncio.Lock()
+        
+        # Setup persistence
+        self.persistence_dir = Path(persistence_dir)
+        self.persistence_dir.mkdir(exist_ok=True)
+        self.blackboard_file = self.persistence_dir / f"blackboard_{investigation_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        self.auto_save = True
         
         # Initialize knowledge areas
         self.knowledge_areas = {
@@ -59,6 +66,9 @@ class InvestigationBlackboard:
         
         # Track subscribers for real-time updates
         self.subscribers = {}
+        
+        # Save initial state
+        asyncio.create_task(self._save_to_disk())
         
     async def write(self, area: str, finding: Dict[str, Any], agent_name: str, 
                    confidence: str = "medium", tags: Optional[List[str]] = None) -> str:
@@ -113,6 +123,10 @@ class InvestigationBlackboard:
         
         # Notify subscribers
         await self._notify_subscribers(area, finding_obj)
+        
+        # Auto-save to disk after each write
+        if self.auto_save:
+            await self._save_to_disk()
         
         return finding_id
     
@@ -304,6 +318,45 @@ class InvestigationBlackboard:
                     # Log error but don't fail the write operation
                     print(f"Error notifying subscriber: {e}")
     
+    async def _save_to_disk(self):
+        """Save current blackboard state to disk."""
+        try:
+            async with self.lock:
+                data = {
+                    "investigation_id": self.investigation_id,
+                    "created_at": self.created_at.isoformat(),
+                    "saved_at": datetime.now(timezone.utc).isoformat(),
+                    "knowledge_areas": self.knowledge_areas.copy()
+                }
+            
+            # Write to temporary file first, then rename for atomic save
+            temp_file = self.blackboard_file.with_suffix('.tmp')
+            with open(temp_file, 'w') as f:
+                json.dump(data, f, indent=2)
+            
+            temp_file.rename(self.blackboard_file)
+            
+        except Exception as e:
+            print(f"ERROR: Failed to save blackboard to disk: {e}")
+
+    async def load_from_disk(self, file_path: str):
+        """Load blackboard state from disk."""
+        try:
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+            
+            async with self.lock:
+                self.knowledge_areas = data.get("knowledge_areas", self.knowledge_areas)
+                
+            print(f"Blackboard loaded from {file_path}")
+            
+        except Exception as e:
+            print(f"ERROR: Failed to load blackboard from disk: {e}")
+
+    def get_persistence_file(self) -> str:
+        """Get the path to the persistence file."""
+        return str(self.blackboard_file)
+
     async def close(self):
         """Clean up resources."""
         self.subscribers.clear()
@@ -312,6 +365,9 @@ class InvestigationBlackboard:
         async with self.lock:
             self.knowledge_areas["investigation_metadata"]["status"] = "completed"
             self.knowledge_areas["investigation_metadata"]["completed_at"] = datetime.now(timezone.utc).isoformat()
+        
+        # Final save to disk
+        await self._save_to_disk()
 
 
 class BlackboardManager:

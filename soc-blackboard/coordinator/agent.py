@@ -7,6 +7,7 @@ Manages investigator and synthesizer agents through a shared knowledge store.
 
 import asyncio
 import json
+import os
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from contextlib import AsyncExitStack
@@ -14,6 +15,8 @@ from contextlib import AsyncExitStack
 from google.adk.agents import Agent
 
 from .blackboard import InvestigationBlackboard, BlackboardManager
+from .research_log import ResearchLogManager
+from .monitoring import monitoring_dashboard
 
 
 def ensure_tools_list(tools):
@@ -68,9 +71,10 @@ class BlackboardCoordinator:
     4. Generating comprehensive reports
     """
     
-    def __init__(self):
+    def __init__(self, start_web_monitor=False, web_port=5000):
         print("DEBUG: BlackboardCoordinator.__init__() called")
         self.blackboard_manager = BlackboardManager()
+        self.research_log_manager = ResearchLogManager()
         self.shared_tools = None
         self.shared_exit_stack = None
         
@@ -80,6 +84,15 @@ class BlackboardCoordinator:
         print("DEBUG: About to call _load_agents()...")
         self._load_agents()
         print(f"DEBUG: _load_agents() completed. Final counts - Investigators: {len(self.investigators)}, Synthesizers: {len(self.synthesizers)}")
+        
+        # Start web monitoring interface if requested
+        if start_web_monitor:
+            try:
+                from .monitoring_web import start_web_monitor_thread
+                web_thread = start_web_monitor_thread(host='0.0.0.0', port=web_port)
+                print(f"✅ Web monitoring interface started at http://localhost:{web_port}")
+            except Exception as e:
+                print(f"⚠️  Failed to start web monitoring interface: {e}")
     
     def _load_agents(self):
         """Load investigator and synthesizer agents dynamically."""
@@ -167,36 +180,67 @@ class BlackboardCoordinator:
             case_id, investigation_context
         )
         print(f"DEBUG: Blackboard created for investigation: {blackboard.investigation_id}")
+        print(f"DEBUG: Blackboard persistence file: {blackboard.get_persistence_file()}")
+        
+        # Get research log for this investigation
+        research_log = await self.research_log_manager.get_log(case_id)
+        print(f"DEBUG: Research log initialized: {research_log.log_file}")
+        
+        # Register with monitoring dashboard
+        await monitoring_dashboard.register_investigation(
+            blackboard.investigation_id,
+            case_id,
+            blackboard.get_persistence_file(),
+            str(research_log.log_file)
+        )
         
         investigation_successful = False
         
         try:
             # Phase 1: Initialize blackboard with initial context
+            await monitoring_dashboard.update_investigation_phase(blackboard.investigation_id, "initialization")
+            activity_id = await research_log.start_task("coordinator", "initialization", "Initializing investigation blackboard and context")
             print("DEBUG: Phase 1 - Initializing investigation...")
             await self._initialize_investigation(blackboard, investigation_context)
+            await research_log.complete_task(activity_id)
             print("DEBUG: Phase 1 completed")
             
             # Phase 2: Activate relevant investigators
+            activity_id = await research_log.start_task("coordinator", "agent_selection", "Selecting investigators based on context")
             print("DEBUG: Phase 2 - Selecting investigators...")
             investigators = await self._select_investigators(investigation_context)
             print(f"DEBUG: Selected investigators: {investigators}")
+            await research_log.complete_task(activity_id, {"selected_investigators": investigators})
             
             # Phase 3: Run investigation in parallel
+            await monitoring_dashboard.update_investigation_phase(blackboard.investigation_id, "investigation")
+            await monitoring_dashboard.update_active_agents(blackboard.investigation_id, investigators)
+            activity_id = await research_log.start_task("coordinator", "parallel_investigation", f"Running {len(investigators)} investigators in parallel")
             print("DEBUG: Phase 3 - Running parallel investigation...")
-            await self._run_parallel_investigation(blackboard, investigators, investigation_context)
+            await self._run_parallel_investigation(blackboard, investigators, investigation_context, research_log)
+            await research_log.complete_task(activity_id)
             print("DEBUG: Phase 3 completed")
             
             # Phase 4: Run correlation analysis
+            await monitoring_dashboard.update_investigation_phase(blackboard.investigation_id, "correlation")
+            await monitoring_dashboard.update_active_agents(blackboard.investigation_id, ["correlation_engine"])
+            activity_id = await research_log.start_task("coordinator", "correlation_analysis", "Running correlation analysis on all findings")
             print("DEBUG: Phase 4 - Running correlation analysis...")
-            await self._run_correlation_analysis(blackboard)
+            await self._run_correlation_analysis(blackboard, research_log)
+            await research_log.complete_task(activity_id)
             print("DEBUG: Phase 4 completed")
             
             # Phase 5: Generate final report
+            await monitoring_dashboard.update_investigation_phase(blackboard.investigation_id, "reporting")
+            await monitoring_dashboard.update_active_agents(blackboard.investigation_id, ["report_generator"])
+            activity_id = await research_log.start_task("coordinator", "report_generation", "Generating comprehensive investigation report")
             print("DEBUG: Phase 5 - Generating report...")
-            report = await self._generate_report(blackboard)
+            report = await self._generate_report(blackboard, research_log)
+            await research_log.complete_task(activity_id)
             print("DEBUG: Phase 5 completed")
             
             print("DEBUG: ========== INVESTIGATION COMPLETED ==========")
+            await monitoring_dashboard.complete_investigation(blackboard.investigation_id, "completed")
             investigation_successful = True
             return report
             
@@ -204,6 +248,9 @@ class BlackboardCoordinator:
             print(f"ERROR: Investigation failed: {type(e).__name__}: {e}")
             import traceback
             traceback.print_exc()
+            
+            # Mark investigation as failed in monitoring
+            await monitoring_dashboard.complete_investigation(blackboard.investigation_id, "failed")
             
             # Write error to blackboard for debugging
             await blackboard.write(
@@ -232,6 +279,9 @@ class BlackboardCoordinator:
             }
             
         finally:
+            # Close research log and generate HTML report
+            await self.research_log_manager.close_log(case_id)
+            
             # Only clean up investigation if it completed successfully
             # Keep failed investigations active for debugging
             if investigation_successful:
@@ -303,7 +353,7 @@ class BlackboardCoordinator:
         return investigators
     
     async def _run_parallel_investigation(self, blackboard: InvestigationBlackboard, 
-                                        investigators: List[str], context: Dict[str, Any]):
+                                        investigators: List[str], context: Dict[str, Any], research_log):
         """Run multiple investigators in parallel."""
         
         print(f"DEBUG: Starting parallel investigation with {len(investigators)} investigators: {investigators}")
@@ -319,7 +369,7 @@ class BlackboardCoordinator:
             if investigator_name in self.investigators:
                 print(f"DEBUG: Creating task for {investigator_name}")
                 task = asyncio.create_task(
-                    self._run_investigator(investigator_name, blackboard, context)
+                    self._run_investigator(investigator_name, blackboard, context, research_log)
                 )
                 tasks.append(task)
             else:
@@ -379,8 +429,16 @@ class BlackboardCoordinator:
                     raise
     
     async def _run_investigator(self, investigator_name: str, 
-                              blackboard: InvestigationBlackboard, context: Dict[str, Any]):
+                              blackboard: InvestigationBlackboard, context: Dict[str, Any], research_log):
         """Run a single investigator agent."""
+        
+        # Start research log tracking for this investigator
+        activity_id = await research_log.start_task(
+            investigator_name, 
+            "investigation", 
+            f"Running {investigator_name} investigation",
+            {"context": context}
+        )
         
         try:
             investigator_module = self.investigators[investigator_name]
@@ -396,6 +454,7 @@ class BlackboardCoordinator:
             
             # Initialize investigator agent with combined tools
             try:
+                await research_log.update_task(activity_id, "in_progress", {"step": "initializing_agent"})
                 agent, _ = await investigator_module.initialize(all_tools, self.shared_exit_stack)
             except Exception as init_error:
                 print(f"ERROR: Failed to initialize {investigator_name}: {type(init_error).__name__}: {init_error}")
@@ -403,10 +462,12 @@ class BlackboardCoordinator:
                 # Try to provide more context about the error
                 if "'dict' object has no attribute 'append'" in str(init_error):
                     print(f"ERROR: Dict append error - tools format issue detected")
+                await research_log.fail_task(activity_id, f"Failed to initialize: {init_error}")
                 raise
             
             # Create investigation prompt based on context
             prompt = self._create_investigator_prompt(investigator_name, context)
+            await research_log.update_task(activity_id, "in_progress", {"step": "running_investigation", "prompt_length": len(prompt)})
             
             # Run the investigator
             print(f"DEBUG: Running {investigator_name} with prompt: {prompt[:100]}...")
@@ -452,7 +513,13 @@ class BlackboardCoordinator:
                 run_agent_with_context
             )
             
+            # Mark as completed
+            await research_log.complete_task(activity_id, {"step": "completed"})
+            
         except Exception as e:
+            # Mark task as failed in research log
+            await research_log.fail_task(activity_id, str(e), {"error_type": type(e).__name__})
+            
             # Log error and write to blackboard
             error_finding = {
                 "type": "investigator_error",
@@ -579,7 +646,7 @@ Remember to:
         
         return [blackboard_read, blackboard_write, blackboard_query]
     
-    async def _run_correlation_analysis(self, blackboard: InvestigationBlackboard):
+    async def _run_correlation_analysis(self, blackboard: InvestigationBlackboard, research_log):
         """Run correlation analysis on all findings."""
         print("DEBUG: Starting correlation analysis...")
         
@@ -680,7 +747,7 @@ Focus on finding meaningful patterns that tell the story of what happened.
                 tags=["error", "correlation"]
             )
     
-    async def _generate_report(self, blackboard: InvestigationBlackboard) -> Dict[str, Any]:
+    async def _generate_report(self, blackboard: InvestigationBlackboard, research_log) -> Dict[str, Any]:
         """Generate comprehensive investigation report."""
         print("DEBUG: Starting report generation...")
         
@@ -815,7 +882,14 @@ def get_agent(tools, exit_stack):
     """
     
     # Initialize coordinator with shared resources
-    coordinator = BlackboardCoordinator()
+    # Check for web monitoring environment variable
+    start_web_monitor = os.environ.get('SOC_WEB_MONITOR', 'true').lower() == 'true'
+    web_port = int(os.environ.get('SOC_WEB_PORT', '5000'))
+    
+    coordinator = BlackboardCoordinator(
+        start_web_monitor=start_web_monitor,
+        web_port=web_port
+    )
     
     # Ensure tools are in list format
     tools_list = ensure_tools_list(tools)
@@ -946,8 +1020,27 @@ Use the coordinator.investigate(context) method to start investigations.
         except Exception as e:
             return {"success": False, "error": str(e)}
     
+    async def get_monitoring_status():
+        """Get real-time monitoring status of all investigations."""
+        try:
+            summary = await monitoring_dashboard.get_investigation_summary()
+            return {"success": True, "summary": summary}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    async def get_investigation_details(investigation_id: str):
+        """Get detailed status of a specific investigation."""
+        try:
+            status = await monitoring_dashboard.get_investigation_status(investigation_id)
+            if status:
+                return {"success": True, "investigation": status.__dict__}
+            else:
+                return {"success": False, "error": "Investigation not found"}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
     # Add investigation tools to the agent's toolset
-    investigation_tools = [start_investigation, list_active_investigations]
+    investigation_tools = [start_investigation, list_active_investigations, get_monitoring_status, get_investigation_details]
     
     # Convert tools to list and add investigation tools
     tools_list = ensure_tools_list(tools)
