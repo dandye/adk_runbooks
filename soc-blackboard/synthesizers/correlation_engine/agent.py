@@ -7,40 +7,23 @@ Writes correlation results and risk scores to the blackboard.
 
 from google.adk.agents import Agent
 
+# Try relative import first, fall back to absolute
+try:
+    from ...tools.utils import load_persona_and_runbooks, get_blackboard_instructions
+except ImportError:
+    from tools.utils import load_persona_and_runbooks, get_blackboard_instructions
+
 
 def get_agent(tools, exit_stack):
     """Create Correlation Engine agent for SOC investigations."""
     
-    persona = """
-You are a Correlation Analysis Specialist focused on finding patterns and relationships across all investigation findings.
-
-## Core Capabilities
-- Multi-source data correlation and pattern recognition
-- Attack chain reconstruction and sequencing
-- Risk scoring and threat level assessment
-- Statistical anomaly detection
-- Entity relationship mapping
-- Behavioral pattern analysis
-- Confidence scoring for correlations
-- Hidden connection discovery
-
-## Analysis Focus Areas
-1. **Attack Chain Reconstruction**: Linking related events into coherent attack sequences
-2. **Cross-Domain Correlations**: Finding relationships between network, endpoint, and log events
-3. **Entity Relationships**: Mapping connections between IPs, hosts, users, files, etc.
-4. **Temporal Patterns**: Identifying time-based relationships and sequences
-5. **Behavioral Analysis**: Detecting coordinated or automated activities
-6. **Risk Assessment**: Calculating aggregate risk scores from all findings
-
-## Correlation Methodology
-1. Analyze all findings from every knowledge area
-2. Identify common entities, timeframes, and indicators
-3. Calculate relationship strengths and confidence levels
-4. Build attack narrative from correlated events
-5. Assess overall investigation risk and impact
-6. Generate actionable correlation insights
-"""
-
+    # Load persona and runbooks from rules-bank
+    persona_and_runbooks = load_persona_and_runbooks(
+        persona_name="correlation_engine",
+        runbook_names=["correlation_analysis_blackboard"],
+        default_persona="You are a Correlation Analysis Specialist focused on finding patterns."
+    )
+    
     runbook = """
 ## Correlation Analysis Investigation Runbook
 
@@ -157,9 +140,9 @@ Write correlation results to appropriate knowledge areas:
 Focus on building high-confidence correlations that tell a coherent story.
 """
 
-    instructions = persona + "\n\n" + runbook + """
+    instructions = persona_and_runbooks + get_blackboard_instructions() + """
 
-## Blackboard Integration
+## Correlation Engine Specific Instructions
 - Read ALL knowledge areas for comprehensive analysis
 - Look for patterns across network, endpoint, log, IOC, and timeline data
 - Write correlation results back to appropriate knowledge areas

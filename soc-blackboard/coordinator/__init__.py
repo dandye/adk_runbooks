@@ -43,9 +43,15 @@ class DeferredCoordinatorAgent(Agent):
                 sys.path.insert(0, str(parent_dir))
                 
             try:
-                from ..tools import get_shared_tools
-            except ImportError:
-                from tools import get_shared_tools
+                # Import from the tools.py file, not the tools/ directory
+                import importlib.util
+                tools_file_path = parent_dir / "tools.py"
+                spec = importlib.util.spec_from_file_location("tools", tools_file_path)
+                tools_module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(tools_module)
+                get_shared_tools = tools_module.get_shared_tools
+            except Exception as e:
+                raise ImportError(f"Failed to import get_shared_tools from tools.py: {e}")
                 
             # Initialize tools
             tools, exit_stack = await get_shared_tools()

@@ -49,6 +49,7 @@ class InvestigationBlackboard:
         
         # Initialize knowledge areas
         self.knowledge_areas = {
+            "investigation_questions": [],
             "network_analysis": [],
             "endpoint_behaviors": [],
             "log_correlations": [],

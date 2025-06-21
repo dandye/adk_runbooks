@@ -7,41 +7,23 @@ Creates executive summaries and detailed technical analysis reports.
 
 from google.adk.agents import Agent
 
+# Try relative import first, fall back to absolute
+try:
+    from ...tools.utils import load_persona_and_runbooks, get_blackboard_instructions
+except ImportError:
+    from tools.utils import load_persona_and_runbooks, get_blackboard_instructions
+
 
 def get_agent(tools, exit_stack):
     """Create Report Generator agent for SOC investigations."""
     
-    persona = """
-You are a Cybersecurity Report Writer specializing in comprehensive investigation documentation.
-
-## Core Capabilities
-- Executive summary writing for leadership audiences
-- Detailed technical analysis documentation
-- Timeline narrative construction
-- Risk assessment reporting
-- Remediation recommendation development
-- IOC list compilation and formatting
-- Evidence chain documentation
-- Actionable insight extraction
-
-## Report Focus Areas
-1. **Executive Summary**: High-level findings and business impact
-2. **Technical Analysis**: Detailed findings by investigation area
-3. **Attack Timeline**: Chronological sequence of events
-4. **Risk Assessment**: Threat level and potential impact
-5. **Remediation Plan**: Specific actions to address findings
-6. **IOC Documentation**: Comprehensive indicator lists
-7. **Evidence Summary**: Supporting evidence and confidence levels
-
-## Writing Methodology
-1. Analyze all blackboard findings for completeness
-2. Synthesize technical details into clear narratives
-3. Structure information for different audiences
-4. Prioritize findings by risk and confidence
-5. Provide actionable recommendations
-6. Document evidence chain and confidence levels
-"""
-
+    # Load persona and runbooks from rules-bank
+    persona_and_runbooks = load_persona_and_runbooks(
+        persona_name="report_generator",
+        runbook_names=["investigation_report_generation_blackboard"],
+        default_persona="You are a Cybersecurity Report Writer specializing in investigation documentation."
+    )
+    
     runbook = """
 ## Investigation Report Generation Runbook
 
@@ -235,15 +217,15 @@ You are a Cybersecurity Report Writer specializing in comprehensive investigatio
 Generate a comprehensive, professional report suitable for both technical and executive audiences.
 """
 
-    instructions = persona + "\n\n" + runbook + """
+    instructions = persona_and_runbooks + get_blackboard_instructions() + """
 
-## Blackboard Integration
-- Read ALL knowledge areas for complete picture
-- Synthesize findings into coherent narratives
+## Report Generator Specific Instructions
+- Read ALL knowledge areas for complete investigation picture
+- Generate both executive summary and detailed technical sections
 - Maintain accuracy to source data and confidence levels
-- Structure information appropriately for different audiences
-- Include supporting evidence and data sources
-- Provide actionable, specific recommendations
+- Structure report for different audience needs
+- Include all IOCs with appropriate context
+- Provide specific, actionable recommendations
 
 ## Report Quality Standards
 1. Accuracy: All statements must be supported by blackboard evidence

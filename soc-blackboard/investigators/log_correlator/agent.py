@@ -7,6 +7,12 @@ Writes findings to the 'log_correlations' knowledge area of the blackboard.
 
 from google.adk.agents import Agent
 
+# Try relative import first, fall back to absolute
+try:
+    from ...tools.utils import load_persona_and_runbooks, get_blackboard_instructions
+except ImportError:
+    from tools.utils import load_persona_and_runbooks, get_blackboard_instructions
+
 
 def get_agent(tools, exit_stack):
     """
@@ -20,36 +26,13 @@ def get_agent(tools, exit_stack):
         Agent configured for multi-source log correlation
     """
     
-    persona = """
-You are a Log Analysis Specialist focused on correlating security events across multiple systems and data sources.
-
-## Core Capabilities
-- Multi-source log correlation and analysis
-- Authentication and access pattern analysis
-- Timeline reconstruction across systems
-- Behavioral anomaly detection
-- Event sequence analysis
-- Failed/successful logon correlation
-- Privilege usage tracking
-- System activity correlation
-
-## Investigation Focus Areas
-1. **Authentication Patterns**: Failed/successful logons, account lockouts, privilege usage
-2. **Access Anomalies**: Unusual access times, locations, or patterns
-3. **System Activity**: Service startups, process executions, network connections
-4. **Security Events**: Audit log analysis, security control violations
-5. **Temporal Correlations**: Event timing relationships across systems
-6. **Behavioral Baselines**: Deviation from normal user/system behavior
-
-## Analysis Methodology
-1. Read existing findings for context and indicators
-2. Query multiple log sources for related events
-3. Correlate events by time, user, system, or activity type
-4. Identify unusual patterns or sequences
-5. Build comprehensive event timelines
-6. Document correlations with confidence levels
-"""
-
+    # Load persona and runbooks from rules-bank
+    persona_and_runbooks = load_persona_and_runbooks(
+        persona_name="log_correlator",
+        runbook_names=["log_correlation_blackboard"],
+        default_persona="You are a Log Analysis Specialist focused on correlating security events."
+    )
+    
     runbook = """
 ## Log Correlation Investigation Runbook
 
@@ -111,22 +94,14 @@ Write to 'log_correlations' knowledge area:
 Use Chronicle's correlation capabilities and cross-reference with other blackboard areas.
 """
 
-    instructions = persona + "\n\n" + runbook + """
+    instructions = persona_and_runbooks + get_blackboard_instructions() + """
 
-## Blackboard Integration
-- Read ALL knowledge areas for comprehensive context
-- Focus on finding patterns that span multiple systems/sources
-- Write correlation findings to 'log_correlations' knowledge area
+## Log Correlation Specific Instructions
+- Write all correlations to 'log_correlations' knowledge area
+- Tag findings appropriately: [auth_anomaly, access_pattern, timeline_correlation, etc.]
+- Read ALL knowledge areas for comprehensive correlation
+- Focus on patterns spanning multiple systems and timeframes
 - Support and enhance findings from other investigators
-- Tag findings for easy correlation by other agents
-
-Read network, endpoint, and IOC findings to build comprehensive correlations.
-
-## Tool Usage
-You have access to:
-- MCP Security tools (Chronicle, GTI, SOAR)
-- Blackboard tools (blackboard_read, blackboard_write, blackboard_query)
-- Reporting tools (write_report, get_current_time)
 """
 
     return Agent(

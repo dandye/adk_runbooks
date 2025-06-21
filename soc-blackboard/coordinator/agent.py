@@ -17,6 +17,14 @@ from google.adk.agents import Agent
 from .blackboard import InvestigationBlackboard, BlackboardManager
 from .research_log import ResearchLogManager
 from .monitoring import monitoring_dashboard
+from .question_generator import InvestigationQuestionGenerator
+from .question_tool_mapper import QuestionToolMapper
+
+# Try relative import first, fall back to absolute
+try:
+    from ..tools.utils import load_persona_and_runbooks, get_blackboard_instructions
+except ImportError:
+    from tools.utils import load_persona_and_runbooks, get_blackboard_instructions
 
 
 def ensure_tools_list(tools):
@@ -205,39 +213,55 @@ class BlackboardCoordinator:
             await research_log.complete_task(activity_id)
             print("DEBUG: Phase 1 completed")
             
-            # Phase 2: Activate relevant investigators
+            # Phase 2: Generate investigation questions
+            await monitoring_dashboard.update_investigation_phase(blackboard.investigation_id, "question_generation")
+            activity_id = await research_log.start_task("coordinator", "question_generation", "Generating comprehensive investigation questions")
+            print("DEBUG: Phase 2 - Generating investigation questions...")
+            await self._generate_investigation_questions(blackboard, investigation_context, research_log)
+            await research_log.complete_task(activity_id)
+            print("DEBUG: Phase 2 completed")
+            
+            # Phase 3: Map tools to questions
+            await monitoring_dashboard.update_investigation_phase(blackboard.investigation_id, "tool_mapping")
+            activity_id = await research_log.start_task("coordinator", "tool_mapping", "Mapping available tools and identifying missing capabilities for each question")
+            print("DEBUG: Phase 3 - Mapping tools to investigation questions...")
+            await self._map_tools_to_questions(blackboard, research_log)
+            await research_log.complete_task(activity_id)
+            print("DEBUG: Phase 3 completed")
+            
+            # Phase 4: Activate relevant investigators
             activity_id = await research_log.start_task("coordinator", "agent_selection", "Selecting investigators based on context")
-            print("DEBUG: Phase 2 - Selecting investigators...")
+            print("DEBUG: Phase 4 - Selecting investigators...")
             investigators = await self._select_investigators(investigation_context)
             print(f"DEBUG: Selected investigators: {investigators}")
             await research_log.complete_task(activity_id, {"selected_investigators": investigators})
             
-            # Phase 3: Run investigation in parallel
+            # Phase 5: Run investigation in parallel
             await monitoring_dashboard.update_investigation_phase(blackboard.investigation_id, "investigation")
             await monitoring_dashboard.update_active_agents(blackboard.investigation_id, investigators)
             activity_id = await research_log.start_task("coordinator", "parallel_investigation", f"Running {len(investigators)} investigators in parallel")
-            print("DEBUG: Phase 3 - Running parallel investigation...")
+            print("DEBUG: Phase 5 - Running parallel investigation...")
             await self._run_parallel_investigation(blackboard, investigators, investigation_context, research_log)
             await research_log.complete_task(activity_id)
-            print("DEBUG: Phase 3 completed")
+            print("DEBUG: Phase 5 completed")
             
-            # Phase 4: Run correlation analysis
+            # Phase 6: Run correlation analysis
             await monitoring_dashboard.update_investigation_phase(blackboard.investigation_id, "correlation")
             await monitoring_dashboard.update_active_agents(blackboard.investigation_id, ["correlation_engine"])
             activity_id = await research_log.start_task("coordinator", "correlation_analysis", "Running correlation analysis on all findings")
-            print("DEBUG: Phase 4 - Running correlation analysis...")
+            print("DEBUG: Phase 6 - Running correlation analysis...")
             await self._run_correlation_analysis(blackboard, research_log)
             await research_log.complete_task(activity_id)
-            print("DEBUG: Phase 4 completed")
+            print("DEBUG: Phase 6 completed")
             
-            # Phase 5: Generate final report
+            # Phase 7: Generate final report
             await monitoring_dashboard.update_investigation_phase(blackboard.investigation_id, "reporting")
             await monitoring_dashboard.update_active_agents(blackboard.investigation_id, ["report_generator"])
             activity_id = await research_log.start_task("coordinator", "report_generation", "Generating comprehensive investigation report")
-            print("DEBUG: Phase 5 - Generating report...")
+            print("DEBUG: Phase 7 - Generating report...")
             report = await self._generate_report(blackboard, research_log)
             await research_log.complete_task(activity_id)
-            print("DEBUG: Phase 5 completed")
+            print("DEBUG: Phase 7 completed")
             
             print("DEBUG: ========== INVESTIGATION COMPLETED ==========")
             await monitoring_dashboard.complete_investigation(blackboard.investigation_id, "completed")
@@ -326,6 +350,196 @@ class BlackboardCoordinator:
             confidence="high",
             tags=["configuration"]
         )
+    
+    async def _generate_investigation_questions(self, blackboard: InvestigationBlackboard, 
+                                             context: Dict[str, Any], research_log):
+        """Generate comprehensive investigation questions and persist them to the blackboard."""
+        
+        try:
+            # Initialize question generator
+            question_generator = InvestigationQuestionGenerator(self.shared_tools)
+            
+            # Get SOAR case details if case_id is provided
+            case_details = {}
+            case_id = context.get("case_id")
+            if case_id and hasattr(self.shared_tools, '__iter__'):
+                # Try to get case details from SOAR tools
+                try:
+                    # This is a simplified approach - in practice, you'd use the actual SOAR tool
+                    case_details = {
+                        "case_id": case_id,
+                        "title": context.get("title", "Security Investigation"),
+                        "priority": context.get("priority", "medium"),
+                        "initial_indicators": context.get("initial_indicators", []),
+                        "description": context.get("description", ""),
+                        "created_at": context.get("created_at", ""),
+                        "status": context.get("status", "active")
+                    }
+                except Exception as e:
+                    print(f"Warning: Could not fetch SOAR case details: {e}")
+                    case_details = context
+            else:
+                case_details = context
+            
+            print(f"DEBUG: Generating questions for case: {case_details.get('case_id', 'unknown')}")
+            
+            # Generate investigation questions
+            questions = await question_generator.generate_investigation_questions(
+                case_details, context
+            )
+            
+            print(f"DEBUG: Generated {len(questions)} investigation questions")
+            
+            # Persist questions to blackboard
+            for question in questions:
+                await blackboard.write(
+                    area="investigation_questions",
+                    finding={
+                        "type": "investigation_question",
+                        "question_data": question,
+                        "status": "pending",
+                        "generated_at": blackboard.created_at.isoformat()
+                    },
+                    agent_name="coordinator",
+                    confidence="high",
+                    tags=["question", question.get("category", "general"), question.get("priority", "medium")]
+                )
+            
+            # Also create a summary of questions by category
+            categories = {}
+            for question in questions:
+                category = question.get("category", "general")
+                if category not in categories:
+                    categories[category] = []
+                categories[category].append(question)
+            
+            await blackboard.write(
+                area="investigation_questions",
+                finding={
+                    "type": "questions_summary",
+                    "total_questions": len(questions),
+                    "questions_by_category": {cat: len(qs) for cat, qs in categories.items()},
+                    "categories": list(categories.keys()),
+                    "generation_timestamp": blackboard.created_at.isoformat()
+                },
+                agent_name="coordinator",
+                confidence="high",
+                tags=["summary", "questions"]
+            )
+            
+            print(f"DEBUG: Persisted {len(questions)} questions to blackboard in categories: {list(categories.keys())}")
+            
+        except Exception as e:
+            print(f"ERROR: Failed to generate investigation questions: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            # Write error to blackboard
+            await blackboard.write(
+                area="investigation_questions",
+                finding={
+                    "type": "question_generation_error",
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "timestamp": blackboard.created_at.isoformat()
+                },
+                agent_name="coordinator",
+                confidence="high",
+                tags=["error", "questions"]
+            )
+    
+    async def _map_tools_to_questions(self, blackboard: InvestigationBlackboard, research_log):
+        """Map available tools to investigation questions and identify missing capabilities."""
+        
+        try:
+            # Read the questions that were just generated
+            questions_data = await blackboard.read(area="investigation_questions")
+            
+            # Extract just the question objects
+            questions = []
+            for finding in questions_data:
+                if finding.finding.get("type") == "investigation_question":
+                    questions.append(finding.finding.get("question_data", {}))
+            
+            if not questions:
+                print("DEBUG: No questions found to map tools to")
+                return
+            
+            print(f"DEBUG: Mapping tools for {len(questions)} questions")
+            
+            # Initialize tool mapper
+            tool_mapper = QuestionToolMapper(self.shared_tools)
+            
+            # Map tools to questions
+            enhanced_questions = await tool_mapper.map_tools_to_questions(questions)
+            
+            print(f"DEBUG: Enhanced {len(enhanced_questions)} questions with tool mappings")
+            
+            # Persist enhanced questions to blackboard
+            for enhanced_question in enhanced_questions:
+                await blackboard.write(
+                    area="investigation_questions",
+                    finding={
+                        "type": "enhanced_investigation_question",
+                        "question_data": enhanced_question,
+                        "status": "ready_for_investigation",
+                        "enhanced_at": blackboard.created_at.isoformat()
+                    },
+                    agent_name="coordinator",
+                    confidence="high",
+                    tags=["enhanced_question", "tool_mapped", enhanced_question.get("category", "general")]
+                )
+            
+            # Create tool availability summary
+            all_available_tools = []
+            all_wishlist_tools = []
+            
+            for eq in enhanced_questions:
+                all_available_tools.extend(eq.get("available_tools", []))
+                all_wishlist_tools.extend(eq.get("tool_wishlist", []))
+            
+            # Count tool usage
+            tool_usage = {}
+            for tool in all_available_tools:
+                tool_name = tool.get("tool_name", "unknown")
+                tool_usage[tool_name] = tool_usage.get(tool_name, 0) + 1
+            
+            # Create tool summary
+            await blackboard.write(
+                area="investigation_questions",
+                finding={
+                    "type": "tool_mapping_summary",
+                    "total_questions_mapped": len(enhanced_questions),
+                    "unique_tools_identified": len(set(tool_usage.keys())),
+                    "tool_usage_frequency": tool_usage,
+                    "total_wishlist_items": len(all_wishlist_tools),
+                    "mapping_timestamp": blackboard.created_at.isoformat()
+                },
+                agent_name="coordinator", 
+                confidence="high",
+                tags=["summary", "tool_mapping"]
+            )
+            
+            print(f"DEBUG: Tool mapping completed. {len(set(tool_usage.keys()))} unique tools identified, {len(all_wishlist_tools)} wishlist items")
+            
+        except Exception as e:
+            print(f"ERROR: Failed to map tools to questions: {type(e).__name__}: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            # Write error to blackboard
+            await blackboard.write(
+                area="investigation_questions",
+                finding={
+                    "type": "tool_mapping_error",
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "timestamp": blackboard.created_at.isoformat()
+                },
+                agent_name="coordinator",
+                confidence="high",
+                tags=["error", "tool_mapping"]
+            )
     
     async def _select_investigators(self, context: Dict[str, Any]) -> List[str]:
         """Select which investigators to activate based on context."""
@@ -897,11 +1111,15 @@ def get_agent(tools, exit_stack):
     coordinator.shared_tools = tools_list
     coordinator.shared_exit_stack = exit_stack
     
-    # Load persona and instructions
-    persona = "You are a SOC Blackboard Coordinator responsible for orchestrating complex security investigations."
+    # Load persona and runbooks from rules-bank
+    persona_and_runbooks = load_persona_and_runbooks(
+        persona_name="blackboard_coordinator",
+        runbook_names=["blackboard_investigation_orchestration"],
+        default_persona="You are a SOC Blackboard Coordinator responsible for orchestrating investigations."
+    )
     
-    # Add runbook instructions
-    instructions = persona + """
+    # Add blackboard-specific instructions
+    instructions = persona_and_runbooks + get_blackboard_instructions() + """
 
 ## IMPORTANT: Tool Constraints
 
