@@ -4,6 +4,66 @@ This document contains references to blog posts and other resources that demonst
 
 We use the document as a reference when thinking about building agentic workflows.
 
+## ADK Runbooks Agent Implementation Patterns
+
+The ADK Runbooks multi-agent system implements a **Hierarchical Multi-Agent System** pattern using several key design patterns:
+
+### Core Design Patterns
+
+1. **Hierarchical Delegation Pattern**
+   - Manager agent acts as root orchestrator
+   - Delegates to specialized security sub-agents (SOC Analysts, CTI Researcher, etc.)
+   - Clear chain of command from manager to worker agents
+
+2. **Deferred Initialization Pattern**
+   - Manager uses `DeferredInitializationAgent` for lazy loading
+   - Synchronous registration with minimal initialization
+   - Expensive async operations deferred until first use
+
+3. **Shared Resource Pattern**
+   - MCP security tools initialized once by manager
+   - Shared tools and exit stack passed to all sub-agents
+   - Prevents redundant connections and improves performance
+
+4. **Configuration Loading Pattern**
+   - Agent personas loaded from markdown files in rules-bank
+   - Runbooks provide structured operational procedures
+   - Behavior defined in configuration, not code
+
+### Implementation Pattern
+
+All sub-agents follow a consistent two-function pattern:
+
+```python
+def get_agent(tools, exit_stack):
+    """Synchronous agent configuration"""
+    persona, runbooks = load_persona_and_runbooks(
+        'agent_persona_name',
+        ['relevant', 'runbooks']
+    )
+    
+    return Agent(
+        name="agent_name",
+        model="gemini-2.5-pro-preview-05-06",
+        description=persona,
+        instruction=persona + runbooks,
+        tools=tools
+    )
+
+async def initialize(shared_tools, shared_exit_stack):
+    """Async initialization wrapper"""
+    agent = get_agent(shared_tools, shared_exit_stack)
+    return (agent, shared_exit_stack)
+```
+
+### Architecture Benefits
+
+- **Scalability**: Easy to add new specialized agents
+- **Maintainability**: Clear separation of concerns
+- **Resource Efficiency**: Shared tools reduce redundant connections
+- **Flexibility**: Agents can be updated independently
+- **Configuration-Driven**: Behavior changes without code modifications
+
 ## References
 
 * [Agent Patterns with ADK (1 Agent, 5 Ways!)](https://medium.com/google-cloud/agent-patterns-with-adk-1-agent-5-ways-58bff801c2d6)

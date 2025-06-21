@@ -107,20 +107,21 @@ async def get_agent_tools():
           - contextlib.AsyncExitStack: The exit stack managing the MCP server connections.
   """
   common_exit_stack = contextlib.AsyncExitStack()
-  
+
   # Get the base path of the project (adk_runbooks directory)
   base_path = Path(__file__).resolve().parent.parent.parent.parent
   mcp_security_path = base_path / "external" / "mcp-security"
 
-  # Create MCPToolset instances using the new constructor
+  # Create MCPToolset instances
   siem_toolset = MCPToolset(
     connection_params=StdioConnectionParams(
       server_params=StdioServerParameters(
-        command='uv',
+        command='/Users/dandye/homebrew/bin/uv',
         args=[
             "--directory",
             str(mcp_security_path / "server" / "secops" / "secops_mcp"),
             "run",
+            "secops-mcp",
             "--env-file",
             str(mcp_security_path / ".env"),
             "server.py"
@@ -133,7 +134,7 @@ async def get_agent_tools():
   soar_toolset = MCPToolset(
     connection_params=StdioConnectionParams(
       server_params=StdioServerParameters(
-        command='uv',
+        command='/Users/dandye/homebrew/bin/uv',
         args=[
             "--directory",
             str(mcp_security_path / "server" / "secops-soar" / "secops_soar_mcp"),
@@ -145,25 +146,24 @@ async def get_agent_tools():
             "CSV,GoogleChronicle,Siemplify,SiemplifyUtilities"
           ],
         ),
-    timeout=TIMEOUT,
+      timeout=TIMEOUT,
     )
   )
 
   gti_toolset = MCPToolset(
     connection_params=StdioConnectionParams(
       server_params=StdioServerParameters(
-        command='uv',
+        command='/Users/dandye/homebrew/bin/uv',
         args=[
             "--directory",
-            str(mcp_security_path / "server" / "gti" / "gti_mcp"),
+            str(mcp_security_path / "server" / "gti"),
             "run",
-            "--refresh",
             "--env-file",
             str(mcp_security_path / ".env"),
-            "server.py"
+            "gti_mcp"
           ],
         ),
-    timeout=TIMEOUT,
+      timeout=TIMEOUT,
     )
   )
 

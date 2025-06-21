@@ -228,6 +228,129 @@ If your multi-agent setup doesn't appear properly in the dropdown menu:
 
 You can exit the conversation or stop the server by pressing `Ctrl+C` in your terminal.
 
+## Agent Implementation Patterns
+
+The ADK Runbooks multi-agent system follows several key design patterns that enable scalable, maintainable security operations:
+
+### Architectural Pattern: Hierarchical Multi-Agent System
+
+The system implements a **Manager-Worker** pattern where:
+
+- **Manager Agent**: Acts as the root orchestrator with delegation capabilities
+  - Has access to reporting tools (`write_report`, `get_current_time`)
+  - Manages sub-agent lifecycle and shared resources
+  - Follows Incident Response Plans (IRPs) for structured responses
+  
+- **Specialized Worker Agents**: Each focuses on specific expertise areas
+  - SOC Analysts (Tier 1, 2, 3) with escalating capabilities
+  - CTI Researcher for threat intelligence
+  - Threat Hunter for proactive threat detection
+  - Incident Responder for incident management
+  - Detection Engineer for rule development
+
+### Key Design Patterns
+
+#### 1. Deferred Initialization Pattern
+
+The manager uses a custom `DeferredInitializationAgent` class that:
+- Allows synchronous registration with minimal initialization
+- Defers expensive async operations (tool setup, sub-agent creation) until first use
+- Implements lazy loading through `_ensure_initialized()` method
+
+```python
+class DeferredInitializationAgent(Agent):
+    def __init__(self, shared_tools=None, shared_exit_stack=None, **kwargs):
+        super().__init__(**kwargs)
+        self._shared_tools = shared_tools
+        self._shared_exit_stack = shared_exit_stack
+        self._initialized = False
+```
+
+#### 2. Delegation Pattern
+
+- Manager agent acts as orchestrator
+- Delegates specific tasks to specialized sub-agents based on expertise
+- Each sub-agent has a focused domain of responsibility
+
+#### 3. Shared Resource Pattern
+
+- Tools are initialized once by the manager via `get_agent_tools()`
+- Shared tools and exit stack are passed to all sub-agents
+- Prevents redundant connections and resource wastage
+
+```python
+# In manager/tools/tools.py
+async def get_agent_tools(exit_stack: AsyncExitStack):
+    """Get all MCP security tools for agents"""
+    tools = []
+    # Chronicle tools, SOAR tools, VirusTotal tools, etc.
+    # All initialized once and shared
+    return tools
+```
+
+#### 4. Configuration Loading Pattern
+
+Each agent uses `load_persona_and_runbooks()` to:
+- Load persona descriptions from markdown files in rules-bank
+- Append relevant runbooks to agent description
+- Provide fallback default descriptions
+
+### Common Agent Implementation Pattern
+
+All sub-agents follow a consistent two-function pattern:
+
+```python
+# In each sub-agent's agent.py
+def get_agent(tools, exit_stack):
+    """Synchronous agent configuration"""
+    # 1. Load persona and runbooks
+    persona, runbooks = load_persona_and_runbooks(
+        'soc_analyst_tier_1',
+        ['alert_triage', 'initial_assessment']
+    )
+    
+    # 2. Create Agent instance
+    agent = Agent(
+        name="soc_analyst_tier1",
+        model="gemini-2.5-pro-preview-05-06",
+        description=persona,
+        instruction=persona + runbooks,
+        tools=tools
+    )
+    
+    # 3. Return agent
+    return agent
+
+async def initialize(shared_tools, shared_exit_stack):
+    """Asynchronous initialization wrapper"""
+    agent = get_agent(shared_tools, shared_exit_stack)
+    return (agent, shared_exit_stack)
+```
+
+### Resource Management
+
+The system uses `contextlib.AsyncExitStack` for:
+- Managing MCP tool connections lifecycle
+- Ensuring proper cleanup of resources
+- Sharing exit stack across all agents
+
+### Key Architectural Decisions
+
+1. **No custom base classes** - Relies on ADK's Agent class directly
+2. **Async/await throughout** - All initialization is asynchronous
+3. **Centralized tool management** - Tools initialized once and shared
+4. **File-based configuration** - Personas and runbooks stored as markdown
+5. **Hierarchical delegation** - Clear chain of command from manager to workers
+6. **Path resolution** - Using `pathlib` for cross-platform compatibility
+
+### Benefits of This Architecture
+
+- **Scalability**: Easy to add new specialized agents
+- **Maintainability**: Clear separation of concerns
+- **Resource Efficiency**: Shared tools reduce redundant connections
+- **Flexibility**: Agents can be updated independently
+- **Configuration-Driven**: Behavior defined in markdown files, not code
+
 ## Additional Resources
 
 - [ADK Multi-Agent Systems Documentation](https://google.github.io/adk-docs/agents/multi-agent-systems/)

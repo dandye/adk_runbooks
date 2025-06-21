@@ -347,7 +347,7 @@ async def get_dac_agent_tools():
     soar_toolset = MCPToolset(
         connection_params=StdioConnectionParams(
             server_params=StdioServerParameters(
-                command='uv',
+                command='/Users/dandye/homebrew/bin/uv',
                 args=[
                     "--directory",
                     str(mcp_security_path / "server" / "secops-soar" / "secops_soar_mcp"),
@@ -367,11 +367,13 @@ async def get_dac_agent_tools():
     siem_toolset = MCPToolset(
         connection_params=StdioConnectionParams(
             server_params=StdioServerParameters(
-                command='uv',
+                command='/Users/dandye/homebrew/bin/uv',
                 args=[
                     "--directory",
                     str(mcp_security_path / "server" / "secops" / "secops_mcp"),
                     "run",
+                    "--reinstall-package",
+                    "secops-mcp",
                     "--env-file",
                     str(mcp_security_path / ".env"),
                     "server.py"
@@ -385,15 +387,14 @@ async def get_dac_agent_tools():
     gti_toolset = MCPToolset(
         connection_params=StdioConnectionParams(
             server_params=StdioServerParameters(
-                command='uv',
+                command='/Users/dandye/homebrew/bin/uv',
                 args=[
                     "--directory",
-                    str(mcp_security_path / "server" / "gti" / "gti_mcp"),
+                    str(mcp_security_path / "server" / "gti"),
                     "run",
-                    "--refresh",
                     "--env-file",
                     str(mcp_security_path / ".env"),
-                    "server.py"
+                    "gti_mcp"
                 ],
             ),
             timeout=TIMEOUT,

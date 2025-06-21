@@ -56,8 +56,37 @@ make html  # From project root
   - Incident Responder: Incident containment and recovery
   - Detection Engineer: Security rule development
 
-### Deferred Initialization Pattern
-The manager agent uses `DeferredInitializationAgent` to handle async initialization of sub-agents and MCP tools. This allows synchronous registration while deferring expensive setup operations.
+### Agent Implementation Patterns
+
+The system follows a **Hierarchical Multi-Agent System** pattern with these key design patterns:
+
+1. **Deferred Initialization Pattern**: Manager uses `DeferredInitializationAgent` for lazy loading of expensive resources
+2. **Delegation Pattern**: Manager orchestrates and delegates to specialized sub-agents based on expertise
+3. **Shared Resource Pattern**: MCP tools initialized once and shared across all agents
+4. **Configuration Loading Pattern**: Agent personas and runbooks loaded from markdown files
+
+#### Common Agent Implementation
+All sub-agents follow a consistent two-function pattern:
+```python
+def get_agent(tools, exit_stack):
+    """Synchronous agent configuration"""
+    persona, runbooks = load_persona_and_runbooks(
+        'agent_persona_name',
+        ['relevant', 'runbooks']
+    )
+    return Agent(
+        name="agent_name",
+        model="gemini-2.5-pro-preview-05-06",
+        description=persona,
+        instruction=persona + runbooks,
+        tools=tools
+    )
+
+async def initialize(shared_tools, shared_exit_stack):
+    """Async initialization wrapper"""
+    agent = get_agent(shared_tools, shared_exit_stack)
+    return (agent, shared_exit_stack)
+```
 
 ### Tool Integration
 - **MCP Security Tools**: Configured in `multi-agent/manager/tools/tools.py`
@@ -122,3 +151,4 @@ While there's no formal test suite, you can test agents by:
 3. Keep agent instructions focused on their specific domain
 4. Use the TodoWrite/TodoRead tools in agents for complex task management
 5. Follow the IRP execution patterns defined in the manager agent's instructions
+6. Never, ever use `git add -A` or `git add .`. It is dangerous. Instead, add the files individually.

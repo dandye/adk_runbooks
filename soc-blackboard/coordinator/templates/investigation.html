@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Investigation Details - {{ investigation_id }}</title>
+    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+        
+        header {
+            background: #1a1a1a;
+            color: white;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+        }
+        
+        header h1 {
+            font-size: 1.5rem;
+            font-weight: 500;
+        }
+        
+        .back-link {
+            color: #64B5F6;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+        }
+        
+        .back-link:hover {
+            color: #90CAF9;
+        }
+        
+        .investigation-header {
+            background: white;
+            padding: 2rem;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .header-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 1rem;
+        }
+        
+        .investigation-title {
+            font-size: 2rem;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .status-badge {
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.875rem;
+        }
+        
+        .status-active { 
+            background: #E8F5E9; 
+            color: #2E7D32;
+        }
+        
+        .status-completed { 
+            background: #E3F2FD; 
+            color: #1565C0;
+        }
+        
+        .status-failed { 
+            background: #FFEBEE; 
+            color: #C62828;
+        }
+        
+        .metadata {
+            display: flex;
+            gap: 3rem;
+            color: #666;
+            font-size: 0.875rem;
+        }
+        
+        .metadata-item strong {
+            color: #333;
+        }
+        
+        .content-tabs {
+            background: white;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            padding: 0 2rem;
+        }
+        
+        .tab {
+            padding: 1rem 1.5rem;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+            font-weight: 500;
+            color: #666;
+            transition: all 0.2s ease;
+        }
+        
+        .tab:hover {
+            color: #333;
+        }
+        
+        .tab.active {
+            color: #1976D2;
+            border-bottom-color: #1976D2;
+        }
+        
+        .tab-content {
+            padding: 2rem;
+            background: white;
+            min-height: 500px;
+        }
+        
+        .tab-panel {
+            display: none;
+        }
+        
+        .tab-panel.active {
+            display: block;
+        }
+        
+        /* Timeline styles */
+        #timeline-chart {
+            width: 100%;
+            height: 500px;
+            overflow: auto;
+        }
+        
+        /* Activities styles */
+        .activities-container {
+            max-width: 1200px;
+        }
+        
+        .activity-filters {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .filter-select {
+            padding: 0.5rem 1rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+            font-size: 0.875rem;
+        }
+        
+        .activities-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        
+        .activity-card {
+            background: #f8f8f8;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 1rem;
+            display: grid;
+            grid-template-columns: 150px 1fr auto;
+            gap: 1rem;
+            align-items: start;
+        }
+        
+        .activity-agent {
+            font-weight: 600;
+            color: #1976D2;
+        }
+        
+        .activity-details {
+            flex: 1;
+        }
+        
+        .activity-task {
+            font-size: 0.875rem;
+            color: #666;
+            margin-bottom: 0.25rem;
+        }
+        
+        .activity-description {
+            color: #333;
+            line-height: 1.4;
+        }
+        
+        .activity-status {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 0.25rem;
+        }
+        
+        .status-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.875rem;
+        }
+        
+        .status-completed {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .status-failed {
+            background: #f44336;
+            color: white;
+        }
+        
+        .status-started,
+        .status-in_progress {
+            background: #FF9800;
+            color: white;
+        }
+        
+        .activity-duration {
+            font-size: 0.75rem;
+            color: #999;
+        }
+        
+        /* Blackboard styles */
+        .blackboard-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .findings-card {
+            background: #f8f8f8;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 1.5rem;
+        }
+        
+        .findings-area {
+            font-size: 0.875rem;
+            color: #666;
+            margin-bottom: 0.5rem;
+        }
+        
+        .findings-count {
+            font-size: 2rem;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .risk-scores {
+            background: #FFF3E0;
+            border: 1px solid #FFE0B2;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-top: 2rem;
+        }
+        
+        .risk-scores h3 {
+            color: #E65100;
+            margin-bottom: 1rem;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: #666;
+        }
+        
+        .error {
+            background: #FFEBEE;
+            color: #C62828;
+            padding: 1rem;
+            border-radius: 4px;
+            margin: 1rem 0;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <a href="/" class="back-link">← Back to Dashboard</a>
+        <h1>Investigation Details</h1>
+    </header>
+    
+    <div class="investigation-header">
+        <div class="header-info">
+            <h2 class="investigation-title" id="investigation-title">Loading...</h2>
+            <span class="status-badge" id="status-badge"></span>
+        </div>
+        <div class="metadata" id="metadata">
+            <!-- Metadata will be inserted here -->
+        </div>
+    </div>
+    
+    <div class="content-tabs">
+        <div class="tab active" data-tab="timeline">Timeline</div>
+        <div class="tab" data-tab="activities">Activities</div>
+        <div class="tab" data-tab="blackboard">Blackboard</div>
+    </div>
+    
+    <div class="tab-content">
+        <div class="tab-panel active" id="timeline-panel">
+            <div id="timeline-chart" class="loading">Loading timeline...</div>
+        </div>
+        
+        <div class="tab-panel" id="activities-panel">
+            <div class="activities-container">
+                <div class="activity-filters">
+                    <select class="filter-select" id="agent-filter">
+                        <option value="">All Agents</option>
+                    </select>
+                    <select class="filter-select" id="status-filter">
+                        <option value="">All Statuses</option>
+                        <option value="started">Started</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="completed">Completed</option>
+                        <option value="failed">Failed</option>
+                    </select>
+                </div>
+                <div class="activities-list" id="activities-list">
+                    <div class="loading">Loading activities...</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="tab-panel" id="blackboard-panel">
+            <div class="blackboard-summary" id="blackboard-summary">
+                <div class="loading">Loading blackboard data...</div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Get investigation ID from template
+        const investigationId = '{{ investigation_id }}';
+        
+        // Global data
+        let investigationData = null;
+        let activitiesData = null;
+        let blackboardData = null;
+        
+        // Load Google Charts
+        google.charts.load('current', {'packages':['gantt']});
+        
+        // Tab handling
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                // Update active tab
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                
+                // Update active panel
+                const tabName = tab.dataset.tab;
+                document.querySelectorAll('.tab-panel').forEach(panel => {
+                    panel.classList.remove('active');
+                });
+                document.getElementById(`${tabName}-panel`).classList.add('active');
+                
+                // Load data if needed
+                if (tabName === 'timeline' && activitiesData && !document.querySelector('#timeline-chart .loading')) {
+                    drawTimeline();
+                } else if (tabName === 'activities' && !activitiesData) {
+                    loadActivities();
+                } else if (tabName === 'blackboard' && !blackboardData) {
+                    loadBlackboard();
+                }
+            });
+        });
+        
+        // Filter handling
+        document.getElementById('agent-filter').addEventListener('change', filterActivities);
+        document.getElementById('status-filter').addEventListener('change', filterActivities);
+        
+        function filterActivities() {
+            const agentFilter = document.getElementById('agent-filter').value;
+            const statusFilter = document.getElementById('status-filter').value;
+            
+            document.querySelectorAll('.activity-card').forEach(card => {
+                const agent = card.dataset.agent;
+                const status = card.dataset.status;
+                
+                const show = (!agentFilter || agent === agentFilter) && 
+                           (!statusFilter || status === statusFilter);
+                
+                card.style.display = show ? 'grid' : 'none';
+            });
+        }
+        
+        // Load investigation details
+        async function loadInvestigation() {
+            try {
+                const response = await fetch(`/api/investigations/${investigationId}`);
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load investigation');
+                }
+                
+                investigationData = data.investigation;
+                updateHeader();
+                
+                // Load activities for timeline
+                await loadActivities();
+                
+            } catch (error) {
+                console.error('Error loading investigation:', error);
+                document.getElementById('investigation-title').textContent = 'Error loading investigation';
+            }
+        }
+        
+        function updateHeader() {
+            if (!investigationData) return;
+            
+            // Update title and status
+            document.getElementById('investigation-title').textContent = investigationData.case_id;
+            
+            const statusBadge = document.getElementById('status-badge');
+            statusBadge.textContent = investigationData.status;
+            statusBadge.className = `status-badge status-${investigationData.status}`;
+            
+            // Update metadata
+            const runtime = calculateRuntime(investigationData.started_at);
+            const metadata = document.getElementById('metadata');
+            metadata.innerHTML = `
+                <div class="metadata-item">
+                    <strong>Phase:</strong> ${investigationData.phase}
+                </div>
+                <div class="metadata-item">
+                    <strong>Runtime:</strong> ${runtime}
+                </div>
+                <div class="metadata-item">
+                    <strong>Findings:</strong> ${investigationData.total_findings}
+                </div>
+                <div class="metadata-item">
+                    <strong>Active Agents:</strong> ${investigationData.active_agents.length}
+                </div>
+            `;
+        }
+        
+        function calculateRuntime(startTime) {
+            const start = new Date(startTime);
+            const now = new Date();
+            const diff = now - start;
+            
+            const hours = Math.floor(diff / 3600000);
+            const minutes = Math.floor((diff % 3600000) / 60000);
+            
+            if (hours > 0) {
+                return `${hours}h ${minutes}m`;
+            } else {
+                return `${minutes}m`;
+            }
+        }
+        
+        // Load activities
+        async function loadActivities() {
+            try {
+                const response = await fetch(`/api/investigations/${investigationId}/activities`);
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load activities');
+                }
+                
+                activitiesData = data;
+                
+                // Draw timeline if it's the active tab
+                if (document.getElementById('timeline-panel').classList.contains('active')) {
+                    drawTimeline();
+                }
+                
+                // Populate activities list
+                populateActivities();
+                
+            } catch (error) {
+                console.error('Error loading activities:', error);
+                document.getElementById('timeline-chart').innerHTML = `<div class="error">Error loading timeline: ${error.message}</div>`;
+                document.getElementById('activities-list').innerHTML = `<div class="error">Error loading activities: ${error.message}</div>`;
+            }
+        }
+        
+        function drawTimeline() {
+            if (!activitiesData || !activitiesData.gantt_data || activitiesData.gantt_data.length === 0) {
+                document.getElementById('timeline-chart').innerHTML = '<div class="loading">No timeline data available</div>';
+                return;
+            }
+            
+            google.charts.setOnLoadCallback(() => {
+                const dataTable = new google.visualization.DataTable();
+                dataTable.addColumn('string', 'Task ID');
+                dataTable.addColumn('string', 'Task Name');
+                dataTable.addColumn('string', 'Agent');
+                dataTable.addColumn('date', 'Start');
+                dataTable.addColumn('date', 'End');
+                dataTable.addColumn('number', 'Duration');
+                dataTable.addColumn('number', 'Percent Complete');
+                dataTable.addColumn('string', 'Dependencies');
+                
+                // Convert gantt data to Google Charts format
+                const rows = activitiesData.gantt_data.map((task, index) => {
+                    const start = new Date(task.start);
+                    const end = new Date(task.end);
+                    const percentComplete = task.status === 'completed' ? 100 : 
+                                          task.status === 'failed' ? 0 : 50;
+                    
+                    return [
+                        `Task${index}`,
+                        task.task,
+                        task.agent,
+                        start,
+                        end,
+                        null,
+                        percentComplete,
+                        null
+                    ];
+                });
+                
+                dataTable.addRows(rows);
+                
+                const options = {
+                    height: 500,
+                    gantt: {
+                        trackHeight: 30,
+                        criticalPathEnabled: false,
+                        innerGridTrack: {fill: '#f3f3f3'},
+                        innerGridDarkTrack: {fill: '#e0e0e0'},
+                        shadowEnabled: true,
+                        shadowColor: '#ddd',
+                        shadowOffset: 1,
+                        labelStyle: {
+                            fontName: 'Arial',
+                            fontSize: 12
+                        }
+                    }
+                };
+                
+                const chart = new google.visualization.Gantt(document.getElementById('timeline-chart'));
+                chart.draw(dataTable, options);
+            });
+        }
+        
+        function populateActivities() {
+            if (!activitiesData || !activitiesData.activities) return;
+            
+            const activitiesList = document.getElementById('activities-list');
+            const agentFilter = document.getElementById('agent-filter');
+            
+            // Get unique agents for filter
+            const agents = [...new Set(activitiesData.activities.map(a => a.agent_name))];
+            agentFilter.innerHTML = '<option value="">All Agents</option>' + 
+                agents.map(agent => `<option value="${agent}">${agent}</option>`).join('');
+            
+            // Create activity cards
+            activitiesList.innerHTML = activitiesData.activities.map(activity => {
+                const statusIcon = getStatusIcon(activity.status);
+                const duration = activity.duration_seconds ? 
+                    `${activity.duration_seconds.toFixed(1)}s` : '';
+                
+                return `
+                    <div class="activity-card" data-agent="${activity.agent_name}" data-status="${activity.status}">
+                        <div class="activity-agent">${activity.agent_name}</div>
+                        <div class="activity-details">
+                            <div class="activity-task">${activity.task_type}</div>
+                            <div class="activity-description">${activity.description}</div>
+                        </div>
+                        <div class="activity-status">
+                            <div class="status-icon status-${activity.status}">${statusIcon}</div>
+                            ${duration ? `<div class="activity-duration">${duration}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function getStatusIcon(status) {
+            switch (status) {
+                case 'completed': return '✓';
+                case 'failed': return '✗';
+                case 'started':
+                case 'in_progress': return '⋯';
+                default: return '•';
+            }
+        }
+        
+        // Load blackboard data
+        async function loadBlackboard() {
+            try {
+                const response = await fetch(`/api/investigations/${investigationId}/blackboard`);
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load blackboard data');
+                }
+                
+                blackboardData = data;
+                displayBlackboard();
+                
+            } catch (error) {
+                console.error('Error loading blackboard:', error);
+                document.getElementById('blackboard-summary').innerHTML = 
+                    `<div class="error">Error loading blackboard data: ${error.message}</div>`;
+            }
+        }
+        
+        function displayBlackboard() {
+            if (!blackboardData) return;
+            
+            const summary = document.getElementById('blackboard-summary');
+            
+            // Display findings by area
+            let html = '';
+            
+            if (blackboardData.findings_by_area) {
+                for (const [area, count] of Object.entries(blackboardData.findings_by_area)) {
+                    if (area !== 'risk_scores' && area !== 'investigation_metadata') {
+                        html += `
+                            <div class="findings-card">
+                                <div class="findings-area">${area.replace(/_/g, ' ')}</div>
+                                <div class="findings-count">${count}</div>
+                            </div>
+                        `;
+                    }
+                }
+            }
+            
+            // Add risk scores if available
+            if (blackboardData.risk_scores && Object.keys(blackboardData.risk_scores).length > 0) {
+                html += `
+                    <div class="risk-scores">
+                        <h3>Risk Scores</h3>
+                        ${Object.entries(blackboardData.risk_scores).map(([key, value]) => 
+                            `<div><strong>${key}:</strong> ${value}</div>`
+                        ).join('')}
+                    </div>
+                `;
+            }
+            
+            summary.innerHTML = html || '<div class="loading">No blackboard data available yet</div>';
+        }
+        
+        // Initial load
+        loadInvestigation();
+        
+        // Auto-refresh every 5 seconds if investigation is active
+        setInterval(() => {
+            if (investigationData && investigationData.status === 'active') {
+                loadInvestigation();
+            }
+        }, 5000);
+    </script>
+</body>
+</html>
