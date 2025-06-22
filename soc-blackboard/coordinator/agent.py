@@ -207,7 +207,7 @@ class BlackboardCoordinator:
         try:
             # Phase 1: Initialize blackboard with initial context
             await monitoring_dashboard.update_investigation_phase(blackboard.investigation_id, "initialization")
-            activity_id = await research_log.start_task("coordinator", "initialization", "Initializing investigation blackboard and context")
+            activity_id = await research_log.start_task("coordinator", "initialization", "Setting up investigation workspace: Creating blackboard knowledge store, loading case context, and preparing data structures for parallel agent collaboration")
             print("DEBUG: Phase 1 - Initializing investigation...")
             await self._initialize_investigation(blackboard, investigation_context)
             await research_log.complete_task(activity_id)
@@ -215,7 +215,7 @@ class BlackboardCoordinator:
             
             # Phase 2: Generate investigation questions
             await monitoring_dashboard.update_investigation_phase(blackboard.investigation_id, "question_generation")
-            activity_id = await research_log.start_task("coordinator", "question_generation", "Generating comprehensive investigation questions")
+            activity_id = await research_log.start_task("coordinator", "question_generation", "Analyzing case context to generate investigation questions: Breaking down the incident into specific questions across categories (network, endpoint, logs, timeline, IOCs) to guide focused investigation efforts")
             print("DEBUG: Phase 2 - Generating investigation questions...")
             await self._generate_investigation_questions(blackboard, investigation_context, research_log)
             await research_log.complete_task(activity_id)
@@ -223,14 +223,14 @@ class BlackboardCoordinator:
             
             # Phase 3: Map tools to questions
             await monitoring_dashboard.update_investigation_phase(blackboard.investigation_id, "tool_mapping")
-            activity_id = await research_log.start_task("coordinator", "tool_mapping", "Mapping available tools and identifying missing capabilities for each question")
+            activity_id = await research_log.start_task("coordinator", "tool_mapping", "Analyzing investigation questions to map available security tools: Identifying which tools (SOAR, Chronicle, VirusTotal, etc.) can answer each question and flagging gaps where manual investigation may be needed")
             print("DEBUG: Phase 3 - Mapping tools to investigation questions...")
             await self._map_tools_to_questions(blackboard, research_log)
             await research_log.complete_task(activity_id)
             print("DEBUG: Phase 3 completed")
             
             # Phase 4: Activate relevant investigators
-            activity_id = await research_log.start_task("coordinator", "agent_selection", "Selecting investigators based on context")
+            activity_id = await research_log.start_task("coordinator", "agent_selection", "Determining which specialist investigators to activate: Analyzing indicators and questions to select relevant agents (network analyzer for IP/domain IOCs, endpoint investigator for file hashes, log correlator for event patterns, etc.)")
             print("DEBUG: Phase 4 - Selecting investigators...")
             investigators = await self._select_investigators(investigation_context)
             print(f"DEBUG: Selected investigators: {investigators}")
@@ -239,7 +239,7 @@ class BlackboardCoordinator:
             # Phase 5: Run investigation in parallel
             await monitoring_dashboard.update_investigation_phase(blackboard.investigation_id, "investigation")
             await monitoring_dashboard.update_active_agents(blackboard.investigation_id, investigators)
-            activity_id = await research_log.start_task("coordinator", "parallel_investigation", f"Running {len(investigators)} investigators in parallel")
+            activity_id = await research_log.start_task("coordinator", "parallel_investigation", f"Launching {len(investigators)} specialized investigators in parallel: Each agent will independently analyze their domain (network traffic, endpoint artifacts, security logs, etc.) and write findings to the shared blackboard for correlation")
             print("DEBUG: Phase 5 - Running parallel investigation...")
             await self._run_parallel_investigation(blackboard, investigators, investigation_context, research_log)
             await research_log.complete_task(activity_id)
@@ -248,7 +248,7 @@ class BlackboardCoordinator:
             # Phase 6: Run correlation analysis
             await monitoring_dashboard.update_investigation_phase(blackboard.investigation_id, "correlation")
             await monitoring_dashboard.update_active_agents(blackboard.investigation_id, ["correlation_engine"])
-            activity_id = await research_log.start_task("coordinator", "correlation_analysis", "Running correlation analysis on all findings")
+            activity_id = await research_log.start_task("coordinator", "correlation_analysis", "Correlating findings across all investigation domains: Looking for patterns, relationships, and attack chains by connecting network IOCs to endpoint activity, matching timestamps across logs, and building the complete incident narrative")
             print("DEBUG: Phase 6 - Running correlation analysis...")
             await self._run_correlation_analysis(blackboard, research_log)
             await research_log.complete_task(activity_id)
@@ -257,7 +257,7 @@ class BlackboardCoordinator:
             # Phase 7: Generate final report
             await monitoring_dashboard.update_investigation_phase(blackboard.investigation_id, "reporting")
             await monitoring_dashboard.update_active_agents(blackboard.investigation_id, ["report_generator"])
-            activity_id = await research_log.start_task("coordinator", "report_generation", "Generating comprehensive investigation report")
+            activity_id = await research_log.start_task("coordinator", "report_generation", "Synthesizing all findings into actionable intelligence: Creating executive summary, detailed timeline, identified threats, recommended containment actions, and evidence trail for the complete investigation report")
             print("DEBUG: Phase 7 - Generating report...")
             report = await self._generate_report(blackboard, research_log)
             await research_log.complete_task(activity_id)
@@ -661,10 +661,24 @@ class BlackboardCoordinator:
         """Run a single investigator agent."""
         
         # Start research log tracking for this investigator
+        # Create a more descriptive task description based on the investigator type
+        investigator_descriptions = {
+            "network_analyzer": "Analyzing network traffic patterns, connections, and protocols for suspicious activity, C2 communications, and data exfiltration attempts",
+            "endpoint_investigator": "Examining endpoint behaviors including process activities, file system changes, persistence mechanisms, and signs of lateral movement",
+            "log_correlator": "Correlating security events across multiple log sources to identify attack patterns, anomalies, and timeline of activities",
+            "timeline_builder": "Constructing chronological sequence of events to understand attack progression, identify initial compromise, and trace attacker actions",
+            "ioc_enricher": "Enriching indicators of compromise with threat intelligence, reputation data, and contextual information from external sources"
+        }
+        
+        description = investigator_descriptions.get(
+            investigator_name, 
+            f"Conducting specialized {investigator_name} analysis"
+        )
+        
         activity_id = await research_log.start_task(
             investigator_name, 
             "investigation", 
-            f"Running {investigator_name} investigation",
+            description,
             {"context": context}
         )
         
@@ -682,7 +696,7 @@ class BlackboardCoordinator:
             
             # Initialize investigator agent with combined tools
             try:
-                await research_log.update_task(activity_id, "in_progress", {"step": "initializing_agent"})
+                await research_log.update_task(activity_id, "in_progress", {"step": "initializing_agent", "detail": f"Loading {investigator_name} agent with specialized tools and blackboard access"})
                 agent, _ = await investigator_module.initialize(all_tools, self.shared_exit_stack)
             except Exception as init_error:
                 print(f"ERROR: Failed to initialize {investigator_name}: {type(init_error).__name__}: {init_error}")
@@ -690,12 +704,12 @@ class BlackboardCoordinator:
                 # Try to provide more context about the error
                 if "'dict' object has no attribute 'append'" in str(init_error):
                     print(f"ERROR: Dict append error - tools format issue detected")
-                await research_log.fail_task(activity_id, f"Failed to initialize: {init_error}")
+                await research_log.fail_task(activity_id, f"Failed to initialize agent: {init_error}", {"error_type": type(init_error).__name__, "detail": "Agent initialization error - check tool configuration"})
                 raise
             
             # Create investigation prompt based on context
             prompt = self._create_investigator_prompt(investigator_name, context)
-            await research_log.update_task(activity_id, "in_progress", {"step": "running_investigation", "prompt_length": len(prompt)})
+            await research_log.update_task(activity_id, "in_progress", {"step": "running_investigation", "prompt_length": len(prompt), "detail": f"Executing investigation with {len(context.get('initial_indicators', []))} initial indicators"})
             
             # Run the investigator
             print(f"DEBUG: Running {investigator_name} with prompt: {prompt[:100]}...")
@@ -732,6 +746,7 @@ class BlackboardCoordinator:
                     results.append(event)
                     if hasattr(event, 'response') and event.response:
                         print(f"DEBUG: {investigator_name} generated response")
+                        await research_log.update_task(activity_id, "in_progress", {"step": "processing_response", "detail": f"{investigator_name} is analyzing data and writing findings to blackboard"})
                 print(f"DEBUG: {investigator_name} completed successfully with {len(results)} events")
                 return results
             
@@ -742,11 +757,11 @@ class BlackboardCoordinator:
             )
             
             # Mark as completed
-            await research_log.complete_task(activity_id, {"step": "completed"})
+            await research_log.complete_task(activity_id, {"step": "completed", "detail": f"Investigation complete - findings written to blackboard"})
             
         except Exception as e:
             # Mark task as failed in research log
-            await research_log.fail_task(activity_id, str(e), {"error_type": type(e).__name__})
+            await research_log.fail_task(activity_id, str(e), {"error_type": type(e).__name__, "detail": f"Investigation failed - {type(e).__name__}: {str(e)[:100]}"})
             
             # Log error and write to blackboard
             error_finding = {
@@ -878,6 +893,14 @@ Remember to:
         """Run correlation analysis on all findings."""
         print("DEBUG: Starting correlation analysis...")
         
+        # Start research log tracking for correlation
+        activity_id = await research_log.start_task(
+            "correlation_engine", 
+            "correlation", 
+            "Analyzing relationships between findings: Connecting network IOCs to endpoint behaviors, matching timestamps across logs, identifying attack chains and calculating overall risk scores",
+            {}
+        )
+        
         try:
             print(f"DEBUG: Available synthesizers: {list(self.synthesizers.keys())}")
             if "correlation_engine" not in self.synthesizers:
@@ -898,6 +921,7 @@ Remember to:
             
             # Initialize correlation engine
             print("DEBUG: Initializing correlation engine...")
+            await research_log.update_task(activity_id, "in_progress", {"step": "initializing", "detail": "Loading correlation engine with pattern recognition and statistical analysis capabilities"})
             agent, _ = await correlation_module.initialize(all_tools, self.shared_exit_stack)
             print(f"DEBUG: Correlation engine initialized: {agent.name}")
             
@@ -915,6 +939,7 @@ Focus on finding meaningful patterns that tell the story of what happened.
 """
             
             print("DEBUG: Running correlation analysis...")
+            await research_log.update_task(activity_id, "in_progress", {"step": "analyzing", "detail": "Examining all blackboard findings for patterns, relationships, and attack sequences"})
             
             # Use a Runner to properly invoke the agent
             from google.adk.runners import Runner
@@ -948,6 +973,7 @@ Focus on finding meaningful patterns that tell the story of what happened.
                     results.append(event)
                     if hasattr(event, 'response') and event.response:
                         print(f"DEBUG: Correlation analysis generated response")
+                        await research_log.update_task(activity_id, "in_progress", {"step": "writing_correlations", "detail": "Writing discovered patterns and risk scores to blackboard"})
                 print(f"DEBUG: Correlation analysis completed successfully with {len(results)} events")
                 return results
             
@@ -957,10 +983,16 @@ Focus on finding meaningful patterns that tell the story of what happened.
                 run_correlation_with_context
             )
             
+            # Mark as completed
+            await research_log.complete_task(activity_id, {"step": "completed", "detail": "Correlation analysis complete - patterns and risk scores identified"})
+            
         except Exception as e:
             print(f"ERROR: Correlation analysis failed: {type(e).__name__}: {e}")
             import traceback
             traceback.print_exc()
+            
+            # Mark task as failed
+            await research_log.fail_task(activity_id, str(e), {"error_type": type(e).__name__, "detail": f"Correlation failed - {type(e).__name__}"})
             
             # Log correlation error
             await blackboard.write(
@@ -978,6 +1010,14 @@ Focus on finding meaningful patterns that tell the story of what happened.
     async def _generate_report(self, blackboard: InvestigationBlackboard, research_log) -> Dict[str, Any]:
         """Generate comprehensive investigation report."""
         print("DEBUG: Starting report generation...")
+        
+        # Start research log tracking for report generation
+        activity_id = await research_log.start_task(
+            "report_generator", 
+            "report_generation", 
+            "Creating comprehensive investigation report: Synthesizing findings into executive summary, timeline visualization, threat assessment, and recommended response actions",
+            {}
+        )
         
         try:
             print(f"DEBUG: Available synthesizers: {list(self.synthesizers.keys())}")
@@ -999,6 +1039,7 @@ Focus on finding meaningful patterns that tell the story of what happened.
             
             # Initialize report generator
             print("DEBUG: Initializing report generator...")
+            await research_log.update_task(activity_id, "in_progress", {"step": "initializing", "detail": "Loading report generator with formatting and visualization capabilities"})
             agent, _ = await report_module.initialize(all_tools, self.shared_exit_stack)
             print(f"DEBUG: Report generator initialized: {agent.name}")
             
@@ -1018,6 +1059,7 @@ Make the report actionable for both technical and executive audiences.
 """
             
             print("DEBUG: Running report generation...")
+            await research_log.update_task(activity_id, "in_progress", {"step": "analyzing_findings", "detail": "Analyzing all investigation findings to create structured report sections"})
             
             # Use a Runner to properly invoke the agent
             from google.adk.runners import Runner
@@ -1053,6 +1095,7 @@ Make the report actionable for both technical and executive audiences.
                     if hasattr(event, 'response') and event.response:
                         report_result = event.response
                         print(f"DEBUG: Report generation generated response")
+                        await research_log.update_task(activity_id, "in_progress", {"step": "formatting_report", "detail": "Formatting findings into executive summary, timeline, technical analysis, and recommendations"})
                     elif hasattr(event, 'content'):
                         report_result = event.content
                 print(f"DEBUG: Report generation completed successfully with {len(report_results)} events")
@@ -1071,6 +1114,9 @@ Make the report actionable for both technical and executive audiences.
             raw_data = await blackboard.export()
             stats = await blackboard.get_statistics()
             
+            # Mark as completed
+            await research_log.complete_task(activity_id, {"step": "completed", "detail": "Investigation report generated successfully with executive summary and recommendations"})
+            
             return {
                 "report": report_result,
                 "raw_data": raw_data,
@@ -1082,6 +1128,9 @@ Make the report actionable for both technical and executive audiences.
             print(f"ERROR: Report generation failed: {type(e).__name__}: {e}")
             import traceback
             traceback.print_exc()
+            
+            # Mark task as failed
+            await research_log.fail_task(activity_id, str(e), {"error_type": type(e).__name__, "detail": f"Report generation failed - creating fallback report"})
             
             # Fallback: create basic report from blackboard data
             raw_data = await blackboard.export()
