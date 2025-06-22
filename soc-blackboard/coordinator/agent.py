@@ -317,38 +317,30 @@ class BlackboardCoordinator:
     async def _initialize_investigation(self, blackboard: InvestigationBlackboard, context: Dict[str, Any]):
         """Initialize the blackboard with investigation context."""
         
-        # Write initial indicators to blackboard
+        # Get initial indicators
         initial_indicators = context.get("initial_indicators", [])
-        for indicator in initial_indicators:
-            await blackboard.write(
-                area="investigation_metadata",
-                finding={
-                    "type": "initial_indicator",
-                    "indicator": indicator,
-                    "source": "investigation_context"
-                },
-                agent_name="coordinator",
-                confidence="high",
-                tags=["initial", "context"]
-            )
         
-        # Set investigation parameters
+        # Set investigation parameters including initial indicators
         investigation_params = {
             "priority": context.get("priority", "medium"),
             "data_sources": context.get("data_sources", []),
             "investigation_type": context.get("investigation_type", "general"),
-            "timeframe": context.get("timeframe", {})
+            "timeframe": context.get("timeframe", {}),
+            "initial_indicators": initial_indicators  # Include indicators here
         }
         
+        # Write all metadata at once to avoid overwriting
         await blackboard.write(
             area="investigation_metadata",
             finding={
                 "type": "investigation_parameters",
-                "parameters": investigation_params
+                "parameters": investigation_params,
+                "initial_indicators": initial_indicators,  # Also store at top level for backward compatibility
+                "source": "investigation_context"
             },
             agent_name="coordinator",
             confidence="high",
-            tags=["configuration"]
+            tags=["configuration", "initial", "context"]
         )
     
     async def _generate_investigation_questions(self, blackboard: InvestigationBlackboard, 

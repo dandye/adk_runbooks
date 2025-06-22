@@ -150,13 +150,17 @@ def get_blackboard_summary(investigation_id):
             # Extract summary information
             knowledge_areas = blackboard_data.get('knowledge_areas', {})
             findings_by_area = {}
+            full_data = {}
             
             for area, data in knowledge_areas.items():
                 if isinstance(data, list):
                     findings_by_area[area] = len(data)
+                    # Include full data for display
+                    full_data[area] = data
                 elif isinstance(data, dict):
                     # Handle nested structures
                     findings_by_area[area] = len(data)
+                    full_data[area] = data
             
             return jsonify({
                 'investigation_id': investigation_id,
@@ -165,7 +169,8 @@ def get_blackboard_summary(investigation_id):
                 'findings_by_area': findings_by_area,
                 'total_findings': sum(findings_by_area.values()),
                 'risk_scores': knowledge_areas.get('risk_scores', {}),
-                'investigation_metadata': knowledge_areas.get('investigation_metadata', {})
+                'investigation_metadata': knowledge_areas.get('investigation_metadata', {}),
+                'full_data': full_data
             })
         except Exception as e:
             return jsonify({'error': str(e)}), 500
