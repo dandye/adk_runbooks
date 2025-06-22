@@ -520,6 +520,52 @@
             font-size: 0.9rem;
         }
         
+        .event-details {
+            line-height: 1.5;
+        }
+        
+        .event-type {
+            color: #1565c0;
+            font-size: 1rem;
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+        
+        .event-description {
+            margin: 0.5rem 0;
+        }
+        
+        .event-details p {
+            margin: 0.25rem 0;
+        }
+        
+        .event-extra-details {
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+        }
+        
+        .event-extra-details ul {
+            margin: 0.25rem 0 0 1.5rem;
+        }
+        
+        .event-metadata {
+            margin-top: 0.5rem;
+            font-size: 0.85rem;
+            width: 100%;
+        }
+        
+        .event-metadata th {
+            text-align: left;
+            padding: 0.2rem 0.5rem 0.2rem 0;
+            font-weight: 600;
+            white-space: nowrap;
+            vertical-align: top;
+        }
+        
+        .event-metadata td {
+            padding: 0.2rem 0;
+        }
+        
         .risk-scores {
             background: #FFF3E0;
             border: 1px solid #FFE0B2;
@@ -588,6 +634,150 @@
             margin-bottom: 0.75rem;
             line-height: 1.6;
             color: #1565c0;
+        }
+        
+        .question-content {
+            margin-bottom: 0.5rem;
+        }
+        
+        .question-content p {
+            margin: 0.5rem 0;
+        }
+        
+        .question-rationale {
+            color: #666;
+            font-size: 0.95rem;
+        }
+        
+        .question-areas, .question-evidence {
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+        }
+        
+        .question-areas ul, .question-evidence ul {
+            margin: 0.25rem 0 0 1.5rem;
+        }
+        
+        .question-details {
+            margin-top: 0.5rem;
+        }
+        
+        .sub-question {
+            margin-left: 2rem;
+            border-left-width: 2px;
+            opacity: 0.95;
+        }
+        
+        .sub-question .finding-header {
+            font-size: 0.9rem;
+            color: #1976d2;
+        }
+        
+        .endpoint-behavior {
+            border-left: 4px solid #ff9800;
+            background: #fff8e1;
+        }
+        
+        .behavior-details {
+            margin-bottom: 0.75rem;
+            line-height: 1.6;
+        }
+        
+        .behavior-details strong {
+            color: #e65100;
+        }
+        
+        /* IoC Enrichment styles */
+        .ioc-enrichment {
+            border-left: 4px solid #9c27b0;
+            background: #f9f0ff;
+        }
+        
+        .ioc-enrichment .finding-header {
+            color: #6a1b9a;
+            font-weight: 600;
+        }
+        
+        .enrichment-content {
+            margin-bottom: 0.75rem;
+            line-height: 1.6;
+        }
+        
+        .enrichment-detail {
+            margin: 0.5rem 0;
+            padding-left: 1rem;
+        }
+        
+        .enrichment-detail strong {
+            color: #6a1b9a;
+        }
+        
+        /* HTML finding styles */
+        .finding-content {
+            line-height: 1.6;
+        }
+        
+        .finding-content code {
+            background: #f5f5f5;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+        
+        .finding-content pre {
+            background: #f5f5f5;
+            padding: 0.5rem;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 0.85em;
+        }
+        
+        .finding-table {
+            width: 100%;
+            margin-top: 0.5rem;
+            border-collapse: collapse;
+        }
+        
+        .finding-table th {
+            text-align: left;
+            padding: 0.25rem 0.5rem;
+            background: #f5f5f5;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        
+        .finding-table td {
+            padding: 0.25rem 0.5rem;
+            border-top: 1px solid #e0e0e0;
+        }
+        
+        .evidence-ref {
+            color: #1976d2;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+        
+        .risk-high {
+            color: #d32f2f;
+            font-weight: bold;
+        }
+        
+        .risk-medium {
+            color: #f57c00;
+            font-weight: bold;
+        }
+        
+        .risk-low {
+            color: #388e3c;
+            font-weight: bold;
+        }
+        
+        .ioc-value {
+            font-family: monospace;
+            background: #f5f5f5;
+            padding: 2px 4px;
+            border-radius: 3px;
         }
         
         .loading {
@@ -697,6 +887,18 @@
             border: 1px solid #e0e0e0;
             border-radius: 8px;
             overflow: hidden;
+        }
+        
+        .question-card.sub-question {
+            margin-left: 2rem;
+            border-left: 3px solid #2196f3;
+            background: #f3f8ff;
+        }
+        
+        .parent-ref {
+            font-size: 0.8rem;
+            color: #666;
+            margin-left: 0.5rem;
         }
         
         .no-questions-message {
@@ -1482,6 +1684,10 @@
                 data.forEach((item, index) => {
                     html += formatInvestigationQuestion(item, index);
                 });
+            } else if (area === 'endpoint_behaviors' && Array.isArray(data)) {
+                data.forEach((item, index) => {
+                    html += formatEndpointBehavior(item, index);
+                });
             } else if (Array.isArray(data)) {
                 data.forEach((item, index) => {
                     html += formatGenericFinding(item, index);
@@ -1497,79 +1703,199 @@
             return html;
         }
         
-        function formatInvestigationQuestion(item, index) {
-            let html = `<div class="finding-item investigation-question">`;
-            html += `<div class="finding-header">Question #${index + 1}</div>`;
+        function formatEndpointBehavior(item, index) {
+            let html = `<div class="finding-item endpoint-behavior">`;
+            html += `<div class="finding-header">Endpoint Behavior #${index + 1}</div>`;
             html += `<div class="finding-body">`;
             
-            // Debug: log the item structure to console
-            console.log('Question item structure:', item);
-            
-            // Get the question text from various possible fields
-            let questionText = '';
-            if (typeof item === 'string') {
-                questionText = item;
-            } else if (item && typeof item === 'object') {
-                // Try common question field names
-                if (item.question_text) {
-                    questionText = item.question_text;
-                } else if (item.question) {
-                    questionText = item.question;
-                } else if (item.text) {
-                    questionText = item.text;
-                } else if (item.content) {
-                    questionText = item.content;
-                } else if (item.finding) {
-                    questionText = item.finding;
-                } else if (item.description) {
-                    questionText = item.description;
-                } else if (item.message) {
-                    questionText = item.message;
-                } else if (item.query) {
-                    questionText = item.query;
-                } else {
-                    // If no recognizable text field, show all fields
-                    questionText = Object.entries(item)
-                        .filter(([key, value]) => !['confidence', 'agent', 'timestamp', 'priority', 'category'].includes(key))
-                        .map(([key, value]) => {
-                            if (typeof value === 'object') {
-                                return `${key}: ${JSON.stringify(value)}`;
-                            }
-                            return `${key}: ${value}`;
-                        })
-                        .join('\n');
-                    
-                    if (!questionText) {
-                        questionText = JSON.stringify(item, null, 2);
+            // Extract behavior description from the finding object
+            let behaviorText = '';
+            if (item.finding && typeof item.finding === 'object') {
+                const finding = item.finding;
+                
+                // Try to construct a meaningful description from the finding object
+                if (finding.behavior_type) {
+                    behaviorText += `<strong>Behavior Type:</strong> ${escapeHtml(finding.behavior_type)}<br>`;
+                }
+                
+                if (finding.process_name) {
+                    behaviorText += `<strong>Process:</strong> ${escapeHtml(finding.process_name)}<br>`;
+                }
+                
+                if (finding.command_line) {
+                    behaviorText += `<strong>Command Line:</strong> ${escapeHtml(finding.command_line)}<br>`;
+                }
+                
+                if (finding.file_path) {
+                    behaviorText += `<strong>File Path:</strong> ${escapeHtml(finding.file_path)}<br>`;
+                }
+                
+                if (finding.network_connections) {
+                    behaviorText += `<strong>Network Connections:</strong> ${escapeHtml(finding.network_connections)}<br>`;
+                }
+                
+                if (finding.registry_changes) {
+                    behaviorText += `<strong>Registry Changes:</strong> ${escapeHtml(finding.registry_changes)}<br>`;
+                }
+                
+                if (finding.description) {
+                    behaviorText += `<strong>Description:</strong> ${escapeHtml(finding.description)}<br>`;
+                }
+                
+                if (finding.indicators && Array.isArray(finding.indicators)) {
+                    behaviorText += `<strong>Indicators:</strong> ${finding.indicators.map(ind => escapeHtml(ind)).join(', ')}<br>`;
+                }
+                
+                // If no specific fields found, show all non-metadata fields
+                if (!behaviorText) {
+                    for (const [key, value] of Object.entries(finding)) {
+                        if (!['confidence', 'agent', 'timestamp', 'area', 'id'].includes(key)) {
+                            const displayValue = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
+                            behaviorText += `<strong>${key.replace(/_/g, ' ')}:</strong> ${escapeHtml(displayValue)}<br>`;
+                        }
                     }
                 }
+            } else if (item.finding && typeof item.finding === 'string') {
+                behaviorText = escapeHtml(item.finding);
+            } else if (typeof item.finding !== 'undefined') {
+                behaviorText = escapeHtml(JSON.stringify(item.finding, null, 2));
             } else {
-                questionText = String(item);
+                // Fallback: show all available fields
+                for (const [key, value] of Object.entries(item)) {
+                    if (!['confidence', 'agent', 'timestamp', 'area', 'id'].includes(key)) {
+                        const displayValue = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
+                        behaviorText += `<strong>${key.replace(/_/g, ' ')}:</strong> ${escapeHtml(displayValue)}<br>`;
+                    }
+                }
             }
             
-            html += `<div class="question-text">${escapeHtml(questionText)}</div>`;
+            html += `<div class="behavior-details">${behaviorText || 'No behavior details available'}</div>`;
             
-            // Add priority or importance if available
-            if (item && typeof item === 'object') {
-                if (item.priority) {
-                    html += `<div class="finding-meta">Priority: ${escapeHtml(item.priority)}</div>`;
+            if (item.confidence) {
+                html += `<div class="finding-meta">Confidence: ${item.confidence}</div>`;
+            }
+            
+            if (item.agent) {
+                html += `<div class="finding-meta">Agent: ${escapeHtml(item.agent)}</div>`;
+            }
+            
+            if (item.timestamp) {
+                html += `<div class="finding-meta">Time: ${new Date(item.timestamp).toLocaleString()}</div>`;
+            }
+            
+            html += `</div></div>`;
+            return html;
+        }
+        
+        function formatInvestigationQuestion(item, index) {
+            // Check if this is a sub-question
+            const isSubQuestion = item.parent_id ? true : false;
+            const questionClass = isSubQuestion ? 'finding-item investigation-question sub-question' : 'finding-item investigation-question';
+            
+            let html = `<div class="${questionClass}">`;
+            html += `<div class="finding-header">${item.id || `Question #${index + 1}`}</div>`;
+            html += `<div class="finding-body">`;
+            
+            // Handle finding object if it exists
+            let questionData = item.finding || item;
+            
+            // Check if we have HTML format
+            if (item.finding_format === 'html' && item.finding) {
+                html += `<div class="question-content">${sanitizeHtml(item.finding)}</div>`;
+            } else if (typeof questionData === 'object') {
+                // Format question object as HTML
+                let questionHtml = '<div class="question-content">';
+                
+                // Extract question text
+                let questionText = questionData.question || questionData.question_text || 
+                                 questionData.text || questionData.content || 
+                                 questionData.description || questionData.message || 
+                                 questionData.query || '';
+                
+                if (questionText) {
+                    questionHtml += `<p class="question-text"><strong>${escapeHtml(questionText)}</strong></p>`;
                 }
                 
-                if (item.category) {
-                    html += `<div class="finding-meta">Category: ${escapeHtml(item.category)}</div>`;
+                // Add rationale if available
+                if (questionData.rationale) {
+                    questionHtml += `<p class="question-rationale"><em>Rationale:</em> ${escapeHtml(questionData.rationale)}</p>`;
                 }
                 
-                if (item.confidence) {
-                    html += `<div class="finding-meta">Confidence: ${item.confidence}</div>`;
+                // Add investigation areas
+                if (questionData.investigation_areas && Array.isArray(questionData.investigation_areas)) {
+                    questionHtml += '<div class="question-areas"><strong>Investigation Areas:</strong><ul>';
+                    questionData.investigation_areas.forEach(area => {
+                        questionHtml += `<li>${escapeHtml(area)}</li>`;
+                    });
+                    questionHtml += '</ul></div>';
                 }
                 
-                if (item.agent) {
-                    html += `<div class="finding-meta">Agent: ${escapeHtml(item.agent)}</div>`;
+                // Add expected evidence
+                if (questionData.expected_evidence_types && Array.isArray(questionData.expected_evidence_types)) {
+                    questionHtml += '<div class="question-evidence"><strong>Expected Evidence:</strong><ul>';
+                    questionData.expected_evidence_types.forEach(evidence => {
+                        questionHtml += `<li>${escapeHtml(evidence)}</li>`;
+                    });
+                    questionHtml += '</ul></div>';
                 }
                 
-                if (item.timestamp) {
-                    html += `<div class="finding-meta">Time: ${new Date(item.timestamp).toLocaleString()}</div>`;
+                // Handle any other fields
+                const handledFields = ['question', 'question_text', 'text', 'content', 'description', 
+                                     'message', 'query', 'rationale', 'investigation_areas', 
+                                     'expected_evidence_types', 'id', 'category', 'priority'];
+                
+                const otherFields = Object.entries(questionData)
+                    .filter(([key]) => !handledFields.includes(key))
+                    .filter(([key, value]) => value !== null && value !== undefined);
+                
+                if (otherFields.length > 0) {
+                    questionHtml += '<div class="question-details"><table class="finding-table"><tbody>';
+                    for (const [key, value] of otherFields) {
+                        const displayKey = escapeHtml(key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()));
+                        let displayValue;
+                        
+                        if (Array.isArray(value)) {
+                            displayValue = value.map(v => escapeHtml(String(v))).join(', ');
+                        } else if (typeof value === 'object') {
+                            displayValue = `<pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre>`;
+                        } else {
+                            displayValue = escapeHtml(String(value));
+                        }
+                        
+                        questionHtml += `<tr><th>${displayKey}</th><td>${displayValue}</td></tr>`;
+                    }
+                    questionHtml += '</tbody></table></div>';
                 }
+                
+                questionHtml += '</div>';
+                html += questionHtml;
+            } else {
+                // Simple text question
+                html += `<div class="question-text">${escapeHtml(String(questionData))}</div>`;
+            }
+            
+            // Add metadata
+            if (item.priority || (item.finding && item.finding.priority)) {
+                const priority = item.priority || item.finding.priority;
+                const priorityClass = `priority-${priority}`;
+                html += `<div class="finding-meta">Priority: <span class="${priorityClass}">${escapeHtml(priority.toUpperCase())}</span></div>`;
+            }
+            
+            if (item.category || (item.finding && item.finding.category)) {
+                const category = item.category || item.finding.category;
+                html += `<div class="finding-meta">Category: ${escapeHtml(category)}</div>`;
+            }
+            
+            if (item.confidence) {
+                html += `<div class="finding-meta">Confidence: ${item.confidence}</div>`;
+            }
+            
+            if (item.agent) {
+                html += `<div class="finding-meta">Agent: ${escapeHtml(item.agent)}</div>`;
+            }
+            
+            if (item.timestamp) {
+                html += `<div class="finding-meta">Time: ${new Date(item.timestamp).toLocaleString()}</div>`;
             }
             
             html += `</div></div>`;
@@ -1584,40 +1910,51 @@
             html += `<div class="finding-header">IOC #${index + 1}: ${escapeHtml(iocValue)}</div>`;
             html += `<div class="finding-body">`;
             
-            // Display main finding/enrichment text if available
-            if (item.finding) {
-                html += `<div class="enrichment-detail"><strong>Finding:</strong> ${escapeHtml(item.finding)}</div>`;
+            // Check if we have HTML format
+            if (item.finding_format === 'html' && item.finding) {
+                html += `<div class="enrichment-content">${sanitizeHtml(item.finding)}</div>`;
+            } else if (item.finding) {
+                // Handle finding based on its type
+                if (typeof item.finding === 'string') {
+                    html += `<div class="enrichment-detail"><strong>Finding:</strong> ${escapeHtml(item.finding)}</div>`;
+                } else if (typeof item.finding === 'object') {
+                    // Format object finding as HTML
+                    html += `<div class="enrichment-content">${formatObjectAsHtml(item.finding)}</div>`;
+                }
             }
             
-            if (item.virustotal_data) {
-                const vt = item.virustotal_data;
-                html += `<div class="enrichment-detail">
-                    <strong>VirusTotal:</strong> 
-                    Malicious: ${vt.malicious || 0}, 
-                    Suspicious: ${vt.suspicious || 0}
-                    ${vt.reputation ? `, Reputation: ${vt.reputation}` : ''}
-                </div>`;
-            }
-            
-            if (item.threat_classification) {
-                html += `<div class="enrichment-detail"><strong>Classification:</strong> ${escapeHtml(item.threat_classification)}</div>`;
-            }
-            
-            if (item.confidence) {
-                html += `<div class="enrichment-detail"><strong>Confidence:</strong> ${item.confidence}</div>`;
-            }
-            
-            if (item.tags && Array.isArray(item.tags) && item.tags.length > 0) {
-                html += `<div class="enrichment-detail"><strong>Tags:</strong> ${item.tags.map(tag => escapeHtml(tag)).join(', ')}</div>`;
-            }
-            
-            // If we have agent and timestamp, show those too
-            if (item.agent) {
-                html += `<div class="enrichment-detail"><strong>Agent:</strong> ${escapeHtml(item.agent)}</div>`;
-            }
-            
-            if (item.timestamp) {
-                html += `<div class="enrichment-detail"><strong>Time:</strong> ${new Date(item.timestamp).toLocaleString()}</div>`;
+            // Add additional structured fields if not already included in HTML finding
+            if (item.finding_format !== 'html') {
+                if (item.virustotal_data) {
+                    const vt = item.virustotal_data;
+                    html += `<div class="enrichment-detail">
+                        <strong>VirusTotal:</strong> 
+                        Malicious: ${vt.malicious || 0}, 
+                        Suspicious: ${vt.suspicious || 0}
+                        ${vt.reputation ? `, Reputation: ${vt.reputation}` : ''}
+                    </div>`;
+                }
+                
+                if (item.threat_classification) {
+                    html += `<div class="enrichment-detail"><strong>Classification:</strong> ${escapeHtml(item.threat_classification)}</div>`;
+                }
+                
+                if (item.confidence) {
+                    html += `<div class="enrichment-detail"><strong>Confidence:</strong> ${item.confidence}</div>`;
+                }
+                
+                if (item.tags && Array.isArray(item.tags) && item.tags.length > 0) {
+                    html += `<div class="enrichment-detail"><strong>Tags:</strong> ${item.tags.map(tag => escapeHtml(tag)).join(', ')}</div>`;
+                }
+                
+                // If we have agent and timestamp, show those too
+                if (item.agent) {
+                    html += `<div class="enrichment-detail"><strong>Agent:</strong> ${escapeHtml(item.agent)}</div>`;
+                }
+                
+                if (item.timestamp) {
+                    html += `<div class="enrichment-detail"><strong>Time:</strong> ${new Date(item.timestamp).toLocaleString()}</div>`;
+                }
             }
             
             html += `</div></div>`;
@@ -1628,28 +1965,121 @@
             let html = '<div class="timeline">';
             const sortedEvents = events.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
             
-            sortedEvents.forEach(event => {
-                // Get event description from various possible fields
-                let eventDescription = '';
-                if (event.description) {
-                    eventDescription = event.description;
-                } else if (event.finding) {
-                    eventDescription = event.finding;
-                } else if (event.content) {
-                    eventDescription = event.content;
-                } else if (typeof event === 'string') {
-                    eventDescription = event;
-                } else {
-                    eventDescription = JSON.stringify(event, null, 2);
+            sortedEvents.forEach((event, index) => {
+                html += '<div class="timeline-event">';
+                
+                // Format timestamp
+                if (event.timestamp) {
+                    html += `<div class="timeline-time">${new Date(event.timestamp).toLocaleString()}</div>`;
                 }
                 
-                html += `<div class="timeline-event">
-                    <div class="timeline-time">${new Date(event.timestamp).toLocaleString()}</div>
-                    <div class="timeline-content">
-                        <strong>${escapeHtml(event.event_type || 'Event')}:</strong> ${escapeHtml(eventDescription)}
-                        ${event.agent ? `<span class="agent-tag">${escapeHtml(event.agent)}</span>` : ''}
-                    </div>
-                </div>`;
+                html += '<div class="timeline-content">';
+                
+                // Check if we have HTML format
+                if (event.finding_format === 'html' && event.finding) {
+                    html += sanitizeHtml(event.finding);
+                } else {
+                    // Handle finding object or event data
+                    let eventData = event.finding || event;
+                    
+                    if (typeof eventData === 'object') {
+                        // Format timeline event as structured HTML
+                        let eventHtml = '<div class="event-details">';
+                        
+                        // Event type or title
+                        const eventType = eventData.event_type || eventData.type || 'Event';
+                        eventHtml += `<strong class="event-type">${escapeHtml(eventType)}</strong>`;
+                        
+                        // Main description
+                        const description = eventData.description || eventData.content || 
+                                          eventData.text || eventData.message || '';
+                        if (description) {
+                            eventHtml += `<p class="event-description">${escapeHtml(description)}</p>`;
+                        }
+                        
+                        // Handle specific event fields
+                        if (eventData.process_name) {
+                            eventHtml += `<p><strong>Process:</strong> <code>${escapeHtml(eventData.process_name)}</code></p>`;
+                        }
+                        
+                        if (eventData.command_line) {
+                            eventHtml += `<p><strong>Command:</strong> <code>${escapeHtml(eventData.command_line)}</code></p>`;
+                        }
+                        
+                        if (eventData.source_ip && eventData.destination_ip) {
+                            eventHtml += `<p><strong>Network:</strong> <span class="ioc-value">${escapeHtml(eventData.source_ip)}</span> → <span class="ioc-value">${escapeHtml(eventData.destination_ip)}</span></p>`;
+                        }
+                        
+                        if (eventData.file_path) {
+                            eventHtml += `<p><strong>File:</strong> <code>${escapeHtml(eventData.file_path)}</code></p>`;
+                        }
+                        
+                        if (eventData.registry_key) {
+                            eventHtml += `<p><strong>Registry:</strong> <code>${escapeHtml(eventData.registry_key)}</code></p>`;
+                        }
+                        
+                        if (eventData.severity || eventData.risk_level) {
+                            const severity = eventData.severity || eventData.risk_level;
+                            const severityClass = `risk-${severity.toLowerCase()}`;
+                            eventHtml += `<p><strong>Severity:</strong> <span class="${severityClass}">${escapeHtml(severity.toUpperCase())}</span></p>`;
+                        }
+                        
+                        // Handle details object
+                        if (eventData.details && typeof eventData.details === 'object') {
+                            eventHtml += '<div class="event-extra-details"><strong>Additional Details:</strong><ul>';
+                            for (const [key, value] of Object.entries(eventData.details)) {
+                                const displayKey = escapeHtml(key.replace(/_/g, ' '));
+                                const displayValue = typeof value === 'object' ? 
+                                    escapeHtml(JSON.stringify(value)) : escapeHtml(String(value));
+                                eventHtml += `<li><strong>${displayKey}:</strong> ${displayValue}</li>`;
+                            }
+                            eventHtml += '</ul></div>';
+                        }
+                        
+                        // Handle other fields not already processed
+                        const handledFields = ['event_type', 'type', 'description', 'content', 'text', 
+                                             'message', 'process_name', 'command_line', 'source_ip', 
+                                             'destination_ip', 'file_path', 'registry_key', 'severity', 
+                                             'risk_level', 'details', 'timestamp', 'agent', 'confidence', 
+                                             'area', 'id'];
+                        
+                        const otherFields = Object.entries(eventData)
+                            .filter(([key]) => !handledFields.includes(key))
+                            .filter(([key, value]) => value !== null && value !== undefined);
+                        
+                        if (otherFields.length > 0) {
+                            eventHtml += '<table class="event-metadata"><tbody>';
+                            for (const [key, value] of otherFields) {
+                                const displayKey = escapeHtml(key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()));
+                                let displayValue;
+                                
+                                if (Array.isArray(value)) {
+                                    displayValue = value.map(v => escapeHtml(String(v))).join(', ');
+                                } else if (typeof value === 'object') {
+                                    displayValue = `<pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre>`;
+                                } else {
+                                    displayValue = escapeHtml(String(value));
+                                }
+                                
+                                eventHtml += `<tr><th>${displayKey}</th><td>${displayValue}</td></tr>`;
+                            }
+                            eventHtml += '</tbody></table>';
+                        }
+                        
+                        eventHtml += '</div>';
+                        html += eventHtml;
+                    } else {
+                        // Simple text event
+                        html += `<p>${escapeHtml(String(eventData))}</p>`;
+                    }
+                }
+                
+                // Add agent tag if available
+                if (event.agent) {
+                    html += `<span class="agent-tag">${escapeHtml(event.agent)}</span>`;
+                }
+                
+                html += '</div></div>';
             });
             
             html += '</div>';
@@ -1663,10 +2093,22 @@
             
             // Handle different ways finding text might be stored
             let findingText = '';
-            if (typeof item === 'string') {
+            let isHtml = false;
+            
+            // Check if this is an HTML-formatted finding
+            if (item.finding_format === 'html' && item.finding) {
+                findingText = item.finding;
+                isHtml = true;
+            } else if (typeof item === 'string') {
                 findingText = item;
             } else if (item.finding) {
-                findingText = item.finding;
+                if (typeof item.finding === 'string') {
+                    findingText = item.finding;
+                } else if (typeof item.finding === 'object') {
+                    // Format object findings into readable HTML
+                    findingText = formatObjectAsHtml(item.finding);
+                    isHtml = true;
+                }
             } else if (item.description) {
                 findingText = item.description;
             } else if (item.content) {
@@ -1674,11 +2116,17 @@
             } else if (item.text) {
                 findingText = item.text;
             } else {
-                // If it's an object without clear text field, stringify it nicely
-                findingText = JSON.stringify(item, null, 2);
+                // If it's an object without clear text field, format as HTML
+                findingText = formatObjectAsHtml(item);
+                isHtml = true;
             }
             
-            html += `<div class="finding-text">${escapeHtml(findingText)}</div>`;
+            // Render the finding text
+            if (isHtml) {
+                html += `<div class="finding-text">${sanitizeHtml(findingText)}</div>`;
+            } else {
+                html += `<div class="finding-text">${escapeHtml(findingText).replace(/\n/g, '<br>')}</div>`;
+            }
             
             if (item.confidence) {
                 html += `<div class="finding-meta">Confidence: ${item.confidence}</div>`;
@@ -1700,6 +2148,148 @@
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+        
+        function formatObjectAsHtml(obj) {
+            // Format an object as readable HTML
+            let html = '<div class="finding-content">';
+            
+            // Handle common fields first
+            if (obj.description) {
+                html += `<p><strong>${escapeHtml(obj.description)}</strong></p>`;
+            }
+            
+            if (obj.details && typeof obj.details === 'object') {
+                html += '<div class="finding-details"><p><strong>Details:</strong></p><ul>';
+                for (const [key, value] of Object.entries(obj.details)) {
+                    const displayKey = escapeHtml(key.replace(/_/g, ' '));
+                    let displayValue;
+                    
+                    if (value === null || value === undefined) {
+                        displayValue = 'N/A';
+                    } else if (typeof value === 'object') {
+                        displayValue = `<code>${escapeHtml(JSON.stringify(value))}</code>`;
+                    } else {
+                        displayValue = escapeHtml(String(value));
+                        // If it looks like a path or command, use code formatting
+                        if (displayValue.includes('\\') || displayValue.includes('/') || displayValue.includes('.exe')) {
+                            displayValue = `<code>${displayValue}</code>`;
+                        }
+                    }
+                    
+                    html += `<li><strong>${displayKey}:</strong> ${displayValue}</li>`;
+                }
+                html += '</ul></div>';
+            }
+            
+            // Handle evidence
+            if (obj.evidence_ids && Array.isArray(obj.evidence_ids)) {
+                html += `<p><strong>Evidence:</strong> <span class="evidence-ref">${obj.evidence_ids.map(e => escapeHtml(e)).join(', ')}</span></p>`;
+            }
+            
+            // Handle timeline
+            if (obj.timeline_correlation && Array.isArray(obj.timeline_correlation)) {
+                html += '<p><strong>Timeline:</strong></p><ul>';
+                obj.timeline_correlation.forEach(item => {
+                    html += `<li>${escapeHtml(item)}</li>`;
+                });
+                html += '</ul>';
+            }
+            
+            // Handle any other fields as a table
+            const handledFields = ['description', 'details', 'evidence_ids', 'timeline_correlation'];
+            const otherFields = Object.entries(obj).filter(([key]) => !handledFields.includes(key));
+            
+            if (otherFields.length > 0) {
+                html += '<table class="finding-table"><tbody>';
+                for (const [key, value] of otherFields) {
+                    const displayKey = escapeHtml(key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()));
+                    let displayValue;
+                    
+                    if (Array.isArray(value)) {
+                        displayValue = value.map(v => escapeHtml(String(v))).join(', ');
+                    } else if (typeof value === 'object') {
+                        displayValue = `<pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre>`;
+                    } else {
+                        displayValue = escapeHtml(String(value));
+                    }
+                    
+                    html += `<tr><th>${displayKey}</th><td>${displayValue}</td></tr>`;
+                }
+                html += '</tbody></table>';
+            }
+            
+            html += '</div>';
+            return html;
+        }
+        
+        function sanitizeHtml(html) {
+            // Simple HTML sanitizer - allows only safe tags
+            const allowedTags = ['strong', 'b', 'em', 'i', 'code', 'pre', 'br', 'p', 'ul', 'ol', 'li', 
+                                'table', 'tr', 'td', 'th', 'div', 'span'];
+            const allowedAttributes = {
+                'div': ['class'],
+                'span': ['class'],
+                'td': ['colspan', 'rowspan'],
+                'th': ['colspan', 'rowspan']
+            };
+            
+            // Create a temporary div to parse the HTML
+            const temp = document.createElement('div');
+            temp.innerHTML = html;
+            
+            // Recursively clean the HTML
+            function cleanNode(node) {
+                // Text nodes are always safe
+                if (node.nodeType === Node.TEXT_NODE) {
+                    return node.cloneNode();
+                }
+                
+                // Element nodes need checking
+                if (node.nodeType === Node.ELEMENT_NODE) {
+                    const tagName = node.tagName.toLowerCase();
+                    
+                    // Skip disallowed tags
+                    if (!allowedTags.includes(tagName)) {
+                        // Return the text content for disallowed tags
+                        return document.createTextNode(node.textContent);
+                    }
+                    
+                    // Create a clean element
+                    const cleanElement = document.createElement(tagName);
+                    
+                    // Copy allowed attributes
+                    const allowedAttrs = allowedAttributes[tagName] || [];
+                    for (const attr of allowedAttrs) {
+                        if (node.hasAttribute(attr)) {
+                            cleanElement.setAttribute(attr, node.getAttribute(attr));
+                        }
+                    }
+                    
+                    // Recursively clean children
+                    for (const child of node.childNodes) {
+                        const cleanChild = cleanNode(child);
+                        if (cleanChild) {
+                            cleanElement.appendChild(cleanChild);
+                        }
+                    }
+                    
+                    return cleanElement;
+                }
+                
+                return null;
+            }
+            
+            // Clean all top-level nodes
+            const cleaned = document.createElement('div');
+            for (const child of temp.childNodes) {
+                const cleanChild = cleanNode(child);
+                if (cleanChild) {
+                    cleaned.appendChild(cleanChild);
+                }
+            }
+            
+            return cleaned.innerHTML;
         }
         
         function formatRiskScores(scores) {
@@ -1921,12 +2511,25 @@
                 return;
             }
             
-            const questionsHtml = questions.map(question => {
+            // Sort questions to ensure parent questions come before sub-questions
+            const sortedQuestions = questions.sort((a, b) => {
+                // Parent questions first
+                if (!a.parent_id && b.parent_id) return -1;
+                if (a.parent_id && !b.parent_id) return 1;
+                // Then sort by ID
+                return (a.id || '').localeCompare(b.id || '');
+            });
+            
+            const questionsHtml = sortedQuestions.map(question => {
+                const isSubQuestion = question.parent_id ? true : false;
+                const cardClass = isSubQuestion ? 'question-card sub-question' : 'question-card';
+                
                 let cardHtml = `
-                    <div class="question-card" data-category="${question.category}" data-priority="${question.priority}">
+                    <div class="${cardClass}" data-category="${question.category}" data-priority="${question.priority}" data-parent="${question.parent_id || ''}">
                         <div class="question-header">
                             <div class="question-meta">
                                 <span class="question-id">${question.id}</span>
+                                ${isSubQuestion ? `<span class="parent-ref">↳ ${question.parent_id}</span>` : ''}
                                 <span class="question-category">${question.category?.replace(/_/g, ' ')}</span>
                                 <span class="question-priority priority-${question.priority}">${question.priority}</span>
                             </div>

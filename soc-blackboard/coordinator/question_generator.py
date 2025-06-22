@@ -13,6 +13,9 @@ from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
+from .question_hierarchy import QuestionHierarchyProcessor
+from .question_markdown_parser import QuestionMarkdownParser
+
 
 class InvestigationQuestionGenerator:
     """
@@ -24,6 +27,8 @@ class InvestigationQuestionGenerator:
     
     def __init__(self, tools):
         self.tools = tools
+        self.hierarchy_processor = QuestionHierarchyProcessor()
+        self.markdown_parser = QuestionMarkdownParser()
         
     async def generate_investigation_questions(self, case_details: Dict[str, Any], 
                                              investigation_context: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -183,22 +188,37 @@ Generate questions in these categories:
 - What recovery steps are necessary?
 
 ## Output Format
-Provide questions in JSON format with this structure:
-```json
-{
-  "investigation_questions": [
-    {
-      "id": "Q001",
-      "category": "initial_assessment|technical_analysis|impact_assessment|attribution|response",
-      "priority": "critical|high|medium|low",
-      "question": "Specific question text here?",
-      "rationale": "Why this question is important",
-      "investigation_areas": ["network_analysis", "endpoint_investigation", "etc"],
-      "expected_evidence_types": ["logs", "network_traffic", "file_hashes", "etc"]
-    }
-  ]
-}
+Provide questions in markdown format with this structure:
+
 ```
+Q001
+category: initial_assessment
+priority: critical
+What triggered this investigation and when did the suspicious activity begin?
+rationale: Understanding the initial detection is crucial for investigation scope
+investigation areas: all
+expected evidence: alerts, logs, detections
+
+Q002
+category: initial_assessment  
+priority: critical
+Are the indicators associated with known threats or campaigns?
+rationale: Threat intelligence context helps understand adversary TTPs
+investigation areas: ioc_enrichment, threat_intelligence
+expected evidence: threat_intel_reports, ioc_matches
+
+- Q002.1
+  Is the indicator (ip: 192.168.30.20) associated with known threats?
+  
+- Q002.2
+  Is the indicator (domain: SUPERSTARTS.TOP) associated with known threats?
+```
+
+When a question involves multiple indicators (IPs, domains, hashes, etc.), create sub-questions:
+- Main question (Q002) asks about all indicators collectively
+- Sub-questions (Q002.1, Q002.2, etc.) ask about each indicator individually
+- Sub-questions should be indented with a dash (-) or bullet (•)
+- Sub-questions inherit category, priority, and areas from parent unless specified
 
 ## Important Guidelines
 - Generate 15-25 questions total
@@ -249,42 +269,58 @@ Generate questions that will guide investigators to:
 - Plan appropriate response actions
 - Prevent similar incidents
 
-Provide your response in the specified JSON format with 15-25 detailed, actionable questions.
+Provide your response in the specified markdown format with 15-25 detailed, actionable questions. Remember to create sub-questions for any questions that involve multiple indicators.
 """
         return prompt
     
     def _parse_questions_response(self, response: str) -> List[Dict[str, Any]]:
         """Parse the AI response into structured questions."""
         try:
-            # Debug: show what we're trying to parse
-            # print(f"DEBUG: Attempting to parse response of length {len(response)}")
+            # Try to parse as markdown first
+            if "Q001" in response or "Q002" in response:
+                # Extract markdown content if wrapped in code block
+                if "```" in response:
+                    # Find the content between backticks
+                    start = response.find("```")
+                    if start != -1:
+                        # Skip past the backticks and any language identifier
+                        start = response.find("\n", start) + 1
+                        end = response.find("```", start)
+                        if end != -1:
+                            markdown_content = response[start:end].strip()
+                        else:
+                            markdown_content = response[start:].strip()
+                    else:
+                        markdown_content = response
+                else:
+                    markdown_content = response
+                
+                # Parse markdown to questions
+                questions = self.markdown_parser.parse_markdown_questions(markdown_content)
+                if questions:
+                    return questions
             
-            # Try to extract JSON from the response
+            # Fall back to JSON parsing if markdown parsing fails
             if "```json" in response:
                 json_start = response.find("```json") + 7
                 json_end = response.find("```", json_start)
                 json_content = response[json_start:json_end].strip()
-                # print(f"DEBUG: Found JSON block, extracted {len(json_content)} characters")
             elif "{" in response and "}" in response:
                 json_start = response.find("{")
                 json_end = response.rfind("}") + 1
-                json_content = response[json_start:json_end].strip()  # Added strip() here too
-                # print(f"DEBUG: Found JSON object, extracted {len(json_content)} characters")
+                json_content = response[json_start:json_end].strip()
             else:
-                # Try to find investigation_questions array directly
-                if '"investigation_questions"' in response:
-                    print("DEBUG: Found investigation_questions key but couldn't extract JSON structure")
                 print(f"DEBUG: Response preview: {response[:500]}...")
-                raise ValueError("No JSON found in response")
+                raise ValueError("No valid format found in response")
             
             parsed = json.loads(json_content)
             questions = parsed.get("investigation_questions", [])
-            # print(f"DEBUG: Successfully parsed {len(questions)} questions")
+            # Process questions through hierarchy processor for consistency
+            questions = self.hierarchy_processor.process_questions(questions)
             return questions
             
         except json.JSONDecodeError as e:
             print(f"ERROR: JSON parsing failed: {e}")
-            print(f"DEBUG: JSON content that failed to parse: {json_content[:200] if 'json_content' in locals() else 'N/A'}...")
             return []
         except Exception as e:
             print(f"ERROR: Failed to parse questions response: {e}")
@@ -392,6 +428,8 @@ Provide your response in the specified JSON format with 15-25 detailed, actionab
             }
         ]
         
+        # Process default questions to create hierarchy
+        default_questions = self.hierarchy_processor.process_questions(default_questions)
         return default_questions
     
     async def update_questions_with_findings(self, questions: List[Dict[str, Any]], 
