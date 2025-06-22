@@ -138,6 +138,80 @@
             display: block;
         }
         
+        /* Data Flow Diagram Styles */
+        .dataflow-container {
+            padding: 1rem;
+        }
+        
+        .dataflow-container h3 {
+            margin-bottom: 1rem;
+            color: #333;
+        }
+        
+        #dataflow-diagram {
+            background: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .dataflow-legend {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 1rem;
+        }
+        
+        .dataflow-legend h4 {
+            margin: 0 0 0.5rem 0;
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        .legend-items {
+            display: flex;
+            gap: 2rem;
+            flex-wrap: wrap;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+            color: #666;
+        }
+        
+        /* SVG Styles */
+        .agent-node {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .agent-node:hover {
+            opacity: 0.8;
+        }
+        
+        .agent-label {
+            font-size: 14px;
+            font-family: Arial, sans-serif;
+            pointer-events: none;
+        }
+        
+        .data-flow-arrow {
+            fill: none;
+            stroke: #666;
+            stroke-width: 2;
+            marker-end: url(#arrowhead);
+        }
+        
+        .data-flow-label {
+            font-size: 12px;
+            fill: #666;
+            font-family: Arial, sans-serif;
+        }
+        
         /* Timeline styles */
         #timeline-chart {
             width: 100%;
@@ -1124,6 +1198,7 @@
         <div class="tab" data-tab="activities">Activities</div>
         <div class="tab" data-tab="questions">Questions</div>
         <div class="tab" data-tab="blackboard">Blackboard</div>
+        <div class="tab" data-tab="dataflow">Agent Data Flow</div>
     </div>
     
     <div class="tab-content">
@@ -1165,6 +1240,38 @@
         <div class="tab-panel" id="blackboard-panel">
             <div class="blackboard-summary" id="blackboard-summary">
                 <div class="loading">Loading blackboard data...</div>
+            </div>
+        </div>
+        
+        <div class="tab-panel" id="dataflow-panel">
+            <div class="dataflow-container">
+                <h3>SOC Blackboard Agent Data Flow</h3>
+                <div id="dataflow-diagram">
+                    <svg width="100%" height="600" viewBox="0 0 1200 600" id="dataflow-svg">
+                        <!-- SVG content will be dynamically generated -->
+                    </svg>
+                </div>
+                <div class="dataflow-legend">
+                    <h4>Legend</h4>
+                    <div class="legend-items">
+                        <div class="legend-item">
+                            <svg width="20" height="20"><rect width="20" height="20" fill="#2196F3"></rect></svg>
+                            <span>Coordinator</span>
+                        </div>
+                        <div class="legend-item">
+                            <svg width="20" height="20"><rect width="20" height="20" fill="#4CAF50"></rect></svg>
+                            <span>Investigators</span>
+                        </div>
+                        <div class="legend-item">
+                            <svg width="20" height="20"><rect width="20" height="20" fill="#FF9800"></rect></svg>
+                            <span>Synthesizers</span>
+                        </div>
+                        <div class="legend-item">
+                            <svg width="20" height="20"><rect width="20" height="20" fill="#9C27B0"></rect></svg>
+                            <span>Blackboard</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -2640,6 +2747,165 @@
         }
         
         // Initial load
+        // Data Flow Diagram Functions
+        function renderDataFlowDiagram() {
+            const svg = document.getElementById('dataflow-svg');
+            svg.innerHTML = ''; // Clear existing content
+            
+            // Define arrow marker
+            const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+            const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+            marker.setAttribute('id', 'arrowhead');
+            marker.setAttribute('markerWidth', '10');
+            marker.setAttribute('markerHeight', '7');
+            marker.setAttribute('refX', '9');
+            marker.setAttribute('refY', '3.5');
+            marker.setAttribute('orient', 'auto');
+            
+            const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+            polygon.setAttribute('points', '0 0, 10 3.5, 0 7');
+            polygon.setAttribute('fill', '#666');
+            
+            marker.appendChild(polygon);
+            defs.appendChild(marker);
+            svg.appendChild(defs);
+            
+            // Agent positions
+            const agents = {
+                coordinator: { x: 600, y: 50, color: '#2196F3', label: 'SOC Coordinator' },
+                blackboard: { x: 600, y: 300, color: '#9C27B0', label: 'Investigation\nBlackboard' },
+                
+                // Investigators
+                network: { x: 150, y: 150, color: '#4CAF50', label: 'Network\nAnalyzer' },
+                endpoint: { x: 300, y: 150, color: '#4CAF50', label: 'Endpoint\nInvestigator' },
+                log: { x: 450, y: 150, color: '#4CAF50', label: 'Log\nCorrelator' },
+                ioc: { x: 750, y: 150, color: '#4CAF50', label: 'IOC\nEnricher' },
+                timeline: { x: 900, y: 150, color: '#4CAF50', label: 'Timeline\nBuilder' },
+                
+                // Synthesizers
+                correlation: { x: 300, y: 450, color: '#FF9800', label: 'Correlation\nEngine' },
+                report: { x: 900, y: 450, color: '#FF9800', label: 'Report\nGenerator' }
+            };
+            
+            // Draw connections
+            const connections = [
+                // Coordinator to Blackboard
+                { from: 'coordinator', to: 'blackboard', label: 'Creates & Manages' },
+                
+                // Coordinator to Investigators
+                { from: 'coordinator', to: 'network', label: 'Activates' },
+                { from: 'coordinator', to: 'endpoint', label: 'Activates' },
+                { from: 'coordinator', to: 'log', label: 'Activates' },
+                { from: 'coordinator', to: 'ioc', label: 'Activates' },
+                { from: 'coordinator', to: 'timeline', label: 'Activates' },
+                
+                // Investigators to Blackboard
+                { from: 'network', to: 'blackboard', label: 'Writes Findings' },
+                { from: 'endpoint', to: 'blackboard', label: 'Writes Findings' },
+                { from: 'log', to: 'blackboard', label: 'Writes Findings' },
+                { from: 'ioc', to: 'blackboard', label: 'Writes Findings' },
+                { from: 'timeline', to: 'blackboard', label: 'Writes Findings' },
+                
+                // Blackboard to Synthesizers
+                { from: 'blackboard', to: 'correlation', label: 'Provides Data' },
+                { from: 'blackboard', to: 'report', label: 'Provides Data' },
+                
+                // Synthesizers to Blackboard
+                { from: 'correlation', to: 'blackboard', label: 'Writes Analysis' },
+                { from: 'report', to: 'blackboard', label: 'Writes Reports' }
+            ];
+            
+            // Draw connections first (so they appear behind nodes)
+            connections.forEach(conn => {
+                const from = agents[conn.from];
+                const to = agents[conn.to];
+                
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', from.x);
+                line.setAttribute('y1', from.y);
+                line.setAttribute('x2', to.x);
+                line.setAttribute('y2', to.y);
+                line.setAttribute('class', 'data-flow-arrow');
+                svg.appendChild(line);
+                
+                // Add label at midpoint
+                const midX = (from.x + to.x) / 2;
+                const midY = (from.y + to.y) / 2;
+                
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', midX);
+                text.setAttribute('y', midY - 5);
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('class', 'data-flow-label');
+                text.textContent = conn.label;
+                svg.appendChild(text);
+            });
+            
+            // Draw agent nodes
+            Object.entries(agents).forEach(([key, agent]) => {
+                const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                g.setAttribute('class', 'agent-node');
+                g.setAttribute('transform', `translate(${agent.x}, ${agent.y})`);
+                
+                // Draw rectangle
+                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                rect.setAttribute('x', '-60');
+                rect.setAttribute('y', '-30');
+                rect.setAttribute('width', '120');
+                rect.setAttribute('height', '60');
+                rect.setAttribute('rx', '8');
+                rect.setAttribute('fill', agent.color);
+                rect.setAttribute('stroke', '#fff');
+                rect.setAttribute('stroke-width', '2');
+                g.appendChild(rect);
+                
+                // Add label
+                const lines = agent.label.split('\n');
+                lines.forEach((line, i) => {
+                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    text.setAttribute('x', '0');
+                    text.setAttribute('y', (i - (lines.length - 1) / 2) * 18);
+                    text.setAttribute('text-anchor', 'middle');
+                    text.setAttribute('fill', 'white');
+                    text.setAttribute('class', 'agent-label');
+                    text.textContent = line;
+                    g.appendChild(text);
+                });
+                
+                // Add tooltip on hover
+                const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+                title.textContent = getAgentDescription(key);
+                g.appendChild(title);
+                
+                svg.appendChild(g);
+            });
+        }
+        
+        function getAgentDescription(agentKey) {
+            const descriptions = {
+                coordinator: 'Main orchestrator that manages the investigation workflow',
+                blackboard: 'Shared knowledge store for investigation findings',
+                network: 'Analyzes network traffic and connections',
+                endpoint: 'Investigates endpoint artifacts and behaviors',
+                log: 'Correlates logs from multiple sources',
+                ioc: 'Enriches indicators of compromise with threat intelligence',
+                timeline: 'Builds chronological view of events',
+                correlation: 'Synthesizes findings to identify patterns',
+                report: 'Generates comprehensive investigation reports'
+            };
+            return descriptions[agentKey] || 'Agent component';
+        }
+        
+        // Update tab click handler to render diagram when dataflow tab is clicked
+        const originalTabHandler = document.querySelectorAll('.tab')[0].onclick;
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                if (tab.dataset.tab === 'dataflow') {
+                    setTimeout(() => renderDataFlowDiagram(), 100);
+                }
+            });
+        });
+        
         loadInvestigation();
         
         // Auto-refresh every 5 seconds if investigation is active
