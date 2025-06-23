@@ -6,7 +6,7 @@ from flask import Flask, render_template, jsonify, Response
 import json
 import asyncio
 import queue
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 import threading
 
@@ -94,23 +94,86 @@ def get_investigation_activities(investigation_id):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
+        # First try to get from monitoring system
         status = loop.run_until_complete(monitoring_dashboard.get_investigation_status(investigation_id))
-        if not status or not status.research_log_file:
+        research_log_file = None
+        
+        if status and hasattr(status, 'research_log_file') and status.research_log_file:
+            research_log_file = status.research_log_file
+        else:
+            # If not in monitoring system, try to find research log file directly
+            logs_dir = Path(__file__).parent.parent / "logs"
+            
+            # Look for timestamped research log files (most recent first)
+            potential_files = sorted(
+                logs_dir.glob(f"research_log_{investigation_id}_*.jsonl"),
+                key=lambda f: f.stat().st_mtime,
+                reverse=True
+            )
+            
+            if potential_files:
+                research_log_file = str(potential_files[0])
+        
+        if not research_log_file:
             return jsonify({'error': 'Investigation not found'}), 404
+        
+        if not Path(research_log_file).exists():
+            return jsonify({'error': 'Research log file not found'}), 404
         
         activities = []
         try:
-            with open(status.research_log_file, 'r') as f:
+            with open(research_log_file, 'r') as f:
                 for line in f:
                     if line.strip():
                         activities.append(json.loads(line))
         except Exception as e:
             return jsonify({'error': str(e)}), 500
         
-        # Generate Gantt data
+        # Generate Gantt data with proper relative timing
         gantt_data = []
+        investigation_start = None
+        
+        # Find the earliest start time to use as investigation baseline
         for activity in activities:
             if activity.get('start_time'):
+                activity_start_str = activity['start_time'].replace('Z', '+00:00')
+                activity_start = datetime.fromisoformat(activity_start_str)
+                # Make timezone naive for consistency
+                if activity_start.tzinfo is not None:
+                    activity_start = activity_start.replace(tzinfo=None)
+                if investigation_start is None or activity_start < investigation_start:
+                    investigation_start = activity_start
+        
+        # If no investigation start time found, use current time minus reasonable offset
+        if investigation_start is None:
+            investigation_start = datetime.now() - timedelta(hours=1)
+        
+        for activity in activities:
+            if activity.get('start_time'):
+                activity_start_str = activity['start_time'].replace('Z', '+00:00')
+                activity_start = datetime.fromisoformat(activity_start_str)
+                # Make timezone naive for consistency
+                if activity_start.tzinfo is not None:
+                    activity_start = activity_start.replace(tzinfo=None)
+                
+                activity_end = activity.get('end_time')
+                if activity_end:
+                    activity_end_str = activity_end.replace('Z', '+00:00')
+                    activity_end = datetime.fromisoformat(activity_end_str)
+                    # Make timezone naive for consistency
+                    if activity_end.tzinfo is not None:
+                        activity_end = activity_end.replace(tzinfo=None)
+                else:
+                    # For ongoing activities, use start time + reasonable duration instead of current time
+                    # This prevents huge negative offsets when investigation is historical
+                    duration_sec = activity.get('duration_seconds') or 30
+                    estimated_duration = timedelta(seconds=duration_sec)
+                    activity_end = activity_start + estimated_duration
+                
+                # Calculate relative positions from investigation start
+                relative_start_seconds = (activity_start - investigation_start).total_seconds()
+                relative_end_seconds = (activity_end - investigation_start).total_seconds()
+                
                 gantt_data.append({
                     'agent': activity['agent_name'],
                     'task': activity['task_type'],
@@ -118,7 +181,10 @@ def get_investigation_activities(investigation_id):
                     'start': activity['start_time'],
                     'end': activity.get('end_time', datetime.now().isoformat()),
                     'status': activity['status'],
-                    'duration': activity.get('duration_seconds', 0)
+                    'duration': activity.get('duration_seconds', 0),
+                    'relative_start_seconds': relative_start_seconds,
+                    'relative_end_seconds': relative_end_seconds,
+                    'investigation_start': investigation_start.isoformat()
                 })
         
         return jsonify({
@@ -193,7 +259,7 @@ def get_investigation_questions(investigation_id):
             blackboard_file = status.blackboard_file
         else:
             # If not in monitoring system, try to find blackboard file directly
-            blackboard_dir = Path("blackboard_data")
+            blackboard_dir = Path(__file__).parent.parent / "blackboard_data"
             
             # Check for v2 files first, then v1 files
             potential_files = [

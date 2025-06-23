@@ -215,8 +215,83 @@
         /* Timeline styles */
         #timeline-chart {
             width: 100%;
-            height: 500px;
+            min-height: 500px;
             overflow: auto;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        #timeline-chart .google-visualization-gantt-chart {
+            background: transparent !important;
+        }
+        
+        #timeline-chart svg {
+            background: transparent !important;
+        }
+        
+        /* Aggressively target all blue backgrounds in the Gantt chart */
+        #timeline-chart svg rect[fill*="blue"],
+        #timeline-chart svg rect[fill="#cfe2f3"],
+        #timeline-chart svg rect[fill="#2196F3"],
+        #timeline-chart svg rect[fill="#4285f4"] {
+            fill: transparent !important;
+            fill-opacity: 0 !important;
+        }
+        
+        /* Target large background rectangles that might be track backgrounds */
+        #timeline-chart svg rect[width]:not([width="0"]):not([width="1"]):not([width="2"]) {
+            /* Check if this is a track background by size */
+        }
+        
+        #timeline-chart .google-visualization-gantt-track {
+            background: transparent !important;
+        }
+        
+        .timeline-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .timeline-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .timeline-legend {
+            display: flex;
+            gap: 1.5rem;
+            font-size: 0.875rem;
+        }
+        
+        .timeline-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+        
+        .legend-completed { background: #4CAF50; }
+        .legend-in-progress { background: #FF9800; }
+        .legend-failed { background: #F44336; }
+        .legend-pending { background: #2196F3; }
+        
+        .parallel-indicator {
+            font-size: 0.8em;
+            color: #666;
+            font-style: italic;
         }
         
         /* Activities styles */
@@ -1203,6 +1278,27 @@
     
     <div class="tab-content">
         <div class="tab-panel active" id="timeline-panel">
+            <div class="timeline-header" style="display: none;" id="timeline-header">
+                <div class="timeline-title">Investigation Timeline</div>
+                <div class="timeline-legend">
+                    <div class="timeline-legend-item">
+                        <div class="legend-color legend-completed"></div>
+                        <span>Completed</span>
+                    </div>
+                    <div class="timeline-legend-item">
+                        <div class="legend-color legend-in-progress"></div>
+                        <span>In Progress</span>
+                    </div>
+                    <div class="timeline-legend-item">
+                        <div class="legend-color legend-failed"></div>
+                        <span>Failed</span>
+                    </div>
+                    <div class="timeline-legend-item">
+                        <div class="legend-color legend-pending"></div>
+                        <span>Pending</span>
+                    </div>
+                </div>
+            </div>
             <div id="timeline-chart" class="loading">Loading timeline...</div>
         </div>
         
@@ -1429,12 +1525,48 @@
         }
         
         function drawTimeline() {
+            console.log('drawTimeline called');
+            
             if (!activitiesData || !activitiesData.gantt_data || activitiesData.gantt_data.length === 0) {
+                console.log('No timeline data available');
                 document.getElementById('timeline-chart').innerHTML = '<div class="loading">No timeline data available</div>';
                 return;
             }
             
-            google.charts.setOnLoadCallback(() => {
+            console.log('Timeline data found, activities:', activitiesData.gantt_data.length);
+            
+            // Check if Google Charts is loaded
+            if (typeof google === 'undefined' || !google.charts) {
+                console.error('Google Charts not loaded');
+                document.getElementById('timeline-chart').innerHTML = '<div class="error">Google Charts failed to load</div>';
+                return;
+            }
+            
+            // Add timeout to prevent hanging
+            setTimeout(() => {
+                const timelineElement = document.getElementById('timeline-chart');
+                if (timelineElement && timelineElement.innerHTML.includes('Loading timeline')) {
+                    console.warn('Timeline loading timeout');
+                    timelineElement.innerHTML = '<div class="error">Timeline loading timeout - check console for errors</div>';
+                }
+            }, 10000); // 10 second timeout
+            
+            // Ensure Google Charts Gantt package is loaded before drawing
+            if (!google.visualization || !google.visualization.Gantt) {
+                console.log('Loading Gantt package...');
+                google.charts.load('current', {'packages': ['gantt']});
+                google.charts.setOnLoadCallback(() => {
+                    drawTimelineInternal();
+                });
+                return;
+            }
+            
+            drawTimelineInternal();
+        }
+        
+        function drawTimelineInternal() {
+            console.log('drawTimelineInternal called');
+            
                 const dataTable = new google.visualization.DataTable();
                 dataTable.addColumn('string', 'Task ID');
                 dataTable.addColumn('string', 'Task Name');
@@ -1445,47 +1577,272 @@
                 dataTable.addColumn('number', 'Percent Complete');
                 dataTable.addColumn('string', 'Dependencies');
                 
-                // Convert gantt data to Google Charts format
-                const rows = activitiesData.gantt_data.map((task, index) => {
-                    const start = new Date(task.start);
-                    const end = new Date(task.end);
-                    const percentComplete = task.status === 'completed' ? 100 : 
-                                          task.status === 'failed' ? 0 : 50;
-                    
-                    return [
-                        `Task${index}`,
-                        task.task,
-                        task.agent,
-                        start,
-                        end,
-                        null,
-                        percentComplete,
-                        null
-                    ];
+                // Sort tasks by start time to show temporal sequence
+                const sortedTasks = [...activitiesData.gantt_data].sort((a, b) => {
+                    const aStart = a.relative_start_seconds || 0;
+                    const bStart = b.relative_start_seconds || 0;
+                    return aStart - bStart;
+                });
+                
+                console.log('Timeline Debug: First 5 sorted tasks:');
+                for (let i = 0; i < Math.min(5, sortedTasks.length); i++) {
+                    const task = sortedTasks[i];
+                    console.log(`${i}: ${task.task} - Start: ${task.relative_start_seconds}s, End: ${task.relative_end_seconds}s`);
+                }
+                
+                // Group tasks that overlap in time to show parallel execution
+                const taskGroups = [];
+                let currentGroup = [];
+                
+                sortedTasks.forEach((task, index) => {
+                    if (index === 0) {
+                        currentGroup.push(task);
+                    } else {
+                        const prevTask = sortedTasks[index - 1];
+                        const taskStart = task.relative_start_seconds || 0;
+                        const prevEnd = prevTask.relative_end_seconds || prevTask.relative_start_seconds || 0;
+                        
+                        // If this task starts before the previous one ends (with 5s buffer), it's parallel
+                        if (taskStart < prevEnd + 5) {
+                            currentGroup.push(task);
+                        } else {
+                            // Start a new group
+                            taskGroups.push([...currentGroup]);
+                            currentGroup = [task];
+                        }
+                    }
+                });
+                
+                if (currentGroup.length > 0) {
+                    taskGroups.push(currentGroup);
+                }
+                
+                // Convert grouped data to Google Charts format with proper timing
+                const investigationStart = sortedTasks[0]?.investigation_start ? 
+                    new Date(sortedTasks[0].investigation_start) : new Date();
+                
+                console.log('Investigation start time:', investigationStart);
+                
+                // Calculate total investigation time for better scaling
+                const totalTimeSeconds = Math.max(...sortedTasks.map(t => t.relative_end_seconds || t.relative_start_seconds || 0));
+                const totalTimeMinutes = Math.ceil(totalTimeSeconds / 60);
+                
+                console.log('Total time span:', totalTimeMinutes, 'minutes');
+                console.log('Date range:', new Date(investigationStart.getTime()), 'to', new Date(investigationStart.getTime() + totalTimeSeconds * 1000));
+                
+                const rows = [];
+                let taskCounter = 0;
+                
+                taskGroups.forEach((group, groupIndex) => {
+                    group.forEach((task, taskIndex) => {
+                        const startTime = new Date(investigationStart.getTime() + (task.relative_start_seconds || 0) * 1000);
+                        const endTime = new Date(investigationStart.getTime() + (task.relative_end_seconds || task.relative_start_seconds || 0) * 1000);
+                        
+                        if (taskCounter < 3) {
+                            console.log(`Task ${taskCounter}: ${task.task}`);
+                            console.log(`  Relative start: ${task.relative_start_seconds}s`);
+                            console.log(`  Calculated start time: ${startTime.toLocaleTimeString()}`);
+                            console.log(`  Start date object:`, startTime);
+                            console.log(`  End date object:`, endTime);
+                        }
+                        
+                        const percentComplete = task.status === 'completed' ? 100 : 
+                                              task.status === 'failed' ? 0 : 
+                                              task.status === 'in_progress' ? 50 : 25;
+                        
+                        // Create task name showing parallelism
+                        const parallelIndicator = group.length > 1 ? ` (${taskIndex + 1}/${group.length})` : '';
+                        const taskName = `${task.task}${parallelIndicator}`;
+                        
+                        rows.push([
+                            `Task${taskCounter++}`,
+                            taskName,
+                            task.agent,
+                            startTime,
+                            endTime,
+                            null,
+                            percentComplete,
+                            null
+                        ]);
+                    });
                 });
                 
                 dataTable.addRows(rows);
                 
+                // Define status-based colors matching the data flow diagram
+                const statusColors = {
+                    'completed': '#4CAF50',    // Green (like the agents)
+                    'in_progress': '#FF9800',  // Orange (like correlation/report)
+                    'failed': '#F44336',       // Red
+                    'started': '#2196F3',      // Blue (like coordinator)
+                    'pending': '#9E9E9E'       // Grey
+                };
+                
                 const options = {
-                    height: 500,
+                    height: Math.max(400, rows.length * 35),
+                    backgroundColor: 'transparent',
                     gantt: {
                         trackHeight: 30,
                         criticalPathEnabled: false,
-                        innerGridTrack: {fill: '#f3f3f3'},
-                        innerGridDarkTrack: {fill: '#e0e0e0'},
-                        shadowEnabled: true,
-                        shadowColor: '#ddd',
-                        shadowOffset: 1,
+                        innerGridTrack: {fill: 'transparent'},
+                        innerGridDarkTrack: {fill: 'transparent'},
+                        shadowEnabled: false,
                         labelStyle: {
                             fontName: 'Arial',
-                            fontSize: 12
+                            fontSize: 11,
+                            color: '#333'
+                        },
+                        arrow: {
+                            angle: 100,
+                            length: 5,
+                            spaceAfter: 4
                         }
+                    },
+                    hAxis: {
+                        format: 'none', // We'll use custom formatting
+                        title: `Elapsed Time (Investigation started at ${investigationStart.toLocaleTimeString()})`,
+                        titleTextStyle: {
+                            color: '#666',
+                            fontSize: 12
+                        },
+                        gridlines: {
+                            count: Math.max(3, Math.min(6, Math.floor(totalTimeMinutes / 2))),
+                            color: '#e0e0e0'
+                        },
+                        minorGridlines: {
+                            count: 1,
+                            color: '#f0f0f0'
+                        },
+                        textStyle: {
+                            color: '#666',
+                            fontSize: 10
+                        },
+                        slantedText: false,
+                        maxAlternation: 1,
+                        showTextEvery: 1,
+                        // Custom tick formatter
+                        ticks: (() => {
+                            const ticks = [];
+                            const stepSeconds = Math.max(30, Math.floor(totalTimeSeconds / 6));
+                            for (let i = 0; i <= totalTimeSeconds; i += stepSeconds) {
+                                const tickTime = new Date(investigationStart.getTime() + i * 1000);
+                                const elapsedMinutes = Math.floor(i / 60);
+                                const elapsedSeconds = i % 60;
+                                const label = elapsedMinutes > 0 ? 
+                                    `+${elapsedMinutes}m ${elapsedSeconds}s` : 
+                                    `+${elapsedSeconds}s`;
+                                ticks.push({v: tickTime, f: label});
+                            }
+                            return ticks;
+                        })()
+                    },
+                    tooltip: {
+                        isHtml: true
                     }
                 };
                 
                 const chart = new google.visualization.Gantt(document.getElementById('timeline-chart'));
-                chart.draw(dataTable, options);
-            });
+                
+                // Add event listener to customize colors after chart is drawn
+                google.visualization.events.addListener(chart, 'ready', function() {
+                    const svgElement = document.querySelector('#timeline-chart svg');
+                    if (svgElement) {
+                        // Debug and remove blue backgrounds
+                        const allRects = svgElement.querySelectorAll('rect');
+                        console.log('Found', allRects.length, 'rectangles in SVG');
+                        
+                        allRects.forEach((rect, index) => {
+                            const fill = rect.getAttribute('fill');
+                            const width = rect.getAttribute('width');
+                            const height = rect.getAttribute('height');
+                            
+                            // Log the first few rects to debug
+                            if (index < 5) {
+                                console.log(`Rect ${index}: fill=${fill}, width=${width}, height=${height}`);
+                            }
+                            
+                            // Remove ANY blue-ish colors and large background rectangles
+                            if (fill && (
+                                fill.toLowerCase().includes('blue') || 
+                                fill === '#cfe2f3' || 
+                                fill === '#2196F3' ||
+                                fill === '#4285f4' ||
+                                fill === '#6fa8dc' ||
+                                fill.startsWith('#') && (fill.includes('f') || fill.includes('e')) // Light blue variants
+                            )) {
+                                console.log('Removing blue rect:', fill);
+                                rect.setAttribute('fill', 'transparent');
+                                rect.setAttribute('fill-opacity', '0');
+                            }
+                            
+                            // Also remove very large rectangles that span the whole chart
+                            if (width && parseFloat(width) > 800) {
+                                console.log('Removing large background rect:', width);
+                                rect.setAttribute('fill', 'transparent');
+                                rect.setAttribute('fill-opacity', '0');
+                            }
+                        });
+                        
+                        // Find all the task bars and color them based on status
+                        const taskBars = svgElement.querySelectorAll('rect[fill]:not([fill="none"]):not([fill="transparent"])');
+                        
+                        taskBars.forEach((bar, index) => {
+                            if (index < rows.length) {
+                                const taskData = rows[index];
+                                const taskName = taskData[1].split(' (')[0];
+                                const task = sortedTasks.find(t => t.task === taskName);
+                                
+                                if (task) {
+                                    const statusColor = statusColors[task.status] || statusColors['pending'];
+                                    bar.setAttribute('fill', statusColor);
+                                    
+                                    // Add subtle gradient effect
+                                    bar.setAttribute('fill-opacity', '0.9');
+                                    bar.style.transition = 'all 0.2s ease';
+                                    
+                                    // Add hover effect
+                                    bar.addEventListener('mouseenter', function() {
+                                        this.setAttribute('fill-opacity', '1.0');
+                                    });
+                                    bar.addEventListener('mouseleave', function() {
+                                        this.setAttribute('fill-opacity', '0.9');
+                                    });
+                                }
+                            }
+                        });
+                    }
+                });
+                
+                // Add custom tooltip handler
+                google.visualization.events.addListener(chart, 'onmouseover', function(e) {
+                    if (e.row !== null && rows[e.row]) {
+                        const task = sortedTasks.find(t => t.task === rows[e.row][1].split(' (')[0]);
+                        if (task) {
+                            const tooltip = `
+                                <div style="padding: 8px; font-family: Arial;">
+                                    <strong>${task.task}</strong><br/>
+                                    Agent: ${task.agent}<br/>
+                                    Status: ${task.status}<br/>
+                                    Duration: ${task.duration || 0}s<br/>
+                                    Start: +${Math.round(task.relative_start_seconds || 0)}s<br/>
+                                    ${task.description ? `<br/>${task.description}` : ''}
+                                </div>
+                            `;
+                        }
+                    }
+                });
+                
+                try {
+                    console.log('Drawing chart with', rows.length, 'rows');
+                    chart.draw(dataTable, options);
+                    
+                    // Show the timeline header after successful render
+                    document.getElementById('timeline-header').style.display = 'flex';
+                    console.log('Chart drawn successfully');
+            } catch (error) {
+                console.error('Error drawing chart:', error);
+                document.getElementById('timeline-chart').innerHTML = `<div class="error">Error drawing timeline: ${error.message}</div>`;
+            }
         }
         
         function populateActivities() {
