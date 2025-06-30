@@ -98,7 +98,6 @@ sequenceDiagram
         end
         Note over AutomatedAgent: Analyze results, identify leads (Leads L1, L2...)
         Note over AutomatedAgent: Refine Hypothesis, Develop New Queries based on Leads
-        break If No More Leads or Hunt Time Limit Reached
     end
 
     %% Step 5: Advanced Enrichment

@@ -6,7 +6,7 @@ This workflow demonstrates an automated approach to tuning detection rules using
 
 ## Architecture
 
-```mermaid
+```{mermaid}
 graph LR
     A[SOAR Cases] -->|Analyst Feedback| B[AI Agent]
     B -->|Read Cases| C[MCP SOAR Server]
