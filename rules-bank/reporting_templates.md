@@ -76,7 +76,7 @@ This file outlines standard formats and required elements for common reports gen
 - [Any ongoing technical issues or planned maintenance]
 
 ## Workflow Diagram
-```mermaid
+```{mermaid}
 sequenceDiagram
     participant Analyst
     participant SIEM as secops-mcp
@@ -212,7 +212,7 @@ sequenceDiagram
 - **Customer Notification:** [Required/Completed/Not Required]
 
 ## Workflow Diagram
-```mermaid
+```{mermaid}
 sequenceDiagram
     participant SOC as SOC Analyst
     participant SIEM as secops-mcp
@@ -372,7 +372,7 @@ sequenceDiagram
 - [Process improvements identified]
 
 ## Workflow Diagram
-```mermaid
+```{mermaid}
 sequenceDiagram
     participant Hunter as Threat Hunter
     participant TI as gti-mcp
@@ -551,7 +551,7 @@ sequenceDiagram
 - **Customer Notification:** [If applicable]
 
 ## Workflow Diagram
-```mermaid
+```{mermaid}
 sequenceDiagram
     participant Analyst as Vuln Analyst
     participant Asset as asset-mcp
