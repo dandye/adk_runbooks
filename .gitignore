@@ -18,3 +18,13 @@ hello-a2a/
 multi-agent/manager/sub_agents/*/*.log
 .DS_Store
 
+
+soc-blackboard/logs/*.log
+soc-blackboard/logs/*.jsonl
+soc-blackboard/logs/*.html
+soc-blackboard/reports/*.md
+soc-blackboard/venv/
+
+soc-blackboard/blackboard_data
+
+soc-blackboard/*.log

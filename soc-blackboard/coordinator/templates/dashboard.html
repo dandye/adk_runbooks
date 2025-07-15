@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOC Investigation Monitor</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+        
+        header {
+            background: #1a1a1a;
+            color: white;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        header h1 {
+            font-size: 1.5rem;
+            font-weight: 500;
+        }
+        
+        .summary-bar {
+            background: white;
+            padding: 1.5rem 2rem;
+            display: flex;
+            gap: 3rem;
+            border-bottom: 1px solid #e0e0e0;
+            flex-wrap: wrap;
+        }
+        
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+        
+        .stat-label {
+            font-size: 0.875rem;
+            color: #666;
+        }
+        
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .stat-value.success { color: #4CAF50; }
+        .stat-value.warning { color: #FF9800; }
+        .stat-value.error { color: #f44336; }
+        
+        .main-content {
+            display: flex;
+            gap: 2rem;
+            padding: 2rem;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        
+        .investigations-panel {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
+        .panel-header h2 {
+            font-size: 1.25rem;
+            font-weight: 500;
+        }
+        
+        .investigation-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        .investigation-card {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .investigation-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+        
+        .investigation-card.active {
+            border-color: #4CAF50;
+            background: linear-gradient(135deg, rgba(76, 175, 80, 0.05) 0%, white 100%);
+        }
+        
+        .investigation-card.completed {
+            border-color: #2196F3;
+            opacity: 0.9;
+        }
+        
+        .investigation-card.failed {
+            border-color: #f44336;
+            background: linear-gradient(135deg, rgba(244, 67, 54, 0.05) 0%, white 100%);
+        }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+        
+        .card-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .phase-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .phase-initialization { 
+            background: #FFF3E0; 
+            color: #E65100;
+        }
+        
+        .phase-investigation { 
+            background: #E8F5E9; 
+            color: #2E7D32;
+        }
+        
+        .phase-correlation { 
+            background: #E3F2FD; 
+            color: #1565C0;
+        }
+        
+        .phase-reporting { 
+            background: #F3E5F5; 
+            color: #6A1B9A;
+        }
+        
+        .timer {
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 1.25rem;
+            color: #666;
+            margin: 0.75rem 0;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .timer::before {
+            content: '⏱';
+            font-size: 1rem;
+        }
+        
+        .agent-list {
+            min-height: 2rem;
+            margin: 0.75rem 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        
+        .agent-badge {
+            background: #e8e8e8;
+            padding: 0.25rem 0.625rem;
+            border-radius: 4px;
+            font-size: 0.8125rem;
+            font-weight: 500;
+            color: #555;
+        }
+        
+        .agent-badge.busy {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .findings-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #eee;
+        }
+        
+        .findings-label {
+            color: #666;
+            font-size: 0.875rem;
+        }
+        
+        .findings-count {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .activity-panel {
+            width: 350px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            height: fit-content;
+            max-height: calc(100vh - 200px);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .activity-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .activity-header h3 {
+            font-size: 1.125rem;
+            font-weight: 500;
+        }
+        
+        .activity-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+        
+        .activity-item {
+            padding: 0.75rem;
+            margin-bottom: 0.75rem;
+            background: #f8f8f8;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            animation: slideIn 0.3s ease;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        .activity-time {
+            font-size: 0.75rem;
+            color: #999;
+            margin-bottom: 0.25rem;
+        }
+        
+        .activity-content {
+            color: #333;
+            line-height: 1.4;
+        }
+        
+        .activity-content strong {
+            color: #111;
+            font-weight: 600;
+        }
+        
+        .no-investigations {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: #999;
+        }
+        
+        .no-investigations h3 {
+            font-size: 1.25rem;
+            font-weight: 400;
+            margin-bottom: 0.5rem;
+        }
+        
+        .connection-status {
+            position: fixed;
+            bottom: 1rem;
+            right: 1rem;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .connection-status.connected {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .connection-status.disconnected {
+            background: #f44336;
+            color: white;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        @media (max-width: 1200px) {
+            .main-content {
+                flex-direction: column;
+            }
+            
+            .activity-panel {
+                width: 100%;
+                max-height: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🛡️ SOC Investigation Monitor</h1>
+    </header>
+    
+    <div class="summary-bar">
+        <div class="stat-item">
+            <span class="stat-label">Active Investigations</span>
+            <span class="stat-value" id="active-count">0</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Completed</span>
+            <span class="stat-value success" id="completed-count">0</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Failed</span>
+            <span class="stat-value error" id="failed-count">0</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Success Rate</span>
+            <span class="stat-value" id="success-rate">0%</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Total Findings</span>
+            <span class="stat-value" id="total-findings">0</span>
+        </div>
+    </div>
+    
+    <div class="main-content">
+        <div class="investigations-panel">
+            <div class="panel-header">
+                <h2>Investigations</h2>
+            </div>
+            <div class="investigation-grid" id="investigation-grid">
+                <div class="no-investigations">
+                    <h3>No active investigations</h3>
+                    <p>Investigations will appear here when started</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="activity-panel">
+            <div class="activity-header">
+                <h3>Live Activity Feed</h3>
+            </div>
+            <div class="activity-list" id="activity-list">
+                <!-- Activities will be inserted here -->
+            </div>
+        </div>
+    </div>
+    
+    <div class="connection-status disconnected" id="connection-status">
+        <span class="status-dot"></span>
+        <span>Connecting...</span>
+    </div>
+    
+    <script>
+        // Global state
+        const investigations = new Map();
+        let eventSource = null;
+        let reconnectTimeout = null;
+        
+        // DOM elements
+        const elements = {
+            activeCount: document.getElementById('active-count'),
+            completedCount: document.getElementById('completed-count'),
+            failedCount: document.getElementById('failed-count'),
+            successRate: document.getElementById('success-rate'),
+            totalFindings: document.getElementById('total-findings'),
+            investigationGrid: document.getElementById('investigation-grid'),
+            activityList: document.getElementById('activity-list'),
+            connectionStatus: document.getElementById('connection-status')
+        };
+        
+        // Connect to SSE
+        function connect() {
+            eventSource = new EventSource('/api/stream');
+            
+            eventSource.onopen = () => {
+                console.log('SSE connected');
+                updateConnectionStatus(true);
+                if (reconnectTimeout) {
+                    clearTimeout(reconnectTimeout);
+                    reconnectTimeout = null;
+                }
+            };
+            
+            eventSource.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    handleUpdate(data);
+                } catch (e) {
+                    console.error('Failed to parse SSE data:', e);
+                }
+            };
+            
+            eventSource.onerror = () => {
+                console.error('SSE connection error');
+                updateConnectionStatus(false);
+                eventSource.close();
+                
+                // Reconnect after 3 seconds
+                reconnectTimeout = setTimeout(connect, 3000);
+            };
+        }
+        
+        function updateConnectionStatus(connected) {
+            const status = elements.connectionStatus;
+            if (connected) {
+                status.className = 'connection-status connected';
+                status.innerHTML = '<span class="status-dot"></span><span>Connected</span>';
+            } else {
+                status.className = 'connection-status disconnected';
+                status.innerHTML = '<span class="status-dot"></span><span>Reconnecting...</span>';
+            }
+        }
+        
+        function handleUpdate(update) {
+            console.log('Update received:', update.type);
+            
+            switch(update.type) {
+                case 'initial':
+                    loadInitialData(update.data);
+                    break;
+                case 'investigation_registered':
+                    addOrUpdateInvestigation(update.data);
+                    addActivity(`New investigation: <strong>${update.data.case_id}</strong>`);
+                    break;
+                case 'phase_updated':
+                    updateInvestigationPhase(update.data);
+                    addActivity(`<strong>${update.data.case_id}</strong> → ${update.data.phase}`);
+                    break;
+                case 'agents_updated':
+                    updateAgents(update.data);
+                    if (update.data.active_agents.length > 0) {
+                        addActivity(`<strong>${update.data.case_id}</strong>: ${update.data.active_agents.join(', ')} active`);
+                    }
+                    break;
+                case 'findings_updated':
+                    updateFindings(update.data);
+                    addActivity(`<strong>${update.data.case_id}</strong>: ${update.data.total_findings} findings`);
+                    break;
+                case 'investigation_completed':
+                    completeInvestigation(update.data);
+                    const emoji = update.data.status === 'completed' ? '✅' : '❌';
+                    addActivity(`${emoji} <strong>${update.data.case_id}</strong> ${update.data.status}`);
+                    break;
+                case 'keepalive':
+                    // Ignore keepalive messages
+                    break;
+            }
+            
+            updateSummary();
+        }
+        
+        function loadInitialData(data) {
+            // Clear existing
+            investigations.clear();
+            elements.investigationGrid.innerHTML = '';
+            
+            // Load investigations
+            if (data.investigations && data.investigations.length > 0) {
+                data.investigations.forEach(inv => {
+                    addOrUpdateInvestigation(inv);
+                });
+            } else {
+                elements.investigationGrid.innerHTML = `
+                    <div class="no-investigations">
+                        <h3>No active investigations</h3>
+                        <p>Investigations will appear here when started</p>
+                    </div>
+                `;
+            }
+            
+            // Update summary
+            if (data.summary) {
+                updateSummaryFromData(data.summary);
+            }
+        }
+        
+        function createInvestigationCard(inv) {
+            const card = document.createElement('div');
+            card.className = `investigation-card ${inv.status}`;
+            card.id = `inv-${inv.investigation_id}`;
+            card.onclick = () => window.location.href = `/investigation/${inv.investigation_id}`;
+            
+            card.innerHTML = `
+                <div class="card-header">
+                    <h3 class="card-title">${inv.case_id}</h3>
+                    <span class="phase-badge phase-${inv.phase}">${inv.phase}</span>
+                </div>
+                <div class="timer" data-start="${inv.started_at}">00:00:00</div>
+                <div class="agent-list">
+                    ${inv.active_agents.map(agent => 
+                        `<span class="agent-badge ${inv.active_agents.length > 0 ? 'busy' : ''}">${agent}</span>`
+                    ).join('')}
+                </div>
+                <div class="findings-row">
+                    <span class="findings-label">Findings:</span>
+                    <span class="findings-count">${inv.total_findings}</span>
+                </div>
+            `;
+            
+            return card;
+        }
+        
+        function addOrUpdateInvestigation(inv) {
+            investigations.set(inv.investigation_id, inv);
+            
+            // Remove "no investigations" message if present
+            const noInvMsg = elements.investigationGrid.querySelector('.no-investigations');
+            if (noInvMsg) {
+                noInvMsg.remove();
+            }
+            
+            let card = document.getElementById(`inv-${inv.investigation_id}`);
+            if (!card) {
+                card = createInvestigationCard(inv);
+                elements.investigationGrid.appendChild(card);
+            } else {
+                // Update existing card
+                const newCard = createInvestigationCard(inv);
+                card.replaceWith(newCard);
+            }
+        }
+        
+        function updateInvestigationPhase(data) {
+            const inv = investigations.get(data.investigation_id);
+            if (inv) {
+                inv.phase = data.phase;
+                addOrUpdateInvestigation(inv);
+            }
+        }
+        
+        function updateAgents(data) {
+            const inv = investigations.get(data.investigation_id);
+            if (inv) {
+                inv.active_agents = data.active_agents;
+                addOrUpdateInvestigation(inv);
+            }
+        }
+        
+        function updateFindings(data) {
+            const inv = investigations.get(data.investigation_id);
+            if (inv) {
+                inv.total_findings = data.total_findings;
+                addOrUpdateInvestigation(inv);
+            }
+        }
+        
+        function completeInvestigation(data) {
+            const inv = investigations.get(data.investigation_id);
+            if (inv) {
+                inv.status = data.status;
+                inv.active_agents = [];
+                addOrUpdateInvestigation(inv);
+            }
+        }
+        
+        function updateSummary() {
+            let active = 0, completed = 0, failed = 0, totalFindings = 0;
+            
+            investigations.forEach(inv => {
+                if (inv.status === 'active') active++;
+                else if (inv.status === 'completed') completed++;
+                else if (inv.status === 'failed') failed++;
+                totalFindings += inv.total_findings;
+            });
+            
+            elements.activeCount.textContent = active;
+            elements.completedCount.textContent = completed;
+            elements.failedCount.textContent = failed;
+            elements.totalFindings.textContent = totalFindings;
+            
+            const total = active + completed + failed;
+            const successRate = total > 0 ? Math.round((completed / total) * 100) : 0;
+            elements.successRate.textContent = `${successRate}%`;
+        }
+        
+        function updateSummaryFromData(summary) {
+            elements.activeCount.textContent = summary.active_investigations || 0;
+            elements.completedCount.textContent = summary.completed_investigations || 0;
+            elements.failedCount.textContent = summary.failed_investigations || 0;
+            elements.totalFindings.textContent = summary.total_findings_across_all || 0;
+            
+            const successRate = Math.round((summary.success_rate || 0) * 100);
+            elements.successRate.textContent = `${successRate}%`;
+        }
+        
+        function addActivity(content) {
+            const item = document.createElement('div');
+            item.className = 'activity-item';
+            
+            const time = new Date().toLocaleTimeString();
+            item.innerHTML = `
+                <div class="activity-time">${time}</div>
+                <div class="activity-content">${content}</div>
+            `;
+            
+            elements.activityList.insertBefore(item, elements.activityList.firstChild);
+            
+            // Keep only last 50 activities
+            while (elements.activityList.children.length > 50) {
+                elements.activityList.lastChild.remove();
+            }
+        }
+        
+        function updateTimers() {
+            document.querySelectorAll('.timer[data-start]').forEach(timer => {
+                const start = new Date(timer.dataset.start);
+                const now = new Date();
+                const diff = now - start;
+                
+                const hours = Math.floor(diff / 3600000);
+                const minutes = Math.floor((diff % 3600000) / 60000);
+                const seconds = Math.floor((diff % 60000) / 1000);
+                
+                timer.textContent = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            });
+        }
+        
+        // Initial load
+        fetch('/api/investigations')
+            .then(r => r.json())
+            .then(data => {
+                loadInitialData(data);
+            })
+            .catch(err => {
+                console.error('Failed to load initial data:', err);
+            });
+        
+        // Connect to SSE
+        connect();
+        
+        // Update timers every second
+        setInterval(updateTimers, 1000);
+    </script>
+</body>
+</html>
