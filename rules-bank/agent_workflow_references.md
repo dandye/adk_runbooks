@@ -36,7 +36,7 @@ Based on the "Guide to Google Agent Development Kit (ADK)" article, here are key
 - Best for tasks that are distinct and don't require collaboration between agents
 - **Best Visualization**: Data Flow Diagram (DFD) or Simple Flow Chart
 
-```{mermaid}
+```mermaid
 flowchart LR
     A[Input] --> B[Classifier Agent]
     B --> C[Retriever Agent]
@@ -59,7 +59,7 @@ flowchart LR
 - Can be implemented using LangGraph's planner/executor pattern or ADK's agent_executor
 - **Best Visualization**: Sequence Diagram (planning phase → execution flows)
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant U as User
     participant P as Planner Agent
@@ -90,7 +90,7 @@ sequenceDiagram
 - Agents can specialize in different domains (finance, legal, ethics)
 - **Best Visualization**: Network/Graph Diagram (showing voting/consensus relationships)
 
-```{mermaid}
+```mermaid
 graph TD
     C[Coordinator]
     F[Finance Agent]
@@ -131,7 +131,7 @@ graph TD
   - Summarization
 - **Best Visualization**: Sequence Diagram with feedback loops or State Transition Diagram
 
-```{mermaid}
+```mermaid
 stateDiagram-v2
     [*] --> Draft
     Draft --> Review: Writer Agent creates draft
@@ -158,7 +158,7 @@ stateDiagram-v2
 - Mimics human teamwork with delegation
 - **Best Visualization**: Hierarchical/Tree Diagram (org chart style) + Sequence Diagram for interactions
 
-```{mermaid}
+```mermaid
 graph TD
     TL[Team Lead Agent]
 
@@ -210,7 +210,7 @@ graph TD
   4. Runs final synthesis
 - **Best Visualization**: Data Flow Diagram (showing decomposition/synthesis flows) + Tree Diagram for task breakdown
 
-```{mermaid}
+```mermaid
 flowchart TD
     Q[Complex Query: Reduce Urban Carbon Emissions]
     O[Orchestrator Agent]
@@ -275,7 +275,7 @@ flowchart TD
   - Personalization (spawn agents tailored to specific users or domains)
 - **Best Visualization**: Architecture Diagram (infrastructure view) + Tree Diagram showing spawning hierarchy
 
-```{mermaid}
+```mermaid
 graph TD
     subgraph Infrastructure
         RM[Resource Manager]
@@ -323,7 +323,7 @@ graph TD
 - Good for complex organizational workflows
 - **Best Visualization**: Hierarchical/Tree Diagram (org chart style)
 
-```{mermaid}
+```mermaid
 graph TD
     CEO[CEO Agent]
 
@@ -385,7 +385,7 @@ graph TD
 - Example: Multiple translation agents bidding on language-specific tasks
 - **Best Visualization**: Swimlane Diagram (showing bidding process) or Sequence Diagram
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant C as Coordinator
     participant A1 as Spanish Agent A
@@ -420,7 +420,7 @@ sequenceDiagram
 - Example: Alert agents subscribing to security event streams
 - **Best Visualization**: Network/Graph Diagram (hub-and-spoke with event channels)
 
-```{mermaid}
+```mermaid
 graph TD
     subgraph Event Bus
         EB[Event Broker]
@@ -471,7 +471,7 @@ graph TD
 - Example: Multiple analysis agents contributing findings to a shared investigation board
 - **Best Visualization**: Network/Graph Diagram (shared central space with connected agents)
 
-```{mermaid}
+```mermaid
 graph TD
     subgraph Shared Blackboard
         BB[Investigation Board]
@@ -521,7 +521,7 @@ graph TD
 - Example: Workflow orchestrator managing task dependencies
 - **Best Visualization**: Network/Graph Diagram (star topology with central mediator)
 
-```{mermaid}
+```mermaid
 graph TD
     M[Workflow Mediator]
 
@@ -560,7 +560,7 @@ graph TD
 - Example: Support ticket lifecycle (New → Assigned → In Progress → Resolved)
 - **Best Visualization**: State Transition Diagram
 
-```{mermaid}
+```mermaid
 stateDiagram-v2
     [*] --> New
     New --> Assigned: Triage Agent assigns
@@ -597,7 +597,7 @@ stateDiagram-v2
 - Good for large-scale data processing tasks
 - **Best Visualization**: Swimlane Diagram (parallel lanes + convergence) or Data Flow Diagram
 
-```{mermaid}
+```mermaid
 flowchart TD
     subgraph Input
         D[Large Dataset]
@@ -661,7 +661,7 @@ flowchart TD
 - Important for resilient production systems
 - **Best Visualization**: Architecture Diagram (system architecture with failover paths)
 
-```{mermaid}
+```mermaid
 graph TD
     subgraph Client Layer
         C[Client Request]
@@ -837,7 +837,7 @@ coordinator = LlmAgent(
 # assert task_doer.parent_agent == coordinator
 ```
 
-```{mermaid}
+```mermaid
 graph TD
     subgraph Agents
         A[greeter]
@@ -865,7 +865,7 @@ pipeline = SequentialAgent(name="MyPipeline", sub_agents=[step1, step2])
 # When pipeline runs, Step2 can access the state['data'] set by Step1.
 ```
 
-```{mermaid}
+```mermaid
 graph TD
     subgraph Pipeline
         A[Step1_Fetch] --> B[Step2_Process]
@@ -890,7 +890,7 @@ gatherer = ParallelAgent(name="InfoGatherer", sub_agents=[fetch_weather, fetch_n
 # A subsequent agent could read state['weather'] and state['news'].
 ```
 
-```{mermaid}
+```mermaid
 graph TD
     subgraph Parallel Execution
         A[WeatherFetcher]
@@ -928,7 +928,7 @@ poller = LoopAgent(
 # until Checker escalates (state['status'] == 'completed') or 10 iterations pass.
 ```
 
-```{mermaid}
+```mermaid
 graph TD
     subgraph LoopAgent
         A[process_step] --> B{CheckCondition}
@@ -957,7 +957,7 @@ pipeline = SequentialAgent(name="CityInfo", sub_agents=[agent_A, agent_B])
 # AgentB runs, its instruction processor reads state['capital_city'] to get "Paris".
 ```
 
-```{mermaid}
+```mermaid
 graph TD
     subgraph State Management
         A[AgentA] --> |saves capital_city| State(State)
@@ -989,7 +989,7 @@ coordinator = LlmAgent(
 )
 ```
 
-```{mermaid}
+```mermaid
 graph TD
     subgraph LLM Transfer
         A[User Input] --> C[Coordinator]
@@ -1047,7 +1047,7 @@ artist_agent = LlmAgent(
 # The resulting image Part is returned to the Artist agent as the tool result.
 ```
 
-```{mermaid}
+```mermaid
 graph TD
     subgraph Agent as a Tool
         A[User Input] --> B[Artist Agent (LLM)]
@@ -1139,7 +1139,7 @@ class StoryFlowAgent(BaseAgent):
         yield Event(author=self.name, content=f"Final Tone Feedback: {ctx.session.state['tone_feedback']}")
 ```
 
-```{mermaid}
+```mermaid
 graph TD
     subgraph StoryFlowAgent Workflow
         A[Start: Generate Initial Story] --> B{Critique Story}
@@ -1245,7 +1245,7 @@ async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event,
     # reviewer_output = ctx.session.state.get("CodeReviewerAgent_output")
 ```
 
-```{mermaid}
+```mermaid
 graph TD
     subgraph Code Development Pipeline
         A[User Query] --> B[CodeWriterAgent]
@@ -1335,7 +1335,7 @@ async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event,
     # ev_summary = research_results.results_by_name["ElectricVehicleResearcher"].result
 ```
 
-```{mermaid}
+```mermaid
 graph TD
     subgraph Parallel Web Research
         A[User Query] --> B[ParallelResearchAgent]
@@ -1455,7 +1455,7 @@ async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event,
         yield Event(author=self.name, content="Document approved by critic.")
 ```
 
-```{mermaid}
+```mermaid
 graph TD
     subgraph Iterative Document Improvement
         A[Start: Initial Topic] --> B[WriterAgent]
@@ -1646,7 +1646,7 @@ rag_agent = LlmAgent(
 )
 ```
 
-```{mermaid}
+```mermaid
 graph TD
     subgraph RAG Agent Workflow
         A[User Query] --> B[RAG Agent]
