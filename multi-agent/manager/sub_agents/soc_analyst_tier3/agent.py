@@ -42,7 +42,7 @@ def get_agent(tools, exit_stack):
 
   agent_instance = Agent( # Renamed to avoid conflict
       name="soc_analyst_tier3",
-      model="gemini-2.5-pro-preview-05-06",
+      model="gemini-2.5-pro",
       description=persona_description,
       instruction="""You are a Tier 3 SOC Analyst. You handle escalated incidents, perform deep-dive analysis, and lead response efforts.""",
       tools=tools, # Use passed-in tools

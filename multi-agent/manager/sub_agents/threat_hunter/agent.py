@@ -40,7 +40,7 @@ def get_agent(tools, exit_stack):
 
   agent_instance = Agent( # Renamed to avoid conflict
       name="threat_hunter",
-      model="gemini-2.5-pro-preview-05-06",
+      model="gemini-2.5-pro",
       description=persona_description,
       instruction="""You are a Threat Hunter agent.""",
       tools=tools, # Use passed-in tools
