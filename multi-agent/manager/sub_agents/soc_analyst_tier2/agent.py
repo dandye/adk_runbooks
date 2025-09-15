@@ -55,7 +55,7 @@ def get_agent(tools, exit_stack):
   agent_instance = Agent( # Corrected variable name
       name="soc_analyst_tier2",
       #model="gemini-2.0-flash",
-      model="gemini-2.5-pro-preview-05-06",
+      model="gemini-2.5-pro",
       description=persona_description,
       instruction="You are a Tier 2 SOC Analyst.",
       tools=tools, # Use passed-in tools

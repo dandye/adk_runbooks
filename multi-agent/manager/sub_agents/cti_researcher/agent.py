@@ -41,7 +41,7 @@ def get_agent(tools, exit_stack):
   )
   agent_instance = Agent( # Renamed to avoid conflict with module-level var if any
       name="cti_researcher",
-      model="gemini-2.5-pro-preview-05-06",
+      model="gemini-2.5-pro",
       description=persona_data,
       instruction="You are a CTI Researcher.",
       tools=tools, # Use passed-in tools
