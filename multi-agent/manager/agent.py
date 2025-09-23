@@ -81,9 +81,8 @@ async def initialize_actual_manager_agent():
 
     return Agent(
         name="manager", # This name should match the one used in DeferredInitializationAgent
-        #model="gemini-2.0-flash",
-        model="gemini-2.5-pro-preview-05-06",
-        #model="gemini-2.5-flash-preview-05-20",
+        model="gemini-2.5-flash",
+        #model="gemini-2.5-pro",
         description=persona_description,
         instruction="""
         You are the SOC Manager agent, responsible for overseeing and orchestrating the work of specialized sub-agents. Your primary goal is to ensure efficient and effective incident response and SOC operations.
