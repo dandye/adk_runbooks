@@ -1,0 +1,82 @@
+# Complete ADK Runbooks container with all fixes
+FROM python:3.11-slim
+
+# Install system dependencies including uv requirements
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv package manager (required for MCP tools) to system-wide location
+RUN curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR="/usr/local/bin" sh
+
+# Set working directory
+WORKDIR /app
+
+# Copy and install Python dependencies
+COPY multi-agent/requirements.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install additional MCP dependencies
+RUN pip install --no-cache-dir mcp anyio
+
+# Copy the multi-agent system
+COPY multi-agent/ /app/multi-agent/
+
+# Copy rules-bank for agent personas and runbooks
+COPY rules-bank/ /app/rules-bank/
+
+# Copy external submodules (MCP security tools)
+COPY external/ /app/external/
+
+
+# Create symlinks for alternate paths the agents expect
+RUN ln -s /app /adk_runbooks
+RUN mkdir -p /app/run-with-google-adk && ln -s /app/external /app/run-with-google-adk/
+
+# Set Python path to include necessary directories
+ENV PYTHONPATH=/app/multi-agent:/app:/app/external/mcp-security:$PYTHONPATH
+
+# Set default environment variables
+ENV GOOGLE_GENAI_USE_VERTEXAI=False
+ENV LOCAL_RUN=true
+ENV ARTIFACT_SERVICE=in_memory
+
+# Create directory for logs
+RUN mkdir -p /tmp/agents_log
+
+# Create a more robust entrypoint script
+RUN cat > /app/entrypoint.sh <<'EOF'
+#!/bin/bash
+set -e
+
+# Create .env file for MCP servers if environment variables are set
+if [ -n "$CHRONICLE_PROJECT_ID" ]; then
+    cat > /app/external/mcp-security/.env <<ENVFILE
+CHRONICLE_PROJECT_ID=${CHRONICLE_PROJECT_ID}
+CHRONICLE_CUSTOMER_ID=${CHRONICLE_CUSTOMER_ID}
+CHRONICLE_REGION=${CHRONICLE_REGION:-us}
+SOAR_URL=${SOAR_URL}
+SOAR_APP_KEY=${SOAR_APP_KEY}
+VT_APIKEY=${VT_APIKEY}
+GOOGLE_API_KEY=${GOOGLE_API_KEY}
+ENVFILE
+    echo "Created MCP .env file with credentials"
+fi
+
+cd /app/multi-agent
+
+if [ "$1" = "web" ]; then
+    echo "Starting ADK web interface..."
+    adk web
+else
+    echo "Starting ADK manager agent..."
+    adk run manager
+fi
+EOF
+RUN chmod +x /app/entrypoint.sh
+
+# Default command runs the manager agent
+ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["run"]
