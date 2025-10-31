@@ -18,6 +18,17 @@ ADK Runbooks implements a manager-orchestrated multi-agent system where speciali
 - **MCP Tool Integration**: Leverages Model Context Protocol (MCP) for security tool integration
 - **Flexible Deployment**: Can run standalone or integrate with existing security orchestration platforms
 
+### Agent Architecture
+
+The system follows a **Hierarchical Multi-Agent System** pattern with key design patterns:
+
+- **Deferred Initialization**: Lazy loading of expensive resources for optimal performance
+- **Shared Resource Pattern**: MCP tools initialized once and shared across all agents
+- **Configuration-Driven**: Agent behavior defined in markdown files, not code
+- **Hierarchical Delegation**: Clear chain of command from manager to specialized workers
+
+For detailed information about the agent implementation patterns, see the [Multi-Agent Overview](https://dandye.github.io/adk_runbooks/multi_agent_overview.html) in our documentation.
+
 ## Security Agents
 
 The system includes specialized agents organized by security function:

@@ -1,0 +1,49 @@
+# Google ADK and AI
+google-genai>=0.3.0
+google-adk~=1.3.0
+
+# MCP Security Tools (installed from external/mcp-security)
+# Install with: pip install -e ../external/mcp-security/server/secops
+# Install with: pip install -e ../external/mcp-security/server/gti
+# Install with: pip install -e ../external/mcp-security/server/secops-soar
+# Install with: pip install -e ../external/mcp-security/server/scc
+
+# Google Cloud dependencies (for MCP tools)
+google-cloud-core>=2.4.1
+google-auth>=2.23.0
+google-auth-oauthlib>=1.0.0
+google-auth-httplib2>=0.1.1
+
+# Async support
+aiofiles>=23.2.1
+asyncio>=3.4.3
+
+# Data handling
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# Utilities
+python-dotenv>=1.0.0
+pathlib>=1.0.1
+uuid>=1.30
+
+# Web monitoring interface
+flask>=2.3.0
+
+# Date/time handling
+python-dateutil>=2.8.2
+
+# Logging
+colorlog>=6.8.0
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.1
+pytest-mock>=3.12.0
+
+# Documentation
+markdown>=3.5.0
+
+# Optional: for PDF report generation
+# reportlab>=4.0.0
+# weasyprint>=60.0

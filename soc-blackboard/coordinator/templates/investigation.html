@@ -1,0 +1,3276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Investigation Details - {{ investigation_id }}</title>
+    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+        
+        header {
+            background: #1a1a1a;
+            color: white;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+        }
+        
+        header h1 {
+            font-size: 1.5rem;
+            font-weight: 500;
+        }
+        
+        .back-link {
+            color: #64B5F6;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+        }
+        
+        .back-link:hover {
+            color: #90CAF9;
+        }
+        
+        .investigation-header {
+            background: white;
+            padding: 2rem;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        
+        .header-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 1rem;
+        }
+        
+        .investigation-title {
+            font-size: 2rem;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .status-badge {
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.875rem;
+        }
+        
+        .status-active { 
+            background: #E8F5E9; 
+            color: #2E7D32;
+        }
+        
+        .status-completed { 
+            background: #E3F2FD; 
+            color: #1565C0;
+        }
+        
+        .status-failed { 
+            background: #FFEBEE; 
+            color: #C62828;
+        }
+        
+        .metadata {
+            display: flex;
+            gap: 3rem;
+            color: #666;
+            font-size: 0.875rem;
+        }
+        
+        .metadata-item strong {
+            color: #333;
+        }
+        
+        .content-tabs {
+            background: white;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            padding: 0 2rem;
+        }
+        
+        .tab {
+            padding: 1rem 1.5rem;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+            font-weight: 500;
+            color: #666;
+            transition: all 0.2s ease;
+        }
+        
+        .tab:hover {
+            color: #333;
+        }
+        
+        .tab.active {
+            color: #1976D2;
+            border-bottom-color: #1976D2;
+        }
+        
+        .tab-content {
+            padding: 2rem;
+            background: white;
+            min-height: 500px;
+        }
+        
+        .tab-panel {
+            display: none;
+        }
+        
+        .tab-panel.active {
+            display: block;
+        }
+        
+        /* Data Flow Diagram Styles */
+        .dataflow-container {
+            padding: 1rem;
+        }
+        
+        .dataflow-container h3 {
+            margin-bottom: 1rem;
+            color: #333;
+        }
+        
+        #dataflow-diagram {
+            background: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .dataflow-legend {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 1rem;
+        }
+        
+        .dataflow-legend h4 {
+            margin: 0 0 0.5rem 0;
+            color: #666;
+            font-size: 0.9rem;
+        }
+        
+        .legend-items {
+            display: flex;
+            gap: 2rem;
+            flex-wrap: wrap;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+            color: #666;
+        }
+        
+        /* SVG Styles */
+        .agent-node {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .agent-node:hover {
+            opacity: 0.8;
+        }
+        
+        .agent-label {
+            font-size: 14px;
+            font-family: Arial, sans-serif;
+            pointer-events: none;
+        }
+        
+        .data-flow-arrow {
+            fill: none;
+            stroke: #666;
+            stroke-width: 2;
+            marker-end: url(#arrowhead);
+        }
+        
+        .data-flow-label {
+            font-size: 12px;
+            fill: #666;
+            font-family: Arial, sans-serif;
+        }
+        
+        /* Timeline styles */
+        #timeline-chart {
+            width: 100%;
+            min-height: 500px;
+            overflow: auto;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        #timeline-chart .google-visualization-gantt-chart {
+            background: transparent !important;
+        }
+        
+        #timeline-chart svg {
+            background: transparent !important;
+        }
+        
+        /* Aggressively target all blue backgrounds in the Gantt chart */
+        #timeline-chart svg rect[fill*="blue"],
+        #timeline-chart svg rect[fill="#cfe2f3"],
+        #timeline-chart svg rect[fill="#2196F3"],
+        #timeline-chart svg rect[fill="#4285f4"] {
+            fill: transparent !important;
+            fill-opacity: 0 !important;
+        }
+        
+        /* Target large background rectangles that might be track backgrounds */
+        #timeline-chart svg rect[width]:not([width="0"]):not([width="1"]):not([width="2"]) {
+            /* Check if this is a track background by size */
+        }
+        
+        #timeline-chart .google-visualization-gantt-track {
+            background: transparent !important;
+        }
+        
+        .timeline-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .timeline-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .timeline-legend {
+            display: flex;
+            gap: 1.5rem;
+            font-size: 0.875rem;
+        }
+        
+        .timeline-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+        
+        .legend-completed { background: #4CAF50; }
+        .legend-in-progress { background: #FF9800; }
+        .legend-failed { background: #F44336; }
+        .legend-pending { background: #2196F3; }
+        
+        .parallel-indicator {
+            font-size: 0.8em;
+            color: #666;
+            font-style: italic;
+        }
+        
+        /* Activities styles */
+        .activities-container {
+            max-width: 1200px;
+        }
+        
+        .activity-filters {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .filter-select {
+            padding: 0.5rem 1rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+            font-size: 0.875rem;
+        }
+        
+        .activities-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        
+        .activity-card {
+            background: #f8f8f8;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 1rem;
+            display: grid;
+            grid-template-columns: 150px 1fr auto;
+            gap: 1rem;
+            align-items: start;
+        }
+        
+        .activity-agent {
+            font-weight: 600;
+            color: #1976D2;
+        }
+        
+        .activity-details {
+            flex: 1;
+        }
+        
+        .activity-task {
+            font-size: 0.875rem;
+            color: #666;
+            margin-bottom: 0.25rem;
+        }
+        
+        .activity-description {
+            color: #333;
+            line-height: 1.4;
+        }
+        
+        .activity-status {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 0.25rem;
+        }
+        
+        .status-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.875rem;
+        }
+        
+        .status-completed {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .status-failed {
+            background: #f44336;
+            color: white;
+        }
+        
+        .status-started,
+        .status-in_progress {
+            background: #FF9800;
+            color: white;
+        }
+        
+        .activity-duration {
+            font-size: 0.75rem;
+            color: #999;
+        }
+        
+        /* Blackboard styles */
+        .blackboard-summary {
+            padding: 1rem;
+        }
+        
+        .investigation-metadata {
+            background: #f0f7ff;
+            border: 1px solid #d0e3f5;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            max-height: none;
+            overflow: visible;
+        }
+        
+        .investigation-metadata h3 {
+            color: #1976d2;
+            margin-bottom: 1rem;
+            font-size: 1.25rem;
+        }
+        
+        .metadata-content {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            max-height: none;
+            overflow: visible;
+        }
+        
+        .metadata-item {
+            font-size: 0.95rem;
+            line-height: 1.5;
+            margin-bottom: 0.5rem;
+        }
+        
+        .metadata-section {
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border-left: 3px solid #1976d2;
+        }
+        
+        .metadata-section-title {
+            font-weight: 600;
+            color: #1976d2;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+        }
+        
+        .priority-high {
+            color: #d32f2f;
+            font-weight: 600;
+            background: #ffebee;
+            padding: 0.125rem 0.5rem;
+            border-radius: 3px;
+        }
+        
+        .priority-medium {
+            color: #f57c00;
+            font-weight: 600;
+            background: #fff8e1;
+            padding: 0.125rem 0.5rem;
+            border-radius: 3px;
+        }
+        
+        .priority-low {
+            color: #388e3c;
+            font-weight: 600;
+            background: #e8f5e9;
+            padding: 0.125rem 0.5rem;
+            border-radius: 3px;
+        }
+        
+        .status-active {
+            color: #388e3c;
+            font-weight: 600;
+            background: #e8f5e9;
+            padding: 0.125rem 0.5rem;
+            border-radius: 3px;
+        }
+        
+        .status-completed {
+            color: #1976d2;
+            font-weight: 600;
+            background: #e3f2fd;
+            padding: 0.125rem 0.5rem;
+            border-radius: 3px;
+        }
+        
+        .status-failed {
+            color: #d32f2f;
+            font-weight: 600;
+            background: #ffebee;
+            padding: 0.125rem 0.5rem;
+            border-radius: 3px;
+        }
+        
+        .indicators-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+            margin-left: 1rem;
+            max-height: none;
+            overflow: visible;
+        }
+        
+        .indicator-item {
+            font-size: 0.9rem;
+            line-height: 1.4;
+            color: #555;
+            background: #f8f9fa;
+            padding: 0.25rem 0.5rem;
+            border-radius: 3px;
+            border-left: 3px solid #1976d2;
+        }
+        
+        @media (max-width: 768px) {
+            .indicators-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .error-item {
+            background: #ffebee;
+            border: 1px solid #ef5350;
+            padding: 0.75rem;
+            border-radius: 4px;
+            margin: 0.5rem 0;
+        }
+        
+        .error-item strong {
+            color: #d32f2f;
+        }
+        
+        .findings-section {
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            overflow: hidden;
+        }
+        
+        .findings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.5rem;
+            background: #f8f8f8;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .findings-header:hover {
+            background: #f0f0f0;
+        }
+        
+        .findings-area {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 500;
+            color: #333;
+            text-transform: capitalize;
+        }
+        
+        .toggle-icon {
+            font-size: 0.75rem;
+            transition: transform 0.2s;
+        }
+        
+        .findings-count {
+            background: #1976d2;
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+        
+        .findings-details {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid #e0e0e0;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        
+        .findings-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .finding-item {
+            background: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 1rem;
+        }
+        
+        .finding-header {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 0.5rem;
+        }
+        
+        .finding-body {
+            font-size: 0.9rem;
+            color: #555;
+        }
+        
+        .finding-text {
+            margin-bottom: 0.75rem;
+            line-height: 1.5;
+        }
+        
+        .finding-meta {
+            font-size: 0.85rem;
+            color: #666;
+            margin-top: 0.25rem;
+        }
+        
+        .enrichment-detail {
+            margin: 0.5rem 0;
+            padding-left: 1rem;
+        }
+        
+        .agent-tag {
+            background: #e3f2fd;
+            color: #1565c0;
+            padding: 0.125rem 0.5rem;
+            border-radius: 3px;
+            font-size: 0.75rem;
+            margin-left: 0.5rem;
+        }
+        
+        .timeline {
+            position: relative;
+            padding-left: 2rem;
+        }
+        
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 0.5rem;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #e0e0e0;
+        }
+        
+        .timeline-event {
+            position: relative;
+            margin-bottom: 1.5rem;
+        }
+        
+        .timeline-event::before {
+            content: '';
+            position: absolute;
+            left: -1.5rem;
+            top: 0.5rem;
+            width: 8px;
+            height: 8px;
+            background: #1976d2;
+            border-radius: 50%;
+        }
+        
+        .timeline-time {
+            font-size: 0.85rem;
+            color: #666;
+            margin-bottom: 0.25rem;
+        }
+        
+        .timeline-content {
+            background: #f8f9fa;
+            padding: 0.75rem;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        
+        .event-details {
+            line-height: 1.5;
+        }
+        
+        .event-type {
+            color: #1565c0;
+            font-size: 1rem;
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+        
+        .event-description {
+            margin: 0.5rem 0;
+        }
+        
+        .event-details p {
+            margin: 0.25rem 0;
+        }
+        
+        .event-extra-details {
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+        }
+        
+        .event-extra-details ul {
+            margin: 0.25rem 0 0 1.5rem;
+        }
+        
+        .event-metadata {
+            margin-top: 0.5rem;
+            font-size: 0.85rem;
+            width: 100%;
+        }
+        
+        .event-metadata th {
+            text-align: left;
+            padding: 0.2rem 0.5rem 0.2rem 0;
+            font-weight: 600;
+            white-space: nowrap;
+            vertical-align: top;
+        }
+        
+        .event-metadata td {
+            padding: 0.2rem 0;
+        }
+        
+        .risk-scores {
+            background: #FFF3E0;
+            border: 1px solid #FFE0B2;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-top: 2rem;
+        }
+        
+        .risk-scores h3 {
+            color: #E65100;
+            margin-bottom: 1rem;
+        }
+        
+        .risk-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+        
+        .risk-item {
+            padding: 1rem;
+            border-radius: 6px;
+            text-align: center;
+        }
+        
+        .risk-item.high {
+            background: #ffebee;
+            border: 1px solid #ef5350;
+        }
+        
+        .risk-item.medium {
+            background: #fff8e1;
+            border: 1px solid #ffa726;
+        }
+        
+        .risk-item.low {
+            background: #e8f5e9;
+            border: 1px solid #66bb6a;
+        }
+        
+        .risk-label {
+            font-size: 0.875rem;
+            color: #666;
+            margin-bottom: 0.5rem;
+            text-transform: capitalize;
+        }
+        
+        .risk-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        
+        .no-findings {
+            text-align: center;
+            color: #666;
+            padding: 2rem;
+        }
+        
+        .investigation-question {
+            border-left: 4px solid #2196f3;
+            background: #f3f8ff;
+        }
+        
+        .question-text {
+            font-style: italic;
+            margin-bottom: 0.75rem;
+            line-height: 1.6;
+            color: #1565c0;
+        }
+        
+        .question-content {
+            margin-bottom: 0.5rem;
+        }
+        
+        .question-content p {
+            margin: 0.5rem 0;
+        }
+        
+        .question-rationale {
+            color: #666;
+            font-size: 0.95rem;
+        }
+        
+        .question-areas, .question-evidence {
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+        }
+        
+        .question-areas ul, .question-evidence ul {
+            margin: 0.25rem 0 0 1.5rem;
+        }
+        
+        .question-details {
+            margin-top: 0.5rem;
+        }
+        
+        .sub-question {
+            margin-left: 2rem;
+            border-left-width: 2px;
+            opacity: 0.95;
+        }
+        
+        .sub-question .finding-header {
+            font-size: 0.9rem;
+            color: #1976d2;
+        }
+        
+        .endpoint-behavior {
+            border-left: 4px solid #ff9800;
+            background: #fff8e1;
+        }
+        
+        .behavior-details {
+            margin-bottom: 0.75rem;
+            line-height: 1.6;
+        }
+        
+        .behavior-details strong {
+            color: #e65100;
+        }
+        
+        /* IoC Enrichment styles */
+        .ioc-enrichment {
+            border-left: 4px solid #9c27b0;
+            background: #f9f0ff;
+        }
+        
+        .ioc-enrichment .finding-header {
+            color: #6a1b9a;
+            font-weight: 600;
+        }
+        
+        .enrichment-content {
+            margin-bottom: 0.75rem;
+            line-height: 1.6;
+        }
+        
+        .enrichment-detail {
+            margin: 0.5rem 0;
+            padding-left: 1rem;
+        }
+        
+        .enrichment-detail strong {
+            color: #6a1b9a;
+        }
+        
+        /* HTML finding styles */
+        .finding-content {
+            line-height: 1.6;
+        }
+        
+        .finding-content code {
+            background: #f5f5f5;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+        
+        .finding-content pre {
+            background: #f5f5f5;
+            padding: 0.5rem;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 0.85em;
+        }
+        
+        .finding-table {
+            width: 100%;
+            margin-top: 0.5rem;
+            border-collapse: collapse;
+        }
+        
+        .finding-table th {
+            text-align: left;
+            padding: 0.25rem 0.5rem;
+            background: #f5f5f5;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        
+        .finding-table td {
+            padding: 0.25rem 0.5rem;
+            border-top: 1px solid #e0e0e0;
+        }
+        
+        .evidence-ref {
+            color: #1976d2;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+        
+        .risk-high {
+            color: #d32f2f;
+            font-weight: bold;
+        }
+        
+        .risk-medium {
+            color: #f57c00;
+            font-weight: bold;
+        }
+        
+        .risk-low {
+            color: #388e3c;
+            font-weight: bold;
+        }
+        
+        .ioc-value {
+            font-family: monospace;
+            background: #f5f5f5;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 3rem;
+            color: #666;
+        }
+        
+        .error {
+            background: #FFEBEE;
+            color: #C62828;
+            padding: 1rem;
+            border-radius: 4px;
+            margin: 1rem 0;
+        }
+        
+        /* Questions styles */
+        .questions-container {
+            max-width: 1200px;
+        }
+        
+        .questions-header {
+            background: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .questions-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .stat-card {
+            text-align: center;
+            padding: 1rem;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+        }
+        
+        .stat-number {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #1976D2;
+        }
+        
+        .stat-label {
+            font-size: 0.875rem;
+            color: #666;
+            margin-top: 0.25rem;
+        }
+        
+        .questions-filters {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            align-items: center;
+        }
+        
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+        
+        .filter-label {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .question-view-toggle {
+            display: flex;
+            background: #e0e0e0;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-left: auto;
+        }
+        
+        .view-toggle-btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            font-size: 0.875rem;
+            color: #666;
+            transition: all 0.2s ease;
+        }
+        
+        .view-toggle-btn.active {
+            background: #1976D2;
+            color: white;
+        }
+        
+        .questions-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .question-card {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .question-card.sub-question {
+            margin-left: 2rem;
+            border-left: 3px solid #2196f3;
+            background: #f3f8ff;
+        }
+        
+        .parent-ref {
+            font-size: 0.8rem;
+            color: #666;
+            margin-left: 0.5rem;
+        }
+        
+        .no-questions-message {
+            text-align: center;
+            padding: 40px 20px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .no-questions-message h3 {
+            color: #666;
+            margin-bottom: 10px;
+        }
+        
+        .processing-errors {
+            margin-top: 20px;
+            padding: 15px;
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 5px;
+            text-align: left;
+        }
+        
+        .processing-errors h4 {
+            color: #856404;
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+        
+        .processing-errors ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+        
+        .processing-errors li {
+            color: #856404;
+            margin-bottom: 5px;
+        }
+        
+        .question-header {
+            padding: 1rem;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .question-meta {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        
+        .question-id {
+            font-weight: 600;
+            color: #1976D2;
+        }
+        
+        .question-category {
+            background: #E3F2FD;
+            color: #1565C0;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+        
+        .question-priority {
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+        
+        .priority-critical {
+            background: #FFEBEE;
+            color: #C62828;
+        }
+        
+        .priority-high {
+            background: #FFF3E0;
+            color: #E65100;
+        }
+        
+        .priority-medium {
+            background: #F3E5F5;
+            color: #7B1FA2;
+        }
+        
+        .priority-low {
+            background: #E8F5E9;
+            color: #2E7D32;
+        }
+        
+        .question-body {
+            padding: 1rem;
+        }
+        
+        .question-text {
+            font-size: 1rem;
+            color: #333;
+            margin-bottom: 0.75rem;
+            font-weight: 500;
+        }
+        
+        .question-rationale {
+            font-size: 0.875rem;
+            color: #666;
+            margin-bottom: 1rem;
+            font-style: italic;
+        }
+        
+        .question-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            font-size: 0.875rem;
+        }
+        
+        .detail-group h4 {
+            color: #333;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+        
+        .detail-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.25rem;
+        }
+        
+        .detail-tag {
+            background: #f5f5f5;
+            color: #666;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+        }
+        
+        .tool-mappings {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e0e0e0;
+        }
+        
+        .tool-mappings h4 {
+            color: #1976D2;
+            margin-bottom: 0.75rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+        
+        .tools-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+        
+        .tool-category {
+            background: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 0.75rem;
+        }
+        
+        .tool-category h5 {
+            color: #333;
+            margin-bottom: 0.5rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .tool-item {
+            font-size: 0.75rem;
+            color: #666;
+            margin-bottom: 0.25rem;
+        }
+        
+        .tool-relevance {
+            color: #1976D2;
+            font-weight: 500;
+        }
+        
+        .tool-wishlist {
+            background: #FFF8E1;
+            border: 1px solid #FFE082;
+            border-radius: 6px;
+            padding: 0.75rem;
+            margin-top: 0.75rem;
+        }
+        
+        .wishlist-item {
+            font-size: 0.75rem;
+            color: #F57F17;
+            margin-bottom: 0.25rem;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <a href="/" class="back-link">← Back to Dashboard</a>
+        <h1>Investigation Details</h1>
+    </header>
+    
+    <div class="investigation-header">
+        <div class="header-info">
+            <h2 class="investigation-title" id="investigation-title">Loading...</h2>
+            <span class="status-badge" id="status-badge"></span>
+        </div>
+        <div class="metadata" id="metadata">
+            <!-- Metadata will be inserted here -->
+        </div>
+    </div>
+    
+    <div class="content-tabs">
+        <div class="tab active" data-tab="timeline">Timeline</div>
+        <div class="tab" data-tab="activities">Activities</div>
+        <div class="tab" data-tab="questions">Questions</div>
+        <div class="tab" data-tab="blackboard">Blackboard</div>
+        <div class="tab" data-tab="dataflow">Agent Data Flow</div>
+    </div>
+    
+    <div class="tab-content">
+        <div class="tab-panel active" id="timeline-panel">
+            <div class="timeline-header" style="display: none;" id="timeline-header">
+                <div class="timeline-title">Investigation Timeline</div>
+                <div class="timeline-legend">
+                    <div class="timeline-legend-item">
+                        <div class="legend-color legend-completed"></div>
+                        <span>Completed</span>
+                    </div>
+                    <div class="timeline-legend-item">
+                        <div class="legend-color legend-in-progress"></div>
+                        <span>In Progress</span>
+                    </div>
+                    <div class="timeline-legend-item">
+                        <div class="legend-color legend-failed"></div>
+                        <span>Failed</span>
+                    </div>
+                    <div class="timeline-legend-item">
+                        <div class="legend-color legend-pending"></div>
+                        <span>Pending</span>
+                    </div>
+                </div>
+            </div>
+            <div id="timeline-chart" class="loading">Loading timeline...</div>
+        </div>
+        
+        <div class="tab-panel" id="activities-panel">
+            <div class="activities-container">
+                <div class="activity-filters">
+                    <select class="filter-select" id="agent-filter">
+                        <option value="">All Agents</option>
+                    </select>
+                    <select class="filter-select" id="status-filter">
+                        <option value="">All Statuses</option>
+                        <option value="started">Started</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="completed">Completed</option>
+                        <option value="failed">Failed</option>
+                    </select>
+                </div>
+                <div class="activities-list" id="activities-list">
+                    <div class="loading">Loading activities...</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="tab-panel" id="questions-panel">
+            <div class="questions-container">
+                <div class="questions-header" id="questions-header">
+                    <div class="loading">Loading questions...</div>
+                </div>
+                <div class="questions-content" id="questions-content">
+                    <!-- Questions will be loaded here -->
+                </div>
+            </div>
+        </div>
+        
+        <div class="tab-panel" id="blackboard-panel">
+            <div class="blackboard-summary" id="blackboard-summary">
+                <div class="loading">Loading blackboard data...</div>
+            </div>
+        </div>
+        
+        <div class="tab-panel" id="dataflow-panel">
+            <div class="dataflow-container">
+                <h3>SOC Blackboard Agent Data Flow</h3>
+                <div id="dataflow-diagram">
+                    <svg width="100%" height="600" viewBox="0 0 1200 600" id="dataflow-svg">
+                        <!-- SVG content will be dynamically generated -->
+                    </svg>
+                </div>
+                <div class="dataflow-legend">
+                    <h4>Legend</h4>
+                    <div class="legend-items">
+                        <div class="legend-item">
+                            <svg width="20" height="20"><rect width="20" height="20" fill="#2196F3"></rect></svg>
+                            <span>Coordinator</span>
+                        </div>
+                        <div class="legend-item">
+                            <svg width="20" height="20"><rect width="20" height="20" fill="#4CAF50"></rect></svg>
+                            <span>Investigators</span>
+                        </div>
+                        <div class="legend-item">
+                            <svg width="20" height="20"><rect width="20" height="20" fill="#FF9800"></rect></svg>
+                            <span>Synthesizers</span>
+                        </div>
+                        <div class="legend-item">
+                            <svg width="20" height="20"><rect width="20" height="20" fill="#9C27B0"></rect></svg>
+                            <span>Blackboard</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Get investigation ID from template
+        const investigationId = '{{ investigation_id }}';
+        
+        // Global data
+        let investigationData = null;
+        let activitiesData = null;
+        let blackboardData = null;
+        let questionsData = null;
+        
+        // Load Google Charts
+        google.charts.load('current', {'packages':['gantt']});
+        
+        // Tab handling
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                // Update active tab
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                
+                // Update active panel
+                const tabName = tab.dataset.tab;
+                document.querySelectorAll('.tab-panel').forEach(panel => {
+                    panel.classList.remove('active');
+                });
+                document.getElementById(`${tabName}-panel`).classList.add('active');
+                
+                // Load data if needed
+                if (tabName === 'timeline' && activitiesData && !document.querySelector('#timeline-chart .loading')) {
+                    drawTimeline();
+                } else if (tabName === 'activities' && !activitiesData) {
+                    loadActivities();
+                } else if (tabName === 'questions' && !questionsData) {
+                    loadQuestions();
+                } else if (tabName === 'blackboard' && !blackboardData) {
+                    loadBlackboard();
+                }
+            });
+        });
+        
+        // Filter handling
+        document.getElementById('agent-filter').addEventListener('change', filterActivities);
+        document.getElementById('status-filter').addEventListener('change', filterActivities);
+        
+        function filterActivities() {
+            const agentFilter = document.getElementById('agent-filter').value;
+            const statusFilter = document.getElementById('status-filter').value;
+            
+            document.querySelectorAll('.activity-card').forEach(card => {
+                const agent = card.dataset.agent;
+                const status = card.dataset.status;
+                
+                const show = (!agentFilter || agent === agentFilter) && 
+                           (!statusFilter || status === statusFilter);
+                
+                card.style.display = show ? 'grid' : 'none';
+            });
+        }
+        
+        // Load investigation details
+        async function loadInvestigation() {
+            try {
+                const response = await fetch(`/api/investigations/${investigationId}`);
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load investigation');
+                }
+                
+                investigationData = data.investigation;
+                updateHeader();
+                
+                // Load activities for timeline
+                await loadActivities();
+                
+            } catch (error) {
+                console.error('Error loading investigation:', error);
+                document.getElementById('investigation-title').textContent = 'Error loading investigation';
+            }
+        }
+        
+        function updateHeader() {
+            if (!investigationData) return;
+            
+            // Update title and status
+            document.getElementById('investigation-title').textContent = investigationData.case_id;
+            
+            const statusBadge = document.getElementById('status-badge');
+            statusBadge.textContent = investigationData.status;
+            statusBadge.className = `status-badge status-${investigationData.status}`;
+            
+            // Update metadata
+            const runtime = calculateRuntime(investigationData.started_at);
+            const metadata = document.getElementById('metadata');
+            metadata.innerHTML = `
+                <div class="metadata-item">
+                    <strong>Phase:</strong> ${investigationData.phase}
+                </div>
+                <div class="metadata-item">
+                    <strong>Runtime:</strong> ${runtime}
+                </div>
+                <div class="metadata-item">
+                    <strong>Findings:</strong> ${investigationData.total_findings}
+                </div>
+                <div class="metadata-item">
+                    <strong>Active Agents:</strong> ${investigationData.active_agents.length}
+                </div>
+            `;
+        }
+        
+        function calculateRuntime(startTime) {
+            const start = new Date(startTime);
+            const now = new Date();
+            const diff = now - start;
+            
+            const hours = Math.floor(diff / 3600000);
+            const minutes = Math.floor((diff % 3600000) / 60000);
+            
+            if (hours > 0) {
+                return `${hours}h ${minutes}m`;
+            } else {
+                return `${minutes}m`;
+            }
+        }
+        
+        // Load activities
+        async function loadActivities() {
+            try {
+                const response = await fetch(`/api/investigations/${investigationId}/activities`);
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load activities');
+                }
+                
+                activitiesData = data;
+                
+                // Draw timeline if it's the active tab
+                if (document.getElementById('timeline-panel').classList.contains('active')) {
+                    drawTimeline();
+                }
+                
+                // Populate activities list
+                populateActivities();
+                
+            } catch (error) {
+                console.error('Error loading activities:', error);
+                document.getElementById('timeline-chart').innerHTML = `<div class="error">Error loading timeline: ${error.message}</div>`;
+                document.getElementById('activities-list').innerHTML = `<div class="error">Error loading activities: ${error.message}</div>`;
+            }
+        }
+        
+        function drawTimeline() {
+            console.log('drawTimeline called');
+            
+            if (!activitiesData || !activitiesData.gantt_data || activitiesData.gantt_data.length === 0) {
+                console.log('No timeline data available');
+                document.getElementById('timeline-chart').innerHTML = '<div class="loading">No timeline data available</div>';
+                return;
+            }
+            
+            console.log('Timeline data found, activities:', activitiesData.gantt_data.length);
+            
+            // Check if Google Charts is loaded
+            if (typeof google === 'undefined' || !google.charts) {
+                console.error('Google Charts not loaded');
+                document.getElementById('timeline-chart').innerHTML = '<div class="error">Google Charts failed to load</div>';
+                return;
+            }
+            
+            // Add timeout to prevent hanging
+            setTimeout(() => {
+                const timelineElement = document.getElementById('timeline-chart');
+                if (timelineElement && timelineElement.innerHTML.includes('Loading timeline')) {
+                    console.warn('Timeline loading timeout');
+                    timelineElement.innerHTML = '<div class="error">Timeline loading timeout - check console for errors</div>';
+                }
+            }, 10000); // 10 second timeout
+            
+            // Ensure Google Charts Gantt package is loaded before drawing
+            if (!google.visualization || !google.visualization.Gantt) {
+                console.log('Loading Gantt package...');
+                google.charts.load('current', {'packages': ['gantt']});
+                google.charts.setOnLoadCallback(() => {
+                    drawTimelineInternal();
+                });
+                return;
+            }
+            
+            drawTimelineInternal();
+        }
+        
+        function drawTimelineInternal() {
+            console.log('drawTimelineInternal called');
+            
+                const dataTable = new google.visualization.DataTable();
+                dataTable.addColumn('string', 'Task ID');
+                dataTable.addColumn('string', 'Task Name');
+                dataTable.addColumn('string', 'Agent');
+                dataTable.addColumn('date', 'Start');
+                dataTable.addColumn('date', 'End');
+                dataTable.addColumn('number', 'Duration');
+                dataTable.addColumn('number', 'Percent Complete');
+                dataTable.addColumn('string', 'Dependencies');
+                
+                // Sort tasks by start time to show temporal sequence
+                const sortedTasks = [...activitiesData.gantt_data].sort((a, b) => {
+                    const aStart = a.relative_start_seconds || 0;
+                    const bStart = b.relative_start_seconds || 0;
+                    return aStart - bStart;
+                });
+                
+                console.log('Timeline Debug: First 5 sorted tasks:');
+                for (let i = 0; i < Math.min(5, sortedTasks.length); i++) {
+                    const task = sortedTasks[i];
+                    console.log(`${i}: ${task.task} - Start: ${task.relative_start_seconds}s, End: ${task.relative_end_seconds}s`);
+                }
+                
+                // Group tasks that overlap in time to show parallel execution
+                const taskGroups = [];
+                let currentGroup = [];
+                
+                sortedTasks.forEach((task, index) => {
+                    if (index === 0) {
+                        currentGroup.push(task);
+                    } else {
+                        const prevTask = sortedTasks[index - 1];
+                        const taskStart = task.relative_start_seconds || 0;
+                        const prevEnd = prevTask.relative_end_seconds || prevTask.relative_start_seconds || 0;
+                        
+                        // If this task starts before the previous one ends (with 5s buffer), it's parallel
+                        if (taskStart < prevEnd + 5) {
+                            currentGroup.push(task);
+                        } else {
+                            // Start a new group
+                            taskGroups.push([...currentGroup]);
+                            currentGroup = [task];
+                        }
+                    }
+                });
+                
+                if (currentGroup.length > 0) {
+                    taskGroups.push(currentGroup);
+                }
+                
+                // Convert grouped data to Google Charts format with proper timing
+                const investigationStart = sortedTasks[0]?.investigation_start ? 
+                    new Date(sortedTasks[0].investigation_start) : new Date();
+                
+                console.log('Investigation start time:', investigationStart);
+                
+                // Calculate total investigation time for better scaling
+                const totalTimeSeconds = Math.max(...sortedTasks.map(t => t.relative_end_seconds || t.relative_start_seconds || 0));
+                const totalTimeMinutes = Math.ceil(totalTimeSeconds / 60);
+                
+                console.log('Total time span:', totalTimeMinutes, 'minutes');
+                console.log('Date range:', new Date(investigationStart.getTime()), 'to', new Date(investigationStart.getTime() + totalTimeSeconds * 1000));
+                
+                const rows = [];
+                let taskCounter = 0;
+                
+                taskGroups.forEach((group, groupIndex) => {
+                    group.forEach((task, taskIndex) => {
+                        const startTime = new Date(investigationStart.getTime() + (task.relative_start_seconds || 0) * 1000);
+                        const endTime = new Date(investigationStart.getTime() + (task.relative_end_seconds || task.relative_start_seconds || 0) * 1000);
+                        
+                        if (taskCounter < 3) {
+                            console.log(`Task ${taskCounter}: ${task.task}`);
+                            console.log(`  Relative start: ${task.relative_start_seconds}s`);
+                            console.log(`  Calculated start time: ${startTime.toLocaleTimeString()}`);
+                            console.log(`  Start date object:`, startTime);
+                            console.log(`  End date object:`, endTime);
+                        }
+                        
+                        const percentComplete = task.status === 'completed' ? 100 : 
+                                              task.status === 'failed' ? 0 : 
+                                              task.status === 'in_progress' ? 50 : 25;
+                        
+                        // Create task name showing parallelism
+                        const parallelIndicator = group.length > 1 ? ` (${taskIndex + 1}/${group.length})` : '';
+                        const taskName = `${task.task}${parallelIndicator}`;
+                        
+                        rows.push([
+                            `Task${taskCounter++}`,
+                            taskName,
+                            task.agent,
+                            startTime,
+                            endTime,
+                            null,
+                            percentComplete,
+                            null
+                        ]);
+                    });
+                });
+                
+                dataTable.addRows(rows);
+                
+                // Define status-based colors matching the data flow diagram
+                const statusColors = {
+                    'completed': '#4CAF50',    // Green (like the agents)
+                    'in_progress': '#FF9800',  // Orange (like correlation/report)
+                    'failed': '#F44336',       // Red
+                    'started': '#2196F3',      // Blue (like coordinator)
+                    'pending': '#9E9E9E'       // Grey
+                };
+                
+                const options = {
+                    height: Math.max(400, rows.length * 35),
+                    backgroundColor: 'transparent',
+                    gantt: {
+                        trackHeight: 30,
+                        criticalPathEnabled: false,
+                        innerGridTrack: {fill: 'transparent'},
+                        innerGridDarkTrack: {fill: 'transparent'},
+                        shadowEnabled: false,
+                        labelStyle: {
+                            fontName: 'Arial',
+                            fontSize: 11,
+                            color: '#333'
+                        },
+                        arrow: {
+                            angle: 100,
+                            length: 5,
+                            spaceAfter: 4
+                        }
+                    },
+                    hAxis: {
+                        format: 'none', // We'll use custom formatting
+                        title: `Elapsed Time (Investigation started at ${investigationStart.toLocaleTimeString()})`,
+                        titleTextStyle: {
+                            color: '#666',
+                            fontSize: 12
+                        },
+                        gridlines: {
+                            count: Math.max(3, Math.min(6, Math.floor(totalTimeMinutes / 2))),
+                            color: '#e0e0e0'
+                        },
+                        minorGridlines: {
+                            count: 1,
+                            color: '#f0f0f0'
+                        },
+                        textStyle: {
+                            color: '#666',
+                            fontSize: 10
+                        },
+                        slantedText: false,
+                        maxAlternation: 1,
+                        showTextEvery: 1,
+                        // Custom tick formatter
+                        ticks: (() => {
+                            const ticks = [];
+                            const stepSeconds = Math.max(30, Math.floor(totalTimeSeconds / 6));
+                            for (let i = 0; i <= totalTimeSeconds; i += stepSeconds) {
+                                const tickTime = new Date(investigationStart.getTime() + i * 1000);
+                                const elapsedMinutes = Math.floor(i / 60);
+                                const elapsedSeconds = i % 60;
+                                const label = elapsedMinutes > 0 ? 
+                                    `+${elapsedMinutes}m ${elapsedSeconds}s` : 
+                                    `+${elapsedSeconds}s`;
+                                ticks.push({v: tickTime, f: label});
+                            }
+                            return ticks;
+                        })()
+                    },
+                    tooltip: {
+                        isHtml: true
+                    }
+                };
+                
+                const chart = new google.visualization.Gantt(document.getElementById('timeline-chart'));
+                
+                // Add event listener to customize colors after chart is drawn
+                google.visualization.events.addListener(chart, 'ready', function() {
+                    const svgElement = document.querySelector('#timeline-chart svg');
+                    if (svgElement) {
+                        // Debug and remove blue backgrounds
+                        const allRects = svgElement.querySelectorAll('rect');
+                        console.log('Found', allRects.length, 'rectangles in SVG');
+                        
+                        allRects.forEach((rect, index) => {
+                            const fill = rect.getAttribute('fill');
+                            const width = rect.getAttribute('width');
+                            const height = rect.getAttribute('height');
+                            
+                            // Log the first few rects to debug
+                            if (index < 5) {
+                                console.log(`Rect ${index}: fill=${fill}, width=${width}, height=${height}`);
+                            }
+                            
+                            // Remove ANY blue-ish colors and large background rectangles
+                            if (fill && (
+                                fill.toLowerCase().includes('blue') || 
+                                fill === '#cfe2f3' || 
+                                fill === '#2196F3' ||
+                                fill === '#4285f4' ||
+                                fill === '#6fa8dc' ||
+                                fill.startsWith('#') && (fill.includes('f') || fill.includes('e')) // Light blue variants
+                            )) {
+                                console.log('Removing blue rect:', fill);
+                                rect.setAttribute('fill', 'transparent');
+                                rect.setAttribute('fill-opacity', '0');
+                            }
+                            
+                            // Also remove very large rectangles that span the whole chart
+                            if (width && parseFloat(width) > 800) {
+                                console.log('Removing large background rect:', width);
+                                rect.setAttribute('fill', 'transparent');
+                                rect.setAttribute('fill-opacity', '0');
+                            }
+                        });
+                        
+                        // Find all the task bars and color them based on status
+                        const taskBars = svgElement.querySelectorAll('rect[fill]:not([fill="none"]):not([fill="transparent"])');
+                        
+                        taskBars.forEach((bar, index) => {
+                            if (index < rows.length) {
+                                const taskData = rows[index];
+                                const taskName = taskData[1].split(' (')[0];
+                                const task = sortedTasks.find(t => t.task === taskName);
+                                
+                                if (task) {
+                                    const statusColor = statusColors[task.status] || statusColors['pending'];
+                                    bar.setAttribute('fill', statusColor);
+                                    
+                                    // Add subtle gradient effect
+                                    bar.setAttribute('fill-opacity', '0.9');
+                                    bar.style.transition = 'all 0.2s ease';
+                                    
+                                    // Add hover effect
+                                    bar.addEventListener('mouseenter', function() {
+                                        this.setAttribute('fill-opacity', '1.0');
+                                    });
+                                    bar.addEventListener('mouseleave', function() {
+                                        this.setAttribute('fill-opacity', '0.9');
+                                    });
+                                }
+                            }
+                        });
+                    }
+                });
+                
+                // Add custom tooltip handler
+                google.visualization.events.addListener(chart, 'onmouseover', function(e) {
+                    if (e.row !== null && rows[e.row]) {
+                        const task = sortedTasks.find(t => t.task === rows[e.row][1].split(' (')[0]);
+                        if (task) {
+                            const tooltip = `
+                                <div style="padding: 8px; font-family: Arial;">
+                                    <strong>${task.task}</strong><br/>
+                                    Agent: ${task.agent}<br/>
+                                    Status: ${task.status}<br/>
+                                    Duration: ${task.duration || 0}s<br/>
+                                    Start: +${Math.round(task.relative_start_seconds || 0)}s<br/>
+                                    ${task.description ? `<br/>${task.description}` : ''}
+                                </div>
+                            `;
+                        }
+                    }
+                });
+                
+                try {
+                    console.log('Drawing chart with', rows.length, 'rows');
+                    chart.draw(dataTable, options);
+                    
+                    // Show the timeline header after successful render
+                    document.getElementById('timeline-header').style.display = 'flex';
+                    console.log('Chart drawn successfully');
+            } catch (error) {
+                console.error('Error drawing chart:', error);
+                document.getElementById('timeline-chart').innerHTML = `<div class="error">Error drawing timeline: ${error.message}</div>`;
+            }
+        }
+        
+        function populateActivities() {
+            if (!activitiesData || !activitiesData.activities) return;
+            
+            const activitiesList = document.getElementById('activities-list');
+            const agentFilter = document.getElementById('agent-filter');
+            
+            // Get unique agents for filter
+            const agents = [...new Set(activitiesData.activities.map(a => a.agent_name))];
+            agentFilter.innerHTML = '<option value="">All Agents</option>' + 
+                agents.map(agent => `<option value="${agent}">${agent}</option>`).join('');
+            
+            // Create activity cards
+            activitiesList.innerHTML = activitiesData.activities.map(activity => {
+                const statusIcon = getStatusIcon(activity.status);
+                const duration = activity.duration_seconds ? 
+                    `${activity.duration_seconds.toFixed(1)}s` : '';
+                
+                return `
+                    <div class="activity-card" data-agent="${activity.agent_name}" data-status="${activity.status}">
+                        <div class="activity-agent">${activity.agent_name}</div>
+                        <div class="activity-details">
+                            <div class="activity-task">${activity.task_type}</div>
+                            <div class="activity-description">${activity.description}</div>
+                        </div>
+                        <div class="activity-status">
+                            <div class="status-icon status-${activity.status}">${statusIcon}</div>
+                            ${duration ? `<div class="activity-duration">${duration}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function getStatusIcon(status) {
+            switch (status) {
+                case 'completed': return '✓';
+                case 'failed': return '✗';
+                case 'started':
+                case 'in_progress': return '⋯';
+                default: return '•';
+            }
+        }
+        
+        // Load blackboard data
+        async function loadBlackboard() {
+            try {
+                const response = await fetch(`/api/investigations/${investigationId}/blackboard`);
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load blackboard data');
+                }
+                
+                blackboardData = data;
+                displayBlackboard();
+                
+            } catch (error) {
+                console.error('Error loading blackboard:', error);
+                document.getElementById('blackboard-summary').innerHTML = 
+                    `<div class="error">Error loading blackboard data: ${error.message}</div>`;
+            }
+        }
+        
+        function displayBlackboard() {
+            if (!blackboardData) return;
+            
+            const summary = document.getElementById('blackboard-summary');
+            
+            let html = '';
+            
+            // Display investigation metadata first
+            if (blackboardData.investigation_metadata) {
+                html += `
+                    <div class="investigation-metadata">
+                        <h3>Investigation Context</h3>
+                        <div class="metadata-content">
+                            ${formatMetadata(blackboardData.investigation_metadata)}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Display findings by area with expandable details
+            if (blackboardData.full_data) {
+                for (const [area, data] of Object.entries(blackboardData.full_data)) {
+                    if (area !== 'risk_scores' && area !== 'investigation_metadata') {
+                        const count = Array.isArray(data) ? data.length : Object.keys(data).length;
+                        html += `
+                            <div class="findings-section">
+                                <div class="findings-header" onclick="toggleSection('${area}')">
+                                    <div class="findings-area">
+                                        <span class="toggle-icon" id="toggle-${area}">▶</span>
+                                        ${area.replace(/_/g, ' ')}
+                                    </div>
+                                    <div class="findings-count">${count}</div>
+                                </div>
+                                <div class="findings-details" id="details-${area}" style="display: none;">
+                                    ${formatFindings(area, data)}
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
+            }
+            
+            // Add risk scores if available
+            if (blackboardData.risk_scores && Object.keys(blackboardData.risk_scores).length > 0) {
+                html += `
+                    <div class="risk-scores">
+                        <h3>Risk Assessment</h3>
+                        <div class="risk-content">
+                            ${formatRiskScores(blackboardData.risk_scores)}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            summary.innerHTML = html || '<div class="loading">No blackboard data available yet</div>';
+        }
+        
+        function toggleSection(area) {
+            const details = document.getElementById(`details-${area}`);
+            const icon = document.getElementById(`toggle-${area}`);
+            if (details.style.display === 'none') {
+                details.style.display = 'block';
+                icon.textContent = '▼';
+            } else {
+                details.style.display = 'none';
+                icon.textContent = '▶';
+            }
+        }
+        
+        function formatMetadata(metadata) {
+            let html = '';
+            
+            // Handle case_context object
+            if (metadata.case_context) {
+                if (typeof metadata.case_context === 'object') {
+                    const ctx = metadata.case_context;
+                    html += `<div class="metadata-section">`;
+                    html += `<div class="metadata-section-title">Case Information</div>`;
+                    
+                    if (ctx.case_id) html += `<div class="metadata-item"><strong>Case ID:</strong> ${escapeHtml(ctx.case_id)}</div>`;
+                    if (ctx.title) html += `<div class="metadata-item"><strong>Title:</strong> ${escapeHtml(ctx.title)}</div>`;
+                    if (ctx.investigation_type) html += `<div class="metadata-item"><strong>Investigation Type:</strong> ${escapeHtml(ctx.investigation_type)}</div>`;
+                    if (ctx.priority) html += `<div class="metadata-item"><strong>Priority:</strong> <span class="priority-${ctx.priority}">${escapeHtml(ctx.priority.toUpperCase())}</span></div>`;
+                    
+                    if (ctx.initial_indicators && Array.isArray(ctx.initial_indicators)) {
+                        html += `<div class="metadata-item"><strong>Initial Indicators:</strong></div>`;
+                        html += `<div class="indicators-grid">`;
+                        ctx.initial_indicators.forEach(ind => {
+                            html += `<div class="indicator-item">• ${escapeHtml(ind.type)}: ${escapeHtml(ind.value)}</div>`;
+                        });
+                        html += `</div>`;
+                    }
+                    
+                    if (ctx.data_sources && Array.isArray(ctx.data_sources)) {
+                        html += `<div class="metadata-item"><strong>Data Sources:</strong> ${escapeHtml(ctx.data_sources.join(', '))}</div>`;
+                    }
+                    
+                    html += `</div>`;
+                } else {
+                    html += `<div class="metadata-item"><strong>Case Context:</strong> ${escapeHtml(metadata.case_context)}</div>`;
+                }
+            }
+            
+            // Handle separate initial_indicators field
+            if (metadata.initial_indicators && !metadata.case_context?.initial_indicators) {
+                if (Array.isArray(metadata.initial_indicators)) {
+                    html += `<div class="metadata-item"><strong>Initial Indicators:</strong></div>`;
+                    html += `<div class="indicators-grid">`;
+                    metadata.initial_indicators.forEach(ind => {
+                        if (typeof ind === 'object' && ind.type && ind.value) {
+                            html += `<div class="indicator-item">• ${escapeHtml(ind.type)}: ${escapeHtml(ind.value)}</div>`;
+                        } else {
+                            html += `<div class="indicator-item">• ${escapeHtml(String(ind))}</div>`;
+                        }
+                    });
+                    html += `</div>`;
+                } else {
+                    const indicators = typeof metadata.initial_indicators === 'string' 
+                        ? metadata.initial_indicators 
+                        : JSON.stringify(metadata.initial_indicators, null, 2);
+                    html += `<div class="metadata-item"><strong>Initial Indicators:</strong> ${escapeHtml(indicators)}</div>`;
+                }
+            }
+            
+            // Handle separate data_sources field
+            if (metadata.data_sources && !metadata.case_context?.data_sources) {
+                const sources = Array.isArray(metadata.data_sources) 
+                    ? metadata.data_sources.join(', ')
+                    : typeof metadata.data_sources === 'string'
+                        ? metadata.data_sources
+                        : JSON.stringify(metadata.data_sources, null, 2);
+                html += `<div class="metadata-item"><strong>Data Sources:</strong> ${escapeHtml(sources)}</div>`;
+            }
+            
+            // Handle separate priority field
+            if (metadata.priority && !metadata.case_context?.priority) {
+                const priority = typeof metadata.priority === 'string' 
+                    ? metadata.priority 
+                    : JSON.stringify(metadata.priority, null, 2);
+                html += `<div class="metadata-item"><strong>Priority:</strong> <span class="priority-${priority.toLowerCase()}">${escapeHtml(priority.toUpperCase())}</span></div>`;
+            }
+            
+            // Handle parameters object
+            if (metadata.parameters && typeof metadata.parameters === 'object') {
+                const params = metadata.parameters;
+                html += `<div class="metadata-section">`;
+                html += `<div class="metadata-section-title">Investigation Parameters</div>`;
+                
+                // Skip fields that are already shown in Case Information
+                const skipFields = ['data_sources', 'investigation_type', 'priority', 'initial_indicators'];
+                
+                for (const [key, value] of Object.entries(params)) {
+                    if (skipFields.includes(key)) {
+                        continue; // Skip duplicated fields
+                    }
+                    
+                    if (key === 'timeframe' && typeof value === 'object' && Object.keys(value).length === 0) {
+                        continue; // Skip empty timeframe
+                    }
+                    
+                    const displayValue = typeof value === 'string' 
+                        ? value 
+                        : Array.isArray(value)
+                            ? value.join(', ')
+                            : typeof value === 'object' && Object.keys(value).length > 0
+                                ? JSON.stringify(value, null, 2)
+                                : '';
+                    
+                    if (displayValue) {
+                        const displayKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                        html += `<div class="metadata-item"><strong>${displayKey}:</strong> ${escapeHtml(displayValue)}</div>`;
+                    }
+                }
+                
+                html += `</div>`;
+            }
+            
+            // Handle status and timestamps
+            if (metadata.status) {
+                html += `<div class="metadata-item"><strong>Status:</strong> <span class="status-${metadata.status}">${escapeHtml(metadata.status.toUpperCase())}</span></div>`;
+            }
+            
+            if (metadata.created_at) {
+                html += `<div class="metadata-item"><strong>Created:</strong> ${new Date(metadata.created_at).toLocaleString()}</div>`;
+            }
+            
+            if (metadata.last_updated) {
+                html += `<div class="metadata-item"><strong>Last Updated:</strong> ${new Date(metadata.last_updated).toLocaleString()}</div>`;
+            }
+            
+            // Handle investigator and error information
+            if (metadata.investigator) {
+                html += `<div class="metadata-item"><strong>Investigator:</strong> ${escapeHtml(metadata.investigator)}</div>`;
+            }
+            
+            if (metadata.error) {
+                html += `<div class="metadata-item error-item"><strong>Error:</strong> ${escapeHtml(metadata.error)}</div>`;
+            }
+            
+            // Handle any other fields not already processed
+            const processedFields = ['case_context', 'initial_indicators', 'data_sources', 'priority', 'parameters', 'status', 'created_at', 'last_updated', 'investigation_id', 'source', 'type', 'indicator', 'context'];
+            for (const [key, value] of Object.entries(metadata)) {
+                if (!processedFields.includes(key) && value !== null && value !== undefined) {
+                    let displayValue;
+                    if (typeof value === 'object') {
+                        if (key === 'indicator' && value.type && value.value) {
+                            displayValue = `${value.type}: ${value.value}`;
+                        } else {
+                            // Skip displaying raw JSON objects for cleaner output
+                            continue;
+                        }
+                    } else {
+                        displayValue = String(value);
+                    }
+                    
+                    const displayKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    html += `<div class="metadata-item"><strong>${displayKey}:</strong> ${escapeHtml(displayValue)}</div>`;
+                }
+            }
+            
+            return html || '<div>No metadata available</div>';
+        }
+        
+        function formatFindings(area, data) {
+            if (!data || (Array.isArray(data) && data.length === 0)) {
+                return '<div class="no-findings">No findings in this area</div>';
+            }
+            
+            let html = '<div class="findings-list">';
+            
+            if (area === 'ioc_enrichments' && Array.isArray(data)) {
+                data.forEach((item, index) => {
+                    html += formatIOCEnrichment(item, index);
+                });
+            } else if (area === 'timeline_events' && Array.isArray(data)) {
+                html += formatTimeline(data);
+            } else if (area === 'investigation_questions' && Array.isArray(data)) {
+                data.forEach((item, index) => {
+                    html += formatInvestigationQuestion(item, index);
+                });
+            } else if (area === 'endpoint_behaviors' && Array.isArray(data)) {
+                data.forEach((item, index) => {
+                    html += formatEndpointBehavior(item, index);
+                });
+            } else if (Array.isArray(data)) {
+                data.forEach((item, index) => {
+                    html += formatGenericFinding(item, index);
+                });
+            } else {
+                // Handle object data
+                for (const [key, value] of Object.entries(data)) {
+                    html += `<div class="finding-item"><strong>${key}:</strong> ${JSON.stringify(value, null, 2)}</div>`;
+                }
+            }
+            
+            html += '</div>';
+            return html;
+        }
+        
+        function formatEndpointBehavior(item, index) {
+            let html = `<div class="finding-item endpoint-behavior">`;
+            html += `<div class="finding-header">Endpoint Behavior #${index + 1}</div>`;
+            html += `<div class="finding-body">`;
+            
+            // Extract behavior description from the finding object
+            let behaviorText = '';
+            if (item.finding && typeof item.finding === 'object') {
+                const finding = item.finding;
+                
+                // Try to construct a meaningful description from the finding object
+                if (finding.behavior_type) {
+                    behaviorText += `<strong>Behavior Type:</strong> ${escapeHtml(finding.behavior_type)}<br>`;
+                }
+                
+                if (finding.process_name) {
+                    behaviorText += `<strong>Process:</strong> ${escapeHtml(finding.process_name)}<br>`;
+                }
+                
+                if (finding.command_line) {
+                    behaviorText += `<strong>Command Line:</strong> ${escapeHtml(finding.command_line)}<br>`;
+                }
+                
+                if (finding.file_path) {
+                    behaviorText += `<strong>File Path:</strong> ${escapeHtml(finding.file_path)}<br>`;
+                }
+                
+                if (finding.network_connections) {
+                    behaviorText += `<strong>Network Connections:</strong> ${escapeHtml(finding.network_connections)}<br>`;
+                }
+                
+                if (finding.registry_changes) {
+                    behaviorText += `<strong>Registry Changes:</strong> ${escapeHtml(finding.registry_changes)}<br>`;
+                }
+                
+                if (finding.description) {
+                    behaviorText += `<strong>Description:</strong> ${escapeHtml(finding.description)}<br>`;
+                }
+                
+                if (finding.indicators && Array.isArray(finding.indicators)) {
+                    behaviorText += `<strong>Indicators:</strong> ${finding.indicators.map(ind => escapeHtml(ind)).join(', ')}<br>`;
+                }
+                
+                // If no specific fields found, show all non-metadata fields
+                if (!behaviorText) {
+                    for (const [key, value] of Object.entries(finding)) {
+                        if (!['confidence', 'agent', 'timestamp', 'area', 'id'].includes(key)) {
+                            const displayValue = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
+                            behaviorText += `<strong>${key.replace(/_/g, ' ')}:</strong> ${escapeHtml(displayValue)}<br>`;
+                        }
+                    }
+                }
+            } else if (item.finding && typeof item.finding === 'string') {
+                behaviorText = escapeHtml(item.finding);
+            } else if (typeof item.finding !== 'undefined') {
+                behaviorText = escapeHtml(JSON.stringify(item.finding, null, 2));
+            } else {
+                // Fallback: show all available fields
+                for (const [key, value] of Object.entries(item)) {
+                    if (!['confidence', 'agent', 'timestamp', 'area', 'id'].includes(key)) {
+                        const displayValue = typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
+                        behaviorText += `<strong>${key.replace(/_/g, ' ')}:</strong> ${escapeHtml(displayValue)}<br>`;
+                    }
+                }
+            }
+            
+            html += `<div class="behavior-details">${behaviorText || 'No behavior details available'}</div>`;
+            
+            if (item.confidence) {
+                html += `<div class="finding-meta">Confidence: ${item.confidence}</div>`;
+            }
+            
+            if (item.agent) {
+                html += `<div class="finding-meta">Agent: ${escapeHtml(item.agent)}</div>`;
+            }
+            
+            if (item.timestamp) {
+                html += `<div class="finding-meta">Time: ${new Date(item.timestamp).toLocaleString()}</div>`;
+            }
+            
+            html += `</div></div>`;
+            return html;
+        }
+        
+        function formatInvestigationQuestion(item, index) {
+            // Check if this is a sub-question
+            const isSubQuestion = item.parent_id ? true : false;
+            const questionClass = isSubQuestion ? 'finding-item investigation-question sub-question' : 'finding-item investigation-question';
+            
+            let html = `<div class="${questionClass}">`;
+            html += `<div class="finding-header">${item.id || `Question #${index + 1}`}</div>`;
+            html += `<div class="finding-body">`;
+            
+            // Handle finding object if it exists
+            let questionData = item.finding || item;
+            
+            // Check if we have HTML format
+            if (item.finding_format === 'html' && item.finding) {
+                html += `<div class="question-content">${sanitizeHtml(item.finding)}</div>`;
+            } else if (typeof questionData === 'object') {
+                // Format question object as HTML
+                let questionHtml = '<div class="question-content">';
+                
+                // Extract question text
+                let questionText = questionData.question || questionData.question_text || 
+                                 questionData.text || questionData.content || 
+                                 questionData.description || questionData.message || 
+                                 questionData.query || '';
+                
+                if (questionText) {
+                    questionHtml += `<p class="question-text"><strong>${escapeHtml(questionText)}</strong></p>`;
+                }
+                
+                // Add rationale if available
+                if (questionData.rationale) {
+                    questionHtml += `<p class="question-rationale"><em>Rationale:</em> ${escapeHtml(questionData.rationale)}</p>`;
+                }
+                
+                // Add investigation areas
+                if (questionData.investigation_areas && Array.isArray(questionData.investigation_areas)) {
+                    questionHtml += '<div class="question-areas"><strong>Investigation Areas:</strong><ul>';
+                    questionData.investigation_areas.forEach(area => {
+                        questionHtml += `<li>${escapeHtml(area)}</li>`;
+                    });
+                    questionHtml += '</ul></div>';
+                }
+                
+                // Add expected evidence
+                if (questionData.expected_evidence_types && Array.isArray(questionData.expected_evidence_types)) {
+                    questionHtml += '<div class="question-evidence"><strong>Expected Evidence:</strong><ul>';
+                    questionData.expected_evidence_types.forEach(evidence => {
+                        questionHtml += `<li>${escapeHtml(evidence)}</li>`;
+                    });
+                    questionHtml += '</ul></div>';
+                }
+                
+                // Handle any other fields
+                const handledFields = ['question', 'question_text', 'text', 'content', 'description', 
+                                     'message', 'query', 'rationale', 'investigation_areas', 
+                                     'expected_evidence_types', 'id', 'category', 'priority'];
+                
+                const otherFields = Object.entries(questionData)
+                    .filter(([key]) => !handledFields.includes(key))
+                    .filter(([key, value]) => value !== null && value !== undefined);
+                
+                if (otherFields.length > 0) {
+                    questionHtml += '<div class="question-details"><table class="finding-table"><tbody>';
+                    for (const [key, value] of otherFields) {
+                        const displayKey = escapeHtml(key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()));
+                        let displayValue;
+                        
+                        if (Array.isArray(value)) {
+                            displayValue = value.map(v => escapeHtml(String(v))).join(', ');
+                        } else if (typeof value === 'object') {
+                            displayValue = `<pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre>`;
+                        } else {
+                            displayValue = escapeHtml(String(value));
+                        }
+                        
+                        questionHtml += `<tr><th>${displayKey}</th><td>${displayValue}</td></tr>`;
+                    }
+                    questionHtml += '</tbody></table></div>';
+                }
+                
+                questionHtml += '</div>';
+                html += questionHtml;
+            } else {
+                // Simple text question
+                html += `<div class="question-text">${escapeHtml(String(questionData))}</div>`;
+            }
+            
+            // Add metadata
+            if (item.priority || (item.finding && item.finding.priority)) {
+                const priority = item.priority || item.finding.priority;
+                const priorityClass = `priority-${priority}`;
+                html += `<div class="finding-meta">Priority: <span class="${priorityClass}">${escapeHtml(priority.toUpperCase())}</span></div>`;
+            }
+            
+            if (item.category || (item.finding && item.finding.category)) {
+                const category = item.category || item.finding.category;
+                html += `<div class="finding-meta">Category: ${escapeHtml(category)}</div>`;
+            }
+            
+            if (item.confidence) {
+                html += `<div class="finding-meta">Confidence: ${item.confidence}</div>`;
+            }
+            
+            if (item.agent) {
+                html += `<div class="finding-meta">Agent: ${escapeHtml(item.agent)}</div>`;
+            }
+            
+            if (item.timestamp) {
+                html += `<div class="finding-meta">Time: ${new Date(item.timestamp).toLocaleString()}</div>`;
+            }
+            
+            html += `</div></div>`;
+            return html;
+        }
+        
+        function formatIOCEnrichment(item, index) {
+            let html = `<div class="finding-item ioc-enrichment">`;
+            
+            // Get IOC value from various possible fields
+            const iocValue = item.ioc || item.indicator || item.value || 'Unknown';
+            html += `<div class="finding-header">IOC #${index + 1}: ${escapeHtml(iocValue)}</div>`;
+            html += `<div class="finding-body">`;
+            
+            // Check if we have HTML format
+            if (item.finding_format === 'html' && item.finding) {
+                html += `<div class="enrichment-content">${sanitizeHtml(item.finding)}</div>`;
+            } else if (item.finding) {
+                // Handle finding based on its type
+                if (typeof item.finding === 'string') {
+                    html += `<div class="enrichment-detail"><strong>Finding:</strong> ${escapeHtml(item.finding)}</div>`;
+                } else if (typeof item.finding === 'object') {
+                    // Format object finding as HTML
+                    html += `<div class="enrichment-content">${formatObjectAsHtml(item.finding)}</div>`;
+                }
+            }
+            
+            // Add additional structured fields if not already included in HTML finding
+            if (item.finding_format !== 'html') {
+                if (item.virustotal_data) {
+                    const vt = item.virustotal_data;
+                    html += `<div class="enrichment-detail">
+                        <strong>VirusTotal:</strong> 
+                        Malicious: ${vt.malicious || 0}, 
+                        Suspicious: ${vt.suspicious || 0}
+                        ${vt.reputation ? `, Reputation: ${vt.reputation}` : ''}
+                    </div>`;
+                }
+                
+                if (item.threat_classification) {
+                    html += `<div class="enrichment-detail"><strong>Classification:</strong> ${escapeHtml(item.threat_classification)}</div>`;
+                }
+                
+                if (item.confidence) {
+                    html += `<div class="enrichment-detail"><strong>Confidence:</strong> ${item.confidence}</div>`;
+                }
+                
+                if (item.tags && Array.isArray(item.tags) && item.tags.length > 0) {
+                    html += `<div class="enrichment-detail"><strong>Tags:</strong> ${item.tags.map(tag => escapeHtml(tag)).join(', ')}</div>`;
+                }
+                
+                // If we have agent and timestamp, show those too
+                if (item.agent) {
+                    html += `<div class="enrichment-detail"><strong>Agent:</strong> ${escapeHtml(item.agent)}</div>`;
+                }
+                
+                if (item.timestamp) {
+                    html += `<div class="enrichment-detail"><strong>Time:</strong> ${new Date(item.timestamp).toLocaleString()}</div>`;
+                }
+            }
+            
+            html += `</div></div>`;
+            return html;
+        }
+        
+        function formatTimeline(events) {
+            let html = '<div class="timeline">';
+            const sortedEvents = events.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            
+            sortedEvents.forEach((event, index) => {
+                html += '<div class="timeline-event">';
+                
+                // Format timestamp
+                if (event.timestamp) {
+                    html += `<div class="timeline-time">${new Date(event.timestamp).toLocaleString()}</div>`;
+                }
+                
+                html += '<div class="timeline-content">';
+                
+                // Check if we have HTML format
+                if (event.finding_format === 'html' && event.finding) {
+                    html += sanitizeHtml(event.finding);
+                } else {
+                    // Handle finding object or event data
+                    let eventData = event.finding || event;
+                    
+                    if (typeof eventData === 'object') {
+                        // Format timeline event as structured HTML
+                        let eventHtml = '<div class="event-details">';
+                        
+                        // Event type or title
+                        const eventType = eventData.event_type || eventData.type || 'Event';
+                        eventHtml += `<strong class="event-type">${escapeHtml(eventType)}</strong>`;
+                        
+                        // Main description
+                        const description = eventData.description || eventData.content || 
+                                          eventData.text || eventData.message || '';
+                        if (description) {
+                            eventHtml += `<p class="event-description">${escapeHtml(description)}</p>`;
+                        }
+                        
+                        // Handle specific event fields
+                        if (eventData.process_name) {
+                            eventHtml += `<p><strong>Process:</strong> <code>${escapeHtml(eventData.process_name)}</code></p>`;
+                        }
+                        
+                        if (eventData.command_line) {
+                            eventHtml += `<p><strong>Command:</strong> <code>${escapeHtml(eventData.command_line)}</code></p>`;
+                        }
+                        
+                        if (eventData.source_ip && eventData.destination_ip) {
+                            eventHtml += `<p><strong>Network:</strong> <span class="ioc-value">${escapeHtml(eventData.source_ip)}</span> → <span class="ioc-value">${escapeHtml(eventData.destination_ip)}</span></p>`;
+                        }
+                        
+                        if (eventData.file_path) {
+                            eventHtml += `<p><strong>File:</strong> <code>${escapeHtml(eventData.file_path)}</code></p>`;
+                        }
+                        
+                        if (eventData.registry_key) {
+                            eventHtml += `<p><strong>Registry:</strong> <code>${escapeHtml(eventData.registry_key)}</code></p>`;
+                        }
+                        
+                        if (eventData.severity || eventData.risk_level) {
+                            const severity = eventData.severity || eventData.risk_level;
+                            const severityClass = `risk-${severity.toLowerCase()}`;
+                            eventHtml += `<p><strong>Severity:</strong> <span class="${severityClass}">${escapeHtml(severity.toUpperCase())}</span></p>`;
+                        }
+                        
+                        // Handle details object
+                        if (eventData.details && typeof eventData.details === 'object') {
+                            eventHtml += '<div class="event-extra-details"><strong>Additional Details:</strong><ul>';
+                            for (const [key, value] of Object.entries(eventData.details)) {
+                                const displayKey = escapeHtml(key.replace(/_/g, ' '));
+                                const displayValue = typeof value === 'object' ? 
+                                    escapeHtml(JSON.stringify(value)) : escapeHtml(String(value));
+                                eventHtml += `<li><strong>${displayKey}:</strong> ${displayValue}</li>`;
+                            }
+                            eventHtml += '</ul></div>';
+                        }
+                        
+                        // Handle other fields not already processed
+                        const handledFields = ['event_type', 'type', 'description', 'content', 'text', 
+                                             'message', 'process_name', 'command_line', 'source_ip', 
+                                             'destination_ip', 'file_path', 'registry_key', 'severity', 
+                                             'risk_level', 'details', 'timestamp', 'agent', 'confidence', 
+                                             'area', 'id'];
+                        
+                        const otherFields = Object.entries(eventData)
+                            .filter(([key]) => !handledFields.includes(key))
+                            .filter(([key, value]) => value !== null && value !== undefined);
+                        
+                        if (otherFields.length > 0) {
+                            eventHtml += '<table class="event-metadata"><tbody>';
+                            for (const [key, value] of otherFields) {
+                                const displayKey = escapeHtml(key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()));
+                                let displayValue;
+                                
+                                if (Array.isArray(value)) {
+                                    displayValue = value.map(v => escapeHtml(String(v))).join(', ');
+                                } else if (typeof value === 'object') {
+                                    displayValue = `<pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre>`;
+                                } else {
+                                    displayValue = escapeHtml(String(value));
+                                }
+                                
+                                eventHtml += `<tr><th>${displayKey}</th><td>${displayValue}</td></tr>`;
+                            }
+                            eventHtml += '</tbody></table>';
+                        }
+                        
+                        eventHtml += '</div>';
+                        html += eventHtml;
+                    } else {
+                        // Simple text event
+                        html += `<p>${escapeHtml(String(eventData))}</p>`;
+                    }
+                }
+                
+                // Add agent tag if available
+                if (event.agent) {
+                    html += `<span class="agent-tag">${escapeHtml(event.agent)}</span>`;
+                }
+                
+                html += '</div></div>';
+            });
+            
+            html += '</div>';
+            return html;
+        }
+        
+        function formatGenericFinding(item, index) {
+            let html = `<div class="finding-item">`;
+            html += `<div class="finding-header">Finding #${index + 1}</div>`;
+            html += `<div class="finding-body">`;
+            
+            // Handle different ways finding text might be stored
+            let findingText = '';
+            let isHtml = false;
+            
+            // Check if this is an HTML-formatted finding
+            if (item.finding_format === 'html' && item.finding) {
+                findingText = item.finding;
+                isHtml = true;
+            } else if (typeof item === 'string') {
+                findingText = item;
+            } else if (item.finding) {
+                if (typeof item.finding === 'string') {
+                    findingText = item.finding;
+                } else if (typeof item.finding === 'object') {
+                    // Format object findings into readable HTML
+                    findingText = formatObjectAsHtml(item.finding);
+                    isHtml = true;
+                }
+            } else if (item.description) {
+                findingText = item.description;
+            } else if (item.content) {
+                findingText = item.content;
+            } else if (item.text) {
+                findingText = item.text;
+            } else {
+                // If it's an object without clear text field, format as HTML
+                findingText = formatObjectAsHtml(item);
+                isHtml = true;
+            }
+            
+            // Render the finding text
+            if (isHtml) {
+                html += `<div class="finding-text">${sanitizeHtml(findingText)}</div>`;
+            } else {
+                html += `<div class="finding-text">${escapeHtml(findingText).replace(/\n/g, '<br>')}</div>`;
+            }
+            
+            if (item.confidence) {
+                html += `<div class="finding-meta">Confidence: ${item.confidence}</div>`;
+            }
+            
+            if (item.agent) {
+                html += `<div class="finding-meta">Agent: ${item.agent}</div>`;
+            }
+            
+            if (item.timestamp) {
+                html += `<div class="finding-meta">Time: ${new Date(item.timestamp).toLocaleString()}</div>`;
+            }
+            
+            html += `</div></div>`;
+            return html;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function formatObjectAsHtml(obj) {
+            // Format an object as readable HTML
+            let html = '<div class="finding-content">';
+            
+            // Handle common fields first
+            if (obj.description) {
+                html += `<p><strong>${escapeHtml(obj.description)}</strong></p>`;
+            }
+            
+            if (obj.details && typeof obj.details === 'object') {
+                html += '<div class="finding-details"><p><strong>Details:</strong></p><ul>';
+                for (const [key, value] of Object.entries(obj.details)) {
+                    const displayKey = escapeHtml(key.replace(/_/g, ' '));
+                    let displayValue;
+                    
+                    if (value === null || value === undefined) {
+                        displayValue = 'N/A';
+                    } else if (typeof value === 'object') {
+                        displayValue = `<code>${escapeHtml(JSON.stringify(value))}</code>`;
+                    } else {
+                        displayValue = escapeHtml(String(value));
+                        // If it looks like a path or command, use code formatting
+                        if (displayValue.includes('\\') || displayValue.includes('/') || displayValue.includes('.exe')) {
+                            displayValue = `<code>${displayValue}</code>`;
+                        }
+                    }
+                    
+                    html += `<li><strong>${displayKey}:</strong> ${displayValue}</li>`;
+                }
+                html += '</ul></div>';
+            }
+            
+            // Handle evidence
+            if (obj.evidence_ids && Array.isArray(obj.evidence_ids)) {
+                html += `<p><strong>Evidence:</strong> <span class="evidence-ref">${obj.evidence_ids.map(e => escapeHtml(e)).join(', ')}</span></p>`;
+            }
+            
+            // Handle timeline
+            if (obj.timeline_correlation && Array.isArray(obj.timeline_correlation)) {
+                html += '<p><strong>Timeline:</strong></p><ul>';
+                obj.timeline_correlation.forEach(item => {
+                    html += `<li>${escapeHtml(item)}</li>`;
+                });
+                html += '</ul>';
+            }
+            
+            // Handle any other fields as a table
+            const handledFields = ['description', 'details', 'evidence_ids', 'timeline_correlation'];
+            const otherFields = Object.entries(obj).filter(([key]) => !handledFields.includes(key));
+            
+            if (otherFields.length > 0) {
+                html += '<table class="finding-table"><tbody>';
+                for (const [key, value] of otherFields) {
+                    const displayKey = escapeHtml(key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()));
+                    let displayValue;
+                    
+                    if (Array.isArray(value)) {
+                        displayValue = value.map(v => escapeHtml(String(v))).join(', ');
+                    } else if (typeof value === 'object') {
+                        displayValue = `<pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre>`;
+                    } else {
+                        displayValue = escapeHtml(String(value));
+                    }
+                    
+                    html += `<tr><th>${displayKey}</th><td>${displayValue}</td></tr>`;
+                }
+                html += '</tbody></table>';
+            }
+            
+            html += '</div>';
+            return html;
+        }
+        
+        function sanitizeHtml(html) {
+            // Simple HTML sanitizer - allows only safe tags
+            const allowedTags = ['strong', 'b', 'em', 'i', 'code', 'pre', 'br', 'p', 'ul', 'ol', 'li', 
+                                'table', 'tr', 'td', 'th', 'div', 'span'];
+            const allowedAttributes = {
+                'div': ['class'],
+                'span': ['class'],
+                'td': ['colspan', 'rowspan'],
+                'th': ['colspan', 'rowspan']
+            };
+            
+            // Create a temporary div to parse the HTML
+            const temp = document.createElement('div');
+            temp.innerHTML = html;
+            
+            // Recursively clean the HTML
+            function cleanNode(node) {
+                // Text nodes are always safe
+                if (node.nodeType === Node.TEXT_NODE) {
+                    return node.cloneNode();
+                }
+                
+                // Element nodes need checking
+                if (node.nodeType === Node.ELEMENT_NODE) {
+                    const tagName = node.tagName.toLowerCase();
+                    
+                    // Skip disallowed tags
+                    if (!allowedTags.includes(tagName)) {
+                        // Return the text content for disallowed tags
+                        return document.createTextNode(node.textContent);
+                    }
+                    
+                    // Create a clean element
+                    const cleanElement = document.createElement(tagName);
+                    
+                    // Copy allowed attributes
+                    const allowedAttrs = allowedAttributes[tagName] || [];
+                    for (const attr of allowedAttrs) {
+                        if (node.hasAttribute(attr)) {
+                            cleanElement.setAttribute(attr, node.getAttribute(attr));
+                        }
+                    }
+                    
+                    // Recursively clean children
+                    for (const child of node.childNodes) {
+                        const cleanChild = cleanNode(child);
+                        if (cleanChild) {
+                            cleanElement.appendChild(cleanChild);
+                        }
+                    }
+                    
+                    return cleanElement;
+                }
+                
+                return null;
+            }
+            
+            // Clean all top-level nodes
+            const cleaned = document.createElement('div');
+            for (const child of temp.childNodes) {
+                const cleanChild = cleanNode(child);
+                if (cleanChild) {
+                    cleaned.appendChild(cleanChild);
+                }
+            }
+            
+            return cleaned.innerHTML;
+        }
+        
+        function formatRiskScores(scores) {
+            let html = '<div class="risk-grid">';
+            for (const [key, value] of Object.entries(scores)) {
+                const riskClass = value >= 80 ? 'high' : value >= 50 ? 'medium' : 'low';
+                html += `
+                    <div class="risk-item ${riskClass}">
+                        <div class="risk-label">${key.replace(/_/g, ' ')}</div>
+                        <div class="risk-value">${value}</div>
+                    </div>
+                `;
+            }
+            html += '</div>';
+            return html;
+        }
+        
+        // Load questions
+        async function loadQuestions() {
+            try {
+                console.log('Loading questions for investigation:', investigationId);
+                const response = await fetch(`/api/investigations/${investigationId}/questions`);
+                console.log('Response status:', response.status);
+                
+                const data = await response.json();
+                console.log('Response data:', data);
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load questions');
+                }
+                
+                // Validate data structure
+                if (!data || typeof data !== 'object') {
+                    throw new Error('Invalid response data structure');
+                }
+                
+                questionsData = data;
+                console.log('Questions data loaded successfully:', questionsData);
+                displayQuestions();
+                
+            } catch (error) {
+                console.error('Error loading questions:', error);
+                console.error('Error stack:', error.stack);
+                document.getElementById('questions-header').innerHTML = 
+                    `<div class="error">Error loading questions: ${error.message}</div>`;
+                document.getElementById('questions-content').innerHTML = '';
+            }
+        }
+        
+        function displayQuestions() {
+            try {
+                console.log('displayQuestions called with data:', questionsData);
+                
+                if (!questionsData) {
+                    console.log('No questions data available');
+                    return;
+                }
+                
+                const header = document.getElementById('questions-header');
+                const content = document.getElementById('questions-content');
+                
+                if (!header || !content) {
+                    throw new Error('Questions DOM elements not found');
+                }
+                
+                // Handle both v1.x and v2.0 formats
+                let questions = [];
+                let schemaVersion = questionsData.schema_version || '1.x';
+                
+                if (schemaVersion === '2.0' && questionsData.questions) {
+                    // v2.0 format - use unified questions list
+                    questions = questionsData.questions || [];
+                } else if (questionsData.original_questions) {
+                    // v1.x format or compatibility mode
+                    questions = questionsData.original_questions || [];
+                }
+                
+                console.log('Using questions list:', questions);
+                
+                console.log('Questions data structure check:');
+                console.log('- total_questions:', questionsData.total_questions);
+                console.log('- categories:', questionsData.categories);
+                console.log('- categories type:', typeof questionsData.categories);
+                
+                // Check for schema version and adjust display
+                if (questionsData.total_questions === 0) {
+                    // No questions available
+                    header.innerHTML = `
+                        <div class="questions-stats">
+                            <div class="stat-card">
+                                <div class="stat-number">0</div>
+                                <div class="stat-label">Total Questions</div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    let messageHtml = `<div class="no-questions-message">
+                        <h3>No Investigation Questions Available</h3>
+                        <p>${questionsData.message || 'No investigation questions have been generated yet for this case.'}</p>`;
+                    
+                    // Show processing errors if available
+                    if (questionsData.processing_errors && questionsData.processing_errors.length > 0) {
+                        messageHtml += `
+                            <div class="processing-errors">
+                                <h4>Processing Issues:</h4>
+                                <ul>
+                                    ${questionsData.processing_errors.map(error => 
+                                        `<li><strong>${error.agent || 'Unknown'}:</strong> ${error.message || error.error || 'Unknown error'}</li>`
+                                    ).join('')}
+                                </ul>
+                            </div>
+                        `;
+                    }
+                    
+                    messageHtml += '</div>';
+                    content.innerHTML = messageHtml;
+                    return;
+                }
+                
+                // Display header with statistics
+                let statsHtml = `
+                    <div class="questions-stats">
+                        <div class="stat-card">
+                            <div class="stat-number">${questionsData.total_questions || 0}</div>
+                            <div class="stat-label">Total Questions</div>
+                        </div>
+                `;
+                
+                // Add category stats
+                if (questionsData.categories && typeof questionsData.categories === 'object') {
+                    console.log('Processing categories:', questionsData.categories);
+                    for (const [category, count] of Object.entries(questionsData.categories)) {
+                        console.log('Processing category:', category, 'count:', count);
+                        statsHtml += `
+                            <div class="stat-card">
+                                <div class="stat-number">${count}</div>
+                                <div class="stat-label">${category.replace(/_/g, ' ')}</div>
+                            </div>
+                        `;
+                    }
+                } else {
+                    console.log('No categories or categories is not an object');
+                }
+            
+            statsHtml += '</div>';
+            
+            // Add filters and view toggle
+            const filtersHtml = `
+                <div class="questions-filters">
+                    <div class="filter-group">
+                        <label class="filter-label">Category</label>
+                        <select class="filter-select" id="question-category-filter">
+                            <option value="">All Categories</option>
+                            ${Object.keys(questionsData.categories || {}).map(cat => 
+                                `<option value="${cat}">${cat.replace(/_/g, ' ')}</option>`
+                            ).join('')}
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">Priority</label>
+                        <select class="filter-select" id="question-priority-filter">
+                            <option value="">All Priorities</option>
+                            ${Object.keys(questionsData.priorities || {}).map(pri => 
+                                `<option value="${pri}">${pri}</option>`
+                            ).join('')}
+                        </select>
+                    </div>
+                    <div class="question-view-toggle">
+                        <button class="view-toggle-btn active" data-view="original">Original Questions</button>
+                        ${questionsData.has_tool_mappings ? 
+                            '<button class="view-toggle-btn" data-view="enhanced">With Tool Mappings</button>' : 
+                            '<button class="view-toggle-btn" disabled>Tool Mappings (Not Available)</button>'
+                        }
+                    </div>
+                </div>
+            `;
+            
+            header.innerHTML = statsHtml + filtersHtml;
+            
+            // Add event listeners for filters and view toggle
+            document.getElementById('question-category-filter').addEventListener('change', filterQuestions);
+            document.getElementById('question-priority-filter').addEventListener('change', filterQuestions);
+            
+            document.querySelectorAll('.view-toggle-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    if (btn.disabled) return;
+                    
+                    document.querySelectorAll('.view-toggle-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    
+                    const view = btn.dataset.view;
+                    displayQuestionsList(view);
+                });
+            });
+            
+            // Display initial questions list
+            displayQuestionsList('original');
+            
+            } catch (error) {
+                console.error('Error in displayQuestions:', error);
+                console.error('Error stack:', error.stack);
+                document.getElementById('questions-header').innerHTML = 
+                    `<div class="error">Error displaying questions: ${error.message}</div>`;
+                document.getElementById('questions-content').innerHTML = '';
+            }
+        }
+        
+        function displayQuestionsList(view = 'original') {
+            if (!questionsData) return;
+            
+            const questions = view === 'enhanced' && questionsData.enhanced_questions ? 
+                questionsData.enhanced_questions : questionsData.original_questions;
+            
+            const content = document.getElementById('questions-content');
+            
+            if (!questions || questions.length === 0) {
+                const message = questionsData.message || 'No questions available yet';
+                content.innerHTML = `<div class="loading">${message}</div>`;
+                return;
+            }
+            
+            // Sort questions to ensure parent questions come before sub-questions
+            const sortedQuestions = questions.sort((a, b) => {
+                // Parent questions first
+                if (!a.parent_id && b.parent_id) return -1;
+                if (a.parent_id && !b.parent_id) return 1;
+                // Then sort by ID
+                return (a.id || '').localeCompare(b.id || '');
+            });
+            
+            const questionsHtml = sortedQuestions.map(question => {
+                const isSubQuestion = question.parent_id ? true : false;
+                const cardClass = isSubQuestion ? 'question-card sub-question' : 'question-card';
+                
+                let cardHtml = `
+                    <div class="${cardClass}" data-category="${question.category}" data-priority="${question.priority}" data-parent="${question.parent_id || ''}">
+                        <div class="question-header">
+                            <div class="question-meta">
+                                <span class="question-id">${question.id}</span>
+                                ${isSubQuestion ? `<span class="parent-ref">↳ ${question.parent_id}</span>` : ''}
+                                <span class="question-category">${question.category?.replace(/_/g, ' ')}</span>
+                                <span class="question-priority priority-${question.priority}">${question.priority}</span>
+                            </div>
+                        </div>
+                        <div class="question-body">
+                            <div class="question-text">${question.question}</div>
+                            <div class="question-rationale">${question.rationale}</div>
+                            <div class="question-details">
+                                <div class="detail-group">
+                                    <h4>Investigation Areas</h4>
+                                    <div class="detail-list">
+                                        ${(question.investigation_areas || []).map(area => 
+                                            `<span class="detail-tag">${area}</span>`
+                                        ).join('')}
+                                    </div>
+                                </div>
+                                <div class="detail-group">
+                                    <h4>Expected Evidence</h4>
+                                    <div class="detail-list">
+                                        ${(question.expected_evidence_types || []).map(evidence => 
+                                            `<span class="detail-tag">${evidence}</span>`
+                                        ).join('')}
+                                    </div>
+                                </div>
+                            </div>
+                `;
+                
+                // Add tool mappings if available and in enhanced view
+                // Handle both v1.x (direct properties) and v2.0 (enhancement object) formats
+                const enhancement = question.enhancement || question;
+                if (view === 'enhanced' && (enhancement.available_tools || question.available_tools)) {
+                    cardHtml += `
+                        <div class="tool-mappings">
+                            <h4>🔧 Available Tools & Approach</h4>
+                            <div class="tools-grid">
+                    `;
+                    
+                    // Group tools by category - handle both formats
+                    const toolsByCategory = {};
+                    const availableTools = enhancement.available_tools || question.available_tools || [];
+                    availableTools.forEach(tool => {
+                        const category = tool.tool_category || 'other';
+                        if (!toolsByCategory[category]) toolsByCategory[category] = [];
+                        toolsByCategory[category].push(tool);
+                    });
+                    
+                    for (const [category, tools] of Object.entries(toolsByCategory)) {
+                        cardHtml += `
+                            <div class="tool-category">
+                                <h5>${category.toUpperCase()}</h5>
+                                ${tools.map(tool => `
+                                    <div class="tool-item">
+                                        <span class="tool-relevance">${tool.relevance}</span> - ${tool.tool_name}
+                                        <br><small>${tool.usage_description}</small>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `;
+                    }
+                    
+                    cardHtml += '</div>';
+                    
+                    // Handle suggested approach from both formats
+                    const suggestedApproach = enhancement.suggested_approach || question.suggested_approach;
+                    if (suggestedApproach) {
+                        cardHtml += `<p><strong>Suggested Approach:</strong> ${suggestedApproach}</p>`;
+                    }
+                    
+                    // Add tool wishlist if available - handle both formats
+                    const toolWishlist = enhancement.tool_wishlist || question.tool_wishlist;
+                    if (toolWishlist && toolWishlist.length > 0) {
+                        cardHtml += `
+                            <div class="tool-wishlist">
+                                <h5>🎯 Tool Wishlist</h5>
+                                ${toolWishlist.map(item => `
+                                    <div class="wishlist-item">
+                                        <strong>${item.tool_name}</strong> (${item.priority}): ${item.description}
+                                        <br><small>Why needed: ${item.why_needed}</small>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `;
+                    }
+                    
+                    cardHtml += '</div>';
+                }
+                
+                cardHtml += '</div></div>';
+                return cardHtml;
+            }).join('');
+            
+            content.innerHTML = `<div class="questions-list">${questionsHtml}</div>`;
+        }
+        
+        function filterQuestions() {
+            const categoryFilter = document.getElementById('question-category-filter').value;
+            const priorityFilter = document.getElementById('question-priority-filter').value;
+            
+            document.querySelectorAll('.question-card').forEach(card => {
+                const category = card.dataset.category;
+                const priority = card.dataset.priority;
+                
+                const show = (!categoryFilter || category === categoryFilter) && 
+                           (!priorityFilter || priority === priorityFilter);
+                
+                card.style.display = show ? 'block' : 'none';
+            });
+        }
+        
+        // Initial load
+        // Data Flow Diagram Functions
+        function renderDataFlowDiagram() {
+            const svg = document.getElementById('dataflow-svg');
+            svg.innerHTML = ''; // Clear existing content
+            
+            // Define arrow marker
+            const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+            const marker = document.createElementNS('http://www.w3.org/2000/svg', 'marker');
+            marker.setAttribute('id', 'arrowhead');
+            marker.setAttribute('markerWidth', '10');
+            marker.setAttribute('markerHeight', '7');
+            marker.setAttribute('refX', '9');
+            marker.setAttribute('refY', '3.5');
+            marker.setAttribute('orient', 'auto');
+            
+            const polygon = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+            polygon.setAttribute('points', '0 0, 10 3.5, 0 7');
+            polygon.setAttribute('fill', '#666');
+            
+            marker.appendChild(polygon);
+            defs.appendChild(marker);
+            svg.appendChild(defs);
+            
+            // Agent positions
+            const agents = {
+                coordinator: { x: 600, y: 50, color: '#2196F3', label: 'SOC Coordinator' },
+                blackboard: { x: 600, y: 300, color: '#9C27B0', label: 'Investigation\nBlackboard' },
+                
+                // Investigators
+                network: { x: 150, y: 150, color: '#4CAF50', label: 'Network\nAnalyzer' },
+                endpoint: { x: 300, y: 150, color: '#4CAF50', label: 'Endpoint\nInvestigator' },
+                log: { x: 450, y: 150, color: '#4CAF50', label: 'Log\nCorrelator' },
+                ioc: { x: 750, y: 150, color: '#4CAF50', label: 'IOC\nEnricher' },
+                timeline: { x: 900, y: 150, color: '#4CAF50', label: 'Timeline\nBuilder' },
+                
+                // Synthesizers
+                correlation: { x: 300, y: 450, color: '#FF9800', label: 'Correlation\nEngine' },
+                report: { x: 900, y: 450, color: '#FF9800', label: 'Report\nGenerator' }
+            };
+            
+            // Draw connections
+            const connections = [
+                // Coordinator to Blackboard
+                { from: 'coordinator', to: 'blackboard', label: 'Creates & Manages' },
+                
+                // Coordinator to Investigators
+                { from: 'coordinator', to: 'network', label: 'Activates' },
+                { from: 'coordinator', to: 'endpoint', label: 'Activates' },
+                { from: 'coordinator', to: 'log', label: 'Activates' },
+                { from: 'coordinator', to: 'ioc', label: 'Activates' },
+                { from: 'coordinator', to: 'timeline', label: 'Activates' },
+                
+                // Investigators to Blackboard
+                { from: 'network', to: 'blackboard', label: 'Writes Findings' },
+                { from: 'endpoint', to: 'blackboard', label: 'Writes Findings' },
+                { from: 'log', to: 'blackboard', label: 'Writes Findings' },
+                { from: 'ioc', to: 'blackboard', label: 'Writes Findings' },
+                { from: 'timeline', to: 'blackboard', label: 'Writes Findings' },
+                
+                // Blackboard to Synthesizers
+                { from: 'blackboard', to: 'correlation', label: 'Provides Data' },
+                { from: 'blackboard', to: 'report', label: 'Provides Data' },
+                
+                // Synthesizers to Blackboard
+                { from: 'correlation', to: 'blackboard', label: 'Writes Analysis' },
+                { from: 'report', to: 'blackboard', label: 'Writes Reports' }
+            ];
+            
+            // Draw connections first (so they appear behind nodes)
+            connections.forEach(conn => {
+                const from = agents[conn.from];
+                const to = agents[conn.to];
+                
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', from.x);
+                line.setAttribute('y1', from.y);
+                line.setAttribute('x2', to.x);
+                line.setAttribute('y2', to.y);
+                line.setAttribute('class', 'data-flow-arrow');
+                svg.appendChild(line);
+                
+                // Add label at midpoint
+                const midX = (from.x + to.x) / 2;
+                const midY = (from.y + to.y) / 2;
+                
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', midX);
+                text.setAttribute('y', midY - 5);
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('class', 'data-flow-label');
+                text.textContent = conn.label;
+                svg.appendChild(text);
+            });
+            
+            // Draw agent nodes
+            Object.entries(agents).forEach(([key, agent]) => {
+                const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                g.setAttribute('class', 'agent-node');
+                g.setAttribute('transform', `translate(${agent.x}, ${agent.y})`);
+                
+                // Draw rectangle
+                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                rect.setAttribute('x', '-60');
+                rect.setAttribute('y', '-30');
+                rect.setAttribute('width', '120');
+                rect.setAttribute('height', '60');
+                rect.setAttribute('rx', '8');
+                rect.setAttribute('fill', agent.color);
+                rect.setAttribute('stroke', '#fff');
+                rect.setAttribute('stroke-width', '2');
+                g.appendChild(rect);
+                
+                // Add label
+                const lines = agent.label.split('\n');
+                lines.forEach((line, i) => {
+                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    text.setAttribute('x', '0');
+                    text.setAttribute('y', (i - (lines.length - 1) / 2) * 18);
+                    text.setAttribute('text-anchor', 'middle');
+                    text.setAttribute('fill', 'white');
+                    text.setAttribute('class', 'agent-label');
+                    text.textContent = line;
+                    g.appendChild(text);
+                });
+                
+                // Add tooltip on hover
+                const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+                title.textContent = getAgentDescription(key);
+                g.appendChild(title);
+                
+                svg.appendChild(g);
+            });
+        }
+        
+        function getAgentDescription(agentKey) {
+            const descriptions = {
+                coordinator: 'Main orchestrator that manages the investigation workflow',
+                blackboard: 'Shared knowledge store for investigation findings',
+                network: 'Analyzes network traffic and connections',
+                endpoint: 'Investigates endpoint artifacts and behaviors',
+                log: 'Correlates logs from multiple sources',
+                ioc: 'Enriches indicators of compromise with threat intelligence',
+                timeline: 'Builds chronological view of events',
+                correlation: 'Synthesizes findings to identify patterns',
+                report: 'Generates comprehensive investigation reports'
+            };
+            return descriptions[agentKey] || 'Agent component';
+        }
+        
+        // Update tab click handler to render diagram when dataflow tab is clicked
+        const originalTabHandler = document.querySelectorAll('.tab')[0].onclick;
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                if (tab.dataset.tab === 'dataflow') {
+                    setTimeout(() => renderDataFlowDiagram(), 100);
+                }
+            });
+        });
+        
+        loadInvestigation();
+        
+        // Auto-refresh every 5 seconds if investigation is active
+        setInterval(() => {
+            if (investigationData && investigationData.status === 'active') {
+                loadInvestigation();
+            }
+        }, 5000);
+    </script>
+</body>
+</html>
