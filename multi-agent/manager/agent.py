@@ -44,7 +44,7 @@ runbook_files = [
     (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/close_duplicate_or_similar_cases.md").resolve(),
     (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/basic_ioc_enrichment.md").resolve(),
     (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/suspicious_login_triage.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/investgate_a_case_w_external_tools.md").resolve(),
+    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/investigate_a_case_w_external_tools.md").resolve(),
     (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/ioc_containment.md").resolve(),
     (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/basic_endpoint_triage_isolation.md").resolve(),
     (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/deep_dive_ioc_analysis.md").resolve(),

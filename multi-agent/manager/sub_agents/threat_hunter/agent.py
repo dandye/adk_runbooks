@@ -24,7 +24,7 @@ def get_agent(tools):
     (BASE_DIR / "../../../../rules-bank/run_books/ioc_threat_hunt.md").resolve(),
     (BASE_DIR / "../../../../rules-bank/run_books/guided_ttp_hunt_credential_access.md").resolve(),
     (BASE_DIR / "../../../../rules-bank/run_books/lateral_movement_hunt_psexec_wmi.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/proactive_threat_hunting_based_on_gti_campain_or_actor.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/proactive_threat_hunting_based_on_gti_campaign_or_actor.md").resolve(),
     (BASE_DIR / "../../../../rules-bank/run_books/guidelines/report_writing.md").resolve(),
   ]
 

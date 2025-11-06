@@ -21,7 +21,7 @@ def get_agent(tools):
   runbook_files = [
     (BASE_DIR / "../../../../rules-bank/run_books/triage_alerts.md").resolve(),
     (BASE_DIR / "../../../../rules-bank/run_books/close_duplicate_or_similar_cases.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/investgate_a_case_w_external_tools.md").resolve(),
+    (BASE_DIR / "../../../../rules-bank/run_books/investigate_a_case_w_external_tools.md").resolve(),
     (BASE_DIR / "../../../../rules-bank/run_books/group_cases.md").resolve(),
     (BASE_DIR / "../../../../rules-bank/run_books/group_cases_v2.md").resolve(),
     (BASE_DIR / "../../../../rules-bank/run_books/basic_ioc_enrichment.md").resolve(),
