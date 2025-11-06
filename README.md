@@ -27,7 +27,7 @@ The system includes specialized agents organized by security function:
 
 ### Security Operations Center (SOC)
 - **SOC Analyst Tier 1**: Performs initial alert triage and basic investigations
-- **SOC Analyst Tier 2**: Handles escalated alerts and deeper investigations  
+- **SOC Analyst Tier 2**: Handles escalated alerts and deeper investigations
 - **SOC Analyst Tier 3**: Manages complex incidents and advanced forensic analysis
 
 ### Proactive Security
@@ -84,10 +84,6 @@ pip install -r requirements.txt
 # Configure environment
 cp manager/.env.example manager/.env
 # Edit .env and add your GOOGLE_API_KEY
-
-# Configure MCP Security tools
-cp ../external/mcp-security/.env.example ../external/mcp-security/.env
-# Edit .env and add your security tool API keys
 
 # Run the system
 adk run manager

@@ -4,8 +4,7 @@ from google.adk.agents import Agent
 from ...tools.tools import load_persona_and_runbooks
 
 
-# Changed to a synchronous function that accepts tools and exit_stack
-def get_agent(tools, exit_stack):
+def get_agent(tools):
   """Configures and returns a CTI Researcher Agent instance.
 
   This function sets up the agent with a specific persona, runbooks,
@@ -13,9 +12,6 @@ def get_agent(tools, exit_stack):
 
   Args:
       tools (tuple): A tuple containing the pre-initialized MCP toolsets.
-      exit_stack (contextlib.AsyncExitStack): The shared asynchronous exit stack
-          for managing resources. (Currently not directly used by the synchronous
-          agent creation but passed for consistency with async initialization patterns).
 
   Returns:
       Agent: An initialized instance of the CTI Researcher agent.
@@ -41,33 +37,9 @@ def get_agent(tools, exit_stack):
   )
   agent_instance = Agent( # Renamed to avoid conflict with module-level var if any
       name="cti_researcher",
-      model="gemini-2.5-pro-preview-05-06",
+      model="gemini-2.5-pro",
       description=persona_data,
       instruction="You are a CTI Researcher.",
       tools=tools, # Use passed-in tools
   )
-  return agent_instance # Only return the agent instance
-
-
-# Function to initialize the agent, now accepts shared_tools and shared_exit_stack
-async def initialize(shared_tools, shared_exit_stack):
-    """Asynchronously initializes the CTI Researcher agent.
-
-    This function serves as the entry point for creating an instance of the
-    CTI Researcher agent, utilizing shared toolsets and an exit stack.
-
-    Args:
-        shared_tools (tuple): The pre-initialized MCP toolsets to be used by the agent.
-        shared_exit_stack (contextlib.AsyncExitStack): The asynchronous exit stack
-            for managing the lifecycle of shared resources like MCP connections.
-
-    Returns:
-        tuple: A tuple containing:
-            - Agent: The initialized CTI Researcher agent instance.
-            - contextlib.AsyncExitStack: The shared exit stack.
-
-    Raises:
-        Exception: Propagates any exceptions encountered during agent creation.
-    """
-    agent_instance = get_agent(shared_tools, shared_exit_stack) # Call synchronous get_agent
-    return agent_instance, shared_exit_stack # Return agent and the shared_exit_stack
+  return agent_instance
