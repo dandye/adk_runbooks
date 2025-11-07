@@ -87,12 +87,12 @@ sequenceDiagram
 
 *   **Objective:** Detect the potential compromise, perform initial triage, analyze user activity, and assess likelihood.
 *   **Sub-Runbooks/Steps:**
-    1.  **Receive Input & Context:** Obtain `${USER_ID}`, `${CASE_ID}`, `${ALERT_GROUP_IDENTIFIERS}`, and optionally `${INITIAL_ALERT_DETAILS}`. Get case details via `secops-soar.get_case_full_details`. Check for duplicates (`../common_steps/check_duplicate_cases.md`).
+    1.  **Receive Input & Context:** Obtain `${USER_ID}`, `${CASE_ID}`, `${ALERT_GROUP_IDENTIFIERS}`, and optionally `${INITIAL_ALERT_DETAILS}`. Get case details via `soar-mcp_get_case_full_details`. Check for duplicates (`../common_steps/check_duplicate_cases.md`).
     2.  **Gather Initial Context:**
-        *   Use `secops-mcp.lookup_entity` for `${USER_ID}` to get a quick summary of recent activity in SIEM.
+        *   Use `secops-mcp_lookup_entity` for `${USER_ID}` to get a quick summary of recent activity in SIEM.
         *   *(Optional: Use `okta-mcp.lookup_okta_user` or similar identity tool for `${USER_ID}` to get account status, recent logins, MFA details etc.)*
     3.  **Analyze User Activity:**
-        *   Perform detailed searches in SIEM using `secops-mcp.search_security_events` for `${USER_ID}` covering the relevant timeframe (e.g., last 24-72 hours). Look for:
+        *   Perform detailed searches in SIEM using `secops-mcp_search_security_events` for `${USER_ID}` covering the relevant timeframe (e.g., last 24-72 hours). Look for:
             *   Anomalous login locations/times/IPs/User Agents.
             *   Suspicious command-line activity on associated endpoints.
             *   Access to sensitive resources (files, applications, databases).
@@ -130,7 +130,7 @@ sequenceDiagram
 *   **Objective:** Remove any attacker persistence mechanisms tied to the account and investigate actions taken while compromised.
 *   **Sub-Runbooks/Steps:**
     1.  **Investigate Attacker Actions:**
-        *   Thoroughly review SIEM logs (`secops-mcp.search_security_events`) for all actions performed by the `${USER_ID}` during the suspected compromise window (identified in Phase 2). Focus on access to sensitive data, lateral movement attempts, configuration changes, emails sent/received.
+        *   Thoroughly review SIEM logs (`secops-mcp_search_security_events`) for all actions performed by the `${USER_ID}` during the suspected compromise window (identified in Phase 2). Focus on access to sensitive data, lateral movement attempts, configuration changes, emails sent/received.
         *   *(Requires Email Platform tools)* Check for malicious email forwarding rules, delegate access changes, or malicious emails sent from the account.
         *   *(Requires Cloud Platform tools)* Check for creation of malicious OAuth applications or other persistence in connected cloud services.
         *   *(Requires Endpoint tools)* If the account was used to access specific endpoints, trigger endpoint investigation (e.g., `../basic_endpoint_triage_isolation.md` or deeper forensics) to look for malware or persistence.

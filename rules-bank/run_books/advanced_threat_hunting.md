@@ -33,7 +33,7 @@ This runbook outlines a flexible framework for advanced threat hunting, emphasiz
     *   Use `get_threat_intel` for specific technique details.
     *   *(Manual Step: Consult external TI sources, MITRE ATT&CK, research papers).*
 3.  **Develop Initial Hunt Queries:**
-    *   Based on the hypothesis and intelligence, formulate initial advanced queries for `secops-mcp.search_security_events` or `bigquery.execute-query`. Focus on behavioral indicators, anomalies, or specific TTP artifacts.
+    *   Based on the hypothesis and intelligence, formulate initial advanced queries for `secops-mcp_search_security_events` or `bigquery.execute-query`. Focus on behavioral indicators, anomalies, or specific TTP artifacts.
     *   Combine with `${TARGET_SCOPE_QUERY}`.
 4.  **Iterative Search & Analysis:**
     *   Execute initial queries.
@@ -42,12 +42,12 @@ This runbook outlines a flexible framework for advanced threat hunting, emphasiz
     *   Repeat search and analysis iteratively.
 5.  **Advanced Enrichment:**
     *   For any suspicious entities identified during the iterative search:
-        *   Perform deep enrichment using `secops-mcp.lookup_entity`.
+        *   Perform deep enrichment using `secops-mcp_lookup_entity`.
         *   Perform multi-step pivoting in GTI (`get_entities_related_to_a_...`).
-        *   Check against known IOC matches (`secops-mcp.get_ioc_matches`).
+        *   Check against known IOC matches (`secops-mcp_get_ioc_matches`).
         *   *(Leverage EDR/Cloud/Identity tools if applicable)*.
 6.  **Synthesize & Document:**
-    *   Continuously document the hunt process, queries used, analysis steps, findings (positive and negative), and enrichment results within the `${HUNT_CASE_ID}` using `secops-soar.post_case_comment`.
+    *   Continuously document the hunt process, queries used, analysis steps, findings (positive and negative), and enrichment results within the `${HUNT_CASE_ID}` using `soar-mcp_post_case_comment`.
     *   Structure findings clearly, linking evidence back to the hypothesis.
 7.  **Action / Handover / Conclude:**
     *   **If a confirmed threat is found:** Escalate immediately. Create a new incident case or link findings to an existing one. Hand over details to the Incident Response team.

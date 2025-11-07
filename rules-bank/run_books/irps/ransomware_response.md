@@ -94,14 +94,14 @@ sequenceDiagram
 
 *   **Objective:** Detect the incident, identify the ransomware strain, determine initial scope, and investigate initial access/lateral movement.
 *   **Sub-Runbooks/Steps:**
-    1.  **Receive Input & Context:** Obtain initial indicators, `${CASE_ID}`, `${ALERT_GROUP_IDENTIFIERS}`. Get case details via `secops-soar.get_case_full_details`. Check for duplicates (`../common_steps/check_duplicate_cases.md`).
+    1.  **Receive Input & Context:** Obtain initial indicators, `${CASE_ID}`, `${ALERT_GROUP_IDENTIFIERS}`. Get case details via `soar-mcp_get_case_full_details`. Check for duplicates (`../common_steps/check_duplicate_cases.md`).
     2.  **Identify Ransomware Strain:**
-        *   If a file hash (`${FILE_HASH}`) is available, use `gti-mcp.get_file_report` to identify the malware family/ransomware name.
-        *   If EDR alert name or ransom note details provide a name, use `gti-mcp.search_threats` (e.g., `query="LockBit ransomware" collection_type:"malware-family"`) or `get_collection_report` if a specific GTI ID is known.
+        *   If a file hash (`${FILE_HASH}`) is available, use `gti-mcp_get_file_report` to identify the malware family/ransomware name.
+        *   If EDR alert name or ransom note details provide a name, use `gti-mcp_search_threats` (e.g., `query="LockBit ransomware" collection_type:"malware-family"`) or `get_collection_report` if a specific GTI ID is known.
         *   *(Manual Step: Use external resources like ID Ransomware if GTI doesn't yield results).*
         *   Document the identified (or suspected) strain (`IDENTIFIED_STRAIN`).
     3.  **Investigate Initial Access & Lateral Movement (SIEM):**
-        *   Use `secops-mcp.search_security_events` focusing on the time *before* and *during* the initial encryption activity on the affected endpoints:
+        *   Use `secops-mcp_search_security_events` focusing on the time *before* and *during* the initial encryption activity on the affected endpoints:
             *   Search for suspicious logins, RDP activity, or exploit attempts targeting the initially affected endpoints.
             *   Search for execution of suspicious tools (PsExec, Cobalt Strike beacons, etc.).
             *   Search for activity related to the user logged into the endpoint at the time of infection (potentially trigger `../compromised_user_account_response.md`).
@@ -131,7 +131,7 @@ sequenceDiagram
     3.  **Contain User Accounts (If Applicable):**
         *   If `INITIAL_ACCESS_VECTOR` involved a compromised user, ensure containment actions were taken via `../compromised_user_account_response.md`.
     4.  **Verify Containment:**
-        *   Monitor SIEM (`secops-mcp.search_security_events`) for further encryption activity, C2 communication, or lateral movement attempts from contained systems/IOCs.
+        *   Monitor SIEM (`secops-mcp_search_security_events`) for further encryption activity, C2 communication, or lateral movement attempts from contained systems/IOCs.
         *   Document containment status using `../common_steps/document_in_soar.md`.
 
 ---

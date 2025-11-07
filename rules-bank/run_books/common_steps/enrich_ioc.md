@@ -32,10 +32,10 @@ This sub-runbook covers retrieving the primary GTI report for the IOC, performin
     *   Store the summary output in `${GTI_FINDINGS}`.
     *   **Error Handling:** If the GTI tool fails (e.g., due to API quota limits or the IOC not being found), note this limitation in `${GTI_FINDINGS}` (e.g., "GTI lookup failed: Quota Exceeded") and proceed. Rely more heavily on SIEM context in subsequent steps.
 3.  **SIEM Context - Entity Lookup:**
-    *   Call `secops-mcp.lookup_entity` with `entity_value=${IOC_VALUE}`.
+    *   Call `secops-mcp_lookup_entity` with `entity_value=${IOC_VALUE}`.
     *   Store the summary output in `${SIEM_ENTITY_SUMMARY}`.
 4.  **SIEM Context - IOC Match Check:**
-    *   Call `secops-mcp.get_ioc_matches`.
+    *   Call `secops-mcp_get_ioc_matches`.
     *   Check if `${IOC_VALUE}` exists in the results.
     *   Store the result (Yes/No) in `${SIEM_IOC_MATCH_STATUS}`.
 5.  **Return Results:** Provide `${GTI_FINDINGS}`, `${SIEM_ENTITY_SUMMARY}`, and `${SIEM_IOC_MATCH_STATUS}` back to the calling runbook.

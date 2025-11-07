@@ -45,15 +45,15 @@ This runbook explicitly **excludes**:
 
 ## Workflow Steps & Diagram
 
-1.  **List Cases:** Retrieve recent cases using `secops-soar.list_cases`, filtered by `${NUMBER_OF_CASES}` or `${TIME_FRAME_HOURS}`. Store in `${CASE_LIST}`.
+1.  **List Cases:** Retrieve recent cases using `soar-mcp_list_cases`, filtered by `${NUMBER_OF_CASES}` or `${TIME_FRAME_HOURS}`. Store in `${CASE_LIST}`.
 2.  **Gather Case Details:** For each case ID in `${CASE_LIST}`:
-    *   Use `secops-soar.get_case_full_details` to get overall case information.
-    *   Use `secops-soar.list_alerts_by_case` to get associated alerts.
-    *   Use `secops-soar.get_entities_by_alert_group_identifiers` (if applicable, or parse entities from alerts/events) to extract key entities.
+    *   Use `soar-mcp_get_case_full_details` to get overall case information.
+    *   Use `soar-mcp_list_alerts_by_case` to get associated alerts.
+    *   Use `soar-mcp_get_entities_by_alert_group_identifiers` (if applicable, or parse entities from alerts/events) to extract key entities.
     *   Store all details in `${CASE_DETAILS_MAP}`.
 3.  **Group Cases:** Analyze entities and alert details across all cases in `${CASE_DETAILS_MAP}`. Identify logical groups (`${CASE_GROUPS}`) based on `${GROUPING_CRITERIA}` (if provided) or observed similarities (e.g., shared critical entities, common alert types, overlapping timeframes).
 4.  **Prioritize Groups:** Assess the priority of each group in `${CASE_GROUPS}` based on factors like combined alert severity, number of cases in the group, criticality of shared entities, or potential impact. Store as `${PRIORITIZED_GROUPS}`.
-5.  **Enrich Key Entities (Optional):** For high-priority groups in `${PRIORITIZED_GROUPS}`, identify key shared entities. Perform basic enrichment on these entities using `secops-mcp.lookup_entity` and relevant `gti-mcp` tools. Store in `${ENRICHMENT_DATA_SUMMARY}`.
+5.  **Enrich Key Entities (Optional):** For high-priority groups in `${PRIORITIZED_GROUPS}`, identify key shared entities. Perform basic enrichment on these entities using `secops-mcp_lookup_entity` and relevant `gti-mcp` tools. Store in `${ENRICHMENT_DATA_SUMMARY}`.
 6.  **Generate Summary Report:** Create a Markdown report (`${REPORT_CONTENT}`) summarizing the `${PRIORITIZED_GROUPS}`, the rationale for grouping and prioritization, and key findings (including `${ENRICHMENT_DATA_SUMMARY}` if available). Use `write_to_file` to save the report to `${REPORT_FILE_PATH}` (e.g., `./reports/case_grouping_report_${timestamp}.md`).
 
 ```{mermaid}

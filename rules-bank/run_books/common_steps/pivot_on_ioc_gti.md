@@ -6,7 +6,7 @@ Explore relationships connected to a specific Indicator of Compromise (IOC) with
 
 ## Scope
 
-This sub-runbook executes the appropriate `gti-mcp.get_entities_related_to_a_...` tool based on the input IOC type and desired relationship(s). It returns the discovered related entities.
+This sub-runbook executes the appropriate `gti-mcp_get_entities_related_to_a_...` tool based on the input IOC type and desired relationship(s). It returns the discovered related entities.
 
 ## Inputs
 

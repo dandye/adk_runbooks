@@ -29,10 +29,10 @@ This runbook covers the initial assessment and potential network isolation of an
 
 1.  **Receive Input:** Obtain `${ENDPOINT_ID}`, `${ENDPOINT_TYPE}`, `${CASE_ID}`, `${ALERT_GROUP_IDENTIFIERS}`, and optionally `${REASON_FOR_TRIAGE}`.
 2.  **Gather Initial Context:**
-    *   Retrieve full case details using `secops-soar.get_case_full_details` for `${CASE_ID}`.
-    *   Use `secops-mcp.lookup_entity` for `${ENDPOINT_ID}` to get a SIEM activity summary.
+    *   Retrieve full case details using `soar-mcp_get_case_full_details` for `${CASE_ID}`.
+    *   Use `secops-mcp_lookup_entity` for `${ENDPOINT_ID}` to get a SIEM activity summary.
 3.  **Check Endpoint Posture & Activity:**
-    *   Search SIEM using `secops-mcp.search_security_events` for recent activity related to `${ENDPOINT_ID}` (e.g., last 24-72 hours). Look for:
+    *   Search SIEM using `secops-mcp_search_security_events` for recent activity related to `${ENDPOINT_ID}` (e.g., last 24-72 hours). Look for:
         *   Suspicious process executions.
         *   Anomalous network connections (especially outbound to known bad IPs/domains).
         *   Significant alert volume associated with the endpoint.
@@ -48,7 +48,7 @@ This runbook covers the initial assessment and potential network isolation of an
     *   *(Requires specific EDR integration tool with isolation capability)*
     *   If confirmed "Yes":
         *   Execute the EDR `isolate_endpoint` action for `${ENDPOINT_ID}`.
-7.  **Document Findings & Actions:** Record the triage findings, assessment, and isolation status/action taken for `${ENDPOINT_ID}` in the SOAR case using `secops-soar.post_case_comment`.
+7.  **Document Findings & Actions:** Record the triage findings, assessment, and isolation status/action taken for `${ENDPOINT_ID}` in the SOAR case using `soar-mcp_post_case_comment`.
 8.  **Next Steps / Handover:**
     *   If isolated or confirmed compromise, determine next steps: deeper forensic analysis, malware removal, re-imaging, handover to Tier 3/IR team.
     *   Document recommended next steps in the case comment.

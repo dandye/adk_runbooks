@@ -29,7 +29,7 @@ This sub-runbook executes the `siemplify_get_similar_cases` action in the SOAR p
 ## Workflow Steps & Diagram
 
 1.  **Receive Input:** Obtain `${CASE_ID}`, `${ALERT_GROUP_IDENTIFIERS}`, and optional criteria (`${SIMILARITY_CRITERIA}`, `${DAYS_BACK}`, etc.) from the calling runbook.
-2.  **Check Similar Cases:** Call `secops-soar.siemplify_get_similar_cases` with the provided inputs. Use defaults if optional inputs are not provided.
+2.  **Check Similar Cases:** Call `soar-mcp_siemplify_get_similar_cases` with the provided inputs. Use defaults if optional inputs are not provided.
 3.  **Return Results:** Store the list of similar case IDs found in `${SIMILAR_CASE_IDS}` and the status of the check in `${SIMILARITY_CHECK_STATUS}`. Return these to the calling runbook.
 
 ```{mermaid}

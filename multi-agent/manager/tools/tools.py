@@ -121,7 +121,8 @@ def get_agent_tools():
           ],
         ),
       timeout=TIMEOUT,
-    )
+    ),
+  tool_name_prefix="secops-mcp",
   )
 
   soar_toolset = MCPToolset(
@@ -140,7 +141,8 @@ def get_agent_tools():
           ],
         ),
     timeout=TIMEOUT,
-    )
+    ),
+  tool_name_prefix="soar-mcp",
   )
 
   gti_toolset = MCPToolset(
@@ -158,7 +160,8 @@ def get_agent_tools():
           ],
         ),
     timeout=TIMEOUT,
-    )
+    ),
+  tool_name_prefix="gti-mcp",
   )
 
   return (

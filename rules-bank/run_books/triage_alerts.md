@@ -48,7 +48,7 @@ This runbook explicitly **excludes**:
 ## Workflow Steps & Diagram
 
 1.  **Receive Alert/Case:** Obtain the `${ALERT_ID}` or `${CASE_ID}`.
-2.  **Gather Initial Context:** Use `secops-soar.get_case_full_details` or `list_alerts_by_case` / `list_events_by_alert` to understand the alert type, severity, involved entities (`KEY_ENTITIES`), and triggering events.
+2.  **Gather Initial Context:** Use `soar-mcp_get_case_full_details` or `list_alerts_by_case` / `list_events_by_alert` to understand the alert type, severity, involved entities (`KEY_ENTITIES`), and triggering events.
 3.  **Check for Duplicates:** Execute `common_steps/check_duplicate_cases.md` with `${CASE_ID}`. Obtain `${SIMILAR_CASE_IDS}`.
 4.  **Handle Duplicates:** If `${SIMILAR_CASE_IDS}` is not empty and duplication is confirmed by analyst:
     *   Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and comment "Closing as duplicate of [Similar Case ID]".
@@ -63,7 +63,7 @@ This runbook explicitly **excludes**:
     *   Execute `common_steps/find_relevant_soar_case.md` with `SEARCH_TERMS=KEY_ENTITIES` (list of entities from Step 2) and `CASE_STATUS_FILTER="Opened"`.
     *   Obtain `${ENTITY_RELATED_CASES}` (list of potentially relevant open case summaries/IDs).
 6.  **(New) Alert-Specific SIEM Search:**
-    *   Based on the alert type identified in Step 2, perform an initial targeted search using `secops-mcp.search_security_events` to gather immediate context. Examples:
+    *   Based on the alert type identified in Step 2, perform an initial targeted search using `secops-mcp_search_security_events` to gather immediate context. Examples:
         *   **Suspicious Login:** Search for related login events (success/failure) for the user/source IP/hostname around the alert time (e.g., last hour).
         *   **Malware Detection:** Search for process execution, file modification, or network events related to the file hash/endpoint around the alert time.
         *   **Network Alert:** Search for related network flows or DNS lookups involving the source/destination IPs/domains.
@@ -80,10 +80,10 @@ This runbook explicitly **excludes**:
         *   Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and comment explaining FP/BTP reason.
         *   **Guidance for Closure:**
             *   Choose an appropriate `${CLOSURE_REASON}` (likely `NOT_MALICIOUS`).
-            *   Choose a valid `${ROOT_CAUSE}` from the SOAR platform's predefined list (e.g., `"Legit action"`, `"Normal behavior"`, `"Other"`). Use `secops-soar.get_case_settings_root_causes` to list valid options if unsure.
+            *   Choose a valid `${ROOT_CAUSE}` from the SOAR platform's predefined list (e.g., `"Legit action"`, `"Normal behavior"`, `"Other"`). Use `soar-mcp_get_case_settings_root_causes` to list valid options if unsure.
         *   Execute `common_steps/close_soar_artifact.md` with `${ARTIFACT_ID}` = `${CASE_ID}` (or `${ALERT_ID}`), `${ARTIFACT_TYPE}` = "Case" (or "Alert"), the chosen `${CLOSURE_REASON}`/`${ROOT_CAUSE}`, and `${CLOSURE_COMMENT}` = "Closed as FP/BTP during triage.".
     *   **If TP/Suspicious:**
-        *   *(Optional)* Use `secops-soar.change_case_priority` if needed.
+        *   *(Optional)* Use `soar-mcp_change_case_priority` if needed.
         *   Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and comment summarizing initial findings and assessment.
         *   Escalate/assign to the appropriate next tier or trigger a relevant investigation runbook (e.g., `deep_dive_ioc_analysis.md`, `suspicious_login_triage.md`).
 

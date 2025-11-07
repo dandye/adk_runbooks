@@ -28,20 +28,20 @@ Focuses on SIEM log analysis and GTI correlation for specific TTPs and IOCs rela
 ## Workflow Steps & Diagram
 
 1.  **Identify Actor & Gather Intelligence:**
-    *   If starting with a name, use `gti-mcp.search_threat_actors` to find the `${THREAT_ACTOR_ID}`.
-    *   Retrieve details about `${THREAT_ACTOR_ID}` using `gti-mcp.get_collection_report`.
-    *   Analyze known TTPs using `gti-mcp.get_collection_mitre_tree`.
-    *   Analyze timelines using `gti-mcp.get_collection_timeline_events`. *(Note: This may return no results for some actors).*
-    *   Gather associated IOCs (IPs, domains, hashes, URLs) using `gti-mcp.get_entities_related_to_a_collection` for relevant relationship types (e.g., files, domains, urls). *(Note: Not all relationship types may yield results).* Let this be `GTI_IOC_LIST`.
-2.  **Check SIEM IOC Matches:** Use `secops-mcp.get_ioc_matches` covering `${HUNT_TIMEFRAME_HOURS}` to see if any IOCs related to the actor are already flagged by integrated feeds. Correlate with `GTI_IOC_LIST`.
+    *   If starting with a name, use `gti-mcp_search_threat_actors` to find the `${THREAT_ACTOR_ID}`.
+    *   Retrieve details about `${THREAT_ACTOR_ID}` using `gti-mcp_get_collection_report`.
+    *   Analyze known TTPs using `gti-mcp_get_collection_mitre_tree`.
+    *   Analyze timelines using `gti-mcp_get_collection_timeline_events`. *(Note: This may return no results for some actors).*
+    *   Gather associated IOCs (IPs, domains, hashes, URLs) using `gti-mcp_get_entities_related_to_a_collection` for relevant relationship types (e.g., files, domains, urls). *(Note: Not all relationship types may yield results).* Let this be `GTI_IOC_LIST`.
+2.  **Check SIEM IOC Matches:** Use `secops-mcp_get_ioc_matches` covering `${HUNT_TIMEFRAME_HOURS}` to see if any IOCs related to the actor are already flagged by integrated feeds. Correlate with `GTI_IOC_LIST`.
 3.  **IOC-Based Search (SIEM):**
     *   For each relevant IOC type (e.g., IPs, domains, hashes, URLs) derived from `GTI_IOC_LIST`:
-        *   Construct appropriate UDM queries for `secops-mcp.search_security_events`.
+        *   Construct appropriate UDM queries for `secops-mcp_search_security_events`.
         *   Execute the search over `${HUNT_TIMEFRAME_HOURS}`.
         *   Analyze results for any hits. Let findings be `IOC_SEARCH_FINDINGS`. Document negative results as well.
 4.  **TTP-Based Search (SIEM):**
-    *   **Develop Queries:** Based on the MITRE techniques identified in Step 1 and the `${HUNT_HYPOTHESIS}` (if provided), formulate specific `secops-mcp.search_security_events` UDM queries targeting indicators for the most relevant TTPs.
-        *   *Suggestion:* Use `gti-mcp.get_threat_intel` for specific TTP IDs identified in Step 1 to get detection ideas.
+    *   **Develop Queries:** Based on the MITRE techniques identified in Step 1 and the `${HUNT_HYPOTHESIS}` (if provided), formulate specific `secops-mcp_search_security_events` UDM queries targeting indicators for the most relevant TTPs.
+        *   *Suggestion:* Use `gti-mcp_get_threat_intel` for specific TTP IDs identified in Step 1 to get detection ideas.
         *   Combine technique-specific queries with `${TARGET_SCOPE_QUERY}` if provided.
     *   **Execute Queries:** Run the developed TTP queries over `${HUNT_TIMEFRAME_HOURS}`. Iterate on queries if initial results are negative but the hypothesis remains strong.
     *   Analyze results for anomalies or suspicious patterns matching the TTPs. Let findings be `TTP_SEARCH_FINDINGS`. Document negative results as well.
@@ -49,7 +49,7 @@ Focuses on SIEM log analysis and GTI correlation for specific TTPs and IOCs rela
     *   If hits are found (`IOC_SEARCH_FINDINGS` or `TTP_SEARCH_FINDINGS`):
         *   Identify key involved IOCs and associated entities (hosts, users). Let these be `FOUND_IOCS` and `FOUND_ENTITIES`.
         *   For each item in `FOUND_IOCS` and `FOUND_ENTITIES`:
-            *   Use `secops-mcp.lookup_entity` to get SIEM context.
+            *   Use `secops-mcp_lookup_entity` to get SIEM context.
             *   Use relevant `gti-mcp` tools (`get_ip_address_report`, `get_domain_report`, etc.) to get GTI context.
         *   Let combined enrichment results be `ENRICHMENT_RESULTS`.
 6.  **Check Related SOAR Cases:**
@@ -58,7 +58,7 @@ Focuses on SIEM log analysis and GTI correlation for specific TTPs and IOCs rela
         *   Obtain `${RELATED_SOAR_CASES}` (list of potentially relevant open case summaries/IDs).
 7.  **Synthesize & Document:**
     *   Combine all findings: GTI intelligence, IOC match results, IOC search findings (positive and negative), TTP search findings (positive and negative), enrichment results (`ENRICHMENT_RESULTS`), and related SOAR cases (`${RELATED_SOAR_CASES}`).
-    *   Document findings, queries used, and analysis in `${HUNT_CASE_ID}` (if provided) using `secops-soar.post_case_comment`.
+    *   Document findings, queries used, and analysis in `${HUNT_CASE_ID}` (if provided) using `soar-mcp_post_case_comment`.
 8.  **Generate Report:**
     *   Structure a Markdown report summarizing the hunt (referencing `rules-bank/reporting_templates.md` and `rules-bank/run_books/guidelines/runbook_guidelines.md`). Include:
         *   Metadata (Runbook Used, Timestamp, Case ID if applicable).

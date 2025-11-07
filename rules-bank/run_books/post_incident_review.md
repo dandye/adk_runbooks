@@ -25,7 +25,7 @@ This runbook outlines the process for conducting a PIR meeting, analyzing incide
 
 1.  **Schedule PIR Meeting:** Identify key stakeholders (`${KEY_STAKEHOLDERS}`) based on the incident's nature and impact. Schedule the PIR meeting, allowing sufficient time for preparation.
 2.  **Gather Incident Data:**
-    *   Retrieve comprehensive case details using `secops-soar.get_case_full_details` for `${CASE_ID}`. Pay close attention to comments, timeline information, actions taken, and any feedback already documented in the Phase 7 section of the relevant IRP.
+    *   Retrieve comprehensive case details using `soar-mcp_get_case_full_details` for `${CASE_ID}`. Pay close attention to comments, timeline information, actions taken, and any feedback already documented in the Phase 7 section of the relevant IRP.
     *   Review the final incident report (`${INCIDENT_REPORT_PATH}`) if available.
     *   Compile a detailed incident timeline (`${INCIDENT_TIMELINE}`) if not already available.
 3.  **Conduct PIR Meeting:**
@@ -47,7 +47,7 @@ This runbook outlines the process for conducting a PIR meeting, analyzing incide
 6.  **Update Documentation:**
     *   Based on findings, update relevant runbooks, policies, or procedures. Trigger updates to detection rules via the appropriate process (e.g., notify Detection Engineering).
 7.  **Finalize PIR Documentation:**
-    *   Add the PIR summary and recommendations to the SOAR case (`${CASE_ID}`) using `secops-soar.post_case_comment`.
+    *   Add the PIR summary and recommendations to the SOAR case (`${CASE_ID}`) using `soar-mcp_post_case_comment`.
     *   Store any formal PIR report in the designated repository.
 8.  **Completion:** Conclude the runbook execution.
 

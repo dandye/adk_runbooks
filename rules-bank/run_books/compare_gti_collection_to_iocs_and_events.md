@@ -11,14 +11,14 @@ Analyze results and compare against GTI Collection context (report or campaign).
 
 Uses tools:
 
- * `gti-mcp.get_collection_report`
- * `secops-mcp.get_ioc_matches`
- * `secops-mcp.search_security_events`
- * `secops-mcp.get_security_alerts`
- * `gti-mcp.*` (various lookups like `get_file_report`, `get_entities_related_to_a_collection`, `get_collection_mitre_tree`, etc.)
+ * `gti-mcp_get_collection_report`
+ * `secops-mcp_get_ioc_matches`
+ * `secops-mcp_search_security_events`
+ * `secops-mcp_get_security_alerts`
+ * `gti-mcp_*` (various lookups like `get_file_report`, `get_entities_related_to_a_collection`, `get_collection_mitre_tree`, etc.)
  * (Optional) Add to SQLite Table
- * `secops-soar.post_case_comment`
- * `secops-soar.list_cases` (Optional, for finding existing case)
+ * `soar-mcp_post_case_comment`
+ * `soar-mcp_list_cases` (Optional, for finding existing case)
 
 ```{mermaid}
 sequenceDiagram

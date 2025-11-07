@@ -27,15 +27,15 @@ This runbook covers in-depth analysis of a single IOC (IP, Domain, Hash, URL) us
 
 ## Workflow Steps & Diagram
 
-1.  **Receive Input & Context:** Obtain `${IOC_VALUE}`, `${IOC_TYPE}`, optionally `${CASE_ID}`, `${ALERT_GROUP_IDENTIFIERS}`, `${TIME_FRAME_HOURS}`, `${SKIP_SOAR}`. If `${CASE_ID}` is provided and `${SKIP_SOAR}` is not true, get case details via `secops-soar.get_case_full_details`.
+1.  **Receive Input & Context:** Obtain `${IOC_VALUE}`, `${IOC_TYPE}`, optionally `${CASE_ID}`, `${ALERT_GROUP_IDENTIFIERS}`, `${TIME_FRAME_HOURS}`, `${SKIP_SOAR}`. If `${CASE_ID}` is provided and `${SKIP_SOAR}` is not true, get case details via `soar-mcp_get_case_full_details`.
 2.  **Detailed GTI Report:**
-    *   Use the appropriate `gti-mcp.get_..._report` tool based on `${IOC_TYPE}` to retrieve the full GTI analysis report (`${GTI_REPORT_DETAILS}`) for `${IOC_VALUE}`.
+    *   Use the appropriate `gti-mcp_get_..._report` tool based on `${IOC_TYPE}` to retrieve the full GTI analysis report (`${GTI_REPORT_DETAILS}`) for `${IOC_VALUE}`.
     *   Record key details: reputation, classifications, first/last seen dates, associated threats (malware families, actors - `${ASSOCIATED_THREAT_IDS}`), key behaviors (if file hash).
 3.  **GTI Pivoting:**
     *   Execute `common_steps/pivot_on_ioc_gti.md` with `${IOC_VALUE}`, `${IOC_TYPE}`, and relevant `${RELATIONSHIP_NAMES}` (determined based on IOC type and report details). Obtain `${RELATED_ENTITIES}`.
-    *   *(Optional: If IOC is File Hash, use `gti-mcp.get_file_behavior_summary`)*.
+    *   *(Optional: If IOC is File Hash, use `gti-mcp_get_file_behavior_summary`)*.
 4.  **Deep SIEM Search:**
-    *   Use `secops-mcp.search_security_events` with detailed UDM queries covering `${TIME_FRAME_HOURS}` (default 168). Search for:
+    *   Use `secops-mcp_search_security_events` with detailed UDM queries covering `${TIME_FRAME_HOURS}` (default 168). Search for:
         *   Activity directly involving `${IOC_VALUE}`.
         *   Activity involving significant IOCs from `${RELATED_ENTITIES}`.
     *   Analyze event details (`${SIEM_SEARCH_RESULTS}`).
@@ -50,7 +50,7 @@ This runbook covers in-depth analysis of a single IOC (IP, Domain, Hash, URL) us
 6.  **(Optional) Enrich Associated Threats:**
     *   If `${ASSOCIATED_THREAT_IDS}` were identified in Step 2:
         *   For each Threat ID `Ti` in `${ASSOCIATED_THREAT_IDS}`:
-            *   Use `gti-mcp.get_collection_report` with `id=Ti` to get context on the associated malware/actor. Store in `${ASSOCIATED_THREAT_DETAILS}`.
+            *   Use `gti-mcp_get_collection_report` with `id=Ti` to get context on the associated malware/actor. Store in `${ASSOCIATED_THREAT_DETAILS}`.
 7.  **Synthesize & Document/Report:**
     *   Combine all findings: `${GTI_REPORT_DETAILS}`, `${RELATED_ENTITIES}`, `${SIEM_SEARCH_RESULTS}`, `SIEM_ENRICHMENT_RESULTS`, `${RELATED_SIEM_ALERTS}`, `${RELATED_SOAR_CASES_CORRELATION}`, `${RELATED_SOAR_CASES_BROAD}`, `${ASSOCIATED_THREAT_DETAILS}` (optional).
     *   Assess the overall impact and scope. Identify potentially compromised assets or users. Formulate `ASSESSMENT` and `RECOMMENDATION`.

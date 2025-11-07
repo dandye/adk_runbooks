@@ -26,10 +26,10 @@ This runbook provides a template for hunting specific lateral movement TTPs, foc
 
 1.  **Receive Input & Define Scope:** Obtain `${TIME_FRAME_HOURS}`, optionally `${TARGET_SCOPE_QUERY}` and `${HUNT_HYPOTHESIS}`.
 2.  **Research Techniques (SIEM/External):**
-    *   Use `secops-mcp.get_threat_intel` for TTPs like T1570 (Lateral Tool Transfer - PsExec often copied), T1021.002 (Remote Services: SMB/Windows Admin Shares - PsExec uses this), T1047 (Windows Management Instrumentation - WMI abuse).
+    *   Use `secops-mcp_get_threat_intel` for TTPs like T1570 (Lateral Tool Transfer - PsExec often copied), T1021.002 (Remote Services: SMB/Windows Admin Shares - PsExec uses this), T1047 (Windows Management Instrumentation - WMI abuse).
     *   *(Manual Step: Review MITRE ATT&CK website for detailed procedures and detection guidance for these techniques).*
 3.  **Develop SIEM Hunt Queries:**
-    *   Based on research, formulate specific `secops-mcp.search_security_events` UDM queries targeting indicators. Examples:
+    *   Based on research, formulate specific `secops-mcp_search_security_events` UDM queries targeting indicators. Examples:
         *   **PsExec Service Installation:** `metadata.product_event_type = "ServiceInstalled" AND target.process.file.full_path CONTAINS "PSEXESVC.exe"` (Requires appropriate Windows Event Log source - System Log Event ID 7045).
         *   **PsExec Execution (Indirect):** Look for `services.exe` spawning unusual processes, especially on remote machines shortly after potential SMB connection. `metadata.event_type = "PROCESS_LAUNCH" AND principal.process.file.full_path = "C:\Windows\System32\services.exe" AND target.process.file.full_path NOT IN ("standard_service_process1.exe", "standard_service_process2.exe")` (Needs significant tuning based on environment).
         *   **WMI Process Creation:** `metadata.event_type = "PROCESS_LAUNCH" AND principal.process.file.full_path = "C:\Windows\System32\wbem\WmiPrvSE.exe"` (Look for `WmiPrvSE.exe` spawning suspicious child processes like `cmd.exe`, `powershell.exe`).
@@ -38,7 +38,7 @@ This runbook provides a template for hunting specific lateral movement TTPs, foc
         *   **PowerShell WMI Methods:** Search for PowerShell scripts (`.ps1`) or command lines using `Invoke-WmiMethod`, `Get-WmiObject`, or `Invoke-CimMethod` for remote interaction. Example: `metadata.event_type = "PROCESS_LAUNCH" AND target.process.file.full_path CONTAINS "powershell.exe" AND target.process.command_line CONTAINS "Invoke-WmiMethod"`
     *   Combine technique-specific queries with `${TARGET_SCOPE_QUERY}` if provided.
 4.  **Execute SIEM Searches:**
-    *   Run the developed queries using `secops-mcp.search_security_events` with `hours_back=${TIME_FRAME_HOURS}`.
+    *   Run the developed queries using `secops-mcp_search_security_events` with `hours_back=${TIME_FRAME_HOURS}`.
 5.  **Network Correlation (Optional but Recommended):**
     *   If suspicious process activity is found on a target host, search for corresponding network connections (especially SMB port 445) originating from potential source hosts around the same time.
     *   Example Query: `metadata.event_type = "NETWORK_CONNECTION" AND target.port = 445 AND target.ip = "TARGET_IP" AND principal.ip = "SOURCE_IP"` (Adjust IPs and timeframe based on findings).
@@ -46,7 +46,7 @@ This runbook provides a template for hunting specific lateral movement TTPs, foc
     *   Review results for anomalous patterns: PsExec/WMI usage originating from unexpected sources (e.g., user workstations instead of admin servers), execution targeting a large number of hosts, execution of suspicious commands via WMI, correlation between network connections and remote process execution.
 7.  **Enrich Findings:**
     *   If suspicious activity is found:
-            *   Use `secops-mcp.lookup_entity` for involved source/destination hosts, users. Let these be `SUSPICIOUS_ENTITIES`.
+            *   Use `secops-mcp_lookup_entity` for involved source/destination hosts, users. Let these be `SUSPICIOUS_ENTITIES`.
             *   *(Optional)* If an Identity Provider tool is available (e.g., `okta-mcp.lookup_okta_user`), gather context on involved user accounts.
             *   Use `gti-mcp` tools to enrich any associated IPs, domains, or hashes if applicable. Let combined enrichment be `ENRICHMENT_RESULTS`.
 8.  **Check Related SOAR Cases:**
@@ -54,7 +54,7 @@ This runbook provides a template for hunting specific lateral movement TTPs, foc
         *   Execute `common_steps/find_relevant_soar_case.md` with `SEARCH_TERMS=SUSPICIOUS_ENTITIES` and `CASE_STATUS_FILTER="Opened"`.
         *   Obtain `${RELATED_SOAR_CASES}` (list of potentially relevant open case summaries/IDs).
 9.  **Document Hunt & Findings:**
-    *   Use `secops-soar.post_case_comment` in a dedicated hunting case or relevant existing case.
+    *   Use `soar-mcp_post_case_comment` in a dedicated hunting case or relevant existing case.
     *   Document: Hunt Hypothesis/Objective, Techniques Hunted, Scope, Timeframe, Queries Used, Summary of Findings (**explicitly noting queries with negative results**), Details of suspicious activity, Enrichment results (`ENRICHMENT_RESULTS`), Related SOAR Cases (`${RELATED_SOAR_CASES}`).
     *   **Suggest Follow-on Actions:** Based on findings, suggest next steps like triggering `case_event_timeline_and_process_analysis.md` for suspicious processes or `compromised_user_account_response.md` for involved users.
 10. **Escalate or Conclude:**
