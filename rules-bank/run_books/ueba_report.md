@@ -29,10 +29,10 @@ This runbook explicitly **excludes**:
 *   `${ANOMALY_DESCRIPTION}`: A clear description of the anomalous behavior as reported by the UEBA system or alert. This is mandatory.
 *   *(Optional) `${BASELINE_INFO}`: Pre-existing information about the user's or entity's normal baseline behavior relevant to the anomaly type.*
 *   *(Optional) `${ALERT_TIMESTAMP}`: The timestamp of the UEBA alert, used to focus SIEM searches.*
-*   *(Derived) `${USER_SIEM_CONTEXT}`: Summary of user activity from `secops-mcp.lookup_entity`.*
-*   *(Derived) `${ENTITY_SIEM_CONTEXT}`: Summary of entity activity from `secops-mcp.lookup_entity`.*
+*   *(Derived) `${USER_SIEM_CONTEXT}`: Summary of user activity from `secops-mcp_lookup_entity`.*
+*   *(Derived) `${ENTITY_SIEM_CONTEXT}`: Summary of entity activity from `secops-mcp_lookup_entity`.*
 *   *(Derived) `${IDP_USER_CONTEXT}`: (Optional) User details from an IDP tool like `okta-mcp.lookup_okta_user`.*
-*   *(Derived) `${DETAILED_ACTIVITY_LOGS}`: Specific SIEM event logs related to the anomaly from `secops-mcp.search_security_events`.*
+*   *(Derived) `${DETAILED_ACTIVITY_LOGS}`: Specific SIEM event logs related to the anomaly from `secops-mcp_search_security_events`.*
 *   *(Derived) `${IOC_ENRICHMENT_RESULTS}`: Enrichment data for any IOCs identified during the analysis.*
 
 ## Outputs

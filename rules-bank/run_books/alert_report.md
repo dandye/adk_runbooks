@@ -24,23 +24,23 @@ This runbook covers gathering essential details about the alert(s), associated e
 
 ## Workflow Steps & Diagram
 
-1.  **Receive Input & Context:** Obtain `${CASE_ID}`, `${ALERT_GROUP_IDENTIFIERS}` (or `${ALERT_IDS}`), and optionally `${REPORT_FILENAME_SUFFIX}`. Get case details using `secops-soar.get_case_full_details`.
+1.  **Receive Input & Context:** Obtain `${CASE_ID}`, `${ALERT_GROUP_IDENTIFIERS}` (or `${ALERT_IDS}`), and optionally `${REPORT_FILENAME_SUFFIX}`. Get case details using `soar-mcp_get_case_full_details`.
 2.  **Identify Target Alerts & Entities:**
-    *   If using `${ALERT_GROUP_IDENTIFIERS}`, use `secops-soar.get_entities_by_alert_group_identifiers` to list involved entities. Use `secops-soar.list_alerts_by_case` and filter based on the group identifiers (if possible, otherwise use all alerts in the group).
+    *   If using `${ALERT_GROUP_IDENTIFIERS}`, use `soar-mcp_get_entities_by_alert_group_identifiers` to list involved entities. Use `soar-mcp_list_alerts_by_case` and filter based on the group identifiers (if possible, otherwise use all alerts in the group).
     *   If using `${ALERT_IDS}`, retrieve details for those specific alerts (potentially from the `get_case_full_details` output or by iterating `list_alerts_by_case` if needed). Identify entities directly from these alerts.
     *   Compile a list of unique key entities (Users, Hosts, IPs, Hashes, Domains, URLs) involved in the target alert(s). Let this be `KEY_ENTITIES`.
 3.  **Gather Alert Events:**
-    *   Retrieve underlying UDM events for key alerts. Use `secops-soar.list_events_by_alert` for detailed events, or summarize event details available within the `secops-soar.get_case_full_details` output if sufficient for a summary perspective.
+    *   Retrieve underlying UDM events for key alerts. Use `soar-mcp_list_events_by_alert` for detailed events, or summarize event details available within the `soar-mcp_get_case_full_details` output if sufficient for a summary perspective.
     *   Extract key event details (timestamps, event types, process info, network info, file info).
 4.  **Enrich Key Entities:**
     *   Initialize an empty structure for enrichment findings.
     *   For each entity in `KEY_ENTITIES`:
-        *   Use `secops-mcp.lookup_entity` to get SIEM context (first/last seen, related alerts).
-        *   Use the appropriate `gti-mcp.get_..._report` tool based on entity type (IP, Domain, Hash, URL) to get threat intelligence reputation/context.
+        *   Use `secops-mcp_lookup_entity` to get SIEM context (first/last seen, related alerts).
+        *   Use the appropriate `gti-mcp_get_..._report` tool based on entity type (IP, Domain, Hash, URL) to get threat intelligence reputation/context.
     *   Store enrichment summaries.
 5.  **(Optional) Search Related SIEM Activity:**
     *   *(Guidance: Consider performing this step if initial enrichment reveals highly critical IOCs or if the alert context is unclear).*
-        *   Perform limited `secops-mcp.search_security_events` queries around the alert timeframe for the most critical entities identified (e.g., the primary host or user) to find immediate related context beyond the specific alert events.
+        *   Perform limited `secops-mcp_search_security_events` queries around the alert timeframe for the most critical entities identified (e.g., the primary host or user) to find immediate related context beyond the specific alert events.
 6.  **Synthesize & Format Report:**
     *   Create a Markdown report structure including (referencing `rules-bank/reporting_templates.md` and `rules-bank/run_books/guidelines/runbook_guidelines.md`):
         *   **Metadata:** Runbook Used, Timestamp, Case ID(s).
@@ -58,7 +58,7 @@ This runbook covers gathering essential details about the alert(s), associated e
     *   Let the formatted Markdown content be `REPORT_CONTENTS_VAR`.
     *   Use `write_report` with `report_name=${REPORT_NAME_VAR}` and `report_contents=${REPORT_CONTENTS_VAR}`.
 8.  **(Optional) Update SOAR Case:**
-    *   Use `secops-soar.post_case_comment` to add a comment to `${CASE_ID}` stating that the report has been generated and providing the filename, or pasting a concise summary directly.
+    *   Use `soar-mcp_post_case_comment` to add a comment to `${CASE_ID}` stating that the report has been generated and providing the filename, or pasting a concise summary directly.
 9.  **Completion:** Conclude the runbook execution.
 
 ```{mermaid}

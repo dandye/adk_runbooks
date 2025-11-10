@@ -105,7 +105,7 @@ sequenceDiagram
 
 *   **Objective:** Analyze the reported email, identify malicious indicators, and determine the initial scope of impact.
 *   **Sub-Runbooks/Steps:**
-    1.  **Receive Input & Context:** Obtain email artifacts, `${CASE_ID}`, `${ALERT_GROUP_IDENTIFIERS}`. Get case details via `secops-soar.get_case_full_details`. Check for duplicates (`../common_steps/check_duplicate_cases.md`).
+    1.  **Receive Input & Context:** Obtain email artifacts, `${CASE_ID}`, `${ALERT_GROUP_IDENTIFIERS}`. Get case details via `soar-mcp_get_case_full_details`. Check for duplicates (`../common_steps/check_duplicate_cases.md`).
     2.  **Analyze Email Artifacts:**
         *   *(Conceptual/Manual Step or External Tool)* Parse headers to identify true sender, path, etc.
         *   Extract all URLs, sender domains/IPs, and attachment hashes (`EXTRACTED_IOCs`) from the email body and headers.
@@ -127,7 +127,7 @@ sequenceDiagram
     5.  **(Optional) Verify Initial Findings:**
         *   *(Consider consulting with a Tier 2/3 analyst or senior team member to verify the initial assessment, enrichment findings, and categorization before proceeding with broader searches, especially for potentially high-impact categories like BEC or Whaling).*
     6.  **Search for Related Activity (SIEM):**
-        *   Use `secops-mcp.search_security_events` to search for:
+        *   Use `secops-mcp_search_security_events` to search for:
             *   Other emails with the same subject, sender, or key body phrases (requires email log source).
             *   Network connections or DNS lookups to `MALICIOUS_IOCs` (Domains/IPs).
             *   URL clicks involving `MALICIOUS_IOCs` (URLs) (requires proxy/DNS logs).
@@ -163,7 +163,7 @@ sequenceDiagram
         *   For each endpoint `Ei` in `SUSPICIOUS_ENDPOINTS`:
             *   Execute `../basic_endpoint_triage_isolation.md` for `ENDPOINT_ID=Ei`. **Confirm action with analyst.** Record status (`ENDPOINT_TRIAGE_STATUS[Ei]`).
     4.  **Verify Containment:**
-        *   Monitor SIEM (`secops-mcp.search_security_events`) for continued activity related to `MALICIOUS_IOCs` or contained users/endpoints.
+        *   Monitor SIEM (`secops-mcp_search_security_events`) for continued activity related to `MALICIOUS_IOCs` or contained users/endpoints.
         *   Document containment status using `../common_steps/document_in_soar.md`.
 
 ---

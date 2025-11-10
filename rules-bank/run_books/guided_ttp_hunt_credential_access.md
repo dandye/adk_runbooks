@@ -26,24 +26,24 @@ This runbook provides a template for hunting specific TTPs. This example focuses
 1.  **Receive Input & Define Scope:** Obtain `${TECHNIQUE_IDS}`, `${TIME_FRAME_HOURS}`, optionally `${TARGET_SCOPE_QUERY}` and `${HUNT_HYPOTHESIS}`.
 2.  **Research Techniques (GTI/External):**
     *   For each technique ID in `${TECHNIQUE_IDS}`:
-        *   Use `gti-mcp.get_threat_intel` (e.g., `query="Explain MITRE ATT&CK technique T1003.001"`) to understand the technique's description, common procedures, and potential detection methods.
-        *   *(Optional: Use `gti-mcp.search_threats` querying for the technique ID to find associated tools, malware, or actors).*
+        *   Use `gti-mcp_get_threat_intel` (e.g., `query="Explain MITRE ATT&CK technique T1003.001"`) to understand the technique's description, common procedures, and potential detection methods.
+        *   *(Optional: Use `gti-mcp_search_threats` querying for the technique ID to find associated tools, malware, or actors).*
         *   *(Manual Step: Review MITRE ATT&CK website for detailed procedures and detection guidance).*
 3.  **Develop SIEM Hunt Queries:**
-    *   Based on the research, formulate specific `secops-mcp.search_security_events` UDM queries targeting indicators for each technique. Examples:
+    *   Based on the research, formulate specific `secops-mcp_search_security_events` UDM queries targeting indicators for each technique. Examples:
         *   **T1003.001 (LSASS Memory):** `metadata.event_type="PROCESS_LAUNCH" AND target.process.file.full_path = "C:\Windows\System32\lsass.exe"` (Look for suspicious parent processes accessing lsass.exe - requires careful analysis of parent/target relationships in results). Or search for specific tools accessing LSASS: `metadata.event_type="PROCESS_LAUNCH" AND principal.process.command_line CONTAINS "lsass"` AND `principal.process.file.full_path != "C:\Windows\System32\svchost.exe"` (Example, needs refinement).
         *   **T1555.003 (Credentials from Web Browsers):** `metadata.event_type="FILE_OPEN" AND (target.file.full_path CONTAINS "Login Data" OR target.file.full_path CONTAINS "Web Data") AND principal.process.file.full_path NOT IN ("chrome.exe", "firefox.exe", "msedge.exe")` (Example, needs refinement based on browser paths and legitimate access).
         *   **General:** Search for execution of known credential dumping tools (Mimikatz, LaZagne, etc.) via `principal.process.file.full_path` or `principal.process.command_line`.
     *   Combine technique-specific queries with `${TARGET_SCOPE_QUERY}` if provided.
 4.  **Execute SIEM Searches:**
-    *   Run the developed queries using `secops-mcp.search_security_events` with `hours_back=${TIME_FRAME_HOURS}`.
+    *   Run the developed queries using `secops-mcp_search_security_events` with `hours_back=${TIME_FRAME_HOURS}`.
 5.  **Analyze Results:**
     *   Review the search results for suspicious or anomalous activity matching the technique's expected behavior. Look for low-prevalence events, unusual parent-child process relationships, or access from unexpected applications.
 6.  **Enrich Findings:**
-    *   If suspicious events are found, use `secops-mcp.lookup_entity` for involved users, hosts, IPs, and file hashes.
+    *   If suspicious events are found, use `secops-mcp_lookup_entity` for involved users, hosts, IPs, and file hashes.
     *   Use `gti-mcp` tools (`get_file_report`, `get_ip_address_report`, etc.) to enrich suspicious indicators.
 7.  **Document Hunt & Findings:**
-    *   Use `secops-soar.post_case_comment` in a dedicated hunting case or a relevant existing case (`${CASE_ID}` if applicable).
+    *   Use `soar-mcp_post_case_comment` in a dedicated hunting case or a relevant existing case (`${CASE_ID}` if applicable).
     *   Document: Hunt Hypothesis/Objective, Techniques Hunted (`${TECHNIQUE_IDS}`), Scope (`${TARGET_SCOPE_QUERY}`), Timeframe, Queries Used, Summary of Findings (including negative results), Details of any suspicious activity identified, Enrichment results.
 8.  **Escalate or Conclude:**
     *   If confirmed malicious activity is found, escalate by creating a new incident case or linking findings to an existing one.

@@ -28,22 +28,22 @@ This runbook covers the initial investigation steps to gather context about a su
 
 ## Workflow Steps & Diagram
 
-1.  **Receive Input & Context:** Obtain `${CASE_ID}`, `${ALERT_GROUP_IDENTIFIERS}` (or `${ALERT_ID}`), and other optional inputs. Get full case details using `secops-soar.get_case_full_details`.
+1.  **Receive Input & Context:** Obtain `${CASE_ID}`, `${ALERT_GROUP_IDENTIFIERS}` (or `${ALERT_ID}`), and other optional inputs. Get full case details using `soar-mcp_get_case_full_details`.
 2.  **Extract Key Entities:**
-    *   Use `secops-soar.list_events_by_alert` for the primary alert(s) in the case.
+    *   Use `soar-mcp_list_events_by_alert` for the primary alert(s) in the case.
     *   Parse events to reliably extract the primary `${USER_ID}`, `${SOURCE_IP}`, and relevant `${HOSTNAME}`(s). Handle cases where these might be missing.
 3.  **User Context (SIEM):**
-    *   Use `secops-mcp.lookup_entity` with `entity_value=${USER_ID}`.
+    *   Use `secops-mcp_lookup_entity` with `entity_value=${USER_ID}`.
     *   Record summary of user's recent activity, first/last seen, related alerts (`USER_SIEM_SUMMARY`).
 4.  **Source IP Enrichment:**
     *   Execute `common_steps/enrich_ioc.md` with `IOC_VALUE=${SOURCE_IP}` and `IOC_TYPE="IP Address"`.
     *   Obtain `${GTI_FINDINGS}`, `${SIEM_ENTITY_SUMMARY}` (for IP), `${SIEM_IOC_MATCH_STATUS}`. Let's call these `IP_GTI_FINDINGS`, `IP_SIEM_SUMMARY`, `IP_SIEM_MATCH`.
 5.  **Hostname Context (SIEM):**
     *   If `${HOSTNAME}` was extracted:
-        *   Use `secops-mcp.lookup_entity` with `entity_value=${HOSTNAME}`.
+        *   Use `secops-mcp_lookup_entity` with `entity_value=${HOSTNAME}`.
         *   Record summary (`HOSTNAME_SIEM_SUMMARY`).
 6.  **Recent Login Activity (SIEM):**
-    *   Use `secops-mcp.search_security_events` with a refined UDM query focusing on the last 24-72 hours:
+    *   Use `secops-mcp_search_security_events` with a refined UDM query focusing on the last 24-72 hours:
         ```udm
         metadata.event_type IN ("USER_LOGIN", "AUTH_ATTEMPT") AND (
           principal.user.userid = "${USER_ID}" OR

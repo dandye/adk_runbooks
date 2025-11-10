@@ -23,10 +23,10 @@ This runbook explicitly **excludes**:
     *   `${INTELLIGENCE_REQUIREMENT}`: A specific question or area of focus for research (e.g., "What are the latest TTPs for APT X?", "Is malware Y prevalent in our industry?").
 *   **For the Example Workflow (Researching a Threat Actor):**
     *   `${THREAT_ACTOR_ID}`: GTI Collection ID or known name of the target threat actor. This is mandatory for the example.
-    *   *(Derived) `${ACTOR_DETAILS}`: Output from `gti-mcp.get_collection_report`.*
-    *   *(Derived) `${RELATED_MALWARE}`, `${RELATED_CAMPAIGNS}`, `${RELATED_TTPS}`, `${RELATED_IOCS}`: Outputs from `gti-mcp.get_entities_related_to_a_collection`.*
-    *   *(Derived) `${MITRE_TREE}`: Output from `gti-mcp.get_collection_mitre_tree`.*
-    *   *(Derived) `${TIMELINE_EVENTS}`: Output from `gti-mcp.get_collection_timeline_events`.*
+    *   *(Derived) `${ACTOR_DETAILS}`: Output from `gti-mcp_get_collection_report`.*
+    *   *(Derived) `${RELATED_MALWARE}`, `${RELATED_CAMPAIGNS}`, `${RELATED_TTPS}`, `${RELATED_IOCS}`: Outputs from `gti-mcp_get_entities_related_to_a_collection`.*
+    *   *(Derived) `${MITRE_TREE}`: Output from `gti-mcp_get_collection_mitre_tree`.*
+    *   *(Derived) `${TIMELINE_EVENTS}`: Output from `gti-mcp_get_collection_timeline_events`.*
     *   *(Derived) `${LOCAL_CORRELATION_RESULTS}`: Summary of SIEM searches for related IOCs/TTPs.*
     *   *(Derived) `${REPORT_CONTENT}`: The final Markdown report content.*
 
@@ -56,13 +56,13 @@ This runbook explicitly **excludes**:
 **Example Workflow: Researching a Threat Actor**
 
 1.  **Receive Input:** Obtain Threat Actor Name or ID (`${THREAT_ACTOR_ID}`).
-2.  **Initial GTI Lookup:** Use `gti-mcp.search_threat_actors` (if name provided) or directly use `gti-mcp.get_collection_report` if `${THREAT_ACTOR_ID}` is a GTI Collection ID. Store result in `${ACTOR_DETAILS}`.
-3.  **Explore Relationships:** Use `gti-mcp.get_entities_related_to_a_collection` with `${THREAT_ACTOR_ID}` for various relationship types (e.g., "malware_families", "campaigns", "attack_techniques", "domains", "ip_addresses", "files") to find associated malware (`${RELATED_MALWARE}`), campaigns (`${RELATED_CAMPAIGNS}`), TTPs (`${RELATED_TTPS}`), IOCs (`${RELATED_IOCS}`).
-4.  **Analyze TTPs:** Use `gti-mcp.get_collection_mitre_tree` with `${THREAT_ACTOR_ID}`. Store in `${MITRE_TREE}`.
-5.  **Review Timelines:** Use `gti-mcp.get_collection_timeline_events` with `${THREAT_ACTOR_ID}`. Store in `${TIMELINE_EVENTS}`.
+2.  **Initial GTI Lookup:** Use `gti-mcp_search_threat_actors` (if name provided) or directly use `gti-mcp_get_collection_report` if `${THREAT_ACTOR_ID}` is a GTI Collection ID. Store result in `${ACTOR_DETAILS}`.
+3.  **Explore Relationships:** Use `gti-mcp_get_entities_related_to_a_collection` with `${THREAT_ACTOR_ID}` for various relationship types (e.g., "malware_families", "campaigns", "attack_techniques", "domains", "ip_addresses", "files") to find associated malware (`${RELATED_MALWARE}`), campaigns (`${RELATED_CAMPAIGNS}`), TTPs (`${RELATED_TTPS}`), IOCs (`${RELATED_IOCS}`).
+4.  **Analyze TTPs:** Use `gti-mcp_get_collection_mitre_tree` with `${THREAT_ACTOR_ID}`. Store in `${MITRE_TREE}`.
+5.  **Review Timelines:** Use `gti-mcp_get_collection_timeline_events` with `${THREAT_ACTOR_ID}`. Store in `${TIMELINE_EVENTS}`.
 6.  **Correlate Locally (Optional):** Use `secops-mcp` tools (`search_security_events`, `lookup_entity`) to search for related IOCs/TTPs (from `${RELATED_IOCS}`, `${RELATED_TTPS}`) in the local environment. Store summary in `${LOCAL_CORRELATION_RESULTS}`.
 7.  **Synthesize & Report:** Compile findings (`${ACTOR_DETAILS}`, `${RELATED_MALWARE}`, etc., `${MITRE_TREE}`, `${TIMELINE_EVENTS}`, `${LOCAL_CORRELATION_RESULTS}`) into a threat actor profile. Store as Markdown in `${REPORT_CONTENT}`. Use `write_to_file` to save the report (e.g., `path="./reports/actor_profile_${THREAT_ACTOR_ID}_${timestamp}.md", content=${REPORT_CONTENT}`). Store path in `${REPORT_FILE_PATH}`.
-8.  **Disseminate:** Share findings via `secops-soar.post_case_comment` (e.g., to a general intel case or relevant incident cases) or other established channels. Store status in `${DISSEMINATION_STATUS}`.
+8.  **Disseminate:** Share findings via `soar-mcp_post_case_comment` (e.g., to a general intel case or relevant incident cases) or other established channels. Store status in `${DISSEMINATION_STATUS}`.
 
 ```{mermaid}
 sequenceDiagram

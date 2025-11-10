@@ -44,7 +44,7 @@ digraph CaseAnalysisFlow {
     PlanResponse1 -> PlanResult1;
     // Step 1: List Cases
     ListCases [label="Step 1: List Recent Cases"]; // Uses default style
-    ListCasesTool [label="secops-soar.list_cases", shape=ellipse, style=filled, fillcolor=lightblue];
+    ListCasesTool [label="soar-mcp_list_cases", shape=ellipse, style=filled, fillcolor=lightblue];
     ListCasesResult [label="Result:\nTop 5 Case IDs:\n553, 552, 551, 550, 549", shape=note];
     PlanResult1 -> ListCases;
     ListCases -> ListCasesTool;
@@ -55,47 +55,47 @@ digraph CaseAnalysisFlow {
     // Case 553 Examination
     subgraph cluster_case_553 {
         label = "Examine Case 553"; style=dashed; color=gray;
-        Examine553_DetailsTool [label="Get Details (553)\nsecops-soar.get_case_full_details", shape=ellipse, style=filled, fillcolor=lightblue];
-        Examine553_EntitiesTool [label="Get Entities (553)\nsecops-soar.get_entities_by_alert_group_identifiers", shape=ellipse, style=filled, fillcolor=lightblue];
-        Examine553_EventsTool [label="List Events (553)\nsecops-soar.list_events_by_alert", shape=ellipse, style=filled, fillcolor=lightblue];
+        Examine553_DetailsTool [label="Get Details (553)\nsoar-mcp_get_case_full_details", shape=ellipse, style=filled, fillcolor=lightblue];
+        Examine553_EntitiesTool [label="Get Entities (553)\nsoar-mcp_get_entities_by_alert_group_identifiers", shape=ellipse, style=filled, fillcolor=lightblue];
+        Examine553_EventsTool [label="List Events (553)\nsoar-mcp_list_events_by_alert", shape=ellipse, style=filled, fillcolor=lightblue];
         Examine553_Summary [label="Summary (553):\nImpossible Travel", shape=note];
         Examine553_DetailsTool -> Examine553_EntitiesTool -> Examine553_EventsTool -> Examine553_Summary;
     }
     // Case 552 Examination
     subgraph cluster_case_552 {
         label = "Examine Case 552"; style=dashed; color=gray;
-        Examine552_DetailsTool [label="Get Details (552)\nsecops-soar.get_case_full_details", shape=ellipse, style=filled, fillcolor=lightblue];
-        Examine552_EntitiesTool [label="Get Entities (552)\nsecops-soar.get_entities_by_alert_group_identifiers", shape=ellipse, style=filled, fillcolor=lightblue];
-        Examine552_Events1Tool [label="List Events (Alert 793)\nsecops-soar.list_events_by_alert", shape=ellipse, style=filled, fillcolor=lightblue];
-        Examine552_Events2Tool [label="List Events (Alert 792)\nsecops-soar.list_events_by_alert", shape=ellipse, style=filled, fillcolor=lightblue];
+        Examine552_DetailsTool [label="Get Details (552)\nsoar-mcp_get_case_full_details", shape=ellipse, style=filled, fillcolor=lightblue];
+        Examine552_EntitiesTool [label="Get Entities (552)\nsoar-mcp_get_entities_by_alert_group_identifiers", shape=ellipse, style=filled, fillcolor=lightblue];
+        Examine552_Events1Tool [label="List Events (Alert 793)\nsoar-mcp_list_events_by_alert", shape=ellipse, style=filled, fillcolor=lightblue];
+        Examine552_Events2Tool [label="List Events (Alert 792)\nsoar-mcp_list_events_by_alert", shape=ellipse, style=filled, fillcolor=lightblue];
         Examine552_Summary [label="Summary (552):\nChrome DLP", shape=note];
         Examine552_DetailsTool -> Examine552_EntitiesTool -> Examine552_Events1Tool -> Examine552_Events2Tool -> Examine552_Summary;
      }
      // Case 551 Examination
      subgraph cluster_case_551 {
         label = "Examine Case 551"; style=dashed; color=gray;
-        Examine551_DetailsTool [label="Get Details (551)\nsecops-soar.get_case_full_details", shape=ellipse, style=filled, fillcolor=lightblue];
-        Examine551_EntitiesTool [label="Get Entities (551)\nsecops-soar.get_entities_by_alert_group_identifiers", shape=ellipse, style=filled, fillcolor=lightblue];
-        Examine551_Events1Tool [label="List Events (Alert 791)\nsecops-soar.list_events_by_alert", shape=ellipse, style=filled, fillcolor=lightblue];
-        Examine551_Events2Tool [label="List Events (Alert 790)\nsecops-soar.list_events_by_alert", shape=ellipse, style=filled, fillcolor=lightblue];
+        Examine551_DetailsTool [label="Get Details (551)\nsoar-mcp_get_case_full_details", shape=ellipse, style=filled, fillcolor=lightblue];
+        Examine551_EntitiesTool [label="Get Entities (551)\nsoar-mcp_get_entities_by_alert_group_identifiers", shape=ellipse, style=filled, fillcolor=lightblue];
+        Examine551_Events1Tool [label="List Events (Alert 791)\nsoar-mcp_list_events_by_alert", shape=ellipse, style=filled, fillcolor=lightblue];
+        Examine551_Events2Tool [label="List Events (Alert 790)\nsoar-mcp_list_events_by_alert", shape=ellipse, style=filled, fillcolor=lightblue];
         Examine551_Summary [label="Summary (551):\nSideload/Malware DL", shape=note];
         Examine551_DetailsTool -> Examine551_EntitiesTool -> Examine551_Events1Tool -> Examine551_Events2Tool -> Examine551_Summary;
      }
      // Case 550 Examination
      subgraph cluster_case_550 {
         label = "Examine Case 550"; style=dashed; color=gray;
-        Examine550_DetailsTool [label="Get Details (550)\nsecops-soar.get_case_full_details", shape=ellipse, style=filled, fillcolor=lightblue];
-        Examine550_EntitiesTool [label="Get Entities (550)\nsecops-soar.get_entities_by_alert_group_identifiers", shape=ellipse, style=filled, fillcolor=lightblue];
-        Examine550_EventsTool [label="List Events (550)\nsecops-soar.list_events_by_alert", shape=ellipse, style=filled, fillcolor=lightblue];
+        Examine550_DetailsTool [label="Get Details (550)\nsoar-mcp_get_case_full_details", shape=ellipse, style=filled, fillcolor=lightblue];
+        Examine550_EntitiesTool [label="Get Entities (550)\nsoar-mcp_get_entities_by_alert_group_identifiers", shape=ellipse, style=filled, fillcolor=lightblue];
+        Examine550_EventsTool [label="List Events (550)\nsoar-mcp_list_events_by_alert", shape=ellipse, style=filled, fillcolor=lightblue];
         Examine550_Summary [label="Summary (550):\nJenkins CVE", shape=note];
         Examine550_DetailsTool -> Examine550_EntitiesTool -> Examine550_EventsTool -> Examine550_Summary;
      }
      // Case 549 Examination
      subgraph cluster_case_549 {
         label = "Examine Case 549"; style=dashed; color=gray;
-        Examine549_DetailsTool [label="Get Details (549)\nsecops-soar.get_case_full_details", shape=ellipse, style=filled, fillcolor=lightblue];
-        Examine549_EntitiesTool [label="Get Entities (549)\nsecops-soar.get_entities_by_alert_group_identifiers", shape=ellipse, style=filled, fillcolor=lightblue];
-        Examine549_EventsTool [label="List Events (549)\nsecops-soar.list_events_by_alert", shape=ellipse, style=filled, fillcolor=lightblue];
+        Examine549_DetailsTool [label="Get Details (549)\nsoar-mcp_get_case_full_details", shape=ellipse, style=filled, fillcolor=lightblue];
+        Examine549_EntitiesTool [label="Get Entities (549)\nsoar-mcp_get_entities_by_alert_group_identifiers", shape=ellipse, style=filled, fillcolor=lightblue];
+        Examine549_EventsTool [label="List Events (549)\nsoar-mcp_list_events_by_alert", shape=ellipse, style=filled, fillcolor=lightblue];
         Examine549_Summary [label="Summary (549):\nPhishing Sim", shape=note];
         Examine549_DetailsTool -> Examine549_EntitiesTool -> Examine549_EventsTool -> Examine549_Summary;
      }

@@ -26,22 +26,22 @@ This runbook covers the analysis of a single detection rule's historical perform
 
 1.  **Define Scope & Context:** Obtain `${RULE_ID}`, `${ANALYSIS_TIMEFRAME_DAYS}`, `${REASON_FOR_REVIEW}`, and `${REVIEW_CASE_ID}`. Document the rule's intended purpose and the TTPs/threats it aims to detect.
 2.  **Retrieve Rule Logic:**
-    *   Use `secops-mcp.list_security_rules` filtering by `${RULE_ID}` (or similar mechanism) to get the current rule definition (e.g., YARA-L code).
-    *   *(Alternatively, use `secops-soar.google_chronicle_get_rule_details` if applicable and provides more detailed logic).*
+    *   Use `secops-mcp_list_security_rules` filtering by `${RULE_ID}` (or similar mechanism) to get the current rule definition (e.g., YARA-L code).
+    *   *(Alternatively, use `soar-mcp_google_chronicle_get_rule_details` if applicable and provides more detailed logic).*
     *   Analyze the logic: understand the event fields, conditions, thresholds, and exceptions.
 3.  **Analyze Historical Alerts:**
-    *   Use `secops-mcp.get_security_alerts` or `secops-mcp.search_security_events` (querying for `metadata.rule_id = "${RULE_ID}"` or similar) covering the `${ANALYSIS_TIMEFRAME_DAYS}`.
+    *   Use `secops-mcp_get_security_alerts` or `secops-mcp_search_security_events` (querying for `metadata.rule_id = "${RULE_ID}"` or similar) covering the `${ANALYSIS_TIMEFRAME_DAYS}`.
     *   Gather statistics: total alert count, alert severity distribution, associated SOAR case statuses (True Positive, False Positive, Benign Positive, etc. - requires analyzing linked cases).
 4.  **Analyze Underlying Events (Sampling):**
-    *   **False Positives:** Select a representative sample of alerts closed as False Positive (FP). For each, retrieve associated events (`secops-soar.list_events_by_alert` or `secops-mcp.search_security_events`). Analyze why the rule triggered incorrectly. Look for common patterns in FPs (specific applications, user groups, network segments).
+    *   **False Positives:** Select a representative sample of alerts closed as False Positive (FP). For each, retrieve associated events (`soar-mcp_list_events_by_alert` or `secops-mcp_search_security_events`). Analyze why the rule triggered incorrectly. Look for common patterns in FPs (specific applications, user groups, network segments).
     *   **True Positives:** Select a sample of confirmed True Positive (TP) alerts. Retrieve associated events. Verify the rule logic correctly identified the malicious activity.
     *   **Benign Positives (Optional):** Analyze alerts closed as Benign Positive (e.g., authorized vulnerability scan triggering a rule). Determine if exceptions are needed.
 5.  **Enrich Key Entities:**
-    *   For entities (users, hosts, IPs, files) involved in both TP and FP sample events, use `secops-mcp.lookup_entity` and `gti-mcp` tools to gather context and reputation information.
+    *   For entities (users, hosts, IPs, files) involved in both TP and FP sample events, use `secops-mcp_lookup_entity` and `gti-mcp` tools to gather context and reputation information.
 6.  **Identify Potential False Negatives (Hypothesis-Based):**
     *   Based on the rule's intent, threat intelligence, and knowledge of related incidents:
         *   Formulate hypotheses about variations of the targeted activity the current rule logic might miss.
-        *   Develop specific `secops-mcp.search_security_events` queries to search for evidence of these variations within the analysis timeframe.
+        *   Develop specific `secops-mcp_search_security_events` queries to search for evidence of these variations within the analysis timeframe.
     *   Analyze search results. If evidence of missed detections is found, document the specific event characteristics.
 7.  **Synthesize Findings & Propose Tuning:**
     *   Summarize the rule's performance (alert volume, TP/FP ratio).
@@ -53,7 +53,7 @@ This runbook covers the analysis of a single detection rule's historical perform
         *   Changing or adding event fields/conditions.
         *   Splitting the rule into multiple, more specific rules.
 8.  **Document Recommendations:**
-    *   Record the complete analysis, findings, and specific tuning recommendations in the `${REVIEW_CASE_ID}` using `secops-soar.post_case_comment` or in a dedicated report. Clearly state the expected impact of the proposed changes.
+    *   Record the complete analysis, findings, and specific tuning recommendations in the `${REVIEW_CASE_ID}` using `soar-mcp_post_case_comment` or in a dedicated report. Clearly state the expected impact of the proposed changes.
 9.  **Handover:** Assign the case/report to the Security Engineering team for implementation and testing of the proposed tuning changes.
 10. **Completion:** Conclude the runbook execution.
 

@@ -23,8 +23,8 @@ This guide references workflows that utilize tools across the security stack, pr
 
 The standard workflow generally follows these phases. Refer to the linked runbooks for detailed steps and tool usage.
 
-1.  **Monitor & Assign:** Regularly check the SOAR platform (`secops-soar.list_cases`) for new or assigned alerts/cases.
-2.  **Initial Triage & Context:** Assess alert severity, type, and gather initial case details (`secops-soar.get_case_full_details`). **Decision Point:** Is this potentially a duplicate?
+1.  **Monitor & Assign:** Regularly check the SOAR platform (`soar-mcp_list_cases`) for new or assigned alerts/cases.
+2.  **Initial Triage & Context:** Assess alert severity, type, and gather initial case details (`soar-mcp_get_case_full_details`). **Decision Point:** Is this potentially a duplicate?
     *   Refer to: `rules-bank/run_books/triage_alerts.md`
     *   Refer to: `rules-bank/run_books/common_steps/check_duplicate_cases.md`
 3.  **Basic Enrichment:** Gather initial context on key Indicators of Compromise (IOCs) identified in the alert/case.
@@ -38,7 +38,7 @@ The standard workflow generally follows these phases. Refer to the linked runboo
     *   Malware Alert: `rules-bank/run_books/malware_triage.md`
     *   IOC Investigation: `rules-bank/run_books/deep_dive_ioc_analysis.md` (Tier 2+)
     *   Timeline Analysis: `rules-bank/run_books/case_event_timeline_and_process_analysis.md` (Tier 2+)
-6.  **Documentation:** Document all findings, analysis steps, and conclusions clearly in the SOAR case (`secops-soar.post_case_comment`).
+6.  **Documentation:** Document all findings, analysis steps, and conclusions clearly in the SOAR case (`soar-mcp_post_case_comment`).
     *   Refer to guidelines: `rules-bank/run_books/guidelines/report_writing.md`
 7.  **Escalation or Closure:** **Decision Point:** Based on the full investigation, should the case be escalated or closed?
     *   **Escalate:** Assign the case to Tier 2/3 or a specialized team (e.g., IR, Forensics) with a summary of findings.

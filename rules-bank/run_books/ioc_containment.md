@@ -32,10 +32,10 @@ This runbook focuses on the immediate containment actions based on confirmed mal
 4.  **Execute Containment (If Confirmed):**
     *   If `${USER_RESPONSE}` is "Yes":
         *   **If `${IOC_TYPE}` is IP Address or Domain:**
-            *   Add `${IOC_VALUE}` to the appropriate blocklist reference list in Chronicle SIEM using `secops-soar.google_chronicle_add_values_to_reference_list`. (Requires knowing the correct `reference_list_name`, e.g., "IP_Blocklist", "Domain_Blocklist"). Let the action status be `CONTAINMENT_ACTION_STATUS`.
+            *   Add `${IOC_VALUE}` to the appropriate blocklist reference list in Chronicle SIEM using `soar-mcp_google_chronicle_add_values_to_reference_list`. (Requires knowing the correct `reference_list_name`, e.g., "IP_Blocklist", "Domain_Blocklist"). Let the action status be `CONTAINMENT_ACTION_STATUS`.
             *   *(Optional: Execute actions via specific Firewall/Proxy SOAR integrations if available)*.
         *   **If `${IOC_TYPE}` is File Hash:**
-            *   Search SIEM (`secops-mcp.search_security_events`) for events involving the file hash (`target.file.md5 = "${IOC_VALUE}"` or similar) to identify affected endpoints.
+            *   Search SIEM (`secops-mcp_search_security_events`) for events involving the file hash (`target.file.md5 = "${IOC_VALUE}"` or similar) to identify affected endpoints.
             *   *(Optional: Execute EDR actions like file quarantine/deletion on identified endpoints via specific EDR SOAR integrations if available)*. Let the action status be `CONTAINMENT_ACTION_STATUS`.
         *   **Document Action:** Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and `COMMENT_TEXT="Containment action attempted for IOC: ${IOC_VALUE} (Type: ${IOC_TYPE}). Action: [Blocked/EDR Action Attempted]. Status: ${CONTAINMENT_ACTION_STATUS}"`. Obtain `${COMMENT_POST_STATUS}`.
     *   If `${USER_RESPONSE}` is "No":

@@ -4,17 +4,17 @@ Objective: Generate a detailed timeline of events for a specific SOAR case (`${C
 
 Uses Tools:
 
-*   `secops-soar.get_case_full_details` (Provides initial context and alerts)
-*   `secops-soar.list_events_by_alert`
-*   **`secops-mcp.search_security_events` (Crucial for finding parent process launch events)**
-*   `secops-soar.google_chronicle_list_events` (To get broader asset context)
-*   `secops-soar.google_chronicle_get_rule_details` (Optional, for specific rule context)
-*   `secops-soar.google_chronicle_get_detection_details` (Optional, for specific detection context)
-*   `gti-mcp.get_file_report` (for process hash classification)
-*   `secops-mcp.get_threat_intel` (for MITRE TACTIC mapping/general enrichment)
+*   `soar-mcp_get_case_full_details` (Provides initial context and alerts)
+*   `soar-mcp_list_events_by_alert`
+*   **`secops-mcp_search_security_events` (Crucial for finding parent process launch events)**
+*   `soar-mcp_google_chronicle_list_events` (To get broader asset context)
+*   `soar-mcp_google_chronicle_get_rule_details` (Optional, for specific rule context)
+*   `soar-mcp_google_chronicle_get_detection_details` (Optional, for specific detection context)
+*   `gti-mcp_get_file_report` (for process hash classification)
+*   `secops-mcp_get_threat_intel` (for MITRE TACTIC mapping/general enrichment)
 *   `siemplify_create_gemini_case_summary` (Optional, for AI-generated summary)
 *   `write_report` (for report generation)
-*   `secops-soar.post_case_comment` (to note report location/attach if possible)
+*   `soar-mcp_post_case_comment` (to note report location/attach if possible)
 *   You may ask follow up question (for report format/content/attachment/SOAR actions confirmation)
 *   `attempt_completion`
 *   *(Optional SOAR Actions based on user confirmation):* `siemplify_case_tag`, `siemplify_change_priority`, `siemplify_add_general_insight`, `siemplify_update_case_description`, `siemplify_assign_case`, `siemplify_raise_incident`, `siemplify_create_gemini_case_summary`
@@ -28,14 +28,14 @@ Uses Tools:
 5.  **CRITICAL STEP: Find Parent Process Chain:** Iteratively search for `PROCESS_LAUNCH` events to trace the parent process chain backward from the initial alert events.
     *   **Start:** Identify the parent process PID (or `productSpecificProcessId`) from the initial alert events (Step 2). Let this be `Current_Parent_PID`. Identify the timestamp of the *child* process launch (`Child_Timestamp`).
     *   **Iterate:**
-        *   Search SIEM (`secops-mcp.search_security_events`) for `PROCESS_LAUNCH` events where the *target* process PID matches `Current_Parent_PID`.
+        *   Search SIEM (`secops-mcp_search_security_events`) for `PROCESS_LAUNCH` events where the *target* process PID matches `Current_Parent_PID`.
         *   **Time Window:** Use a focused time window around `Child_Timestamp` (e.g., +/- 15 minutes or +/- 1 hour).
         *   **Identifiers:** Attempt searches using both the principal hostname (if known) and principal IP address associated with the child process.
         *   **Store:** If the launch event for `Current_Parent_PID` is found, store its details (parent PID, command line, timestamp, etc.) in the process chain data. Update `Current_Parent_PID` to the *newly found parent's PID* and update `Child_Timestamp` to the timestamp of the event just found. Repeat the search.
         *   **Stop:** Continue iterating backward until a known root process (e.g., `explorer.exe`, `services.exe`) is reached, the parent PID is null/invalid, or the search yields no results within a reasonable timeframe.
     *   **Troubleshooting:** If `search_security_events` fails, times out, or returns no results:
         *   Try broadening the time window for the specific parent search (e.g., +/- 1 hour, +/- 6 hours). Be aware this may increase noise.
-        *   Consider using `secops-soar.google_chronicle_list_events` filtered for `metadata.event_type = "PROCESS_LAUNCH"` on the specific asset around the expected time as an alternative.
+        *   Consider using `soar-mcp_google_chronicle_list_events` filtered for `metadata.event_type = "PROCESS_LAUNCH"` on the specific asset around the expected time as an alternative.
         *   If parent process launch events are still elusive, consider searching for other related activity (e.g., user logins, network connections) associated with the parent process around its estimated start time to infer context.
         *   **Acknowledge Limitations:** Note that tracing the full chain might not always be possible due to log availability, timing discrepancies, unusual process IDs (e.g., PID 4), or processes starting before the log retention/search window.
     *   Store all found launch event details chronologically.

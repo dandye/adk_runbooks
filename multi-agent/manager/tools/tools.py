@@ -1,5 +1,4 @@
 from datetime import datetime
-import contextlib
 import os
 import re
 from pathlib import Path
@@ -7,7 +6,7 @@ from pathlib import Path
 from google.adk.tools.mcp_tool import MCPToolset, StdioConnectionParams
 from google.adk.tools.mcp_tool.mcp_session_manager import StdioServerParameters
 
-TIMEOUT = 60
+TIMEOUT = 60_000
 
 
 def ask_follow_up_question(*args, **kwargs):
@@ -90,29 +89,24 @@ def load_persona_and_runbooks(persona_file_path: str, runbook_files: list, defau
       print(f"Warning: Runbook file not found at {runbook_file}. Skipping.")
   return persona_description
 
-async def get_agent_tools():
+def get_agent_tools():
   """Initializes and returns MCP toolsets for SIEM, SOAR, and GTI functionalities.
 
   This function sets up connections to locally running MCP servers specified by
-  their command-line arguments. It manages the lifecycle of these connections
-  using an AsyncExitStack.
+  their command-line arguments.
 
   Assumes that the necessary MCP servers (SecOps, SecOps-SOAR, GTI) can be
   started using the `uv run` commands with paths and environment files
   as defined within this function.
 
   Returns:
-      tuple: A tuple containing:
-          - tuple: A combined tuple of all initialized MCP toolsets and built-in tools.
-          - contextlib.AsyncExitStack: The exit stack managing the MCP server connections.
+      tuple: A combined tuple of all initialized MCP toolsets and built-in tools.
   """
-  common_exit_stack = contextlib.AsyncExitStack()
-  
   # Get the base path of the project (adk_runbooks directory)
   base_path = Path(__file__).resolve().parent.parent.parent.parent
   mcp_security_path = base_path / "external" / "mcp-security"
 
-  # Create MCPToolset instances using the new constructor
+  # Create MCPToolset instances directly
   siem_toolset = MCPToolset(
     connection_params=StdioConnectionParams(
       server_params=StdioServerParameters(
@@ -127,7 +121,8 @@ async def get_agent_tools():
           ],
         ),
       timeout=TIMEOUT,
-    )
+    ),
+  tool_name_prefix="secops-mcp",
   )
 
   soar_toolset = MCPToolset(
@@ -146,7 +141,8 @@ async def get_agent_tools():
           ],
         ),
     timeout=TIMEOUT,
-    )
+    ),
+  tool_name_prefix="soar-mcp",
   )
 
   gti_toolset = MCPToolset(
@@ -164,13 +160,9 @@ async def get_agent_tools():
           ],
         ),
     timeout=TIMEOUT,
-    )
+    ),
+  tool_name_prefix="gti-mcp",
   )
-
-  # Register toolsets for cleanup
-  common_exit_stack.push_async_callback(siem_toolset.close)
-  common_exit_stack.push_async_callback(soar_toolset.close)
-  common_exit_stack.push_async_callback(gti_toolset.close)
 
   return (
       siem_toolset,
@@ -178,4 +170,4 @@ async def get_agent_tools():
       gti_toolset,
       write_report,
       get_current_time,
-  ), common_exit_stack
+  )

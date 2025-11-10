@@ -30,12 +30,12 @@ This sub-runbook executes searches within the SOAR platform's case list based on
 ## Workflow Steps & Diagram
 
 1.  **Receive Input:** Obtain `${SEARCH_TERMS}` and optional filters from the calling runbook. Initialize `${RELEVANT_CASE_IDS}` and `${RELEVANT_CASE_SUMMARIES}` as empty.
-2.  **Construct Filter:** Create a filter string or structure suitable for the `secops-soar.list_cases` tool based on `${SEARCH_TERMS}`, `${SEARCH_FIELDS}`, `${CASE_STATUS_FILTER}`, and `${TIME_FRAME_HOURS}`. *Note: The exact filter construction is highly dependent on the specific SOAR API capabilities exposed by the `list_cases` tool.* This might involve searching across multiple fields or making multiple calls if necessary.
-    *   **Limitation Note:** The current `secops-soar.list_cases` tool may have limited or no capability to directly filter cases based on the *presence* of specific entity values (like IPs, hostnames, users) within the case's alerts or events. Filters might only apply to top-level case fields (e.g., name, description, status).
+2.  **Construct Filter:** Create a filter string or structure suitable for the `soar-mcp_list_cases` tool based on `${SEARCH_TERMS}`, `${SEARCH_FIELDS}`, `${CASE_STATUS_FILTER}`, and `${TIME_FRAME_HOURS}`. *Note: The exact filter construction is highly dependent on the specific SOAR API capabilities exposed by the `list_cases` tool.* This might involve searching across multiple fields or making multiple calls if necessary.
+    *   **Limitation Note:** The current `soar-mcp_list_cases` tool may have limited or no capability to directly filter cases based on the *presence* of specific entity values (like IPs, hostnames, users) within the case's alerts or events. Filters might only apply to top-level case fields (e.g., name, description, status).
     *   **Workaround:** If searching for entity relevance, consider:
         *   Using broader filters (e.g., time range, alert type) and then manually reviewing the returned cases or using Step 5 (Refine Results) with `get_case_full_details`.
         *   Performing correlation outside this step (e.g., searching SIEM for the entity and checking if related events belong to a SOAR case).
-3.  **Execute Search:** Call `secops-soar.list_cases` with the constructed filter and `${MAX_RESULTS}`.
+3.  **Execute Search:** Call `soar-mcp_list_cases` with the constructed filter and `${MAX_RESULTS}`.
 4.  **Process Results:** Extract the IDs and potentially basic details (DisplayName, Priority) from the returned cases. Store IDs in `${RELEVANT_CASE_IDS}` and summaries in `${RELEVANT_CASE_SUMMARIES}`.
 5.  **(Optional) Refine Results:** If the initial search returns too many results, potentially use `get_case_full_details` on a subset to perform more specific checks (e.g., verify if a specific entity is truly present within the alerts/events of the case) and refine the `${RELEVANT_CASE_IDS}` list.
 6.  **Return Results:** Set `${FIND_CASE_STATUS}` based on the success/failure of the API calls. Return `${RELEVANT_CASE_IDS}`, `${RELEVANT_CASE_SUMMARIES}`, and `${FIND_CASE_STATUS}` to the calling runbook.

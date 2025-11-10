@@ -6,7 +6,7 @@ Check for existing SIEM alerts and SOAR cases related to a specific Indicator of
 
 ## Scope
 
-This sub-runbook executes searches using `secops-mcp.get_security_alerts` and `secops-soar.list_cases` based on provided IOCs. It returns summaries of any related alerts or cases found.
+This sub-runbook executes searches using `secops-mcp_get_security_alerts` and `soar-mcp_list_cases` based on provided IOCs. It returns summaries of any related alerts or cases found.
 
 ## Inputs
 
@@ -29,11 +29,11 @@ This sub-runbook executes searches using `secops-mcp.get_security_alerts` and `s
 
 1.  **Receive Input:** Obtain `${IOC_LIST}`, and optional `${TIME_FRAME_HOURS}`, `${SOAR_CASE_FILTER}` from the calling runbook. Initialize `${RELATED_SIEM_ALERTS}` and `${RELATED_SOAR_CASES}` as empty lists/structures.
 2.  **Correlate SIEM Alerts:**
-    *   Construct a query for `secops-mcp.get_security_alerts` to search for alerts containing any IOC in `${IOC_LIST}` within the `${TIME_FRAME_HOURS}`. *Note: The exact query format depends on the tool's capabilities.*
+    *   Construct a query for `secops-mcp_get_security_alerts` to search for alerts containing any IOC in `${IOC_LIST}` within the `${TIME_FRAME_HOURS}`. *Note: The exact query format depends on the tool's capabilities.*
     *   Execute the search.
     *   Store the summary of found alerts in `${RELATED_SIEM_ALERTS}`.
 3.  **Correlate SOAR Cases:**
-    *   Construct a filter for `secops-soar.list_cases` to search for cases containing any IOC in `${IOC_LIST}`. Combine with `${SOAR_CASE_FILTER}` if provided. *Note: The exact filter format depends on the tool's capabilities.*
+    *   Construct a filter for `soar-mcp_list_cases` to search for cases containing any IOC in `${IOC_LIST}`. Combine with `${SOAR_CASE_FILTER}` if provided. *Note: The exact filter format depends on the tool's capabilities.*
     *   Execute the search.
     *   Store the summary of found cases in `${RELATED_SOAR_CASES}`.
 4.  **Return Results:** Set `${CORRELATION_STATUS}` based on the success/failure of the API calls. Return `${RELATED_SIEM_ALERTS}`, `${RELATED_SOAR_CASES}`, and `${CORRELATION_STATUS}` to the calling runbook.

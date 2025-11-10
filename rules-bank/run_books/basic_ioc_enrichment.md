@@ -46,7 +46,7 @@ This runbook covers fundamental enrichment steps using readily available GTI and
     *   Determine relevant relationships based on `${IOC_TYPE}` (e.g., for File Hash: `["contacted_domains", "contacted_ips"]`; for Domain: `["resolutions"]`). Let this be `REL_LIST`.
     *   Execute `common_steps/pivot_on_ioc_gti.md` with `${IOC_VALUE}`, `${IOC_TYPE}`, and `RELATIONSHIP_NAMES=REL_LIST`. Obtain `${GTI_RELATIONSHIPS}`.
 4.  **Search Recent SIEM Events:**
-    *   Construct a basic query for `secops-mcp.search_security_events` targeting `${IOC_VALUE}` (e.g., `text="${IOC_VALUE}"`).
+    *   Construct a basic query for `secops-mcp_search_security_events` targeting `${IOC_VALUE}` (e.g., `text="${IOC_VALUE}"`).
     *   Execute the search with `hours_back=${SIEM_SEARCH_HOURS}`.
     *   Store a summary of findings (e.g., count, key event types, involved hosts/users) in `${SIEM_RECENT_EVENTS}`.
 5.  **Search Relevant SOAR Cases:**

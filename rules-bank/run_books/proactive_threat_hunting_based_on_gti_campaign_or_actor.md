@@ -4,16 +4,16 @@ Objective: Given a GTI Campaign or Threat Actor Collection ID (`${GTI_COLLECTION
 
 Uses Tools:
 
-*   `gti-mcp.get_collection_report`
-*   `gti-mcp.get_entities_related_to_a_collection` (Initial IOC gathering)
-*   `gti-mcp.get_collection_timeline_events` (for TTP context)
-*   `secops-mcp.get_ioc_matches` (Initial SIEM check)
-*   `secops-mcp.lookup_entity` (SIEM check for specific IOCs)
-*   `secops-mcp.search_security_events` (SIEM check for specific IOCs)
-*   **`gti-mcp.get_domain_report` / `get_file_report` / `get_ip_address_report` / `get_url_report` (Deeper GTI enrichment for *found* IOCs)**
-*   **`gti-mcp.get_entities_related_to_a_domain/file/ip/url` (Pivot on *found* IOCs)**
-*   **`secops-mcp.get_security_alerts` (Check related SIEM alerts for *found* IOCs/hosts)**
-*   **(Optional) `gti-mcp.get_file_behavior_summary` (For found file hashes)**
+*   `gti-mcp_get_collection_report`
+*   `gti-mcp_get_entities_related_to_a_collection` (Initial IOC gathering)
+*   `gti-mcp_get_collection_timeline_events` (for TTP context)
+*   `secops-mcp_get_ioc_matches` (Initial SIEM check)
+*   `secops-mcp_lookup_entity` (SIEM check for specific IOCs)
+*   `secops-mcp_search_security_events` (SIEM check for specific IOCs)
+*   **`gti-mcp_get_domain_report` / `get_file_report` / `get_ip_address_report` / `get_url_report` (Deeper GTI enrichment for *found* IOCs)**
+*   **`gti-mcp_get_entities_related_to_a_domain/file/ip/url` (Pivot on *found* IOCs)**
+*   **`secops-mcp_get_security_alerts` (Check related SIEM alerts for *found* IOCs/hosts)**
+*   **(Optional) `gti-mcp_get_file_behavior_summary` (For found file hashes)**
 *   `write_report` (for report generation)
 *   `secops-soar`: `post_case_comment` (optional), `list_cases`
 *   You may ask follow up question
