@@ -55,7 +55,7 @@ adk_runbooks/
 
 ## Quick Start
 
-For detailed setup instructions, see [SETUP_CLAUDE.md](SETUP_CLAUDE.md).
+For detailed setup instructions, see [SETUP_GEMINI.md](SETUP_GEMINI.md).
 
 ### Prerequisites
 
