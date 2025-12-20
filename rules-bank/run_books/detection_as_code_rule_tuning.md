@@ -29,7 +29,7 @@ graph LR
   - SIEM MCP Server (search events, manage rules)
   - SOAR MCP Server (list cases, read comments)
   - GitHub MCP Server (create branches, PRs)
-- **AI Agent** (Claude, Gemini) with MCP integration
+- **AI Agent** (Gemini) with MCP integration
 
 ### Configuration
 ```yaml
