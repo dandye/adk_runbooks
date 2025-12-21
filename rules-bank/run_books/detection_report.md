@@ -93,3 +93,37 @@ sequenceDiagram
 *   Optional context from SOAR cases or tuning documentation has been incorporated if provided.
 *   A comprehensive Markdown report summarizing the rule details, performance, and any relevant context has been structured and formatted, including a Mermaid diagram of the data gathering process.
 *   The final report has been successfully written to a file, and its path (`${REPORT_FILE_PATH}`) and generation status (`${REPORT_GENERATION_STATUS}`) are available.
+
+## Rubrics
+
+The following rubric is used to evaluate the execution of this **Reporting** runbook by an LLM agent.
+
+### Grading Scale (0-100 Points)
+
+| Criteria | Points | Description |
+| :--- | :--- | :--- |
+| **Data Collection** | 25 | Gathered all necessary data points and metrics for the report. |
+| **Report Generation** | 30 | Generated the report in the correct format with accurate content. |
+| **Quality & Clarity** | 15 | Ensure the report is readable, well-structured, and error-free. |
+| **Delivery** | 15 | Delivered or saved the report to the correct location/recipient. |
+| **Operational Artifacts** | 15 | Produced required artifacts: Sequence diagram, execution metadata (date/cost), and summary. |
+
+### Evaluation Criteria Details
+
+#### 1. Data Collection (25 Points)
+- **25 pts**: Successfully retrieved all required data (alerts, stats, summaries) from sources.
+
+#### 2. Report Generation (30 Points)
+- **15 pts**: Formatted the data correctly into the target template (Markdown, PDF, etc.).
+- **15 pts**: Included all required sections (Executive Summary, Details, etc.).
+
+#### 3. Quality & Clarity (15 Points)
+- **15 pts**: The generated text is coherent, accurate, and professional.
+
+#### 4. Delivery (15 Points)
+- **15 pts**: Successfully saved the file or sent the notification/email as required.
+
+#### 5. Operational Artifacts (15 Points)
+- **5 pts**: **Sequence Diagram**: Produced a Mermaid sequence diagram visualizing the steps taken.
+- **5 pts**: **Execution Metadata**: Recorded the date, duration, and estimated token cost.
+- **5 pts**: **Summary Report**: Generated a concise summary of the actions and outcomes.

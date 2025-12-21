@@ -188,6 +188,13 @@ jobs:
           slack-notify "#detections" "Rule updates deployed from PR #${{ github.event.pull_request.number }}"
 ```
 
+### Step 7: Final Reporting (Agent Execution Artifacts)
+
+Upon completion of the workflow, the agent must generate a summary report containing:
+1.  **Sequence Diagram**: A Mermaid diagram visualizing the steps taken.
+2.  **Execution Metadata**: Date, time, and estimated cost (tokens/runtime).
+3.  **Outcome Summary**: Link to PR and summary of changes.
+
 ## Manual Review Process
 
 ### Security Review Checklist
@@ -346,26 +353,27 @@ The following rubric is used to evaluate the execution of the **Detection-as-Cod
 
 | Criteria | Points | Description |
 | :--- | :--- | :--- |
-| **Tuning Identification** | 20 | Correctly identified the closed SOAR case, root cause, and extracted analyst feedback. |
-| **Rule Localization** | 20 | Located the correct YAML file for the rule without hallucinating paths. |
-| **Modification Accuracy** | 30 | Applied the correct logic change (exclusion/threshold), validated syntax, and avoided over-broad exclusions. |
+| **Tuning Identification** | 15 | Correctly identified the closed SOAR case, root cause, and extracted analyst feedback. |
+| **Rule Localization** | 15 | Located the correct YAML file for the rule without hallucinating paths. |
+| **Modification Accuracy** | 25 | Applied the correct logic change (exclusion/threshold), validated syntax, and avoided over-broad exclusions. |
 | **Git Operations** | 20 | Created a descriptive branch, useful commit message linked to the case, and a complete PR. |
 | **Safety & Validation** | 10 | Performed validation steps (syntax check) and considered security implications. |
+| **Operational Artifacts** | 15 | Produced required artifacts: Sequence diagram, execution metadata (date/cost), and summary. |
 
 ### Evaluation Criteria Details
 
-#### 1. Tuning Identification (20 Points)
-- **10 pts**: Identified the correct closed SOAR case with "false_positive" or "normal_behavior" root cause.
+#### 1. Tuning Identification (15 Points)
+- **5 pts**: Identified the correct closed SOAR case with "false_positive" or "normal_behavior" root cause.
 - **10 pts**: Accurately extracted the tuning requirements (e.g., "exclude host X") from analyst comments.
 
-#### 2. Rule Localization (20 Points)
-- **20 pts**: Successfully located the correct rule file in the repository (e.g., `rules/endpoint/rmm_tools_execution.yaml`).
+#### 2. Rule Localization (15 Points)
+- **15 pts**: Successfully located the correct rule file in the repository (e.g., `rules/endpoint/rmm_tools_execution.yaml`).
 - **0 pts**: Failed to find the file or hallucinated a file path.
 
-#### 3. Modification Accuracy (30 Points)
+#### 3. Modification Accuracy (25 Points)
 - **10 pts**: Generated valid YAML syntax for the modified rule.
 - **10 pts**: Logic change accurately reflects the analyst's intent (e.g., correct field and value excluded).
-- **10 pts**: Avoided removing the rule entirely or creating an overly broad exclusion (e.g., `NOT host.name = *`).
+- **5 pts**: Avoided removing the rule entirely or creating an overly broad exclusion (e.g., `NOT host.name = *`).
 
 #### 4. Git Operations (20 Points)
 - **5 pts**: Created a new branch with a descriptive name (e.g., `tune/rule-name-case-id`).
@@ -375,3 +383,8 @@ The following rubric is used to evaluate the execution of the **Detection-as-Cod
 #### 5. Safety & Validation (10 Points)
 - **5 pts**: Explicitly ran validation tools (e.g., `detection-cli validate`) or checked syntax.
 - **5 pts**: Assessment of security impact (e.g., "Low risk: specific host exclusion").
+
+#### 6. Operational Artifacts (15 Points)
+- **5 pts**: **Sequence Diagram**: Produced a Mermaid sequence diagram visualizing the steps taken during execution.
+- **5 pts**: **Execution Metadata**: Recorded the date, duration, and estimated token cost of the execution.
+- **5 pts**: **Summary Report**: Generated a concise summary of the actions and outcomes.

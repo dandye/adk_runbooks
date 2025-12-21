@@ -103,3 +103,38 @@ sequenceDiagram
     else No Significant Findings
         AutomatedAgent->>Analyst: attempt_completion(result="Guided TTP Hunt complete. No significant findings. Hunt documented.")
     end
+
+## Rubrics
+
+The following rubric is used to evaluate the execution of this **Threat Hunt/Analysis** runbook by an LLM agent.
+
+### Grading Scale (0-100 Points)
+
+| Criteria | Points | Description |
+| :--- | :--- | :--- |
+| **Scope & Query** | 25 | Defined a clear scope and executed effective queries (UDM, search). |
+| **Data Analysis** | 30 | Analyzed results to identify patterns, anomalies, or malicious behavior. |
+| **Findings** | 15 | Accurately identified and filtered findings (True Positives vs. False Positives). |
+| **Documentation** | 15 | Documented the hunt methodology and results clearly. |
+| **Operational Artifacts** | 15 | Produced required artifacts: Sequence diagram, execution metadata (date/cost), and summary. |
+
+### Evaluation Criteria Details
+
+#### 1. Scope & Query (25 Points)
+- **10 pts**: Correctly defined the time range and entities/indicators for the hunt.
+- **15 pts**: Constructed and executed valid, efficient queries to retrieve relevant data.
+
+#### 2. Data Analysis (30 Points)
+- **15 pts**: Effectively analyzed the returned data for the hypothesized threat.
+- **15 pts**: Correlated events or indicators to strengthen the analysis.
+
+#### 3. Findings (15 Points)
+- **15 pts**: Correctly classified the findings and provided evidence for the conclusion.
+
+#### 4. Documentation (15 Points)
+- **15 pts**: Recorded the hunt process, queries used, and findings in the system of record.
+
+#### 5. Operational Artifacts (15 Points)
+- **5 pts**: **Sequence Diagram**: Produced a Mermaid sequence diagram visualizing the steps taken.
+- **5 pts**: **Execution Metadata**: Recorded the date, duration, and estimated token cost.
+- **5 pts**: **Summary Report**: Generated a concise summary of the actions and outcomes.
