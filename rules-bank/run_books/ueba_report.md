@@ -108,34 +108,39 @@ sequenceDiagram
 
 ## Rubrics
 
-The following rubric is used to evaluate the execution of this **Reporting** runbook by an LLM agent.
+The following rubric is used to evaluate the execution of this **analytical/investigative** runbook (UEBA alert analysis) by an LLM agent.
 
 ### Grading Scale (0-100 Points)
 
 | Criteria | Points | Description |
 | :--- | :--- | :--- |
-| **Data Collection** | 25 | Gathered all necessary data points and metrics for the report. |
-| **Report Generation** | 30 | Generated the report in the correct format with accurate content. |
-| **Quality & Clarity** | 15 | Ensure the report is readable, well-structured, and error-free. |
-| **Delivery** | 15 | Delivered or saved the report to the correct location/recipient. |
+| **Entity Extraction & Data Gathering** | 20 | Correctly identified and retrieved information about the user and entity involved in the anomalous behavior. |
+| **Context Enrichment** | 25 | Gathered comprehensive context from SIEM, IDP, and other sources to understand baseline behavior and anomaly details. |
+| **Analysis Depth** | 25 | Demonstrated thorough analysis comparing observed behavior to baseline, identifying patterns, and assessing risk. |
+| **Documentation** | 15 | Clearly documented findings, assessment, and recommendation in the SOAR case. |
 | **Operational Artifacts** | 15 | Produced required artifacts: Sequence diagram, execution metadata (date/cost), and summary. |
 
 ### Evaluation Criteria Details
 
-#### 1. Data Collection (25 Points)
-- **25 pts**: Successfully retrieved all required data (alerts, stats, summaries) from sources.
+#### 1. Entity Extraction & Data Gathering (20 Points)
+- **10 pts**: Correctly identified and retrieved the UEBA alert or SOAR case details including user ID, entity ID, and anomaly description.
+- **10 pts**: Successfully gathered associated alerts and event data related to the anomalous behavior.
 
-#### 2. Report Generation (30 Points)
-- **15 pts**: Formatted the data correctly into the target template (Markdown, PDF, etc.).
-- **15 pts**: Included all required sections (Executive Summary, Details, etc.).
+#### 2. Context Enrichment (25 Points)
+- **10 pts**: Retrieved comprehensive SIEM context for the user and entity using `lookup_entity` or similar tools.
+- **10 pts**: Gathered detailed activity logs related to the specific anomaly using `search_security_events` with appropriate time ranges and filters.
+- **5 pts**: (If applicable) Retrieved additional context from IDP tools or enriched any IOCs that emerged during analysis.
 
-#### 3. Quality & Clarity (15 Points)
-- **15 pts**: The generated text is coherent, accurate, and professional.
+#### 3. Analysis Depth (25 Points)
+- **10 pts**: Compared observed behavior against known baseline or historical patterns to determine if the anomaly is explainable.
+- **10 pts**: Synthesized findings from multiple data sources into a coherent assessment of the anomaly's nature and risk level.
+- **5 pts**: Provided clear reasoning for the assessment, considering alternative explanations and potential false positives.
 
-#### 4. Delivery (15 Points)
-- **15 pts**: Successfully saved the file or sent the notification/email as required.
+#### 4. Documentation (15 Points)
+- **10 pts**: Posted a comprehensive comment to the SOAR case (`post_case_comment`) summarizing the analysis, key findings, and assessment.
+- **5 pts**: Provided a clear, actionable recommendation for next steps (e.g., "Close as benign", "Monitor for X days", "Escalate to IR team").
 
 #### 5. Operational Artifacts (15 Points)
-- **5 pts**: **Sequence Diagram**: Produced a Mermaid sequence diagram visualizing the steps taken.
-- **5 pts**: **Execution Metadata**: Recorded the date, duration, and estimated token cost.
-- **5 pts**: **Summary Report**: Generated a concise summary of the actions and outcomes.
+- **5 pts**: **Sequence Diagram**: Produced a Mermaid sequence diagram visualizing the steps taken during the analysis.
+- **5 pts**: **Execution Metadata**: Recorded the date, duration, and estimated token cost of the execution.
+- **5 pts**: **Summary Report**: Generated a concise summary of the analysis approach, findings, and outcomes.

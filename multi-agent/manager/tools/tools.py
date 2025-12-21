@@ -195,7 +195,9 @@ def get_agent_tools():
   wrapped_write_report = instrument_tool(write_report)
   wrapped_get_current_time = instrument_tool(get_current_time)
   wrapped_read_file_content = instrument_tool(read_file_content)
-  wrapped_get_execution_metrics = instrument_tool(get_execution_metrics)
+  # Note: get_execution_metrics is NOT wrapped to avoid recursive metrics collection
+  # (calling get_execution_metrics would add a metric entry for that call, which would
+  # then show up in the returned metrics, creating a circular situation).
 
   # Note: MCPToolset handling is complex because Agent might iterate or introspect.
   # If Agent calls toolset.tools(), we can't wrap them here easily unless we proxy MCPToolset.
@@ -215,5 +217,5 @@ def get_agent_tools():
       wrapped_write_report,
       wrapped_get_current_time,
       wrapped_read_file_content,
-      wrapped_get_execution_metrics,
+      get_execution_metrics,  # Not wrapped to avoid recursive metrics
   )

@@ -367,7 +367,9 @@ The following rubric is used to evaluate the execution of the **Detection-as-Cod
 - **10 pts**: Accurately extracted the tuning requirements (e.g., "exclude host X") from analyst comments.
 
 #### 2. Rule Localization (15 Points)
-- **15 pts**: Successfully located the correct rule file in the repository (e.g., `rules/endpoint/rmm_tools_execution.yaml`).
+- **15 pts**: Successfully located the correct rule file in the repository with an accurate path (e.g., `rules/endpoint/rmm_tools_execution.yaml`).
+- **10 pts**: Located the correct rule file but with minor or repairable path issues (e.g., missing a subdirectory or small typo that can be easily corrected).
+- **5 pts**: Required explicit guidance or hints to find the correct rule file in the repository.
 - **0 pts**: Failed to find the file or hallucinated a file path.
 
 #### 3. Modification Accuracy (25 Points)

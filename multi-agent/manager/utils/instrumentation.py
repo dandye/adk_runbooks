@@ -10,10 +10,22 @@ logger = logging.getLogger("tool_instrumentation")
 logger.setLevel(logging.INFO)
 
 # Metrics storage
+# NOTE: RUN_METRICS is a global list that accumulates metrics across multiple
+# executions within the same process lifetime. For production use, consider:
+# (1) resetting RUN_METRICS at the start of each execution,
+# (2) scoping metrics to individual execution sessions with unique identifiers, or
+# (3) using a class-based approach where each execution gets its own metrics instance.
 RUN_METRICS = []
 
 def estimate_tokens(text: str) -> int:
-    """Basic token estimation (approx 4 chars per token)."""
+    """Rough token estimation using ~4 characters per token.
+
+    Note:
+        This is a coarse heuristic and can be significantly inaccurate for
+        some content types (e.g., code, JSON, or other structured data).
+        For precise token counts, use a tokenizer provided by your LLM
+        provider (e.g., tiktoken for OpenAI models).
+    """
     if not text:
         return 0
     return len(str(text)) // 4
@@ -21,6 +33,11 @@ def estimate_tokens(text: str) -> int:
 def instrument_tool(tool_func):
     """Wraps a tool with metrics collection using a function-based decorator
     to preserve the function signature for ADK inspection.
+    
+    WARNING: This instrumentation logs tool arguments and results, which may
+    contain sensitive data (passwords, API keys, PII). Ensure execution_metrics.jsonl
+    has appropriate access controls and consider sanitizing sensitive data or
+    excluding certain tools from instrumentation for production use.
     """
     @functools.wraps(tool_func)
     def wrapper(*args, **kwargs):

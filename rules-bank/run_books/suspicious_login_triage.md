@@ -182,8 +182,7 @@ The following rubric is used to evaluate the execution of the **Suspicious Login
 - **5 pts**: Provided a clear recommendation (e.g., "Close as FP", "Escalate") based on the evidence.
 
 #### 5. Tool Usage (5 Points)
-- **5 pts**: Correctly called the specified tools and sub-runbooks with appropriate arguments.
-- **0 pts**: Hallucinated tools or skipped required steps.
+- **5 pts**: Correctly called all specified tools and sub-runbooks with appropriate arguments, without hallucinating non-existent tools or skipping required steps.
 
 #### 6. Operational Artifacts (15 Points)
 - **5 pts**: **Sequence Diagram**: Produced a Mermaid sequence diagram visualizing the steps taken during execution.
