@@ -100,35 +100,35 @@ PIR meeting conducted, findings and recommendations documented, recommendations 
 
 ## Rubrics
 
-The following rubric is used to evaluate the execution of this **Threat Hunt/Analysis** runbook by an LLM agent.
+The following rubric is used to evaluate the execution of this **Post-Incident Review** runbook by an LLM agent.
 
 ### Grading Scale (0-100 Points)
 
 | Criteria | Points | Description |
 | :--- | :--- | :--- |
-| **Scope & Query** | 25 | Defined a clear scope and executed effective queries (UDM, search). |
-| **Data Analysis** | 30 | Analyzed results to identify patterns, anomalies, or malicious behavior. |
-| **Findings** | 15 | Accurately identified and filtered findings (True Positives vs. False Positives). |
-| **Documentation** | 15 | Documented the hunt methodology and results clearly. |
+| **Data Gathering & Preparation** | 25 | Retrieved comprehensive incident data, timeline, and relevant case details for the PIR. |
+| **PIR Facilitation & Analysis** | 30 | Conducted thorough review of incident response, identified gaps, and facilitated root cause analysis. |
+| **Recommendations Development** | 15 | Generated actionable, SMART recommendations with clear ownership and tracking. |
+| **Documentation & Follow-up** | 15 | Documented PIR findings, assigned recommendations, and initiated documentation updates. |
 | **Operational Artifacts** | 15 | Produced required artifacts: Sequence diagram, execution metadata (date/cost), and summary. |
 
 ### Evaluation Criteria Details
 
-#### 1. Scope & Query (25 Points)
-- **10 pts**: Correctly defined the time range and entities/indicators for the hunt.
-- **15 pts**: Constructed and executed valid, efficient queries to retrieve relevant data.
+#### 1. Data Gathering & Preparation (25 Points)
+- **10 pts**: Successfully retrieved case details, incident report, and Phase 7 feedback from relevant sources.
+- **15 pts**: Compiled a comprehensive incident timeline and identified key stakeholders for the PIR meeting.
 
-#### 2. Data Analysis (30 Points)
-- **15 pts**: Effectively analyzed the returned data for the hypothesized threat.
-- **15 pts**: Correlated events or indicators to strengthen the analysis.
+#### 2. PIR Facilitation & Analysis (30 Points)
+- **15 pts**: Effectively analyzed incident response phases (Identification, Containment, Eradication, Recovery) to identify what worked and what didn't.
+- **15 pts**: Facilitated root cause analysis and identified specific gaps in prevention, detection, or response processes.
 
-#### 3. Findings (15 Points)
-- **15 pts**: Correctly classified the findings and provided evidence for the conclusion.
+#### 3. Recommendations Development (15 Points)
+- **15 pts**: Developed SMART (Specific, Measurable, Achievable, Relevant, Time-bound) recommendations addressing identified gaps.
 
-#### 4. Documentation (15 Points)
-- **15 pts**: Recorded the hunt process, queries used, and findings in the system of record.
+#### 4. Documentation & Follow-up (15 Points)
+- **15 pts**: Documented PIR findings in the SOAR case, assigned owners/dates to recommendations, and initiated updates to runbooks/policies/detections.
 
 #### 5. Operational Artifacts (15 Points)
 - **5 pts**: **Sequence Diagram**: Produced a Mermaid sequence diagram visualizing the steps taken.
 - **5 pts**: **Execution Metadata**: Recorded the date, duration, and estimated token cost.
-- **5 pts**: **Summary Report**: Generated a concise summary of the actions and outcomes.
+- **5 pts**: **Summary Report**: Generated a concise summary of the PIR process and outcomes.
