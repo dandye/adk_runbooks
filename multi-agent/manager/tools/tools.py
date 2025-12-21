@@ -6,6 +6,8 @@ from pathlib import Path
 from google.adk.tools.mcp_tool import MCPToolset, StdioConnectionParams
 from google.adk.tools.mcp_tool.mcp_session_manager import StdioServerParameters
 
+from ..utils.instrumentation import instrument_tool, get_run_metrics
+
 TIMEOUT = 60_000
 
 
@@ -74,6 +76,16 @@ def read_file_content(filepath: str) -> str:
       return f.read()
   except Exception as e:
     return f"Error reading file: {e}"
+
+def get_execution_metrics() -> str:
+    """Returns a summary of the execution metrics (time, tokens) collected so far.
+
+    Use this tool to retrieve data for the 'Operational Artifacts' section of reports.
+
+    Returns:
+        str: JSON string containing collected metrics for all tool executions.
+    """
+    return get_run_metrics()
 
 def load_persona_and_runbooks(persona_file_path: str, runbook_files: list, default_persona_description: str = "Default persona description.") -> str:
   """
@@ -179,11 +191,29 @@ def get_agent_tools():
   tool_name_prefix="gti-mcp",
   )
 
+  # Wrap built-in tools
+  wrapped_write_report = instrument_tool(write_report)
+  wrapped_get_current_time = instrument_tool(get_current_time)
+  wrapped_read_file_content = instrument_tool(read_file_content)
+  wrapped_get_execution_metrics = instrument_tool(get_execution_metrics)
+
+  # Note: MCPToolset handling is complex because Agent might iterate or introspect.
+  # If Agent calls toolset.tools(), we can't wrap them here easily unless we proxy MCPToolset.
+  # However, for now, we wrap the native tools which are critical for reporting and I/O.
+  # If we need to wrap MCP tools, we would need to inspect how MCPToolset exposes them.
+  # Assuming MCPToolset behaves like a list or exposes methods directly:
+  # If MCPToolset is passed directly to Agent, Agent calls methods on it?
+  # Or does Agent expect a list of callables?
+  # The Agent logic handles MCPToolset objects specifically.
+  # So we cannot easily wrap individual MCP tools without wrapping the MCPToolset class itself.
+  # Given constraints, we will proceed with wrapping the native tools.
+
   return (
       siem_toolset,
       soar_toolset,
       gti_toolset,
-      write_report,
-      get_current_time,
-      read_file_content,
+      wrapped_write_report,
+      wrapped_get_current_time,
+      wrapped_read_file_content,
+      wrapped_get_execution_metrics,
   )
