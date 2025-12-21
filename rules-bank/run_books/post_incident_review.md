@@ -100,37 +100,35 @@ PIR meeting conducted, findings and recommendations documented, recommendations 
 
 ## Rubrics
 
-The following rubric is used to evaluate the execution of this **Post-Incident Review/Process Review** runbook by an LLM agent.
+The following rubric is used to evaluate the execution of this **Threat Hunt/Analysis** runbook by an LLM agent.
 
 ### Grading Scale (0-100 Points)
 
 | Criteria | Points | Description |
 | :--- | :--- | :--- |
-| **Data Gathering & Preparation** | 20 | Correctly retrieved incident case details, timeline, and relevant documentation. |
-| **Meeting Facilitation & Analysis** | 30 | Conducted structured analysis of response effectiveness, identified what worked well and what didn't. |
-| **Root Cause & Gap Identification** | 20 | Accurately identified root causes and specific gaps in prevention, detection, or response. |
-| **Recommendations Quality** | 15 | Developed SMART recommendations that address identified gaps and root causes. |
-| **Documentation & Tracking** | 15 | Clearly documented PIR findings, assigned owners to recommendations, and updated the case. |
+| **Scope & Query** | 25 | Defined a clear scope and executed effective queries (UDM, search). |
+| **Data Analysis** | 30 | Analyzed results to identify patterns, anomalies, or malicious behavior. |
+| **Findings** | 15 | Accurately identified and filtered findings (True Positives vs. False Positives). |
+| **Documentation** | 15 | Documented the hunt methodology and results clearly. |
+| **Operational Artifacts** | 15 | Produced required artifacts: Sequence diagram, execution metadata (date/cost), and summary. |
 
 ### Evaluation Criteria Details
 
-#### 1. Data Gathering & Preparation (20 Points)
-- **10 pts**: Successfully retrieved comprehensive case details and compiled incident timeline information.
-- **10 pts**: Reviewed relevant incident reports, IRP feedback, and identified appropriate stakeholders for the PIR.
+#### 1. Scope & Query (25 Points)
+- **10 pts**: Correctly defined the time range and entities/indicators for the hunt.
+- **15 pts**: Constructed and executed valid, efficient queries to retrieve relevant data.
 
-#### 2. Meeting Facilitation & Analysis (30 Points)
-- **10 pts**: Systematically reviewed the incident timeline from detection through recovery.
-- **10 pts**: Analyzed response effectiveness for each phase (Identification, Containment, Eradication, Recovery).
-- **10 pts**: Evaluated runbook and tool effectiveness, identifying specific challenges encountered during response.
+#### 2. Data Analysis (30 Points)
+- **15 pts**: Effectively analyzed the returned data for the hypothesized threat.
+- **15 pts**: Correlated events or indicators to strengthen the analysis.
 
-#### 3. Root Cause & Gap Identification (20 Points)
-- **10 pts**: Identified and documented likely root cause(s) of the incident with supporting evidence.
-- **10 pts**: Identified specific gaps in prevention, detection, response processes, or tool capabilities.
+#### 3. Findings (15 Points)
+- **15 pts**: Correctly classified the findings and provided evidence for the conclusion.
 
-#### 4. Recommendations Quality (15 Points)
-- **10 pts**: Developed specific, actionable recommendations that directly address identified gaps.
-- **5 pts**: Ensured recommendations are measurable and achievable (following SMART criteria where possible).
+#### 4. Documentation (15 Points)
+- **15 pts**: Recorded the hunt process, queries used, and findings in the system of record.
 
-#### 5. Documentation & Tracking (15 Points)
-- **8 pts**: Documented PIR findings, root causes, and recommendations clearly in a structured format.
-- **7 pts**: Assigned owners and target dates to recommendations, and posted PIR summary to the SOAR case.
+#### 5. Operational Artifacts (15 Points)
+- **5 pts**: **Sequence Diagram**: Produced a Mermaid sequence diagram visualizing the steps taken.
+- **5 pts**: **Execution Metadata**: Recorded the date, duration, and estimated token cost.
+- **5 pts**: **Summary Report**: Generated a concise summary of the actions and outcomes.

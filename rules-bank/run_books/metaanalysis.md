@@ -85,36 +85,35 @@ sequenceDiagram
 
 ## Rubrics
 
-The following rubric is used to evaluate the execution of this **Meta-Analysis/Aggregation** runbook by an LLM agent.
+The following rubric is used to evaluate the execution of this **Threat Hunt/Analysis** runbook by an LLM agent.
 
 ### Grading Scale (0-100 Points)
 
 | Criteria | Points | Description |
 | :--- | :--- | :--- |
-| **Scope Definition & Data Collection** | 25 | Clearly defined analysis focus and timeframe, and collected relevant data from appropriate sources. |
-| **Data Aggregation Methodology** | 25 | Effectively aggregated and organized data from multiple incidents/alerts/events. |
-| **Pattern Identification & Analysis** | 25 | Identified meaningful trends, patterns, correlations, or outliers across the dataset. |
-| **Recommendations Quality** | 15 | Developed actionable recommendations based on identified patterns (e.g., rule tuning, new controls, hunt focus). |
-| **Report Quality & Documentation** | 10 | Produced a comprehensive, well-structured report with clear findings and supporting evidence. |
+| **Scope & Query** | 25 | Defined a clear scope and executed effective queries (UDM, search). |
+| **Data Analysis** | 30 | Analyzed results to identify patterns, anomalies, or malicious behavior. |
+| **Findings** | 15 | Accurately identified and filtered findings (True Positives vs. False Positives). |
+| **Documentation** | 15 | Documented the hunt methodology and results clearly. |
+| **Operational Artifacts** | 15 | Produced required artifacts: Sequence diagram, execution metadata (date/cost), and summary. |
 
 ### Evaluation Criteria Details
 
-#### 1. Scope Definition & Data Collection (25 Points)
-- **10 pts**: Clearly defined the analysis focus and timeframe with appropriate data sources identified.
-- **15 pts**: Successfully collected relevant data using appropriate tools (SOAR cases, SIEM queries, BigQuery) for the analysis period.
+#### 1. Scope & Query (25 Points)
+- **10 pts**: Correctly defined the time range and entities/indicators for the hunt.
+- **15 pts**: Constructed and executed valid, efficient queries to retrieve relevant data.
 
-#### 2. Data Aggregation Methodology (25 Points)
-- **15 pts**: Aggregated data from multiple sources (cases, alerts, events) in a structured and coherent manner.
-- **10 pts**: Organized aggregated data to facilitate pattern recognition and trend analysis.
+#### 2. Data Analysis (30 Points)
+- **15 pts**: Effectively analyzed the returned data for the hypothesized threat.
+- **15 pts**: Correlated events or indicators to strengthen the analysis.
 
-#### 3. Pattern Identification & Analysis (25 Points)
-- **15 pts**: Identified significant trends, patterns, or correlations related to the analysis focus.
-- **10 pts**: Analyzed outliers and anomalies that may indicate emerging threats or detection gaps.
+#### 3. Findings (15 Points)
+- **15 pts**: Correctly classified the findings and provided evidence for the conclusion.
 
-#### 4. Recommendations Quality (15 Points)
-- **10 pts**: Developed specific, actionable recommendations that address identified patterns or gaps.
-- **5 pts**: Prioritized recommendations based on potential impact and feasibility.
+#### 4. Documentation (15 Points)
+- **15 pts**: Recorded the hunt process, queries used, and findings in the system of record.
 
-#### 5. Report Quality & Documentation (10 Points)
-- **5 pts**: Generated a comprehensive report covering objective, methodology, data sources, findings, and recommendations.
-- **5 pts**: Included appropriate visualizations (e.g., Mermaid diagrams) and structured the report for clarity and readability.
+#### 5. Operational Artifacts (15 Points)
+- **5 pts**: **Sequence Diagram**: Produced a Mermaid sequence diagram visualizing the steps taken.
+- **5 pts**: **Execution Metadata**: Recorded the date, duration, and estimated token cost.
+- **5 pts**: **Summary Report**: Generated a concise summary of the actions and outcomes.

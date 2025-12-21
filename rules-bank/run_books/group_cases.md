@@ -178,35 +178,36 @@ digraph CaseAnalysisFlow {
 
 ## Rubrics
 
-The following rubric is used to evaluate the execution of this **analytical/reporting** runbook (case grouping, prioritization, and analysis) by an LLM agent.
+The following rubric is used to evaluate the execution of this **Triage/Response** runbook by an LLM agent.
 
 ### Grading Scale (0-100 Points)
 
 | Criteria | Points | Description |
 | :--- | :--- | :--- |
-| **Entity Extraction & Enrichment** | 25 | Correctly extracted key entities from recent cases and enriched them with relevant context (e.g., GTI, SIEM, case data). |
-| **Grouping Logic & Cohesion** | 25 | Logically grouped related cases based on entities, behaviors, and context, with clear justification. |
-| **Prioritization & Impact Assessment** | 20 | Accurately assessed impact and assigned priorities to case groupings based on potential risk and relevance. |
-| **Analysis Depth & Reasoning** | 15 | Demonstrated clear, structured reasoning and thorough analysis for each case grouping. |
-| **Reporting Quality & Structure** | 15 | Produced a comprehensive, well-structured markdown analysis report covering clusters, rationale, and findings. |
+| **Context & Enrichment** | 25 | Correctly extracted entities and enriched them with relevant context (GTI, SIEM). |
+| **Analysis & Decision** | 25 | Analyzed the enriched data to make a sound decision (FP/TP, Escalate/Close). |
+| **Action Execution** | 20 | Performed the required response actions (e.g., isolation, containment) correctly. |
+| **Documentation** | 15 | Clearly documented findings and actions in the case/ticket. |
+| **Operational Artifacts** | 15 | Produced required artifacts: Sequence diagram, execution metadata (date/cost), and summary. |
 
 ### Evaluation Criteria Details
 
-#### 1. Entity Extraction & Enrichment (25 Points)
-- **10 pts**: Accurately extracted key entities (e.g., hostnames, users, IPs, hashes, domains) from the last 5 cases and their alerts/events.
-- **15 pts**: Performed appropriate enrichment (e.g., GTI lookups, SIEM/event searches, case context) and correctly incorporated the results into the analysis.
+#### 1. Context & Enrichment (25 Points)
+- **10 pts**: Accurately extracted key entities (IPs, users, hashes) from the input.
+- **15 pts**: Performed necessary enrichment (e.g., `enrich_ioc`) to gather reputation and history.
 
-#### 2. Grouping Logic & Cohesion (25 Points)
-- **15 pts**: Grouped cases into logical clusters based on shared entities, behaviors, timelines, or other justifiable criteria.
-- **10 pts**: Clearly explained the rationale for each grouping and avoided mixing unrelated cases into the same cluster.
+#### 2. Analysis & Decision (25 Points)
+- **15 pts**: Interpreted the context correctly to determine the nature of the alert.
+- **10 pts**: Reached a logical conclusion or next step (e.g., "Escalate to Tier 2" or "Isolate Host").
 
-#### 3. Prioritization & Impact Assessment (20 Points)
-- **10 pts**: Assessed the potential impact and relevance of each case grouping (e.g., scope, critical assets, likelihood of true positive).
-- **10 pts**: Assigned a clear, defensible priority ordering across the case groupings, consistent with the described impact and available evidence.
+#### 3. Action Execution (20 Points)
+- **10 pts**: Called the correct tools to perform response actions (if applicable) or investigative steps.
+- **10 pts**: Verified the success of actions or handled errors appropriately.
 
-#### 4. Analysis Depth & Reasoning (15 Points)
-- **15 pts**: Provided a coherent narrative and logical reasoning for the disposition and significance of each case or cluster, referencing specific entities, alerts, and enrichment results.
+#### 4. Documentation (15 Points)
+- **15 pts**: Posted a comprehensive comment or update to the SOAR case summarizing the triage.
 
-#### 5. Reporting Quality & Structure (15 Points)
-- **10 pts**: Generated a clear, organized markdown report that includes: overview, grouped cases, prioritization, and per-group analysis.
-- **5 pts**: Summarized key insights and recommendations (if any) in a concise conclusion section while avoiding treatment of internal-only domains as IOCs.
+#### 5. Operational Artifacts (15 Points)
+- **5 pts**: **Sequence Diagram**: Produced a Mermaid sequence diagram visualizing the steps taken.
+- **5 pts**: **Execution Metadata**: Recorded the date, duration, and estimated token cost.
+- **5 pts**: **Summary Report**: Generated a concise summary of the actions and outcomes.
