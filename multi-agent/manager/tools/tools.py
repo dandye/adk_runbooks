@@ -71,12 +71,8 @@ def read_file_content(filepath: str) -> str:
   Returns:
       str: The content of the file.
   """
-  try:
-    with open(filepath, "r") as f:
-      return f.read()
-  except Exception as e:
-    return f"Error reading file: {e}"
-
+  with open(filepath, "r") as f:
+    return f.read()
 def get_execution_metrics() -> str:
     """Returns a summary of the execution metrics (time, tokens) collected so far.
 
