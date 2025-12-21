@@ -337,3 +337,41 @@ def analyze_fp_patterns(cases):
 - [MCP Security Tools](https://github.com/GoogleCloudPlatform/mcp-security-tools)
 - [Detection Engineering with CI/CD](https://detect.fyi/detection-as-code)
 - [SOAR Integration Best Practices](https://www.gartner.com/en/documents/3991893)
+
+## Rubrics
+
+The following rubric is used to evaluate the execution of the **Detection-as-Code Rule Tuning** runbook by an LLM agent.
+
+### Grading Scale (0-100 Points)
+
+| Criteria | Points | Description |
+| :--- | :--- | :--- |
+| **Tuning Identification** | 20 | Correctly identified the closed SOAR case, root cause, and extracted analyst feedback. |
+| **Rule Localization** | 20 | Located the correct YAML file for the rule without hallucinating paths. |
+| **Modification Accuracy** | 30 | Applied the correct logic change (exclusion/threshold), validated syntax, and avoided over-broad exclusions. |
+| **Git Operations** | 20 | Created a descriptive branch, useful commit message linked to the case, and a complete PR. |
+| **Safety & Validation** | 10 | Performed validation steps (syntax check) and considered security implications. |
+
+### Evaluation Criteria Details
+
+#### 1. Tuning Identification (20 Points)
+- **10 pts**: Identified the correct closed SOAR case with "false_positive" or "normal_behavior" root cause.
+- **10 pts**: Accurately extracted the tuning requirements (e.g., "exclude host X") from analyst comments.
+
+#### 2. Rule Localization (20 Points)
+- **20 pts**: Successfully located the correct rule file in the repository (e.g., `rules/endpoint/rmm_tools_execution.yaml`).
+- **0 pts**: Failed to find the file or hallucinated a file path.
+
+#### 3. Modification Accuracy (30 Points)
+- **10 pts**: Generated valid YAML syntax for the modified rule.
+- **10 pts**: Logic change accurately reflects the analyst's intent (e.g., correct field and value excluded).
+- **10 pts**: Avoided removing the rule entirely or creating an overly broad exclusion (e.g., `NOT host.name = *`).
+
+#### 4. Git Operations (20 Points)
+- **5 pts**: Created a new branch with a descriptive name (e.g., `tune/rule-name-case-id`).
+- **5 pts**: Commit message describes *what* changed and *why*, linking to the SOAR case.
+- **10 pts**: Created a Pull Request with all required details (description, link to case, risk assessment).
+
+#### 5. Safety & Validation (10 Points)
+- **5 pts**: Explicitly ran validation tools (e.g., `detection-cli validate`) or checked syntax.
+- **5 pts**: Assessment of security impact (e.g., "Low risk: specific host exclusion").
