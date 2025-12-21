@@ -86,34 +86,33 @@ sequenceDiagram
 
 ## Rubrics
 
-The following rubric is used to evaluate the execution of this **Triage/Response** runbook by an LLM agent.
+The following rubric is used to evaluate the execution of this **Threat Hunt/Analysis** runbook by an LLM agent.
 
 ### Grading Scale (0-100 Points)
 
 | Criteria | Points | Description |
 | :--- | :--- | :--- |
-| **Context & Enrichment** | 25 | Correctly extracted entities and enriched them with relevant context (GTI, SIEM). |
-| **Analysis & Decision** | 25 | Analyzed the enriched data to make a sound decision (FP/TP, Escalate/Close). |
-| **Action Execution** | 20 | Performed the required response actions (e.g., isolation, containment) correctly. |
-| **Documentation** | 15 | Clearly documented findings and actions in the case/ticket. |
+| **Scope & Query** | 25 | Defined a clear scope and executed effective queries (UDM, search). |
+| **Data Analysis** | 30 | Analyzed results to identify patterns, anomalies, or malicious behavior. |
+| **Findings** | 15 | Accurately identified and filtered findings (True Positives vs. False Positives). |
+| **Documentation** | 15 | Documented the hunt methodology and results clearly. |
 | **Operational Artifacts** | 15 | Produced required artifacts: Sequence diagram, execution metadata (date/cost), and summary. |
 
 ### Evaluation Criteria Details
 
-#### 1. Context & Enrichment (25 Points)
-- **10 pts**: Accurately extracted key entities (IPs, users, hashes) from the input.
-- **15 pts**: Performed necessary enrichment (e.g., `enrich_ioc`) to gather reputation and history.
+#### 1. Scope & Query (25 Points)
+- **10 pts**: Correctly defined the time range and entities/indicators for the hunt.
+- **15 pts**: Constructed and executed valid, efficient queries to retrieve relevant data.
 
-#### 2. Analysis & Decision (25 Points)
-- **15 pts**: Interpreted the context correctly to determine the nature of the alert.
-- **10 pts**: Reached a logical conclusion or next step (e.g., "Escalate to Tier 2" or "Isolate Host").
+#### 2. Data Analysis (30 Points)
+- **15 pts**: Effectively analyzed the returned data for the hypothesized threat.
+- **15 pts**: Correlated events or indicators to strengthen the analysis.
 
-#### 3. Action Execution (20 Points)
-- **10 pts**: Called the correct tools to perform response actions (if applicable) or investigative steps.
-- **10 pts**: Verified the success of actions or handled errors appropriately.
+#### 3. Findings (15 Points)
+- **15 pts**: Correctly classified the findings and provided evidence for the conclusion.
 
 #### 4. Documentation (15 Points)
-- **15 pts**: Posted a comprehensive comment or update to the SOAR case summarizing the triage.
+- **15 pts**: Recorded the hunt process, queries used, and findings in the system of record.
 
 #### 5. Operational Artifacts (15 Points)
 - **5 pts**: **Sequence Diagram**: Produced a Mermaid sequence diagram visualizing the steps taken.
