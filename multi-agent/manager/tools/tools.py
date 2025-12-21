@@ -60,6 +60,21 @@ def write_report(report_name: str, report_contents: str):
   with open(file_path, "w") as f:
       f.write(report_contents)
 
+def read_file_content(filepath: str) -> str:
+  """Reads the content of a file.
+
+  Args:
+      filepath (str): The path to the file to read.
+
+  Returns:
+      str: The content of the file.
+  """
+  try:
+    with open(filepath, "r") as f:
+      return f.read()
+  except Exception as e:
+    return f"Error reading file: {e}"
+
 def load_persona_and_runbooks(persona_file_path: str, runbook_files: list, default_persona_description: str = "Default persona description.") -> str:
   """
   Loads persona description from a file and appends contents from runbook files.
@@ -170,4 +185,5 @@ def get_agent_tools():
       gti_toolset,
       write_report,
       get_current_time,
+      read_file_content,
   )

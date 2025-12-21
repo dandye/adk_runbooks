@@ -10,8 +10,9 @@ from .sub_agents.threat_hunter import agent as threat_hunter_agent_module
 from .sub_agents.soc_analyst_tier3 import agent as soc_analyst_tier3_agent_module
 from .sub_agents.incident_responder import agent as incident_responder_agent_module
 from .sub_agents.detection_engineer import agent as detection_engineer_agent_module
+from .sub_agents.llm_judge import agent as llm_judge_agent_module
 
-from .tools.tools import get_current_time, write_report, get_agent_tools, load_persona_and_runbooks
+from .tools.tools import get_current_time, write_report, get_agent_tools, load_persona_and_runbooks, read_file_content
 
 # Set the root logger to output debug messages
 logging.basicConfig(level=logging.ERROR)
@@ -27,6 +28,7 @@ initialized_threat_hunter = threat_hunter_agent_module.get_agent(shared_tools)
 initialized_soc_analyst_tier3 = soc_analyst_tier3_agent_module.get_agent(shared_tools)
 initialized_incident_responder = incident_responder_agent_module.get_agent(shared_tools)
 initialized_detection_engineer = detection_engineer_agent_module.get_agent(shared_tools)
+initialized_llm_judge = llm_judge_agent_module.get_agent(shared_tools)
 
 # Load persona and runbooks for the manager
 BASE_DIR = Path(__file__).resolve().parent
@@ -89,11 +91,13 @@ root_agent = Agent(
     - soc_analyst_tier3: Advanced incident response coordination for complex incidents, deep-dive forensics, and major security event leadership.
     - incident_responder: Hands-on execution of containment, eradication, and recovery phases of an incident as directed by an IRP or yourself.
     - detection_engineer: Designing, developing, testing, and tuning security detection rules and analytics.
+    - llm_judge: Evaluating the quality and completeness of runbook executions by other agents.
 
     **Your Tools:**
     You have direct access to these tools for oversight and reporting:
     - get_current_time
     - write_report
+    - read_file_content
 
     Always aim for clear, coordinated, and efficient execution of security operations, leveraging your sub-agents effectively according to their roles and the active IRP.
     """,
@@ -105,9 +109,11 @@ root_agent = Agent(
         initialized_soc_analyst_tier3,
         initialized_incident_responder,
         initialized_detection_engineer,
+        initialized_llm_judge,
     ],
     tools=[
         get_current_time,
         write_report,
+        read_file_content,
     ],
 )
