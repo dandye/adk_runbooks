@@ -124,3 +124,37 @@ sequenceDiagram
 
     %% Step 10: Completion
     AutomatedAgent->>Analyst/Engineer: attempt_completion(result="Detection Rule Validation & Tuning complete for RULE_ID. Recommendations documented and handed over.")
+
+## Rubrics
+
+The following rubric is used to evaluate the execution of this **Detection Engineering** runbook by an LLM agent.
+
+### Grading Scale (0-100 Points)
+
+| Criteria | Points | Description |
+| :--- | :--- | :--- |
+| **Requirement Analysis** | 20 | Correctly understood the detection requirement or validation goal. |
+| **Technical Implementation** | 30 | Correctly implemented/validated the rule logic or workflow. |
+| **Validation & Testing** | 20 | Performed adequate testing to ensure effectiveness and minimize FPs. |
+| **Git/Process Compliance** | 15 | Followed proper Git workflows and version control practices. |
+| **Operational Artifacts** | 15 | Produced required artifacts: Sequence diagram, execution metadata (date/cost), and summary. |
+
+### Evaluation Criteria Details
+
+#### 1. Requirement Analysis (20 Points)
+- **20 pts**: Accurately identified the scope of the detection change or validation task.
+
+#### 2. Technical Implementation (30 Points)
+- **15 pts**: Generated or modified the code/YAML with correct syntax.
+- **15 pts**: Logic accurately addresses the requirement.
+
+#### 3. Validation & Testing (20 Points)
+- **20 pts**: Executed validation tools or test cases to verify the change.
+
+#### 4. Git/Process Compliance (15 Points)
+- **15 pts**: Created branches, commits, and PRs according to standards.
+
+#### 5. Operational Artifacts (15 Points)
+- **5 pts**: **Sequence Diagram**: Produced a Mermaid sequence diagram visualizing the steps taken.
+- **5 pts**: **Execution Metadata**: Recorded the date, duration, and estimated token cost.
+- **5 pts**: **Summary Report**: Generated a concise summary of the actions and outcomes.

@@ -145,3 +145,46 @@ sequenceDiagram
 
     %% Step 11: Completion
     AutomatedAgent->>Analyst: attempt_completion(result="Suspicious Login Triage complete for USER_ID from SOURCE_IP. Findings documented in case CASE_ID. Report Status: REPORT_GENERATION_STATUS.")
+```
+
+## Rubrics
+
+The following rubric is used to evaluate the execution of the **Suspicious Login Alert Triage** runbook by an LLM agent.
+
+### Grading Scale (0-100 Points)
+
+| Criteria | Points | Description |
+| :--- | :--- | :--- |
+| **Entity Extraction** | 20 | Correctly identified the User ID, Source IP, and Hostname from the alert data. |
+| **Context Gathering** | 25 | Retrieved comprehensive context: User history, IP reputation, and recent login patterns. |
+| **Analysis Depth** | 20 | Performed meaningful analysis of the data (e.g., identifying impossible travel or unusual times). |
+| **Documentation** | 15 | Synthesized findings into a clear, actionable comment in the SOAR case. |
+| **Tool Usage** | 5 | Used the correct tools and sub-runbooks (e.g., `enrich_ioc`, `find_relevant_soar_case`). |
+| **Operational Artifacts** | 15 | Produced required artifacts: Sequence diagram, execution metadata (date/cost), and summary. |
+
+### Evaluation Criteria Details
+
+#### 1. Entity Extraction (20 Points)
+- **10 pts**: Accurately extracted the primary User ID and Source IP.
+- **10 pts**: Correctly identified the Hostname if present in the alert data.
+
+#### 2. Context Gathering (25 Points)
+- **10 pts**: Retrieved user summary and recent activity from SIEM (`lookup_entity`).
+- **10 pts**: Enriched the Source IP using the `enrich_ioc` common step (GTI + SIEM).
+- **5 pts**: Searched for recent login activity using a correct UDM query (`search_security_events`).
+
+#### 3. Analysis Depth (20 Points)
+- **10 pts**: Checked for related open SOAR cases (`find_relevant_soar_case`).
+- **10 pts**: Identified key patterns (e.g., failed vs. successful logins, geographical anomalies) in the retrieved data.
+
+#### 4. Documentation (15 Points)
+- **10 pts**: Posted a comment to the SOAR case (`document_in_soar`) that summarizes all key findings.
+- **5 pts**: Provided a clear recommendation (e.g., "Close as FP", "Escalate") based on the evidence.
+
+#### 5. Tool Usage (5 Points)
+- **5 pts**: Correctly called all specified tools and sub-runbooks with appropriate arguments, without hallucinating non-existent tools or skipping required steps.
+
+#### 6. Operational Artifacts (15 Points)
+- **5 pts**: **Sequence Diagram**: Produced a Mermaid sequence diagram visualizing the steps taken during execution.
+- **5 pts**: **Execution Metadata**: Recorded the date, duration, and estimated token cost of the execution.
+- **5 pts**: **Summary Report**: Generated a concise summary of the actions and outcomes.

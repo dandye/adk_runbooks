@@ -105,3 +105,42 @@ sequenceDiagram
 *   All findings have been synthesized into an overall assessment (`${ASSESSMENT}`) of the UEBA alert (e.g., benign, suspicious, potential threat).
 *   A clear recommendation (`${RECOMMENDATION}`) for next steps has been formulated.
 *   The analysis, assessment, and recommendation have been documented in the SOAR case, and the `${DOCUMENTATION_STATUS}` is available.
+
+## Rubrics
+
+The following rubric is used to evaluate the execution of this **analytical/investigative** runbook (UEBA alert analysis) by an LLM agent.
+
+### Grading Scale (0-100 Points)
+
+| Criteria | Points | Description |
+| :--- | :--- | :--- |
+| **Entity Extraction & Data Gathering** | 20 | Correctly identified and retrieved information about the user and entity involved in the anomalous behavior. |
+| **Context Enrichment** | 25 | Gathered comprehensive context from SIEM, IDP, and other sources to understand baseline behavior and anomaly details. |
+| **Analysis Depth** | 25 | Demonstrated thorough analysis comparing observed behavior to baseline, identifying patterns, and assessing risk. |
+| **Documentation** | 15 | Clearly documented findings, assessment, and recommendation in the SOAR case. |
+| **Operational Artifacts** | 15 | Produced required artifacts: Sequence diagram, execution metadata (date/cost), and summary. |
+
+### Evaluation Criteria Details
+
+#### 1. Entity Extraction & Data Gathering (20 Points)
+- **10 pts**: Correctly identified and retrieved the UEBA alert or SOAR case details including user ID, entity ID, and anomaly description.
+- **10 pts**: Successfully gathered associated alerts and event data related to the anomalous behavior.
+
+#### 2. Context Enrichment (25 Points)
+- **10 pts**: Retrieved comprehensive SIEM context for the user and entity using `lookup_entity` or similar tools.
+- **10 pts**: Gathered detailed activity logs related to the specific anomaly using `search_security_events` with appropriate time ranges and filters.
+- **5 pts**: (If applicable) Retrieved additional context from IDP tools or enriched any IOCs that emerged during analysis.
+
+#### 3. Analysis Depth (25 Points)
+- **10 pts**: Compared observed behavior against known baseline or historical patterns to determine if the anomaly is explainable.
+- **10 pts**: Synthesized findings from multiple data sources into a coherent assessment of the anomaly's nature and risk level.
+- **5 pts**: Provided clear reasoning for the assessment, considering alternative explanations and potential false positives.
+
+#### 4. Documentation (15 Points)
+- **10 pts**: Posted a comprehensive comment to the SOAR case (`post_case_comment`) summarizing the analysis, key findings, and assessment.
+- **5 pts**: Provided a clear, actionable recommendation for next steps (e.g., "Close as benign", "Monitor for X days", "Escalate to IR team").
+
+#### 5. Operational Artifacts (15 Points)
+- **5 pts**: **Sequence Diagram**: Produced a Mermaid sequence diagram visualizing the steps taken during the analysis.
+- **5 pts**: **Execution Metadata**: Recorded the date, duration, and estimated token cost of the execution.
+- **5 pts**: **Summary Report**: Generated a concise summary of the analysis approach, findings, and outcomes.
