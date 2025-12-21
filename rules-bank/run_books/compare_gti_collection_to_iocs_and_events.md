@@ -86,36 +86,36 @@ sequenceDiagram
 
 ## Rubrics
 
-The following rubric is used to evaluate the execution of this **Triage/Response** runbook by an LLM agent.
+The following rubric is used to evaluate the execution of this **investigative/analytical** runbook (GTI Collection comparison and SIEM analysis) by an LLM agent.
 
 ### Grading Scale (0-100 Points)
 
 | Criteria | Points | Description |
 | :--- | :--- | :--- |
-| **Context & Enrichment** | 25 | Correctly extracted entities and enriched them with relevant context (GTI, SIEM). |
-| **Analysis & Decision** | 25 | Analyzed the enriched data to make a sound decision (FP/TP, Escalate/Close). |
-| **Action Execution** | 20 | Performed the required response actions (e.g., isolation, containment) correctly. |
-| **Documentation** | 15 | Clearly documented findings and actions in the case/ticket. |
-| **Operational Artifacts** | 15 | Produced required artifacts: Sequence diagram, execution metadata (date/cost), and summary. |
+| **GTI Collection Analysis** | 25 | Successfully retrieved and analyzed GTI Collection context, IOCs, and TTPs. |
+| **SIEM Search & IOC Matching** | 30 | Effectively searched SIEM for IOCs and behavioral indicators, retrieved IOC matches from Chronicle. |
+| **Comparison & Correlation** | 20 | Accurately compared GTI collection data against environment findings and identified relevant matches. |
+| **Analysis & Impact Assessment** | 15 | Analyzed findings in context of the GTI collection threat context and assessed potential impact. |
+| **Report Quality & Documentation** | 10 | Produced a comprehensive report with findings and recommended follow-on actions, posted to SOAR case. |
 
 ### Evaluation Criteria Details
 
-#### 1. Context & Enrichment (25 Points)
-- **10 pts**: Accurately extracted key entities (IPs, users, hashes) from the input.
-- **15 pts**: Performed necessary enrichment (e.g., `enrich_ioc`) to gather reputation and history.
+#### 1. GTI Collection Analysis (25 Points)
+- **10 pts**: Successfully retrieved GTI Collection report and extracted relevant threat context (campaign, actor, report details).
+- **15 pts**: Extracted IOCs (files, domains, IPs, URLs) and TTPs (MITRE techniques) from the collection.
 
-#### 2. Analysis & Decision (25 Points)
-- **15 pts**: Interpreted the context correctly to determine the nature of the alert.
-- **10 pts**: Reached a logical conclusion or next step (e.g., "Escalate to Tier 2" or "Isolate Host").
+#### 2. SIEM Search & IOC Matching (30 Points)
+- **15 pts**: Executed effective SIEM searches for IOCs over the specified timeframe (3 days) using appropriate UDM queries.
+- **15 pts**: Retrieved Chronicle IOC matches and searched for behavioral patterns (IOC++) based on TTPs from the collection.
 
-#### 3. Action Execution (20 Points)
-- **10 pts**: Called the correct tools to perform response actions (if applicable) or investigative steps.
-- **10 pts**: Verified the success of actions or handled errors appropriately.
+#### 3. Comparison & Correlation (20 Points)
+- **10 pts**: Systematically compared GTI Collection IOCs against SIEM findings and IOC matches.
+- **10 pts**: Identified and documented relevant matches, correlating them with the GTI collection context.
 
-#### 4. Documentation (15 Points)
-- **15 pts**: Posted a comprehensive comment or update to the SOAR case summarizing the triage.
+#### 4. Analysis & Impact Assessment (15 Points)
+- **10 pts**: Analyzed findings in the context of the GTI threat intelligence (campaign objectives, actor TTPs, attack patterns).
+- **5 pts**: Assessed the potential impact or severity of identified matches in the environment.
 
-#### 5. Operational Artifacts (15 Points)
-- **5 pts**: **Sequence Diagram**: Produced a Mermaid sequence diagram visualizing the steps taken.
-- **5 pts**: **Execution Metadata**: Recorded the date, duration, and estimated token cost.
-- **5 pts**: **Summary Report**: Generated a concise summary of the actions and outcomes.
+#### 5. Report Quality & Documentation (10 Points)
+- **5 pts**: Generated a comprehensive analysis report covering GTI collection context, search methodology, findings, and correlations.
+- **5 pts**: Posted the report to a SOAR case (existing or recommended for creation) and provided clear follow-on action recommendations.
