@@ -124,43 +124,36 @@ sequenceDiagram
 
 ## Rubrics
 
-The following rubric is used to evaluate the execution of this **grouping and analysis** runbook by an LLM agent.
+The following rubric is used to evaluate the execution of this **Triage/Response** runbook by an LLM agent.
 
 ### Grading Scale (0-100 Points)
 
 | Criteria | Points | Description |
 | :--- | :--- | :--- |
-| **Data Collection & Coverage** | 20 | Correctly retrieved the target set of recent SOAR cases and gathered the required details (alerts, entities) for each. |
-| **Grouping Logic & Accuracy** | 25 | Appropriately identified logical case groupings based on shared entities, alert types, or other relevant criteria, with minimal mis-grouping. |
-| **Prioritization Methodology** | 20 | Applied a clear and defensible method to prioritize groups by potential impact or severity. |
-| **Analysis Quality & Insights** | 15 | Drew meaningful conclusions about relationships, patterns, and risks across the groups. |
-| **Report Quality & Clarity** | 10 | Produced a clear, well-structured Markdown report that explains groups, prioritization rationale, and key findings. |
-| **Operational Artifacts** | 10 | Produced required artifacts: sequence diagram (if applicable), execution metadata (date/cost), and high-level summary. |
+| **Context & Enrichment** | 25 | Correctly extracted entities and enriched them with relevant context (GTI, SIEM). |
+| **Analysis & Decision** | 25 | Analyzed the enriched data to make a sound decision (FP/TP, Escalate/Close). |
+| **Action Execution** | 20 | Performed the required response actions (e.g., isolation, containment) correctly. |
+| **Documentation** | 15 | Clearly documented findings and actions in the case/ticket. |
+| **Operational Artifacts** | 15 | Produced required artifacts: Sequence diagram, execution metadata (date/cost), and summary. |
 
 ### Evaluation Criteria Details
 
-#### 1. Data Collection & Coverage (20 Points)
-- **10 pts**: Correctly applied the specified filters/criteria to retrieve the intended set of recent SOAR cases.
-- **10 pts**: For each case in the set, gathered necessary details (alerts, key entities, and any other required metadata) into the designated data structures.
+#### 1. Context & Enrichment (25 Points)
+- **10 pts**: Accurately extracted key entities (IPs, users, hashes) from the input.
+- **15 pts**: Performed necessary enrichment (e.g., `enrich_ioc`) to gather reputation and history.
 
-#### 2. Grouping Logic & Accuracy (25 Points)
-- **10 pts**: Identified appropriate grouping criteria (e.g., shared entities, alert types, common campaigns) based on the runbook instructions and available data.
-- **10 pts**: Formed logical clusters of related cases (`${CASE_GROUPS}`) with few or no clearly unrelated cases included.
-- **5 pts**: Clearly labeled and described each group so that its basis (e.g., shared IP, shared user, common alert family) is understandable.
+#### 2. Analysis & Decision (25 Points)
+- **15 pts**: Interpreted the context correctly to determine the nature of the alert.
+- **10 pts**: Reached a logical conclusion or next step (e.g., "Escalate to Tier 2" or "Isolate Host").
 
-#### 3. Prioritization Methodology (20 Points)
-- **10 pts**: Applied a consistent prioritization approach across all groups (e.g., based on severity, number of cases, critical entities, or business impact).
-- **10 pts**: Produced an ordered list of prioritized groups (`${PRIORITIZED_GROUPS}`) where higher-priority groups are justifiably ranked above lower-priority ones.
+#### 3. Action Execution (20 Points)
+- **10 pts**: Called the correct tools to perform response actions (if applicable) or investigative steps.
+- **10 pts**: Verified the success of actions or handled errors appropriately.
 
-#### 4. Analysis Quality & Insights (15 Points)
-- **10 pts**: Highlighted notable patterns, relationships, or trends across case groups (e.g., recurring entities, emerging campaigns, potential systemic issues).
-- **5 pts**: Summarized a clear `${GROUPING_ANALYSIS_SUMMARY}` that can inform follow-on investigation or response runbooks.
+#### 4. Documentation (15 Points)
+- **15 pts**: Posted a comprehensive comment or update to the SOAR case summarizing the triage.
 
-#### 5. Report Quality & Clarity (10 Points)
-- **5 pts**: Generated a comprehensive Markdown report (`${REPORT_CONTENT}`) that is logically structured (overview, methodology, groups, prioritization, findings).
-- **5 pts**: Used concise, precise language and formatting (tables, headings, bullet points) to make the report easy to consume by analysts and stakeholders.
-
-#### 6. Operational Artifacts (10 Points)
-- **4 pts**: **Sequence Diagram**: Produced a Mermaid sequence diagram visualizing the major steps taken in data collection, grouping, prioritization, and reporting (if applicable).
-- **3 pts**: **Execution Metadata**: Recorded the date, duration, and estimated token cost for the run.
-- **3 pts**: **Summary**: Generated a concise high-level summary of the grouping effort and main outcomes.
+#### 5. Operational Artifacts (15 Points)
+- **5 pts**: **Sequence Diagram**: Produced a Mermaid sequence diagram visualizing the steps taken.
+- **5 pts**: **Execution Metadata**: Recorded the date, duration, and estimated token cost.
+- **5 pts**: **Summary Report**: Generated a concise summary of the actions and outcomes.

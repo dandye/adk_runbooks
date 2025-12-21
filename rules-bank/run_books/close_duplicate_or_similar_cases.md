@@ -40,36 +40,36 @@
 
 ## Rubrics
 
-The following rubric is used to evaluate the execution of this **Duplicate/Similar Case Closure** runbook by an LLM agent.
+The following rubric is used to evaluate the execution of this **Triage/Response** runbook by an LLM agent.
 
 ### Grading Scale (0-100 Points)
 
 | Criteria | Points | Description |
 | :--- | :--- | :--- |
-| **Data Gathering & Similarity Setup** | 20 | Correctly listed relevant cases, retrieved associated alerts/alert groups, and invoked similarity tools with appropriate parameters. |
-| **Similarity Analysis & Duplicate Identification** | 30 | Accurately interpreted similarity results to identify true duplicate/related cases and avoided incorrect merges. |
-| **Case Consolidation & Closure Execution** | 20 | Properly consolidated information, selected the right cases to close, and executed closure actions with correct reasons and comments. |
-| **Documentation** | 15 | Clearly documented the similarity rationale, decisions, and actions in the primary case/ticket. |
-| **Operational Artifacts** | 15 | Produced required artifacts: sequence diagram, execution metadata (date/cost), and summary of consolidated cases. |
+| **Context & Enrichment** | 25 | Correctly extracted entities and enriched them with relevant context (GTI, SIEM). |
+| **Analysis & Decision** | 25 | Analyzed the enriched data to make a sound decision (FP/TP, Escalate/Close). |
+| **Action Execution** | 20 | Performed the required response actions (e.g., isolation, containment) correctly. |
+| **Documentation** | 15 | Clearly documented findings and actions in the case/ticket. |
+| **Operational Artifacts** | 15 | Produced required artifacts: Sequence diagram, execution metadata (date/cost), and summary. |
 
 ### Evaluation Criteria Details
 
-#### 1. Data Gathering & Similarity Setup (20 Points)
-- **10 pts**: Retrieved the correct set of candidate cases (e.g., via `list_cases`) and associated context (alerts and alert group identifiers) needed for similarity analysis.
-- **10 pts**: Invoked similarity tooling (e.g., `siemplify_get_similar_cases`) with sensible criteria (such as days_back, alert_group_ids) based on the workflow and input.
+#### 1. Context & Enrichment (25 Points)
+- **10 pts**: Accurately extracted key entities (IPs, users, hashes) from the input.
+- **15 pts**: Performed necessary enrichment (e.g., `enrich_ioc`) to gather reputation and history.
 
-#### 2. Similarity Analysis & Duplicate Identification (30 Points)
-- **15 pts**: Interpreted similarity outputs correctly to determine which cases are likely duplicates or closely related (e.g., mapping Ck, Cl as duplicates of Cm).
-- **15 pts**: Applied sound logic and thresholds when deciding which cases to propose/confirm for closure, minimizing both missed duplicates and false matches.
+#### 2. Analysis & Decision (25 Points)
+- **15 pts**: Interpreted the context correctly to determine the nature of the alert.
+- **10 pts**: Reached a logical conclusion or next step (e.g., "Escalate to Tier 2" or "Isolate Host").
 
-#### 3. Case Consolidation & Closure Execution (20 Points)
-- **10 pts**: After user confirmation, closed only the intended duplicate/similar cases, preserving the correct primary/reference case and using appropriate closure reasons (e.g., "Duplicate"). |
-- **10 pts**: Added or updated case comments (e.g., via `post_case_comment`) and performed any required closure actions (e.g., `siemplify_close_case`) reliably, handling tool errors where applicable.
+#### 3. Action Execution (20 Points)
+- **10 pts**: Called the correct tools to perform response actions (if applicable) or investigative steps.
+- **10 pts**: Verified the success of actions or handled errors appropriately.
 
 #### 4. Documentation (15 Points)
-- **15 pts**: Posted a comprehensive comment or update summarizing: which cases were analyzed, which were closed as duplicates, the justification for duplication, and any remaining follow-ups in the surviving case.
+- **15 pts**: Posted a comprehensive comment or update to the SOAR case summarizing the triage.
 
 #### 5. Operational Artifacts (15 Points)
-- **5 pts**: **Sequence Diagram**: Produced or updated a Mermaid sequence diagram that accurately reflects the steps taken in this run (tools, loops, user confirmations).
-- **5 pts**: **Execution Metadata**: Recorded the date, duration, and estimated token cost (or analogous execution metrics) for the run.
-- **5 pts**: **Summary Report**: Generated a concise summary of the similarity analysis, duplicate closures performed, and the final state of the surviving/primary case.
+- **5 pts**: **Sequence Diagram**: Produced a Mermaid sequence diagram visualizing the steps taken.
+- **5 pts**: **Execution Metadata**: Recorded the date, duration, and estimated token cost.
+- **5 pts**: **Summary Report**: Generated a concise summary of the actions and outcomes.
