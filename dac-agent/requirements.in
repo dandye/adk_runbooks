@@ -1,0 +1,29 @@
+# DAC Agent Dependencies
+
+# Google ADK
+google-adk>=1.21.0
+
+# YAML processing
+PyYAML>=6.0.3
+
+# Environment management
+python-dotenv>=1.2.1
+
+# Git operations
+GitPython>=3.1.45
+
+# HTTP client for API calls
+requests>=2.32.5
+
+# Async operations
+aiofiles>=25.1.0
+aiohttp>=3.13.2
+
+# Data processing
+pandas>=2.3.3
+
+# Logging
+structlog>=25.5.0
+
+# CLI operations (for gh command)
+click>=8.3.1

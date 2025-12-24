@@ -1,4 +1,4 @@
 # google-adk is now loaded from the submodule at adk-python/src
-google-adk~=1.18.0
-google-genai~=1.49.0
-python-dotenv~=1.2.0
+google-adk~=1.21.0
+google-genai~=1.56.0
+python-dotenv~=1.2.1
