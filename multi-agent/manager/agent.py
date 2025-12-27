@@ -12,7 +12,7 @@ from .sub_agents.incident_responder import agent as incident_responder_agent_mod
 from .sub_agents.detection_engineer import agent as detection_engineer_agent_module
 from .sub_agents.llm_judge import agent as llm_judge_agent_module
 
-from .tools.tools import get_current_time, write_report, get_agent_tools, load_persona_and_runbooks, read_file_content
+from .tools.tools import get_current_time, write_report, get_agent_tools, load_persona_and_runbooks, read_file_content, update_runbook, create_or_update_dynamic_tool, list_dynamic_tools, inspect_tool_code
 
 # Set the root logger to output debug messages
 logging.basicConfig(level=logging.ERROR)
@@ -108,7 +108,29 @@ root_agent = Agent(
     - write_report
     - read_file_content
 
-    Always aim for clear, coordinated, and efficient execution of security operations, leveraging your sub-agents effectively according to their roles and the active IRP.
+    **Runbook Adaptation (Continuous Improvement):**
+    You are empowered to improve your own instructions (Runbooks).
+    1.  **Monitor**: Watch for verifiable tool failures (e.g., "Syntax Error" from `secops_mcp`, "Entity not found", "Tool execution failed").
+    2.  **Diagnose**: If a tool failed because the Runbook's instructions were incorrect (e.g., wrong argument name, deprecated syntax, or confusing logic), you MUST fix it.
+    3.  **Update**: Use the `update_runbook` tool to correct the specific section of the Runbook source file (path provided in the Runbook header).
+    4.  **Log**: When you update a runbook, mention it in your final report.
+
+    **Dynamic Tool Optimization (Advanced):**
+    You have the ability to read and modify the Python code of your dynamic tools (e.g., `security_search.py`) to fix bugs or optimize performance.
+    1.  **Trigger**: If a dynamic tool is slow, errors out, or returns poor results.
+    2.  **Analyze**: Use `inspect_tool_code` to read the source.
+    3.  **Refine**: Rewrite the code to fix the issue (e.g., handle new edge cases, improve query logic).
+    4.  **Deploy**: Use `create_or_update_dynamic_tool` to overwrite the file with the improved code.
+    5.  **Test**: Verify the fix by running the tool again.
+
+    **Your Tools:**
+    You have direct access to these tools for oversight and reporting:
+    - get_current_time
+    - write_report
+    - read_file_content
+    - update_runbook
+
+    Always aim for clear, coordinated, and efficient execution of the IRP.
     """,
     sub_agents=[
         initialized_soc_analyst_tier1,
@@ -124,5 +146,9 @@ root_agent = Agent(
         get_current_time,
         write_report,
         read_file_content,
+        update_runbook,
+        create_or_update_dynamic_tool,
+        list_dynamic_tools,
+        inspect_tool_code,
     ],
 )

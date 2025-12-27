@@ -49,15 +49,30 @@ We will implement a hybrid **T2 (Tool Adaptation)** and **A2 (Agent Output Signa
 2.  **Refinement**: The Manager updates its context/plan based on the Judge's feedback.
 3.  **Optimization Signal**: The "Signal" is the explicit rubric score and feedback from the Judge (A2-style), providing a Ground Truth proxy for optimization.
 
-### Phase 3: T2 - "Subagent-as-Tool" Specialization
+### Phase 3: T1/T2 - "Code-as-Tool" & Dynamic Optimization
 
-*Concept*: Treat Subagents as specialized tools that are "trained" (prompt-tuned) by the Manager.
-*Paper Reference*: Section 5.2.2 (Subagent-as-Tool).
+*Concept*: Shift from rigid "Black Box" tools (pre-compiled MCP servers) to **"Glass Box" Tools** (adaptable Python code). The Agent can read the source code of its tools, identify inefficiencies or errors, and rewrite the code to optimize performance.
+*Paper Reference*: Section 5.1 (Tool Creation) and 5.2 (Tool Adaptation).
+
+**Motivation**:
+Standard MCP tools are static. If `search_security_events` fails to handle a specific error or has a hardcoded limit, the Agent is stuck. By "forking" these tools into the Agent's own codebase, we enable **Evolutionary Tooling**.
 
 **Implementation:**
-1.  **Dynamic Personas**: Instead of static `personas/*.md`, allow the Manager to append "Learning Notes" to a subagent's persona.
-    *   *Example*: If `cti_researcher` consistently fails to find specific attributes of a threat actor, the Manager adds a note to its system prompt: "ALWAYS check for X, Y, Z when researching actor groups."
-2.  **Mechanism**: A `update_persona_instructions` tool available to the Manager.
+1.  **Dynamic Tool Repository**: A dedicated directory (`multi-agent/manager/dynamic_tools/`) where the Agent stores its active toolset.
+2.  **Meta-Tools**:
+    *   `inspect_tool_code(tool_name)`: Reads the Python source.
+    *   `update_dynamic_tool(tool_name, new_code)`: Hot-swaps the tool implementation.
+3.  **Optimization Loop**:
+    *   **Trigger**: Agent detects a "Tool Failure" (Exception) or "Inefficiency" (e.g., query took 30s, or returned 0 results due to bad query syntax).
+    *   **Analyze**: Agent reads `inspect_tool_code("security_search")`.
+    *   **Refine**: Agent determines the fix (e.g., "The UDM translation logic is missing handling for 'email' fields").
+    *   **Deploy**: Agent calls `update_dynamic_tool` with the improved code.
+    *   **Verify**: Agent runs the tool again to confirm the fix.
+
+**Signals for Optimization**:
+*   **Latency**: Execution time (Goal: < 5s).
+*   **Error Rate**: Frequency of unhandled exceptions (Goal: 0%).
+*   **Utility**: "Did this tool return non-empty, relevant results?" (A1 Signal).
 
 ## 4. Proposed Roadmap
 
