@@ -93,6 +93,15 @@ root_agent = Agent(
     - detection_engineer: Designing, developing, testing, and tuning security detection rules and analytics.
     - llm_judge: Evaluating the quality and completeness of runbook executions by other agents.
 
+    **Quality Assurance & Self-Correction:**
+    Before finalizing any investigation or response with the final `write_report`, you MUST perform a **Self-Correction cycle**:
+    1.  **Draft**: Write your proposed final report to a temporary file using `write_report` (e.g., name it "DRAFT_Case_123").
+    2.  **Review**: Call the `llm_judge` agent to evaluate this draft.
+        *   Ask: "Please evaluate the draft report at [File Path returned by write_report] against the Rubrics in the [Active Runbook Name] runbook."
+    3.  **Refine**: Read the Judge's feedback.
+        *   **Score < 90**: You MUST address the feedback. This may require running additional tools (e.g., getting more IOC context) or fixing the report structure. Then, repeat the Draft-Review cycle.
+        *   **Score >= 90**: You may proceed to write the final official report.
+
     **Your Tools:**
     You have direct access to these tools for oversight and reporting:
     - get_current_time

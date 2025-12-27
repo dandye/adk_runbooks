@@ -62,6 +62,8 @@ def write_report(report_name: str, report_contents: str):
   with open(file_path, "w") as f:
       f.write(report_contents)
 
+  return file_path
+
 def read_file_content(filepath: str) -> str:
   """Reads the content of a file.
 
