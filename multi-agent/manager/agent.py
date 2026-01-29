@@ -2,6 +2,7 @@ import logging
 from pathlib import Path
 
 from google.adk.agents import Agent
+from google.adk.tools import load_memory, preload_memory
 
 from .sub_agents.soc_analyst_tier1 import agent as soc_analyst_tier1_agent_module
 from .sub_agents.soc_analyst_tier2 import agent as soc_analyst_tier2_agent_module
@@ -13,12 +14,13 @@ from .sub_agents.detection_engineer import agent as detection_engineer_agent_mod
 from .sub_agents.llm_judge import agent as llm_judge_agent_module
 
 from .tools.tools import get_current_time, write_report, get_agent_tools, load_persona_and_runbooks, read_file_content
+from .utils.memory import auto_save_session_to_memory_callback
 
 # Set the root logger to output debug messages
 logging.basicConfig(level=logging.ERROR)
 
 # Initialize shared tools once
-shared_tools = get_agent_tools()
+shared_tools = get_agent_tools() + (load_memory, preload_memory)
 
 # Initialize all sub-agents with the shared tools
 initialized_soc_analyst_tier1 = soc_analyst_tier1_agent_module.get_agent(shared_tools)
@@ -98,6 +100,15 @@ root_agent = Agent(
     - get_current_time
     - write_report
     - read_file_content
+    - load_memory
+    - preload_memory
+
+    **Memory Bank Usage:**
+    You have access to a shared Memory Bank (via `load_memory` and `preload_memory` tools) which functions as a case-level cache. Use this to:
+    - Track sessions related to the original alert.
+    - Store and retrieve critical notes, findings, and nuance.
+    - Reuse prior work to avoid repetitive tool calls and maintain continuity across iterations.
+    - Ensure downstream analysis and disposition agents can leverage this shared context.
 
     Always aim for clear, coordinated, and efficient execution of security operations, leveraging your sub-agents effectively according to their roles and the active IRP.
     """,
@@ -115,5 +126,8 @@ root_agent = Agent(
         get_current_time,
         write_report,
         read_file_content,
+        load_memory,
+        preload_memory,
     ],
+    after_agent_callback=[auto_save_session_to_memory_callback],
 )
