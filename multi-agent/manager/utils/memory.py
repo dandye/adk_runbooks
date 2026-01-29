@@ -6,6 +6,8 @@ async def auto_save_session_to_memory_callback(callback_context: CallbackContext
     Callback to automatically save the session to the memory bank after agent execution.
     It retrieves the session and memory service from the context and saves the session.
     """
+    # Note: We access _invocation_context because callback_context (ReadonlyContext)
+    # does not expose the memory_service or session saving capabilities directly.
     ctx = callback_context._invocation_context
     if ctx.memory_service:
         try:

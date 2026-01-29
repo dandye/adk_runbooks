@@ -20,6 +20,7 @@ from .utils.memory import auto_save_session_to_memory_callback
 logging.basicConfig(level=logging.ERROR)
 
 # Initialize shared tools once
+# Note: get_agent_tools() returns a tuple, so we concatenate with another tuple.
 shared_tools = get_agent_tools() + (load_memory, preload_memory)
 
 # Initialize all sub-agents with the shared tools
