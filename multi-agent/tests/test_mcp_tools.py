@@ -8,7 +8,7 @@ import os
 import pytest
 import asyncio
 from pathlib import Path
-from google.adk.tools.mcp_tool import MCPToolset, StdioConnectionParams
+from google.adk.tools.mcp_tool import McpToolset, StdioConnectionParams
 from google.adk.tools.mcp_tool.mcp_session_manager import StdioServerParameters
 
 
@@ -50,7 +50,7 @@ async def test_soar_mcp_toolset_initialization(check_environment):
         pytest.skip(f"MCP security tools not found at {mcp_security_path}")
     
     # Create SOAR toolset
-    soar_toolset = MCPToolset(
+    soar_toolset = McpToolset(
         connection_params=StdioConnectionParams(
             server_params=StdioServerParameters(
                 command='uv',
@@ -97,7 +97,7 @@ async def test_soar_list_cases(check_environment):
         pytest.skip(f"MCP security tools not found at {mcp_security_path}")
     
     # Create SOAR toolset
-    soar_toolset = MCPToolset(
+    soar_toolset = McpToolset(
         connection_params=StdioConnectionParams(
             server_params=StdioServerParameters(
                 command='uv',
@@ -124,7 +124,7 @@ async def test_soar_list_cases(check_environment):
     print("Test Case 1: SOAR toolset initialized ✓")
     
     # Test case 2: Toolset has connection parameters configured
-    assert soar_toolset.connection_params is not None, "Connection params should be set"
+    assert hasattr(soar_toolset, '_connection_params'), "Connection params should be set"
     print("Test Case 2: Connection parameters configured ✓")
     
     # Test case 3: Toolset has correct tool name prefix

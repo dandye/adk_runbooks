@@ -32,8 +32,15 @@ This directory contains unit tests for the MCP (Model Context Protocol) tools in
 
 ### Running All Tests
 
+#### Option 1: Using environment variables directly
+
 From the `multi-agent` directory:
 ```bash
+# Set environment variables first
+export SOAR_APP_KEY="your-app-key"
+export SOAR_URL="https://your-soar-instance.com"
+
+# Run tests
 pytest tests/
 ```
 
@@ -41,6 +48,23 @@ Or with verbose output:
 ```bash
 pytest tests/ -v -s
 ```
+
+#### Option 2: Using the provided script
+
+1. Copy the example script:
+   ```bash
+   cp tests/run_tests.example.sh tests/run_tests.sh
+   ```
+
+2. Edit `tests/run_tests.sh` with your actual credentials
+
+3. Run the script:
+   ```bash
+   cd tests
+   ./run_tests.sh
+   ```
+
+Note: `run_tests.sh` is in .gitignore to prevent accidentally committing secrets.
 
 ### Running Specific Tests
 
