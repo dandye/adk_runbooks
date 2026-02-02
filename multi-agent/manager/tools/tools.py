@@ -7,6 +7,7 @@ from google.adk.tools.mcp_tool import MCPToolset, StdioConnectionParams
 from google.adk.tools.mcp_tool.mcp_session_manager import StdioServerParameters
 
 from ..utils.instrumentation import instrument_tool, get_run_metrics
+from .gastown_tools import create_case_worktree, create_bead, update_bead, log_work, list_beads
 
 TIMEOUT = 60_000
 
@@ -218,4 +219,9 @@ def get_agent_tools():
       wrapped_get_current_time,
       wrapped_read_file_content,
       get_execution_metrics,  # Not wrapped to avoid recursive metrics
+      create_case_worktree,
+      create_bead,
+      update_bead,
+      log_work,
+      list_beads,
   )
