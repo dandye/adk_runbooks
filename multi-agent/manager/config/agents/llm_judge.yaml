@@ -1,0 +1,20 @@
+agent_name: llm_judge
+display_name: "LLM Judge"
+description: "Runbook execution evaluator"
+expertise_areas:
+  - runbook_evaluation
+  - quality_assurance
+  - compliance_check
+mcp_servers:
+  - name: internal_tools
+    description: "Internal tools"
+    tools:
+      - read_file_content
+      - write_report
+delegation_triggers:
+  - "evaluate"
+  - "review"
+  - "audit"
+capabilities:
+  can_escalate_to:
+    - manager

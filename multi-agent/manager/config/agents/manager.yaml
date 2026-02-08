@@ -1,0 +1,30 @@
+agent_name: manager
+display_name: "SOC Manager"
+description: "SOC operations orchestrator and delegator"
+expertise_areas:
+  - team_leadership
+  - operational_oversight
+  - incident_management
+  - reporting
+  - delegation
+mcp_servers:
+  - name: internal_tools
+    description: "Internal tools"
+    tools:
+      - write_report
+      - get_current_time
+      - read_file_content
+delegation_triggers:
+  - "manage"
+  - "coordinate"
+  - "report"
+capabilities:
+  can_delegate_to:
+    - soc_analyst_tier1
+    - soc_analyst_tier2
+    - soc_analyst_tier3
+    - cti_researcher
+    - threat_hunter
+    - incident_responder
+    - detection_engineer
+    - llm_judge

@@ -1,0 +1,19 @@
+agent_name: cti_researcher
+display_name: "CTI Researcher"
+description: "Cyber Threat Intelligence researcher and analyst"
+expertise_areas:
+  - threat_intelligence_research
+  - actor_profiling
+  - campaign_analysis
+  - ioc_threat_hunt
+mcp_servers:
+  - name: gti-mcp
+    description: "Threat Intelligence"
+delegation_triggers:
+  - "threat intelligence"
+  - "threat actor"
+  - "campaign"
+  - "APT"
+capabilities:
+  can_escalate_to:
+    - threat_hunter

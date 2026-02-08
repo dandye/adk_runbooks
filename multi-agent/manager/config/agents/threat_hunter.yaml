@@ -1,0 +1,21 @@
+agent_name: threat_hunter
+display_name: "Threat Hunter"
+description: "Proactive threat hunting specialist"
+expertise_areas:
+  - proactive_threat_hunting
+  - hypothesis_driven_investigation
+  - apt_hunting
+  - ttp_hunting
+mcp_servers:
+  - name: secops-mcp
+    description: "SIEM operations"
+  - name: gti-mcp
+    description: "Threat Intelligence"
+delegation_triggers:
+  - "hunt"
+  - "proactive"
+  - "hypothesis"
+capabilities:
+  can_escalate_to:
+    - soc_analyst_tier3
+    - incident_responder

@@ -1,0 +1,21 @@
+agent_name: incident_responder
+display_name: "Incident Responder"
+description: "Security incident containment, eradication, and recovery specialist"
+expertise_areas:
+  - incident_containment
+  - eradication
+  - recovery
+  - forensic_coordination
+mcp_servers:
+  - name: soar-mcp
+    description: "SOAR platform operations"
+  - name: secops-mcp
+    description: "SIEM operations"
+delegation_triggers:
+  - "containment"
+  - "eradication"
+  - "recovery"
+  - "active incident"
+capabilities:
+  can_escalate_to:
+    - manager
