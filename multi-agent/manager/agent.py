@@ -11,6 +11,7 @@ from .sub_agents.soc_analyst_tier3 import agent as soc_analyst_tier3_agent_modul
 from .sub_agents.incident_responder import agent as incident_responder_agent_module
 from .sub_agents.detection_engineer import agent as detection_engineer_agent_module
 from .sub_agents.llm_judge import agent as llm_judge_agent_module
+from .sub_agents.remote_assistant import agent as remote_assistant_agent_module
 
 from .tools.tools import get_current_time, write_report, get_agent_tools, load_persona_and_runbooks, read_file_content
 
@@ -29,6 +30,12 @@ initialized_soc_analyst_tier3 = soc_analyst_tier3_agent_module.get_agent(shared_
 initialized_incident_responder = incident_responder_agent_module.get_agent(shared_tools)
 initialized_detection_engineer = detection_engineer_agent_module.get_agent(shared_tools)
 initialized_llm_judge = llm_judge_agent_module.get_agent(shared_tools)
+# We assume remote assistant service is running on localhost:8001
+try:
+  initialized_remote_assistant = remote_assistant_agent_module.get_agent(shared_tools)
+except Exception as e:
+  logging.warning("Failed to initialize remote assistant agent: %s", e)
+  initialized_remote_assistant = None
 
 # Load persona and runbooks for the manager
 BASE_DIR = Path(__file__).resolve().parent
@@ -92,6 +99,7 @@ root_agent = Agent(
     - incident_responder: Hands-on execution of containment, eradication, and recovery phases of an incident as directed by an IRP or yourself.
     - detection_engineer: Designing, developing, testing, and tuning security detection rules and analytics.
     - llm_judge: Evaluating the quality and completeness of runbook executions by other agents.
+    - remote_assistant: A remote assistant available via A2A interface for general assistance.
 
     **Your Tools:**
     You have direct access to these tools for oversight and reporting:
@@ -102,6 +110,16 @@ root_agent = Agent(
     Always aim for clear, coordinated, and efficient execution of security operations, leveraging your sub-agents effectively according to their roles and the active IRP.
     """,
     sub_agents=[
+        initialized_soc_analyst_tier1,
+        initialized_soc_analyst_tier2,
+        initialized_cti_researcher,
+        initialized_threat_hunter,
+        initialized_soc_analyst_tier3,
+        initialized_incident_responder,
+        initialized_detection_engineer,
+        initialized_llm_judge,
+        initialized_remote_assistant,
+    ] if initialized_remote_assistant else [
         initialized_soc_analyst_tier1,
         initialized_soc_analyst_tier2,
         initialized_cti_researcher,
