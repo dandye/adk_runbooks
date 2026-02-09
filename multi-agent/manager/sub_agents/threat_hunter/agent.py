@@ -42,3 +42,11 @@ def get_agent(tools):
       tools=tools,
   )
   return agent_instance
+
+
+def get_a2a_app(tools, host="0.0.0.0", port=8000):
+  """Creates and returns an A2A application for the Threat Hunter agent."""
+  from ...utils.a2a import get_a2a_app_from_config
+  agent = get_agent(tools)
+  config_path = (Path(__file__).resolve().parent.parent.parent / "config/agents/threat_hunter.yaml").resolve()
+  return get_a2a_app_from_config(agent, str(config_path), host=host, port=port)

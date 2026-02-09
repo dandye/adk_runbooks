@@ -117,3 +117,11 @@ root_agent = Agent(
         read_file_content,
     ],
 )
+
+
+def get_a2a_app(host="0.0.0.0", port=8000):
+  """Creates and returns an A2A application for the SOC Manager agent."""
+  from .utils.a2a import get_a2a_app_from_config
+  # Path to the YAML configuration file
+  config_path = (Path(__file__).resolve().parent / "config/agents/manager.yaml").resolve()
+  return get_a2a_app_from_config(root_agent, str(config_path), host=host, port=port)
