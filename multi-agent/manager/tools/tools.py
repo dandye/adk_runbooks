@@ -3,7 +3,9 @@ import os
 import re
 from pathlib import Path
 
-from google.adk.tools.mcp_tool import MCPToolset, StdioConnectionParams
+import google.auth
+import google.auth.transport.requests
+from google.adk.tools.mcp_tool import MCPToolset, StdioConnectionParams, SseConnectionParams
 from google.adk.tools.mcp_tool.mcp_session_manager import StdioServerParameters
 
 from ..utils.instrumentation import instrument_tool, get_run_metrics
@@ -191,6 +193,24 @@ def get_agent_tools():
   tool_name_prefix="gti-mcp",
   )
 
+  # Initialize Google Developer Knowledge MCP tool
+  dev_knowledge_toolset = None
+  try:
+    creds, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+    auth_req = google.auth.transport.requests.Request()
+    creds.refresh(auth_req)
+
+    dev_knowledge_toolset = MCPToolset(
+      connection_params=SseConnectionParams(
+        url="https://developerknowledge.googleapis.com/mcp",
+        headers={"Authorization": f"Bearer {creds.token}"},
+        timeout=TIMEOUT,
+      ),
+      tool_name_prefix="google-dev-knowledge",
+    )
+  except Exception as e:
+    print(f"Warning: Failed to initialize Google Developer Knowledge MCP tool: {e}")
+
   # Wrap built-in tools
   wrapped_write_report = instrument_tool(write_report)
   wrapped_get_current_time = instrument_tool(get_current_time)
@@ -210,12 +230,20 @@ def get_agent_tools():
   # So we cannot easily wrap individual MCP tools without wrapping the MCPToolset class itself.
   # Given constraints, we will proceed with wrapping the native tools.
 
-  return (
+  tools = [
       siem_toolset,
       soar_toolset,
       gti_toolset,
+  ]
+
+  if dev_knowledge_toolset:
+    tools.append(dev_knowledge_toolset)
+
+  tools.extend([
       wrapped_write_report,
       wrapped_get_current_time,
       wrapped_read_file_content,
       get_execution_metrics,  # Not wrapped to avoid recursive metrics
-  )
+  ])
+
+  return tuple(tools)
