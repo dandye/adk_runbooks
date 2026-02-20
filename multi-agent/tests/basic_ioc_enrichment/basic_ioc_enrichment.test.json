@@ -1,0 +1,40 @@
+{
+  "eval_set_id": "basic_ioc_enrichment_eval_set",
+  "name": "Basic IOC Enrichment Eval Set",
+  "description": "Evaluation set for Basic IOC Enrichment runbook",
+  "eval_cases": [
+    {
+      "eval_id": "test_ioc_enrichment_001",
+      "conversation": [
+        {
+          "invocation_id": "inv-001",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Run the basic_ioc_enrichment runbook for IOC_VALUE=1.2.3.4 IOC_TYPE='IP Address'"
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "The IOC 1.2.3.4 has been enriched. Findings: ... Assessment: ... Recommendation: ..."
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [],
+            "intermediate_responses": []
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "manager",
+        "user_id": "test_user",
+        "state": {}
+      }
+    }
+  ]
+}
