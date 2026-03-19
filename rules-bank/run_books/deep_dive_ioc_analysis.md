@@ -65,7 +65,7 @@ This runbook covers in-depth analysis of a single IOC (IP, Domain, Hash, URL) us
         *   Execute `common_steps/generate_report_file.md` with `REPORT_CONTENTS=${REPORT_CONTENTS_VAR}` and `REPORT_NAME=${REPORT_NAME_VAR}`. Obtain `${REPORT_FILE_PATH}` and `${WRITE_STATUS}`.
 8.  **Completion:** Conclude the runbook execution. Inform analyst of completion status and report location (SOAR comment or local file path).
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant Analyst
     participant AutomatedAgent as Automated Agent (MCP Client)

@@ -20,7 +20,7 @@ Uses tools:
  * `soar-mcp_post_case_comment`
  * `soar-mcp_list_cases` (Optional, for finding existing case)
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant User
     participant AutomatedAgent as Automated Agent (MCP Client)

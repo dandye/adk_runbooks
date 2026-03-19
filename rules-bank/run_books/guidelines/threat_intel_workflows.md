@@ -66,7 +66,7 @@ This runbook explicitly **excludes**:
 7.  **Synthesize & Report:** Compile findings (`${ACTOR_DETAILS}`, `${RELATED_MALWARE}`, etc., `${MITRE_TREE}`, `${TIMELINE_EVENTS}`, `${LOCAL_CORRELATION_RESULTS}`) into a threat actor profile. Store as Markdown in `${REPORT_CONTENT}`. Use `write_to_file` to save the report (e.g., `path="./reports/actor_profile_${THREAT_ACTOR_ID}_${timestamp}.md", content=${REPORT_CONTENT}`). Store path in `${REPORT_FILE_PATH}`.
 8.  **Disseminate:** Share findings via `soar-mcp_post_case_comment` (e.g., to a general intel case or relevant incident cases) or other established channels. Store status in `${DISSEMINATION_STATUS}`.
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant Researcher
     participant AutomatedAgent as Automated Agent (MCP Client)

@@ -77,7 +77,7 @@ This runbook covers the initial investigation steps to gather context about a su
     *   **Else:** Set `${REPORT_GENERATION_STATUS}` = "Skipped".
 11. **Completion:** Conclude the runbook execution. Tier 1 analyst acts on the recommendation in the comment. Report generation status provided if applicable.
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant Analyst
     participant AutomatedAgent as Automated Agent (MCP Client)

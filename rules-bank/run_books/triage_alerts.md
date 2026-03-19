@@ -89,7 +89,7 @@ This runbook explicitly **excludes**:
         *   Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and comment summarizing initial findings and assessment.
         *   Escalate/assign to the appropriate next tier or trigger a relevant investigation runbook (e.g., `deep_dive_ioc_analysis.md`, `suspicious_login_triage.md`).
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant Analyst
     participant AutomatedAgent as Automated Agent (MCP Client)

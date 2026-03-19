@@ -51,7 +51,7 @@ This runbook explicitly **excludes**:
 6.  **Write Report File:** Save the report using `write_to_file` with a standardized name (e.g., `./reports/case_report_${CASE_ID}_${timestamp}.md`).
 7.  **(Optional) Update Case:** Add a comment to the SOAR case indicating the report has been generated and its location using `post_case_comment`.
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant Analyst/User
     participant AutomatedAgent as Automated Agent (MCP Client)

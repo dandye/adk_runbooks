@@ -29,7 +29,7 @@ This sub-runbook executes the You may ask follow up question tool with a provide
 2.  **Ask Question:** Call You may ask follow up question with `question=${QUESTION_TEXT}` and `options=${RESPONSE_OPTIONS}` (if provided).
 3.  **Return Response:** Store the user's response in `${USER_RESPONSE}` and return it to the calling runbook.
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant CallingRunbook
     participant ConfirmAction as confirm_action.md (This Runbook)

@@ -60,7 +60,7 @@ This runbook explicitly **excludes**:
 6.  **Synthesize Findings:** Combine UEBA anomaly details, SIEM logs, baseline comparison, and enrichment data. Determine if the activity is explainable, benign, or suspicious/malicious.
 7.  **Document & Recommend:** Document findings and assessment in the SOAR case using `post_case_comment`. Recommend next steps: [Close as Benign/Explained | Monitor User/Entity | Escalate for Incident Response (Trigger relevant runbook like Compromised User Account Response)].
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant User/Analyst
     participant AutomatedAgent as Automated Agent (MCP Client)

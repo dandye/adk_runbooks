@@ -58,7 +58,7 @@ This runbook explicitly **excludes**:
 5.  **Enrich Key Entities (Optional):** For high-priority groups in `${PRIORITIZED_GROUPS}`, identify key shared entities. Perform basic enrichment on these entities using `secops-mcp_lookup_entity` and relevant `gti-mcp` tools. Store in `${ENRICHMENT_DATA_SUMMARY}`.
 6.  **Generate Summary Report:** Create a Markdown report (`${REPORT_CONTENT}`) summarizing the `${PRIORITIZED_GROUPS}`, the rationale for grouping and prioritization, and key findings (including `${ENRICHMENT_DATA_SUMMARY}` if available). Use `write_to_file` to save the report to `${REPORT_FILE_PATH}` (e.g., `./reports/case_grouping_report_${timestamp}.md`).
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant Analyst/User
     participant AutomatedAgent as Automated Agent (MCP Client)

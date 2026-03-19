@@ -37,7 +37,7 @@ These guidelines apply to various report types (e.g., investigation summaries, t
 
 Reports should include which agents called which MCP tools
 
-```{mermaid}
+```mermaid
 **Agent Workflow Diagram:**
 ```mermaid
 sequenceDiagram

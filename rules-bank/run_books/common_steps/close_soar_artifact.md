@@ -39,7 +39,7 @@ This sub-runbook executes the appropriate SOAR closure action (`siemplify_close_
         *   Call `soar-mcp_siemplify_close_alert` with `case_id` (if applicable, often the parent case ID), `alert_id=${ARTIFACT_ID}`, `reason=${CLOSURE_REASON}`, `root_cause=${ROOT_CAUSE}`, `comment=${CLOSURE_COMMENT}`, and optional `assign_to_user`, `tags` (and `alert_group_identifiers` if needed). *Note: The exact parameters for `siemplify_close_alert` might need adjustment based on the specific tool definition.*
 3.  **Return Status:** Store the result/status of the API call in `${CLOSURE_STATUS}` and return it to the calling runbook.
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant CallingRunbook
     participant CloseArtifact as close_soar_artifact.md (This Runbook)

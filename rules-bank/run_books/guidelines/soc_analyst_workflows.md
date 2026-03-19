@@ -47,7 +47,7 @@ The standard workflow generally follows these phases. Refer to the linked runboo
     *   **Close:** If determined to be FP, BTP, or fully resolved at the current tier.
         *   Refer to: `rules-bank/run_books/common_steps/close_soar_artifact.md`
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant Analyst
     participant SOAR as secops-soar

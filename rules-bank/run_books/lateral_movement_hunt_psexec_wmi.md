@@ -64,7 +64,7 @@ This runbook provides a template for hunting specific lateral movement TTPs, foc
     *   If no significant findings, conclude the hunt and document it thoroughly.
 11. **Completion:** Conclude the runbook execution.
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant Analyst
     participant AutomatedAgent as Automated Agent (MCP Client)

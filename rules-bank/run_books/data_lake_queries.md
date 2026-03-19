@@ -55,7 +55,7 @@ This runbook explicitly **excludes**:
 4.  **Format/Save Results (Optional):** If needed, format the `${QUERY_RESULTS}` (e.g., as Markdown, CSV, or JSON, let this be `${FORMATTED_RESULTS}`) and save them using `write_to_file` with `path="./reports/query_results_${QUERY_OBJECTIVE_Sanitized}_${timestamp}.md"` (or other appropriate extension) and `content=${FORMATTED_RESULTS}`. Store path in `${SAVED_FILE_PATH}`.
 5.  **Document (Optional):** If `${SOAR_CASE_ID}` is provided, document the `${SQL_QUERY}` executed and the `${ANALYSIS_SUMMARY}` in the relevant SOAR case using `soar-mcp_post_case_comment`. Store status in `${SOAR_COMMENT_STATUS}`.
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant Analyst/User
     participant AutomatedAgent as Automated Agent (MCP Client)

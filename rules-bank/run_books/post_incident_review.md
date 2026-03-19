@@ -53,7 +53,7 @@ This runbook outlines the process for conducting a PIR meeting, analyzing incide
     *   Store any formal PIR report in the designated repository.
 8.  **Completion:** Conclude the runbook execution.
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant PIR_Lead/Analyst
     participant AutomatedAgent as Automated Agent (MCP Client)

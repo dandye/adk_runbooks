@@ -42,7 +42,7 @@ This sub-runbook covers retrieving the primary GTI report for the IOC, performin
     *   Store the result (Yes/No) in `${SIEM_IOC_MATCH_STATUS}`.
 5.  **Return Results:** Provide `${GTI_FINDINGS}`, `${SIEM_ENTITY_SUMMARY}`, and `${SIEM_IOC_MATCH_STATUS}` back to the calling runbook.
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant CallingRunbook
     participant EnrichIOC as enrich_ioc.md (This Runbook)

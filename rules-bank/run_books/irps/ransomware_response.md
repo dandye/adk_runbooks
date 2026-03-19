@@ -42,7 +42,7 @@ This runbook covers the end-to-end response lifecycle for ransomware incidents, 
 
 ## Workflow Steps & Diagram
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant Analyst
     participant IRP as ransomware_response.md (This Runbook)

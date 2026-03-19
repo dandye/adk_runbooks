@@ -58,7 +58,7 @@ This runbook outlines a flexible framework for advanced threat hunting, emphasiz
     *   **If hunt is inconclusive:** Document the process, negative findings, and any limitations encountered. Conclude the hunt.
 8.  **Completion:** Finalize documentation in the `${HUNT_CASE_ID}` and conclude the runbook execution.
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant Analyst/Hunter
     participant AutomatedAgent as Automated Agent (MCP Client)

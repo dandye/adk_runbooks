@@ -53,7 +53,7 @@ Instructions:
     *   Use the `write_report` tool.
     *   Arguments: `report_name=${report_name_var}`, `report_contents=${report_contents_var}`.
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant User
     participant AutomatedAgent as Automated Agent (MCP Client)

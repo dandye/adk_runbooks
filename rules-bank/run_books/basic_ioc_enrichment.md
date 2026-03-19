@@ -71,7 +71,7 @@ This runbook covers fundamental enrichment steps using readily available GTI and
     *   **Else:** Set `${REPORT_GENERATION_STATUS}` = "Skipped".
 9.  **Completion:** Conclude the runbook execution. Present the key findings, assessment, recommendation, documentation status, and report generation status to the analyst.
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant Analyst
     participant AutomatedAgent as Automated Agent (MCP Client)

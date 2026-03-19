@@ -63,7 +63,7 @@ This runbook explicitly **excludes**:
     *   If confirmed malicious activity related to the hunted IOCs is found, escalate by creating/updating an incident case.
     *   If no significant findings, conclude the hunt and document it.
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant Analyst/Hunter
     participant AutomatedAgent as Automated Agent (MCP Client)

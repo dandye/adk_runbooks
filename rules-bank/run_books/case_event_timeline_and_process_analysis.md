@@ -59,7 +59,7 @@ Uses Tools:
 17. (Optional, based on user feedback) Execute selected SOAR actions.
 18. Conclude with `attempt_completion`.
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant User
     participant AutomatedAgent as Automated Agent (MCP Client)

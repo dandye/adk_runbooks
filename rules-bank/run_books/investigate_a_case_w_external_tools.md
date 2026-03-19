@@ -14,7 +14,7 @@ Uses tools:
  * **Common Steps:** {doc}`common_steps/find_relevant_soar_case </run_books/common_steps/find_relevant_soar_case>`
 
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant User
     participant AutomatedAgent as Automated Agent (MCP Client)

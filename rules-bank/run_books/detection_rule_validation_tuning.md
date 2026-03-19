@@ -59,7 +59,7 @@ This runbook covers the analysis of a single detection rule's historical perform
 9.  **Handover:** Assign the case/report to the Security Engineering team for implementation and testing of the proposed tuning changes.
 10. **Completion:** Conclude the runbook execution.
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant Analyst/Engineer
     participant AutomatedAgent as Automated Agent (MCP Client)

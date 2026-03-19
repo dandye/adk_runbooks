@@ -34,7 +34,7 @@
 5.  **Deployment:** Merge the rule to the main branch and trigger the deployment pipeline (or manually deploy using appropriate tools like `create_detection_rule`).
 6.  **Monitoring:** Monitor the rule's performance post-deployment.
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant Developer/Engineer
     participant AutomatedAgent as Automated Agent (MCP Client)

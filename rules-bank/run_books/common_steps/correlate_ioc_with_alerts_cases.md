@@ -40,7 +40,7 @@ This sub-runbook executes searches using `secops-mcp_get_security_alerts` and `s
     *   Store the summary of found cases in `${RELATED_SOAR_CASES}`.
 4.  **Return Results:** Set `${CORRELATION_STATUS}` based on the success/failure of the API calls. Return `${RELATED_SIEM_ALERTS}`, `${RELATED_SOAR_CASES}`, and `${CORRELATION_STATUS}` to the calling runbook.
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant CallingRunbook
     participant CorrelateIOC as correlate_ioc_with_alerts_cases.md (This Runbook)

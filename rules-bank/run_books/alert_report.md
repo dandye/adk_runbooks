@@ -63,7 +63,7 @@ This runbook covers gathering essential details about the alert(s), associated e
     *   Use `soar-mcp_post_case_comment` to add a comment to `${CASE_ID}` stating that the report has been generated and providing the filename, or pasting a concise summary directly.
 9.  **Completion:** Conclude the runbook execution.
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant Analyst/User
     participant AutomatedAgent as Automated Agent (MCP Client)

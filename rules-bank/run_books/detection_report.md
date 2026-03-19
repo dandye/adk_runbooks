@@ -51,7 +51,7 @@ This runbook explicitly **excludes**:
 6.  **Format Report:** Compile the synthesized information and the Mermaid diagram into a final Markdown report. Store as `${REPORT_CONTENT}`.
 7.  **Write Report File:** Save the report using `write_to_file` with `path="./reports/detection_report_${RULE_ID}_${timestamp}.md"` (adjust filename if multiple RULE_IDS) and `content=${REPORT_CONTENT}`. Store path in `${REPORT_FILE_PATH}` and status in `${REPORT_GENERATION_STATUS}`.
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant Analyst/User
     participant AutomatedAgent as Automated Agent (MCP Client)

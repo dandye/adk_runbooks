@@ -60,7 +60,7 @@ Consolidate findings from a completed or ongoing investigation involving various
     *   Document upload status/location via `common_steps/document_in_soar.md`.
 11. **Completion:** Conclude the runbook execution.
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant User
     participant AutomatedAgent as Automated Agent (MCP Client)

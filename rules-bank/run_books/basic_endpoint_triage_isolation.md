@@ -56,7 +56,7 @@ This runbook covers the initial assessment and potential network isolation of an
     *   Document recommended next steps in the case comment.
 9.  **Completion:** Conclude the runbook execution.
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant Analyst
     participant AutomatedAgent as Automated Agent (MCP Client)

@@ -1,6 +1,6 @@
 # Close duplicate/similar Cases Workflow
 
-```{mermaid}
+```mermaid
   sequenceDiagram
       participant User
       participant AutomatedAgent as Automated Agent (MCP Client)

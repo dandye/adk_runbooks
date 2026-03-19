@@ -47,7 +47,7 @@ This runbook covers the end-to-end response lifecycle for phishing incidents. It
 > **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
 
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant Analyst
     participant IRP as phishing_response.md (This Runbook)

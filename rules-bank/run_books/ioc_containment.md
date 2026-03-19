@@ -44,7 +44,7 @@ This runbook focuses on the immediate containment actions based on confirmed mal
         *   **Document Action:** Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and `COMMENT_TEXT="Containment action aborted by analyst for IOC: ${IOC_VALUE} (Type: ${IOC_TYPE})."`. Obtain `${COMMENT_POST_STATUS}`.
 5.  **Completion:** Conclude the runbook execution.
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant Analyst
     participant AutomatedAgent as Automated Agent (MCP Client)

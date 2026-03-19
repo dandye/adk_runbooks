@@ -30,7 +30,7 @@ This sub-runbook executes the `post_case_comment` action in the SOAR platform. I
 2.  **Post Comment:** Call `soar-mcp_post_case_comment` with `case_id=${CASE_ID}` and `comment=${COMMENT_TEXT}` (and `alert_group_identifiers` if needed).
 3.  **Return Status:** Store the result/status of the API call in `${COMMENT_POST_STATUS}` and return it to the calling runbook.
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant CallingRunbook
     participant DocumentInSOAR as document_in_soar.md (This Runbook)

@@ -33,7 +33,7 @@ This sub-runbook executes the `write_report` action. It assumes the report conte
 3.  **Write Report:** Call `write_report` with `report_name=${REPORT_NAME}` and `report_contents=${REPORT_CONTENTS}`. The tool will handle saving this to a predefined reports directory (e.g. `reports/`) and adding a `.md` extension if needed.
 4.  **Return Status:** Store the result/status of the write operation in `${WRITE_STATUS}` and the actual file path (returned by `write_report`) in `${REPORT_FILE_PATH}`. Return `${REPORT_FILE_PATH}` and `${WRITE_STATUS}` to the calling runbook.
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant CallingRunbook
     participant GenerateReportFile as generate_report_file.md (This Runbook)

@@ -33,7 +33,7 @@
 5.  **Develop Recommendations:** Based on the findings, formulate actionable recommendations (e.g., tune specific detection rules, update runbooks, implement new security controls, focus threat hunting efforts).
 6.  **Generate Report:** Create a comprehensive report detailing the analysis objective, methodology, data sources, findings, and recommendations using `write_report` (e.g., `report_name="meta_analysis_${ANALYSIS_FOCUS_Sanitized}_${timestamp}.md"`, `report_contents=ReportMarkdown`). Include visualizations (e.g., Mermaid diagrams summarizing data flow or findings) if applicable.
 
-```{mermaid}
+```mermaid
 sequenceDiagram
     participant Analyst/Researcher
     participant AutomatedAgent as Automated Agent (MCP Client)
