@@ -27,12 +27,16 @@ This sub-runbook executes the `siemplify_get_similar_cases` action in the SOAR p
 *   `secops-soar`: `siemplify_get_similar_cases`
 
 ## Workflow Steps & Diagram
+
 > **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
 
 
 1.  **Receive Input:** Obtain `${CASE_ID}`, `${ALERT_GROUP_IDENTIFIERS}`, and optional criteria (`${SIMILARITY_CRITERIA}`, `${DAYS_BACK}`, etc.) from the calling runbook.
 2.  **Check Similar Cases:** Call `soar-mcp_siemplify_get_similar_cases` with the provided inputs. Use defaults if optional inputs are not provided.
 3.  **Return Results:** Store the list of similar case IDs found in `${SIMILAR_CASE_IDS}` and the status of the check in `${SIMILARITY_CHECK_STATUS}`. Return these to the calling runbook.
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ```mermaid
 sequenceDiagram
@@ -62,7 +66,6 @@ sequenceDiagram
 ```
 
 
-> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

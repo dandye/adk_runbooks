@@ -14,10 +14,13 @@ Uses Tools:
 *   **`gti-mcp_get_entities_related_to_a_domain/file/ip/url` (Pivot on *found* IOCs)**
 *   **`secops-mcp_get_security_alerts` (Check related SIEM alerts for *found* IOCs/hosts)**
 *   **(Optional) `gti-mcp_get_file_behavior_summary` (For found file hashes)**
-*   `write_report` (for report generation)
+*   `save_report_artifact` (for report generation)
 *   `secops-soar`: `post_case_comment` (optional), `list_cases`
 *   You may ask follow up question
 *   **Common Steps:** {doc}`common_steps/find_relevant_soar_case </run_books/common_steps/find_relevant_soar_case>`
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ```mermaid
 sequenceDiagram
@@ -111,7 +114,7 @@ sequenceDiagram
             AutomatedAgent->>AutomatedAgent: attempt_completion(result="Proactive threat hunt for `${GTI_COLLECTION_ID}` complete. Findings summarized. SOAR case created/updated.")
         else Generate Report
             Note over AutomatedAgent: Synthesize report content
-            AutomatedAgent->>AutomatedAgent: write_report(report_name="proactive_hunt_report_${GTI_COLLECTION_ID}_${timestamp}.md", report_contents=ReportContent)
+            AutomatedAgent->>AutomatedAgent: save_report_artifact(report_name="proactive_hunt_report_${GTI_COLLECTION_ID}_${timestamp}.md", report_contents=ReportContent)
             Note over AutomatedAgent: Report file created.
             AutomatedAgent->>AutomatedAgent: attempt_completion(result="Proactive threat hunt for `${GTI_COLLECTION_ID}` complete. Report generated.")
         else Do Nothing
@@ -126,4 +129,3 @@ sequenceDiagram
 
 ```
 
-> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

@@ -41,9 +41,10 @@ This runbook explicitly **excludes**:
 *   `secops-soar`: `list_cases`, `get_case_full_details`, `list_alerts_by_case`, `get_entities_by_alert_group_identifiers`
 *   `secops-mcp`: `lookup_entity`
 *   `gti-mcp`: Relevant enrichment tools (e.g., `get_ip_address_report`, `get_domain_report`)
-*   `write_to_file` (Replaces `write_report`)
+*   `save_report_artifact` (Replaces `save_report_artifact`)
 
 ## Workflow Steps & Diagram
+
 > **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
 
 
@@ -56,7 +57,10 @@ This runbook explicitly **excludes**:
 3.  **Group Cases:** Analyze entities and alert details across all cases in `${CASE_DETAILS_MAP}`. Identify logical groups (`${CASE_GROUPS}`) based on `${GROUPING_CRITERIA}` (if provided) or observed similarities (e.g., shared critical entities, common alert types, overlapping timeframes).
 4.  **Prioritize Groups:** Assess the priority of each group in `${CASE_GROUPS}` based on factors like combined alert severity, number of cases in the group, criticality of shared entities, or potential impact. Store as `${PRIORITIZED_GROUPS}`.
 5.  **Enrich Key Entities (Optional):** For high-priority groups in `${PRIORITIZED_GROUPS}`, identify key shared entities. Perform basic enrichment on these entities using `secops-mcp_lookup_entity` and relevant `gti-mcp` tools. Store in `${ENRICHMENT_DATA_SUMMARY}`.
-6.  **Generate Summary Report:** Create a Markdown report (`${REPORT_CONTENT}`) summarizing the `${PRIORITIZED_GROUPS}`, the rationale for grouping and prioritization, and key findings (including `${ENRICHMENT_DATA_SUMMARY}` if available). Use `write_to_file` to save the report to `${REPORT_FILE_PATH}` (e.g., `./reports/case_grouping_report_${timestamp}.md`).
+6.  **Generate Summary Report:** Create a Markdown report (`${REPORT_CONTENT}`) summarizing the `${PRIORITIZED_GROUPS}`, the rationale for grouping and prioritization, and key findings (including `${ENRICHMENT_DATA_SUMMARY}` if available). Use `save_report_artifact` to save the report to `${REPORT_FILE_PATH}` (e.g., `./reports/case_grouping_report_${timestamp}.md`).
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ```mermaid
 sequenceDiagram
@@ -111,7 +115,7 @@ sequenceDiagram
 
     %% Step 6: Generate Report
     Note over AutomatedAgent: Synthesize findings into REPORT_CONTENT (Markdown)
-    AutomatedAgent->>AutomatedAgent: write_to_file(path="./reports/case_grouping_report_${timestamp}.md", content=REPORT_CONTENT)
+    AutomatedAgent->>AutomatedAgent: save_report_artifact(path="./reports/case_grouping_report_${timestamp}.md", content=REPORT_CONTENT)
     Note over AutomatedAgent: Report file created (REPORT_FILE_PATH)
     Note over AutomatedAgent: Prepare GROUPING_ANALYSIS_SUMMARY
 
@@ -124,7 +128,6 @@ sequenceDiagram
 ```
 
 
-> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

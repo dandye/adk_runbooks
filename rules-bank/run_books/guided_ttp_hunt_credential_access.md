@@ -22,6 +22,7 @@ This runbook provides a template for hunting specific TTPs. This example focuses
 *   `secops-soar`: `post_case_comment` (for documenting hunt/findings), `list_cases` (optional, check related cases).
 
 ## Workflow Steps & Diagram
+
 > **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
 
 
@@ -51,6 +52,9 @@ This runbook provides a template for hunting specific TTPs. This example focuses
     *   If confirmed malicious activity is found, escalate by creating a new incident case or linking findings to an existing one.
     *   If no significant findings, conclude the hunt and document it.
 9.  **Completion:** Conclude the runbook execution.
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ```mermaid
 sequenceDiagram
@@ -118,4 +122,3 @@ sequenceDiagram
 
 ```
 
-> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

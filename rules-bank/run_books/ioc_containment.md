@@ -25,6 +25,7 @@ This runbook focuses on the immediate containment actions based on confirmed mal
 *   You may ask follow up question (To confirm actions)
 
 ## Workflow Steps & Diagram
+
 > **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
 
 
@@ -43,6 +44,9 @@ This runbook focuses on the immediate containment actions based on confirmed mal
     *   If `${USER_RESPONSE}` is "No":
         *   **Document Action:** Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and `COMMENT_TEXT="Containment action aborted by analyst for IOC: ${IOC_VALUE} (Type: ${IOC_TYPE})."`. Obtain `${COMMENT_POST_STATUS}`.
 5.  **Completion:** Conclude the runbook execution.
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ```mermaid
 sequenceDiagram
@@ -125,4 +129,3 @@ sequenceDiagram
 
 ```
 
-> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

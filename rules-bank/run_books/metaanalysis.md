@@ -19,10 +19,11 @@
 *   `secops-soar`: `list_cases`, `get_case_full_details` (for analyzing case data)
 *   `secops-mcp`: `search_security_events`, `get_security_alerts` (for analyzing event/alert data)
 *   `bigquery`: `execute-query` (if analyzing data lake information)
-*   `write_report` (for report generation)
+*   `save_report_artifact` (for report generation)
 *   *(Potentially other tools for data aggregation or visualization if available)*
 
 ## Workflow Steps & Diagram
+
 > **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
 
 
@@ -31,7 +32,10 @@
 3.  **Data Aggregation & Analysis:** Aggregate the collected data. Analyze for trends, patterns, outliers, and correlations related to the `${ANALYSIS_FOCUS}`.
 4.  **Synthesize Findings:** Summarize the key findings and insights derived from the analysis.
 5.  **Develop Recommendations:** Based on the findings, formulate actionable recommendations (e.g., tune specific detection rules, update runbooks, implement new security controls, focus threat hunting efforts).
-6.  **Generate Report:** Create a comprehensive report detailing the analysis objective, methodology, data sources, findings, and recommendations using `write_report` (e.g., `report_name="meta_analysis_${ANALYSIS_FOCUS_Sanitized}_${timestamp}.md"`, `report_contents=ReportMarkdown`). Include visualizations (e.g., Mermaid diagrams summarizing data flow or findings) if applicable.
+6.  **Generate Report:** Create a comprehensive report detailing the analysis objective, methodology, data sources, findings, and recommendations using `save_report_artifact` (e.g., `report_name="meta_analysis_${ANALYSIS_FOCUS_Sanitized}_${timestamp}.md"`, `report_contents=ReportMarkdown`). Include visualizations (e.g., Mermaid diagrams summarizing data flow or findings) if applicable.
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ```mermaid
 sequenceDiagram
@@ -79,7 +83,7 @@ sequenceDiagram
 
     %% Step 6: Generate Report
     Note over AutomatedAgent: Compile report content (ReportMarkdown) (Objective, Method, Findings, Recommendations)
-    AutomatedAgent->>AutomatedAgent: write_report(report_name="meta_analysis_${ANALYSIS_FOCUS_Sanitized}_${timestamp}.md", report_contents=ReportMarkdown)
+    AutomatedAgent->>AutomatedAgent: save_report_artifact(report_name="meta_analysis_${ANALYSIS_FOCUS_Sanitized}_${timestamp}.md", report_contents=ReportMarkdown)
     Note over AutomatedAgent: Report file created
 
 
@@ -91,7 +95,6 @@ sequenceDiagram
 ```
 
 
-> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

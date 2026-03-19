@@ -37,9 +37,10 @@ This runbook explicitly **excludes**:
 
 *   `secops-mcp`: `list_security_rules`, `get_security_alerts` (for performance data)
 *   `secops-soar`: `get_case_full_details`, `post_case_comment` (for context/documentation, though `post_case_comment` is not directly used in this workflow but might be used by a calling runbook)
-*   `write_to_file` (Replaces the conceptual `write_report` tool)
+*   `save_report_artifact` (Replaces the conceptual `save_report_artifact` tool)
 
 ## Workflow Steps & Diagram
+
 > **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
 
 
@@ -49,7 +50,10 @@ This runbook explicitly **excludes**:
 4.  **Structure Report:** Organize information according to a standard template (referencing `rules-bank/reporting_templates.md`). Key sections might include: Rule Details (ID, Name, Logic Summary from `${RULE_DEFINITION}`), Performance Metrics (Alert Volume, TP/FP Ratio if known from `${PERFORMANCE_DATA}` and `${SOAR_CONTEXT}`), Key Findings/Observations, Tuning History/Recommendations (if available from `${SOAR_CONTEXT}`).
 5.  **Generate Mermaid Diagram:** Create a Mermaid sequence diagram summarizing the *tools used to gather data for this report*.
 6.  **Format Report:** Compile the synthesized information and the Mermaid diagram into a final Markdown report. Store as `${REPORT_CONTENT}`.
-7.  **Write Report File:** Save the report using `write_to_file` with `path="./reports/detection_report_${RULE_ID}_${timestamp}.md"` (adjust filename if multiple RULE_IDS) and `content=${REPORT_CONTENT}`. Store path in `${REPORT_FILE_PATH}` and status in `${REPORT_GENERATION_STATUS}`.
+7.  **Write Report File:** Save the report using `save_report_artifact` with `path="./reports/detection_report_${RULE_ID}_${timestamp}.md"` (adjust filename if multiple RULE_IDS) and `content=${REPORT_CONTENT}`. Store path in `${REPORT_FILE_PATH}` and status in `${REPORT_GENERATION_STATUS}`.
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ```mermaid
 sequenceDiagram
@@ -86,7 +90,7 @@ sequenceDiagram
 
     %% Step 6 & 7: Format & Write Report
     Note over AutomatedAgent: Compile final Markdown content (REPORT_CONTENT)
-    AutomatedAgent->>AutomatedAgent: write_to_file(path="./reports/detection_report_${RULE_ID}_${timestamp}.md", content=REPORT_CONTENT)
+    AutomatedAgent->>AutomatedAgent: save_report_artifact(path="./reports/detection_report_${RULE_ID}_${timestamp}.md", content=REPORT_CONTENT)
     Note over AutomatedAgent: Report file created (REPORT_FILE_PATH, REPORT_GENERATION_STATUS)
 
 
@@ -98,7 +102,6 @@ sequenceDiagram
 ```
 
 
-> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

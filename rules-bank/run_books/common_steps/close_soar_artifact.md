@@ -28,6 +28,7 @@ This sub-runbook executes the appropriate SOAR closure action (`siemplify_close_
 *   `secops-soar`: `siemplify_close_case`, `siemplify_close_alert`
 
 ## Workflow Steps & Diagram
+
 > **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
 
 
@@ -38,6 +39,9 @@ This sub-runbook executes the appropriate SOAR closure action (`siemplify_close_
     *   If `${ARTIFACT_TYPE}` is "Alert":
         *   Call `soar-mcp_siemplify_close_alert` with `case_id` (if applicable, often the parent case ID), `alert_id=${ARTIFACT_ID}`, `reason=${CLOSURE_REASON}`, `root_cause=${ROOT_CAUSE}`, `comment=${CLOSURE_COMMENT}`, and optional `assign_to_user`, `tags` (and `alert_group_identifiers` if needed). *Note: The exact parameters for `siemplify_close_alert` might need adjustment based on the specific tool definition.*
 3.  **Return Status:** Store the result/status of the API call in `${CLOSURE_STATUS}` and return it to the calling runbook.
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ```mermaid
 sequenceDiagram
@@ -71,7 +75,6 @@ sequenceDiagram
 ```
 
 
-> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

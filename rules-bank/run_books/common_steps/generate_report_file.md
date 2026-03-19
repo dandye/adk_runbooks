@@ -6,7 +6,7 @@ Save generated report content (typically Markdown) to a file with a standardized
 
 ## Scope
 
-This sub-runbook executes the `write_report` action. It assumes the report content and report name are provided by the calling runbook.
+This sub-runbook executes the `save_report_artifact` action. It assumes the report content and report name are provided by the calling runbook.
 
 ## Inputs
 
@@ -20,9 +20,10 @@ This sub-runbook executes the `write_report` action. It assumes the report conte
 
 ## Tools
 
-*   `write_report`
+*   `save_report_artifact`
 
 ## Workflow Steps & Diagram
+
 > **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
 
 
@@ -30,8 +31,11 @@ This sub-runbook executes the `write_report` action. It assumes the report conte
 2.  **Prepare Report Details:**
     *   The `${REPORT_NAME}` is provided directly.
     *   The `${REPORT_CONTENTS}` is provided directly.
-3.  **Write Report:** Call `write_report` with `report_name=${REPORT_NAME}` and `report_contents=${REPORT_CONTENTS}`. The tool will handle saving this to a predefined reports directory (e.g. `reports/`) and adding a `.md` extension if needed.
-4.  **Return Status:** Store the result/status of the write operation in `${WRITE_STATUS}` and the actual file path (returned by `write_report`) in `${REPORT_FILE_PATH}`. Return `${REPORT_FILE_PATH}` and `${WRITE_STATUS}` to the calling runbook.
+3.  **Write Report:** Call `save_report_artifact` with `report_name=${REPORT_NAME}` and `report_contents=${REPORT_CONTENTS}`. The tool will handle saving this to a predefined reports directory (e.g. `reports/`) and adding a `.md` extension if needed.
+4.  **Return Status:** Store the result/status of the write operation in `${WRITE_STATUS}` and the actual file path (returned by `save_report_artifact`) in `${REPORT_FILE_PATH}`. Return `${REPORT_FILE_PATH}` and `${WRITE_STATUS}` to the calling runbook.
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ```mermaid
 sequenceDiagram
@@ -49,7 +53,7 @@ sequenceDiagram
     Note over GenerateReportFile: REPORT_NAME and REPORT_CONTENTS are provided
 
     %% Step 3: Write Report
-    GenerateReportFile->>GenerateReportFile: write_report(report_name=REPORT_NAME, report_contents=REPORT_CONTENTS)
+    GenerateReportFile->>GenerateReportFile: save_report_artifact(report_name=REPORT_NAME, report_contents=REPORT_CONTENTS)
     Note over GenerateReportFile: Store write status (WRITE_STATUS) and returned REPORT_FILE_PATH
 
     %% Step 4: Return Status
@@ -62,8 +66,7 @@ sequenceDiagram
 ```
 
 
-> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 
-The `write_report` action has been attempted. The status (`${WRITE_STATUS}`) and the actual file path (`${REPORT_FILE_PATH}`) are available.
+The `save_report_artifact` action has been attempted. The status (`${WRITE_STATUS}`) and the actual file path (`${REPORT_FILE_PATH}`) are available.

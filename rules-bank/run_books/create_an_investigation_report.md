@@ -22,7 +22,7 @@ Consolidate findings from a completed or ongoing investigation involving various
 
 **Required for Reporting Workflow:**
 *   `secops-soar`: `get_case_full_details`, `post_case_comment`
-*   `write_report`
+*   `save_report_artifact`
 *   You may ask follow up question
 
 **Summarized From (Examples - Actual tools depend on the investigation):**
@@ -38,6 +38,7 @@ Consolidate findings from a completed or ongoing investigation involving various
 *   `gcs-mcp`: `upload_to_gcs`
 
 ## Workflow Steps
+
 > **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
 
 
@@ -59,6 +60,9 @@ Consolidate findings from a completed or ongoing investigation involving various
     *   If `${UPLOAD_CHOICE}` is "Yes, GCS" *(and GCS tool exists)*: Execute `gcs-mcp.upload_to_gcs` with `${REPORT_FILE_PATH}`.
     *   Document upload status/location via `common_steps/document_in_soar.md`.
 11. **Completion:** Conclude the runbook execution.
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ```mermaid
 sequenceDiagram
@@ -120,7 +124,6 @@ sequenceDiagram
 ```
 
 
-> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

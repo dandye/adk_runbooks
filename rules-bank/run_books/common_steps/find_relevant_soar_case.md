@@ -28,6 +28,7 @@ This sub-runbook executes searches within the SOAR platform's case list based on
 *   *(Optional) `secops-soar`: `get_case_full_details` (Potentially used internally if initial list is large and needs filtering based on deeper entity checks)*
 
 ## Workflow Steps & Diagram
+
 > **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
 
 
@@ -41,6 +42,9 @@ This sub-runbook executes searches within the SOAR platform's case list based on
 4.  **Process Results:** Extract the IDs and potentially basic details (DisplayName, Priority) from the returned cases. Store IDs in `${RELEVANT_CASE_IDS}` and summaries in `${RELEVANT_CASE_SUMMARIES}`.
 5.  **(Optional) Refine Results:** If the initial search returns too many results, potentially use `get_case_full_details` on a subset to perform more specific checks (e.g., verify if a specific entity is truly present within the alerts/events of the case) and refine the `${RELEVANT_CASE_IDS}` list.
 6.  **Return Results:** Set `${FIND_CASE_STATUS}` based on the success/failure of the API calls. Return `${RELEVANT_CASE_IDS}`, `${RELEVANT_CASE_SUMMARIES}`, and `${FIND_CASE_STATUS}` to the calling runbook.
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ```mermaid
 sequenceDiagram
@@ -85,7 +89,6 @@ sequenceDiagram
 ```
 
 
-> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

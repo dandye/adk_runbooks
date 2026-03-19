@@ -37,9 +37,10 @@ This runbook explicitly **excludes**:
 *   `secops-soar`: `get_case_full_details`, `list_alerts_by_case`, `list_events_by_alert`, `post_case_comment` (Potentially others depending on what needs summarizing from the case)
 *   `secops-mcp`: `lookup_entity`, `search_security_events` (If summarizing previous searches performed during the investigation)
 *   `gti-mcp`: Various `get_*_report` tools (If summarizing previous enrichment performed during the investigation)
-*   `write_to_file` (Replaces the conceptual `write_report` tool)
+*   `save_report_artifact` (Replaces the conceptual `save_report_artifact` tool)
 
 ## Workflow Steps & Diagram
+
 > **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
 
 
@@ -48,8 +49,11 @@ This runbook explicitly **excludes**:
 3.  **Structure Report:** Organize the information according to a standard template (referencing `rules-bank/reporting_templates.md`). Key sections might include: Executive Summary, Timeline of Key Events, Involved Entities & Enrichment, Analysis/Root Cause (if determined), Actions Taken, Recommendations/Lessons Learned.
 4.  **Generate Mermaid Diagram:** Create a Mermaid sequence diagram summarizing the *investigation workflow* that was performed for this case (which tools were used in what order).
 5.  **Format Report:** Compile the synthesized information and the Mermaid diagram into a final Markdown report.
-6.  **Write Report File:** Save the report using `write_to_file` with a standardized name (e.g., `./reports/case_report_${CASE_ID}_${timestamp}.md`).
+6.  **Write Report File:** Save the report using `save_report_artifact` with a standardized name (e.g., `./reports/case_report_${CASE_ID}_${timestamp}.md`).
 7.  **(Optional) Update Case:** Add a comment to the SOAR case indicating the report has been generated and its location using `post_case_comment`.
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ```mermaid
 sequenceDiagram
@@ -80,7 +84,7 @@ sequenceDiagram
 
     %% Step 5 & 6: Format & Write Report
     Note over AutomatedAgent: Compile final Markdown content (ReportMarkdown)
-    AutomatedAgent->>AutomatedAgent: write_to_file(path="./reports/case_report_${CASE_ID}_${timestamp}.md", content=ReportMarkdown)
+    AutomatedAgent->>AutomatedAgent: save_report_artifact(path="./reports/case_report_${CASE_ID}_${timestamp}.md", content=ReportMarkdown)
     Note over AutomatedAgent: Report file created
 
     %% Step 7: Optional SOAR Update
@@ -98,7 +102,6 @@ sequenceDiagram
 ```
 
 
-> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

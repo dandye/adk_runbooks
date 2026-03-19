@@ -46,10 +46,11 @@ This runbook explicitly **excludes**:
 *   `gti-mcp`: `get_collection_report`, `search_threat_actors`, `get_entities_related_to_a_collection`, `get_collection_mitre_tree`, `get_collection_timeline_events`, and other GTI tools as needed for specific research.
 *   `secops-mcp`: `search_security_events`, `lookup_entity`, `get_ioc_matches` (for local correlation).
 *   `secops-soar`: `post_case_comment`, `list_cases`, `siemplify_add_general_insight` (for dissemination and context).
-*   `write_to_file` (Replaces `write_report` for generating local Markdown reports).
+*   `save_report_artifact` (Replaces `save_report_artifact` for generating local Markdown reports).
 *   *(External OSINT tools/feeds - Manual step, not MCP tools)*
 
 ## Workflow Steps & Diagram
+
 > **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
 
 
@@ -63,8 +64,11 @@ This runbook explicitly **excludes**:
 4.  **Analyze TTPs:** Use `gti-mcp_get_collection_mitre_tree` with `${THREAT_ACTOR_ID}`. Store in `${MITRE_TREE}`.
 5.  **Review Timelines:** Use `gti-mcp_get_collection_timeline_events` with `${THREAT_ACTOR_ID}`. Store in `${TIMELINE_EVENTS}`.
 6.  **Correlate Locally (Optional):** Use `secops-mcp` tools (`search_security_events`, `lookup_entity`) to search for related IOCs/TTPs (from `${RELATED_IOCS}`, `${RELATED_TTPS}`) in the local environment. Store summary in `${LOCAL_CORRELATION_RESULTS}`.
-7.  **Synthesize & Report:** Compile findings (`${ACTOR_DETAILS}`, `${RELATED_MALWARE}`, etc., `${MITRE_TREE}`, `${TIMELINE_EVENTS}`, `${LOCAL_CORRELATION_RESULTS}`) into a threat actor profile. Store as Markdown in `${REPORT_CONTENT}`. Use `write_to_file` to save the report (e.g., `path="./reports/actor_profile_${THREAT_ACTOR_ID}_${timestamp}.md", content=${REPORT_CONTENT}`). Store path in `${REPORT_FILE_PATH}`.
+7.  **Synthesize & Report:** Compile findings (`${ACTOR_DETAILS}`, `${RELATED_MALWARE}`, etc., `${MITRE_TREE}`, `${TIMELINE_EVENTS}`, `${LOCAL_CORRELATION_RESULTS}`) into a threat actor profile. Store as Markdown in `${REPORT_CONTENT}`. Use `save_report_artifact` to save the report (e.g., `path="./reports/actor_profile_${THREAT_ACTOR_ID}_${timestamp}.md", content=${REPORT_CONTENT}`). Store path in `${REPORT_FILE_PATH}`.
 8.  **Disseminate:** Share findings via `soar-mcp_post_case_comment` (e.g., to a general intel case or relevant incident cases) or other established channels. Store status in `${DISSEMINATION_STATUS}`.
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ```mermaid
 sequenceDiagram
@@ -112,7 +116,7 @@ sequenceDiagram
 
     %% Step 7: Synthesize & Report
     Note over AutomatedAgent: Compile Threat Actor Profile into REPORT_CONTENT
-    AutomatedAgent->>AutomatedAgent: write_to_file(path="./reports/actor_profile_${THREAT_ACTOR_ID}_${timestamp}.md", content=REPORT_CONTENT)
+    AutomatedAgent->>AutomatedAgent: save_report_artifact(path="./reports/actor_profile_${THREAT_ACTOR_ID}_${timestamp}.md", content=REPORT_CONTENT)
     Note over AutomatedAgent: Report Saved (REPORT_FILE_PATH)
 
     %% Step 8: Disseminate
@@ -128,7 +132,6 @@ sequenceDiagram
 ```
 
 
-> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

@@ -22,10 +22,11 @@ This runbook covers in-depth analysis of a single IOC (IP, Domain, Hash, URL) us
 *   `gti-mcp`: `get_ip_address_report`, `get_domain_report`, `get_file_report`, `get_url_report`, `get_entities_related_to_an_ip_address`, `get_entities_related_to_a_domain`, `get_entities_related_to_a_file`, `get_entities_related_to_an_url`, `get_file_behavior_summary` (optional for hashes), `get_collection_report` (optional).
 *   `secops-mcp`: `lookup_entity`, `search_security_events`, `get_security_alerts`.
 *   `secops-soar`: `post_case_comment`, `get_case_full_details`, `list_cases`.
-*   `write_report` (for local report generation if skipping SOAR).
+*   `save_report_artifact` (for local report generation if skipping SOAR).
 *   **Common Steps:** `common_steps/pivot_on_ioc_gti.md`, `common_steps/enrich_ioc.md`, `common_steps/correlate_ioc_with_alerts_cases.md`, `common_steps/find_relevant_soar_case.md`, `common_steps/document_in_soar.md`, `common_steps/generate_report_file.md`.
 
 ## Workflow Steps & Diagram
+
 > **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
 
 
@@ -64,6 +65,9 @@ This runbook covers in-depth analysis of a single IOC (IP, Domain, Hash, URL) us
         *   Construct `REPORT_NAME_VAR` (e.g., `deep_dive_ioc_${IOC_VALUE_Sanitized}_${timestamp}.md`).
         *   Execute `common_steps/generate_report_file.md` with `REPORT_CONTENTS=${REPORT_CONTENTS_VAR}` and `REPORT_NAME=${REPORT_NAME_VAR}`. Obtain `${REPORT_FILE_PATH}` and `${WRITE_STATUS}`.
 8.  **Completion:** Conclude the runbook execution. Inform analyst of completion status and report location (SOAR comment or local file path).
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ```mermaid
 sequenceDiagram
@@ -155,4 +159,3 @@ sequenceDiagram
 
 ```
 
-> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

@@ -25,6 +25,7 @@ This runbook outlines a flexible framework for advanced threat hunting, emphasiz
 *   *(Potentially EDR, Cloud, Identity tools if integrated via MCP)*.
 
 ## Workflow Steps & Diagram
+
 > **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
 
 
@@ -57,6 +58,9 @@ This runbook outlines a flexible framework for advanced threat hunting, emphasiz
     *   **If hunt yields valuable insights but no active threat:** Document findings and propose new detection rules or improvements to Security Engineering.
     *   **If hunt is inconclusive:** Document the process, negative findings, and any limitations encountered. Conclude the hunt.
 8.  **Completion:** Finalize documentation in the `${HUNT_CASE_ID}` and conclude the runbook execution.
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ```mermaid
 sequenceDiagram
@@ -147,4 +151,3 @@ sequenceDiagram
 ```
 
 
-> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

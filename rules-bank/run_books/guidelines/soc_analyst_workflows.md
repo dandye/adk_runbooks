@@ -20,6 +20,7 @@ This guide references workflows that utilize tools across the security stack, pr
 *   `gti-mcp` (Threat Intelligence Enrichment)
 
 ## Workflow Steps & Diagram
+
 > **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
 
 
@@ -46,6 +47,9 @@ The standard workflow generally follows these phases. Refer to the linked runboo
     *   **Escalate:** Assign the case to Tier 2/3 or a specialized team (e.g., IR, Forensics) with a summary of findings.
     *   **Close:** If determined to be FP, BTP, or fully resolved at the current tier.
         *   Refer to: `rules-bank/run_books/common_steps/close_soar_artifact.md`
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ```mermaid
 sequenceDiagram
@@ -106,7 +110,6 @@ sequenceDiagram
 *   **General IOC Investigation:** Start with `triage_alerts.md`, then `basic_ioc_enrichment.md`, potentially followed by `deep_dive_ioc_analysis.md`.
 
 
-> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

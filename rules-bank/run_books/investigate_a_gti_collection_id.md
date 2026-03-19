@@ -50,8 +50,11 @@ Instructions:
     *   Generate a timestamp string (`${timestamp}`, e.g., `yyyymmdd_hhmm`).
     *   Construct `report_name_var` (e.g., `enhanced_report_${COLLECTION_ID}_${timestamp}.md`).
     *   Let the complete formatted markdown string be `report_contents_var`.
-    *   Use the `write_report` tool.
+    *   Use the `save_report_artifact` tool.
     *   Arguments: `report_name=${report_name_var}`, `report_contents=${report_contents_var}`.
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ```mermaid
 sequenceDiagram
@@ -116,7 +119,7 @@ sequenceDiagram
     Note over AutomatedAgent: Synthesize report content (report_contents_var) from gti_findings, enriched_entities, local_findings
     Note over AutomatedAgent: Include Key Findings & Recommendations
     Note over AutomatedAgent: Construct report_name_var (e.g., enhanced_report_${COLLECTION_ID}_${timestamp}.md)
-    AutomatedAgent->>AutomatedAgent: write_report(report_name=report_name_var, report_contents=report_contents_var)
+    AutomatedAgent->>AutomatedAgent: save_report_artifact(report_name=report_name_var, report_contents=report_contents_var)
     Note over AutomatedAgent: Report file created
 
 
@@ -128,4 +131,3 @@ sequenceDiagram
 
 ```
 
-> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

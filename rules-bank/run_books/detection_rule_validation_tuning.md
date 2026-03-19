@@ -23,6 +23,7 @@ This runbook covers the analysis of a single detection rule's historical perform
 *   *(External Resources: MITRE ATT&CK, threat intelligence reports relevant to the rule's intent).*
 
 ## Workflow Steps & Diagram
+
 > **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
 
 
@@ -58,6 +59,9 @@ This runbook covers the analysis of a single detection rule's historical perform
     *   Record the complete analysis, findings, and specific tuning recommendations in the `${REVIEW_CASE_ID}` using `soar-mcp_post_case_comment` or in a dedicated report. Clearly state the expected impact of the proposed changes.
 9.  **Handover:** Assign the case/report to the Security Engineering team for implementation and testing of the proposed tuning changes.
 10. **Completion:** Conclude the runbook execution.
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ```mermaid
 sequenceDiagram
@@ -139,4 +143,3 @@ sequenceDiagram
 
 ```
 
-> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

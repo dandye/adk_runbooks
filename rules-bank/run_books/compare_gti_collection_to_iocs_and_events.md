@@ -20,6 +20,9 @@ Uses tools:
  * `soar-mcp_post_case_comment`
  * `soar-mcp_list_cases` (Optional, for finding existing case)
 
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
+
 ```mermaid
 sequenceDiagram
     participant User
@@ -85,7 +88,7 @@ sequenceDiagram
         AutomatedAgent->>AutomatedAgent: attempt_completion(result="Environment sweep based on GTI Collection 'GTI-XYZ' complete. Report posted to existing case CaseID_Found.")
     else No Existing Case Found
         Note over AutomatedAgent: Generate report locally (as done previously)
-        AutomatedAgent->>AutomatedAgent: write_report(report_name="gti_comparison_report_GTI-XYZ_${timestamp}.md", report_contents=ReportMarkdown)
+        AutomatedAgent->>AutomatedAgent: save_report_artifact(report_name="gti_comparison_report_GTI-XYZ_${timestamp}.md", report_contents=ReportMarkdown)
 
     %% Step: Save Findings to Memory
     AutomatedAgent->>Memory: Save Novel Findings
@@ -96,4 +99,3 @@ sequenceDiagram
 
 ```
 
-> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

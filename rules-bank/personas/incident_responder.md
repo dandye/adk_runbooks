@@ -63,5 +63,4 @@ Incident Responders rely heavily on structured response procedures:
 *   May leverage findings from hunting runbooks like `apt_threat_hunt.md` or `proactive_threat_hunting_based_on_gti_campain_or_actor.md` if an incident arises from a hunt.
 *   `report_writing.md` (For post-incident reports)
 
-
 > **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

@@ -26,6 +26,7 @@ This sub-runbook executes searches using `secops-mcp_get_security_alerts` and `s
 *   `secops-soar`: `list_cases`
 
 ## Workflow Steps & Diagram
+
 > **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
 
 
@@ -39,6 +40,9 @@ This sub-runbook executes searches using `secops-mcp_get_security_alerts` and `s
     *   Execute the search.
     *   Store the summary of found cases in `${RELATED_SOAR_CASES}`.
 4.  **Return Results:** Set `${CORRELATION_STATUS}` based on the success/failure of the API calls. Return `${RELATED_SIEM_ALERTS}`, `${RELATED_SOAR_CASES}`, and `${CORRELATION_STATUS}` to the calling runbook.
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ```mermaid
 sequenceDiagram
@@ -75,7 +79,6 @@ sequenceDiagram
 ```
 
 
-> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

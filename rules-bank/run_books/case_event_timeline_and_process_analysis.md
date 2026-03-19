@@ -13,7 +13,7 @@ Uses Tools:
 *   `gti-mcp_get_file_report` (for process hash classification)
 *   `secops-mcp_get_threat_intel` (for MITRE TACTIC mapping/general enrichment)
 *   `siemplify_create_gemini_case_summary` (Optional, for AI-generated summary)
-*   `write_report` (for report generation)
+*   `save_report_artifact` (for report generation)
 *   `soar-mcp_post_case_comment` (to note report location/attach if possible)
 *   You may ask follow up question (for report format/content/attachment/SOAR actions confirmation)
 *   `attempt_completion`
@@ -58,6 +58,9 @@ Uses Tools:
 16. (Optional, based on user feedback) Ask the user if they want to perform additional SOAR actions (tagging, priority change, insight, description update, assignment, incident declaration).
 17. (Optional, based on user feedback) Execute selected SOAR actions.
 18. Conclude with `attempt_completion`.
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ```mermaid
 sequenceDiagram
@@ -143,7 +146,7 @@ sequenceDiagram
     alt Report Confirmed ("Yes...")
         %% Step 13: Write MD Report
         Note over AutomatedAgent: Format report content (MUST include Trees & Table, optionally Gemini Summary)
-        AutomatedAgent->>AutomatedAgent: write_report(path="./reports/case_${CASE_ID}_timeline_${timestamp}.md", content=...)
+        AutomatedAgent->>AutomatedAgent: save_report_artifact(path="./reports/case_${CASE_ID}_timeline_${timestamp}.md", content=...)
         Note over AutomatedAgent: MD Report file created.
 
         %% Step 14 & 15: Confirm PDF/Attach
@@ -186,4 +189,3 @@ sequenceDiagram
 ```
 
 
-> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

@@ -24,6 +24,7 @@ This sub-runbook executes the appropriate `gti-mcp_get_entities_related_to_a_...
 *   `gti-mcp`: `get_entities_related_to_an_ip_address`, `get_entities_related_to_a_domain`, `get_entities_related_to_a_file`, `get_entities_related_to_an_url`, `get_entities_related_to_a_collection`
 
 ## Workflow Steps & Diagram
+
 > **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
 
 
@@ -33,6 +34,9 @@ This sub-runbook executes the appropriate `gti-mcp_get_entities_related_to_a_...
     *   Call the selected GTI tool with the appropriate identifier (`ip_address`, `domain`, `hash`, `url`, `id`) set to `${IOC_VALUE}` and `relationship_name=relationship`.
     *   Store the results under the `relationship` key within `${RELATED_ENTITIES}`.
 4.  **Return Results:** Set `${PIVOT_STATUS}` based on the success/failure of the API calls. Return `${RELATED_ENTITIES}` and `${PIVOT_STATUS}` to the calling runbook.
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ```mermaid
 sequenceDiagram
@@ -68,7 +72,6 @@ sequenceDiagram
 ```
 
 
-> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

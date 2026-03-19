@@ -20,9 +20,10 @@ This runbook covers gathering essential details about the alert(s), associated e
 *   `secops-soar`: `get_case_full_details`, `list_alerts_by_case`, `list_events_by_alert`, `get_entities_by_alert_group_identifiers`, `post_case_comment`
 *   `secops-mcp`: `lookup_entity`, `search_security_events` (optional, for broader context)
 *   `Google Threat Intelligence MCP server`: `get_ip_address_report`, `get_domain_report`, `get_file_report`, `get_url_report`
-*   `write_report`
+*   `save_report_artifact`
 
 ## Workflow Steps & Diagram
+
 > **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
 
 
@@ -58,10 +59,13 @@ This runbook covers gathering essential details about the alert(s), associated e
     *   Generate a timestamp string (`${timestamp}`, e.g., `yyyymmdd_hhmm`).
     *   Construct `REPORT_NAME_VAR` (e.g., `alert_report_${CASE_ID}_${REPORT_FILENAME_SUFFIX}_${timestamp}.md`). Ensure `${REPORT_FILENAME_SUFFIX}` is handled (e.g., if empty, don't include extra underscores).
     *   Let the formatted Markdown content be `REPORT_CONTENTS_VAR`.
-    *   Use `write_report` with `report_name=${REPORT_NAME_VAR}` and `report_contents=${REPORT_CONTENTS_VAR}`.
+    *   Use `save_report_artifact` with `report_name=${REPORT_NAME_VAR}` and `report_contents=${REPORT_CONTENTS_VAR}`.
 8.  **(Optional) Update SOAR Case:**
     *   Use `soar-mcp_post_case_comment` to add a comment to `${CASE_ID}` stating that the report has been generated and providing the filename, or pasting a concise summary directly.
 9.  **Completion:** Conclude the runbook execution.
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ```mermaid
 sequenceDiagram
@@ -123,7 +127,7 @@ sequenceDiagram
     %% Step 6 & 7: Synthesize & Write Report
     Note over AutomatedAgent: Format report content (ReportMarkdown) (Case Summary, Alert Summary, Entities, Enrichment, Events, Assessment)
     Note over AutomatedAgent: Construct REPORT_NAME_VAR (e.g., alert_report_${CASE_ID}_${REPORT_FILENAME_SUFFIX}_${timestamp}.md)
-    AutomatedAgent->>AutomatedAgent: write_report(report_name=REPORT_NAME_VAR, report_contents=ReportMarkdown)
+    AutomatedAgent->>AutomatedAgent: save_report_artifact(report_name=REPORT_NAME_VAR, report_contents=ReportMarkdown)
     Note over AutomatedAgent: Report file created
 
     %% Step 8: Optional SOAR Update
@@ -142,4 +146,3 @@ sequenceDiagram
 
 ```
 
-> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

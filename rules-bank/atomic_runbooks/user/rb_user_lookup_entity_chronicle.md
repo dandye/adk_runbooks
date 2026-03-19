@@ -18,7 +18,6 @@
 ---
 
 ## Execution Steps
-> **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
 
 
 1.  **Tool Selection:**
@@ -46,7 +45,6 @@
 ---
 
 
-> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Decision Logic / Next Steps (If Applicable)
 
@@ -87,3 +85,5 @@
 -   `rules-bank/indicator_handling_protocols.md` (future User section)
 -   `rules-bank/ai_performance_logging_requirements.md`
 -   `rules-bank/data_normalization_map.md`
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

@@ -27,6 +27,7 @@ This runbook covers the initial investigation steps to gather context about a su
 *   **Common Steps:** {doc}`common_steps/enrich_ioc </run_books/common_steps/enrich_ioc>`, {doc}`common_steps/find_relevant_soar_case </run_books/common_steps/find_relevant_soar_case>`, {doc}`common_steps/document_in_soar </run_books/common_steps/document_in_soar>`, {doc}`common_steps/generate_report_file </run_books/common_steps/generate_report_file>`
 
 ## Workflow Steps & Diagram
+
 > **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
 
 
@@ -76,6 +77,9 @@ This runbook covers the initial investigation steps to gather context about a su
         *   Execute `common_steps/generate_report_file.md` with `REPORT_CONTENT`, `REPORT_TYPE="suspicious_login_triage"`, `REPORT_NAME_SUFFIX=${CASE_ID}`. Obtain `${REPORT_GENERATION_STATUS}`.
     *   **Else:** Set `${REPORT_GENERATION_STATUS}` = "Skipped".
 11. **Completion:** Conclude the runbook execution. Tier 1 analyst acts on the recommendation in the comment. Report generation status provided if applicable.
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ```mermaid
 sequenceDiagram
@@ -160,4 +164,3 @@ sequenceDiagram
 
 ```
 
-> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

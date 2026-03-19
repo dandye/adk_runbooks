@@ -18,7 +18,6 @@
 ---
 
 ## Execution Steps
-> **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
 
 
 1.  **Tool Selection:**
@@ -47,7 +46,6 @@
 ---
 
 
-> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Decision Logic / Next Steps (If Applicable)
 
@@ -80,3 +78,5 @@
 
 -   [Link to relevant sections in `mcp_tool_best_practices.md`, `data_normalization_map.md`, etc.]
 -   [Link to source articles if a specific technique is from them, e.g., "Blueprint for AI Agents in Cybersecurity" if discussing general AI agent interaction.]
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

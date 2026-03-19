@@ -35,10 +35,11 @@ This runbook covers fundamental enrichment steps using readily available GTI and
 *   `secops-mcp`: `lookup_entity`, `get_ioc_matches`, `search_security_events`
 *   `secops-soar`: `list_cases`, `post_case_comment`
 *   You may ask follow up question
-*   `write_report`
+*   `save_report_artifact`
 *   **Common Steps:** {doc}`common_steps/enrich_ioc </run_books/common_steps/enrich_ioc>`, {doc}`common_steps/pivot_on_ioc_gti </run_books/common_steps/pivot_on_ioc_gti>`, {doc}`common_steps/find_relevant_soar_case </run_books/common_steps/find_relevant_soar_case>`, {doc}`common_steps/document_in_soar </run_books/common_steps/document_in_soar>`, {doc}`common_steps/generate_report_file </run_books/common_steps/generate_report_file>`
 
 ## Workflow Steps & Diagram
+
 > **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
 
 
@@ -70,6 +71,9 @@ This runbook covers fundamental enrichment steps using readily available GTI and
         *   Execute `common_steps/generate_report_file.md` with `REPORT_CONTENT`, `REPORT_TYPE="ioc_enrichment"`, `REPORT_NAME_SUFFIX=${IOC_VALUE}`. Obtain `${REPORT_GENERATION_STATUS}`.
     *   **Else:** Set `${REPORT_GENERATION_STATUS}` = "Skipped".
 9.  **Completion:** Conclude the runbook execution. Present the key findings, assessment, recommendation, documentation status, and report generation status to the analyst.
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ```mermaid
 sequenceDiagram
@@ -142,4 +146,3 @@ sequenceDiagram
 
 ```
 
-> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

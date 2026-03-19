@@ -42,18 +42,22 @@ This runbook explicitly **excludes**:
 ## Tools
 
 *   `bigquery`: `execute-query`, `describe-table`, `list-tables`
-*   `write_to_file` (Optional, for saving results to a file, replaces `write_report`)
+*   `save_report_artifact` (Optional, for saving results to a file, replaces `save_report_artifact`)
 *   `secops-soar`: `post_case_comment` (Optional, for documenting query/results in a SOAR case)
 
 ## Workflow Steps & Diagram
+
 > **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
 
 
 1.  **Define Query:** Based on `${QUERY_OBJECTIVE}`, `${TARGET_DATASETS}`, time range (`${TIME_RANGE_START}`, `${TIME_RANGE_END}`), `${SPECIFIC_FIELDS}`, and `${FILTER_CONDITIONS}`, construct the BigQuery SQL query (`${SQL_QUERY}`). Use `bigquery.describe-table` or `bigquery.list-tables` if needed to confirm schema/table names.
 2.  **Execute Query:** Run the `${SQL_QUERY}` using `bigquery.execute-query`. Store results in `${QUERY_RESULTS}` and status in `${QUERY_EXECUTION_STATUS}`.
 3.  **Analyze Results:** Review the `${QUERY_RESULTS}`. Summarize findings in `${ANALYSIS_SUMMARY}`.
-4.  **Format/Save Results (Optional):** If needed, format the `${QUERY_RESULTS}` (e.g., as Markdown, CSV, or JSON, let this be `${FORMATTED_RESULTS}`) and save them using `write_to_file` with `path="./reports/query_results_${QUERY_OBJECTIVE_Sanitized}_${timestamp}.md"` (or other appropriate extension) and `content=${FORMATTED_RESULTS}`. Store path in `${SAVED_FILE_PATH}`.
+4.  **Format/Save Results (Optional):** If needed, format the `${QUERY_RESULTS}` (e.g., as Markdown, CSV, or JSON, let this be `${FORMATTED_RESULTS}`) and save them using `save_report_artifact` with `path="./reports/query_results_${QUERY_OBJECTIVE_Sanitized}_${timestamp}.md"` (or other appropriate extension) and `content=${FORMATTED_RESULTS}`. Store path in `${SAVED_FILE_PATH}`.
 5.  **Document (Optional):** If `${SOAR_CASE_ID}` is provided, document the `${SQL_QUERY}` executed and the `${ANALYSIS_SUMMARY}` in the relevant SOAR case using `soar-mcp_post_case_comment`. Store status in `${SOAR_COMMENT_STATUS}`.
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ```mermaid
 sequenceDiagram
@@ -86,7 +90,7 @@ sequenceDiagram
     %% Step 4: Format/Save Results (Optional)
     opt Save Results
         Note over AutomatedAgent: Format results (e.g., CSV, JSON) (FORMATTED_RESULTS)
-        AutomatedAgent->>AutomatedAgent: write_to_file(path="./reports/query_results...", content=FORMATTED_RESULTS)
+        AutomatedAgent->>AutomatedAgent: save_report_artifact(path="./reports/query_results...", content=FORMATTED_RESULTS)
         Note over AutomatedAgent: Results saved to file (SAVED_FILE_PATH)
     end
 
@@ -105,7 +109,6 @@ sequenceDiagram
 ```
 
 
-> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

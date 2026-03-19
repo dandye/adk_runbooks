@@ -6,6 +6,17 @@ This workflow demonstrates an automated approach to tuning detection rules using
 
 ## Architecture
 
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
+
+    %% Step: Save Findings to Memory
+
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+
+    Memory-->>AutomatedAgent: Findings Saved
+
 ```mermaid
 graph LR
     A[SOAR Cases] -->|Analyst Feedback| B[AI Agent]
@@ -16,6 +27,11 @@ graph LR
     F -->|Pull Request| G[GitHub]
     G -->|CI/CD Pipeline| H[SIEM Platform]
     H -->|Deploy| I[Production Rules]
+    %% Step: Save Findings to Memory
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+    Memory-->>AutomatedAgent: Findings Saved
 ```
 
 ## Prerequisites
@@ -32,12 +48,22 @@ graph LR
 - **AI Agent** (Claude, Gemini) with MCP integration
 
 ### Configuration
+    %% Step: Save Findings to Memory
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+    Memory-->>AutomatedAgent: Findings Saved
 ```yaml
 # .env configuration
 SIEM_API_ENDPOINT=https://your-siem.example.com
 SOAR_API_ENDPOINT=https://your-soar.example.com
 GITHUB_TOKEN=your_github_token
 AI_MODEL=gemini-2.5-pro-preview
+    %% Step: Save Findings to Memory
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+    Memory-->>AutomatedAgent: Findings Saved
 ```
 
 ## Automated Workflow
@@ -45,6 +71,14 @@ AI_MODEL=gemini-2.5-pro-preview
 ### Step 1: Monitor SOAR Cases for Tuning Opportunities
 
 The AI agent continuously monitors closed SOAR cases for tuning signals:
+
+    %% Step: Save Findings to Memory
+
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+
+    Memory-->>AutomatedAgent: Findings Saved
 
 ```python
 # Example monitoring query
@@ -54,6 +88,11 @@ search_criteria = {
     "has_analyst_comments": True,
     "time_range": "last_7_days"
 }
+    %% Step: Save Findings to Memory
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+    Memory-->>AutomatedAgent: Findings Saved
 ```
 
 ### Step 2: Extract Tuning Requirements from Case Comments
@@ -64,15 +103,33 @@ When a case contains tuning instructions, the agent extracts:
 - **Specific Conditions**: Field values, hostnames, user accounts to exclude
 
 Example analyst comment:
+    %% Step: Save Findings to Memory
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+    Memory-->>AutomatedAgent: Findings Saved
 ```
 This case was a false positive. User jack.torrance is authorized to execute 
 ScreenConnect in our environment. Rule should be tuned to exclude events 
 where hostname != "desktop-7xl2kp3".
+    %% Step: Save Findings to Memory
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+    Memory-->>AutomatedAgent: Findings Saved
 ```
 
 ### Step 3: Locate and Analyze Local Rule Files
 
 The agent searches the local rules repository:
+
+    %% Step: Save Findings to Memory
+
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+
+    Memory-->>AutomatedAgent: Findings Saved
 
 ```bash
 rules/
@@ -81,9 +138,19 @@ rules/
 │   ├── rmm_tools_execution.yaml
 │   └── suspicious_process.yaml
 └── cloud/
+    %% Step: Save Findings to Memory
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+    Memory-->>AutomatedAgent: Findings Saved
 ```
 
 Rule format example:
+    %% Step: Save Findings to Memory
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+    Memory-->>AutomatedAgent: Findings Saved
 ```yaml
 # rmm_tools_execution.yaml
 id: rmm-tools-execution
@@ -97,11 +164,24 @@ logic:
 tags:
   - attack.t1219
   - remote_access
+    %% Step: Save Findings to Memory
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+    Memory-->>AutomatedAgent: Findings Saved
 ```
 
 ### Step 4: Generate Rule Modifications
 
 The agent applies the tuning based on analyst feedback:
+
+    %% Step: Save Findings to Memory
+
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+
+    Memory-->>AutomatedAgent: Findings Saved
 
 ```yaml
 # Updated rule with exclusion
@@ -112,11 +192,24 @@ logic:
     NOT (process.name = "ScreenConnect.exe" AND 
          user.name = "jack.torrance" AND 
          host.name = "desktop-7xl2kp3")
+    %% Step: Save Findings to Memory
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+    Memory-->>AutomatedAgent: Findings Saved
 ```
 
 ### Step 5: Create Branch and Pull Request
 
 The agent uses Git operations to propose changes:
+
+    %% Step: Save Findings to Memory
+
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+
+    Memory-->>AutomatedAgent: Findings Saved
 
 ```bash
 # Create feature branch
@@ -132,6 +225,11 @@ git commit -m "Tune RMM tools rule based on case #4232 feedback
 
 # Push and create PR
 git push origin tune/rmm-tools-case-4232
+    %% Step: Save Findings to Memory
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+    Memory-->>AutomatedAgent: Findings Saved
 ```
 
 Pull request includes:
@@ -143,6 +241,14 @@ Pull request includes:
 ### Step 6: Automated Validation and Deployment
 
 GitHub Actions workflow (`deploy-rules.yml`):
+
+    %% Step: Save Findings to Memory
+
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+
+    Memory-->>AutomatedAgent: Findings Saved
 
 ```yaml
 name: Deploy Detection Rules
@@ -186,6 +292,11 @@ jobs:
       - name: Notify Team
         run: |
           slack-notify "#detections" "Rule updates deployed from PR #${{ github.event.pull_request.number }}"
+    %% Step: Save Findings to Memory
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+    Memory-->>AutomatedAgent: Findings Saved
 ```
 
 ## Manual Review Process
@@ -211,6 +322,11 @@ jobs:
 - **Rollback Frequency**: How often tunings are reverted
 
 ### Dashboard Example
+    %% Step: Save Findings to Memory
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+    Memory-->>AutomatedAgent: Findings Saved
 ```
 ┌─────────────────────────────────────┐
 │  Detection Rule Tuning Dashboard     │
@@ -220,6 +336,11 @@ jobs:
 │ Automated Tunings: 12/15 (80%)      │
 │ Pending Reviews: 3                   │
 └─────────────────────────────────────┘
+    %% Step: Save Findings to Memory
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+    Memory-->>AutomatedAgent: Findings Saved
 ```
 
 ## Example Use Cases
@@ -227,31 +348,61 @@ jobs:
 ### Use Case 1: Authorized Software Exclusion
 **Scenario**: IT deploys new RMM tool
 **Action**: Exclude specific deployment patterns
+    %% Step: Save Findings to Memory
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+    Memory-->>AutomatedAgent: Findings Saved
 ```yaml
 exclusions:
   - condition: "process.signer = 'IT_DEPT_CERT' AND host.ou = 'IT_Workstations'"
     expires: "2025-12-31"
     reason: "Authorized IT deployment"
+    %% Step: Save Findings to Memory
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+    Memory-->>AutomatedAgent: Findings Saved
 ```
 
 ### Use Case 2: Business Process Tuning
 **Scenario**: Finance runs daily automated reports triggering alerts
 **Action**: Time-based exclusion
+    %% Step: Save Findings to Memory
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+    Memory-->>AutomatedAgent: Findings Saved
 ```yaml
 exclusions:
   - condition: "user.name = 'svc_finance' AND time.hour BETWEEN 2 AND 4"
     reason: "Scheduled finance reporting"
+    %% Step: Save Findings to Memory
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+    Memory-->>AutomatedAgent: Findings Saved
 ```
 
 ### Use Case 3: Environmental Noise Reduction
 **Scenario**: Dev environment generates testing alerts
 **Action**: Environment-based filtering
+    %% Step: Save Findings to Memory
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+    Memory-->>AutomatedAgent: Findings Saved
 ```yaml
 logic:
   query: |
     original_query AND
     NOT (environment.type = "development" AND 
          source.ip IN ("10.1.0.0/16"))
+    %% Step: Save Findings to Memory
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+    Memory-->>AutomatedAgent: Findings Saved
 ```
 
 ## Best Practices
@@ -283,6 +434,11 @@ Each tuning should document:
 ### Common Issues
 
 **Issue**: Rule updates not deploying
+    %% Step: Save Findings to Memory
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+    Memory-->>AutomatedAgent: Findings Saved
 ```bash
 # Check CI/CD logs
 gh run list --workflow=deploy-rules.yml
@@ -290,20 +446,40 @@ gh run view <run-id>
 
 # Validate rule syntax locally
 detection-cli validate rules/endpoint/rmm_tools_execution.yaml
+    %% Step: Save Findings to Memory
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+    Memory-->>AutomatedAgent: Findings Saved
 ```
 
 **Issue**: Over-tuning causing missed detections
+    %% Step: Save Findings to Memory
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+    Memory-->>AutomatedAgent: Findings Saved
 ```bash
 # Review exclusion patterns
 grep -r "NOT\|exclude\|exception" rules/
 
 # Audit recent tunings
 git log --oneline --grep="tune" --since="30 days ago"
+    %% Step: Save Findings to Memory
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+    Memory-->>AutomatedAgent: Findings Saved
 ```
 
 ## Advanced Automation
 
 ### Scheduled Tuning Reviews
+    %% Step: Save Findings to Memory
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+    Memory-->>AutomatedAgent: Findings Saved
 ```python
 # Weekly automated review
 async def weekly_tuning_review():
@@ -315,9 +491,19 @@ async def weekly_tuning_review():
         cases = await soar.search_cases(rule_name=rule.name)
         if cases_with_tuning_feedback(cases):
             await create_tuning_pr(rule, cases)
+    %% Step: Save Findings to Memory
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+    Memory-->>AutomatedAgent: Findings Saved
 ```
 
 ### ML-Assisted Pattern Recognition
+    %% Step: Save Findings to Memory
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+    Memory-->>AutomatedAgent: Findings Saved
 ```python
 # Identify common false positive patterns
 def analyze_fp_patterns(cases):
@@ -329,6 +515,11 @@ def analyze_fp_patterns(cases):
     # Cluster similar patterns
     clusters = ml_model.cluster_patterns(patterns)
     return suggest_exclusions(clusters)
+    %% Step: Save Findings to Memory
+
+    AutomatedAgent->>Memory: Save Novel Findings
+
+    Memory-->>AutomatedAgent: Findings Saved
 ```
 
 ## References
@@ -338,4 +529,3 @@ def analyze_fp_patterns(cases):
 - [Detection Engineering with CI/CD](https://detect.fyi/detection-as-code)
 - [SOAR Integration Best Practices](https://www.gartner.com/en/documents/3991893)
 
-> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

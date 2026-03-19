@@ -17,10 +17,11 @@ These guidelines apply to various report types (e.g., investigation summaries, t
 
 ## Tools
 
-*   `write_report`: To save the final report.
+*   `save_report_artifact`: To save the final report.
 *   *(Tools used to gather `${FINDINGS}`)*
 
 ## Workflow Steps & Diagram
+
 > **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
  (Conceptual - For Writing the Report)
 
@@ -33,12 +34,15 @@ These guidelines apply to various report types (e.g., investigation summaries, t
     *   **Workflow Diagram:** Embed the `${MERMAID_DIAGRAM}`.
 4.  **Write Content:** Clearly articulate findings, analysis, and conclusions. Use consistent terminology. Include links back to relevant tools/platforms where appropriate (e.g., links to SOAR cases, GTI reports).
 5.  **Review & Refine:** Proofread the report for clarity, accuracy, and completeness. Let the final content be `${FinalReportContent}`.
-6.  **Save Report:** Use `write_report` with `report_name="<report_type>_<report_name_suffix>_${CASE_ID}_${timestamp}.md"` and `report_contents=${FinalReportContent}`. (Ensure variables like `${CASE_ID}` and `${timestamp}` are resolved before the call).
+6.  **Save Report:** Use `save_report_artifact` with `report_name="<report_type>_<report_name_suffix>_${CASE_ID}_${timestamp}.md"` and `report_contents=${FinalReportContent}`. (Ensure variables like `${CASE_ID}` and `${timestamp}` are resolved before the call).
 
 Reports should include which agents called which MCP tools
 
 ```mermaid
 **Agent Workflow Diagram:**
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
+
 ```mermaid
 sequenceDiagram
     participant User
@@ -68,7 +72,6 @@ sequenceDiagram
 
 ```
 
-> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

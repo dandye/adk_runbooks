@@ -22,10 +22,11 @@ Focuses on SIEM log analysis and GTI correlation for specific TTPs and IOCs rela
 *   `gti-mcp`: `get_collection_report`, `get_entities_related_to_a_collection`, `get_collection_timeline_events`, `get_collection_mitre_tree`, `search_threat_actors` (if starting with name)
 *   `secops-mcp`: `search_security_events`, `lookup_entity`, `get_ioc_matches`
 *   `secops-soar`: `post_case_comment`, `list_cases`
-*   `write_report`
+*   `save_report_artifact`
 *   **Common Steps:** `common_steps/find_relevant_soar_case.md`, `common_steps/generate_report_file.md`
 
 ## Workflow Steps & Diagram
+
 > **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
 
 
@@ -76,6 +77,9 @@ Focuses on SIEM log analysis and GTI correlation for specific TTPs and IOCs rela
         *   Workflow Diagram (Mermaid).
     *   **Execute Report Generation:** Call `common_steps/generate_report_file.md` with the synthesized report content, `REPORT_TYPE="apt_hunt_report"`, and `REPORT_NAME_SUFFIX=${THREAT_ACTOR_ID}`.
 9.  **Escalation/Conclusion:** Escalate confirmed threats or conclude the hunt based on findings. Update `${HUNT_CASE_ID}` status if applicable.
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ```mermaid
 sequenceDiagram
@@ -174,7 +178,6 @@ sequenceDiagram
 ```
 
 
-> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

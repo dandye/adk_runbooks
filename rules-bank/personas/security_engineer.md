@@ -55,5 +55,4 @@ Security Engineers are less likely to execute incident-focused runbooks directly
 *   Act on outputs from `cloud_vulnerability_triage_and_contextualization.md` by tuning cloud security tools or implementing remediation.
 *   Use findings from various investigation runbooks (e.g., `deep_dive_ioc_analysis.md`, `malware_triage.md`, `advanced_threat_hunting.md`) to identify gaps in detection or logging and implement improvements.
 
-
 > **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
