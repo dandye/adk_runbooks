@@ -46,6 +46,8 @@ This runbook explicitly **excludes**:
 *   `secops-soar`: `post_case_comment` (Optional, for documenting query/results in a SOAR case)
 
 ## Workflow Steps & Diagram
+> **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
+
 
 1.  **Define Query:** Based on `${QUERY_OBJECTIVE}`, `${TARGET_DATASETS}`, time range (`${TIME_RANGE_START}`, `${TIME_RANGE_END}`), `${SPECIFIC_FIELDS}`, and `${FILTER_CONDITIONS}`, construct the BigQuery SQL query (`${SQL_QUERY}`). Use `bigquery.describe-table` or `bigquery.list-tables` if needed to confirm schema/table names.
 2.  **Execute Query:** Run the `${SQL_QUERY}` using `bigquery.execute-query`. Store results in `${QUERY_RESULTS}` and status in `${QUERY_EXECUTION_STATUS}`.
@@ -59,7 +61,12 @@ sequenceDiagram
     participant AutomatedAgent as Automated Agent (MCP Client)
     participant BigQuery as bigquery
     participant SOAR as secops-soar (Optional)
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    AutomatedAgent->>Memory: Query Historical Context
+    Memory-->>AutomatedAgent: Relevant Insights
     Analyst/User->>AutomatedAgent: Start Data Lake Query\nInput: QUERY_OBJECTIVE, TARGET_DATASETS, TIME_RANGE...
 
     %% Step 1: Define Query
@@ -89,9 +96,16 @@ sequenceDiagram
         SOAR-->>AutomatedAgent: Comment Confirmation (SOAR_COMMENT_STATUS)
     end
 
+
+    %% Step: Save Findings to Memory
+    AutomatedAgent->>Memory: Save Novel Findings
+    Memory-->>AutomatedAgent: Findings Saved
     AutomatedAgent->>Analyst/User: attempt_completion(result="Data lake query executed. Status: QUERY_EXECUTION_STATUS. Analysis: ANALYSIS_SUMMARY. File: SAVED_FILE_PATH. SOAR Update: SOAR_COMMENT_STATUS.")
 
 ```
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

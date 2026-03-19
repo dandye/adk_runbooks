@@ -35,6 +35,8 @@ This runbook covers the end-to-end response lifecycle for compromised user accou
 *   **Common Steps:** `common_steps/check_duplicate_cases.md`, `common_steps/find_relevant_soar_case.md`, `common_steps/document_in_soar.md`, `common_steps/confirm_action.md`
 
 ## Workflow Steps & Diagram
+> **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
+
 
 ```{mermaid}
 sequenceDiagram
@@ -46,7 +48,12 @@ sequenceDiagram
     participant Eradication as Phase 4: Eradication
     participant Recovery as Phase 5: Recovery
     participant LessonsLearned as Phase 6: Lessons Learned
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    IRP->>Memory: Query Historical Context
+    Memory-->>IRP: Relevant Insights
     Analyst->>IRP: Start Compromised User Account Response\nInput: USER_ID, CASE_ID, ALERT_GROUP_IDS, INITIAL_ALERT_DETAILS (opt)
 
     IRP->>Preparation: Verify Prerequisites (Ongoing)
@@ -67,6 +74,10 @@ sequenceDiagram
     IRP->>LessonsLearned: Execute Post-Incident Steps
     LessonsLearned-->>IRP: Review Complete
 
+
+    %% Step: Save Findings to Memory
+    IRP->>Memory: Save Novel Findings
+    Memory-->>IRP: Findings Saved
     IRP-->>Analyst: Incident Response Complete
 ```
 
@@ -186,3 +197,6 @@ sequenceDiagram
         *   Suggestions for new detection rules or tuning existing ones.
         *   Recommendations for tool configuration changes or new tool requirements.
     5.  **Documentation:** Record this feedback within the SOAR case (`${CASE_ID}`) using `common_steps/document_in_soar.md` or a dedicated lessons learned repository.
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

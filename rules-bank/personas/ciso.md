@@ -51,3 +51,6 @@ CISOs are primarily concerned with the effectiveness, efficiency, and strategic 
 *   They assess the value and findings from threat hunting runbooks (`apt_threat_hunt.md`, `advanced_threat_hunting.md`) to gauge proactive defense capabilities.
 *   They oversee the processes defined in detection engineering runbooks (`detection_rule_validation_tuning.md`, `detection_as_code_workflows.md`) and review associated metrics.
 *   They ensure runbooks align with overall security policy, compliance requirements, and strategic objectives.
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

@@ -61,3 +61,6 @@ Tier 3 Analysts often work beyond standard runbooks but may reference or enhance
 *   They are more likely to *develop* or *refine* runbooks than strictly follow them for every task.
 
 *Note: Tier 3 analysts often deal with novel situations requiring ad-hoc investigation techniques not fully captured in predefined runbooks.*
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

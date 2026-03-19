@@ -22,6 +22,8 @@ This runbook outlines the process for conducting a PIR meeting, analyzing incide
 *   **Referenced Runbooks:** IRPs (`malware_incident_response.md`, `phishing_response.md`, etc. - specifically the Phase 7 feedback section), `reporting_templates.md`.
 
 ## Workflow Steps & Diagram
+> **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
+
 
 1.  **Schedule PIR Meeting:** Identify key stakeholders (`${KEY_STAKEHOLDERS}`) based on the incident's nature and impact. Schedule the PIR meeting, allowing sufficient time for preparation.
 2.  **Gather Incident Data:**
@@ -59,7 +61,12 @@ sequenceDiagram
     participant Stakeholders as Key Stakeholders
     participant Documentation as Runbooks/Policies
     participant TrackingSystem as Recommendation Tracking
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    AutomatedAgent->>Memory: Query Historical Context
+    Memory-->>AutomatedAgent: Relevant Insights
     PIR_Lead/Analyst->>AutomatedAgent: Start Post-Incident Review\nInput: CASE_ID, REPORT_PATH (opt), STAKEHOLDERS (opt)
 
     %% Step 1: Schedule Meeting
@@ -90,9 +97,16 @@ sequenceDiagram
     Note over PIR_Lead/Analyst: Store formal PIR report
 
     %% Step 8: Completion
+
+    %% Step: Save Findings to Memory
+    AutomatedAgent->>Memory: Save Novel Findings
+    Memory-->>AutomatedAgent: Findings Saved
     AutomatedAgent->>PIR_Lead/Analyst: attempt_completion(result="Post-Incident Review process complete for Case CASE_ID. Findings documented and recommendations tracked.")
 
 ```
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

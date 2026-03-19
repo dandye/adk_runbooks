@@ -20,7 +20,9 @@ These guidelines apply to various report types (e.g., investigation summaries, t
 *   `write_report`: To save the final report.
 *   *(Tools used to gather `${FINDINGS}`)*
 
-## Workflow Steps & Diagram (Conceptual - For Writing the Report)
+## Workflow Steps & Diagram
+> **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
+ (Conceptual - For Writing the Report)
 
 1.  **Gather Information:** Collect all necessary findings, analysis, context, runbook name, case ID, and the generated Mermaid diagram.
 2.  **Structure Report:** Organize the information logically. Start with metadata, followed by a summary/executive summary, detailed findings, analysis, conclusions, and recommendations. Refer to `rules-bank/reporting_templates.md` for specific section requirements based on report type.
@@ -43,16 +45,30 @@ sequenceDiagram
     participant Manager
     participant Tier2 as soc_analyst_tier2
     participant SOAR
+    participant Memory as Vertex AI Memory
 
     User->>Manager: research soar case 2396 and then write a report on what you find
+
+    %% Step: Query Memory Context
+    Manager->>Memory: Query Historical Context
+    Memory-->>Manager: Relevant Insights
     Manager->>Tier2: research soar case 2396 and then write a report on what you find
     Tier2->>SOAR: get_case_full_details(case_id="2396")
     SOAR-->>Tier2: Case Details
     Tier2->>Manager: Report on SOAR Case 2396 with Recommendations
+
+    %% Step: Save Findings to Memory
+    Manager->>Memory: Save Novel Findings
+    Memory-->>Manager: Findings Saved
     Manager->>User: Report on SOAR Case 2396 with Recommendations
     User->>Manager: update the report to include a mermaid sequence diagram for which agents called which mcp tools
     ...
 ```
+
+
+```
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

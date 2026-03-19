@@ -23,6 +23,8 @@ This runbook covers the analysis of a single detection rule's historical perform
 *   *(External Resources: MITRE ATT&CK, threat intelligence reports relevant to the rule's intent).*
 
 ## Workflow Steps & Diagram
+> **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
+
 
 1.  **Define Scope & Context:** Obtain `${RULE_ID}`, `${ANALYSIS_TIMEFRAME_DAYS}`, `${REASON_FOR_REVIEW}`, and `${REVIEW_CASE_ID}`. Document the rule's intended purpose and the TTPs/threats it aims to detect.
 2.  **Retrieve Rule Logic:**
@@ -65,7 +67,12 @@ sequenceDiagram
     participant SOAR as secops-soar
     participant GTI as gti-mcp
     participant SecEng as Security Engineering
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    AutomatedAgent->>Memory: Query Historical Context
+    Memory-->>AutomatedAgent: Relevant Insights
     Analyst/Engineer->>AutomatedAgent: Start Rule Validation & Tuning\nInput: RULE_ID, TIMEFRAME_DAYS, REASON, REVIEW_CASE_ID (opt)
 
     %% Step 1: Define Scope
@@ -123,4 +130,13 @@ sequenceDiagram
     Note over AutomatedAgent: Assign case/report to Security Engineering
 
     %% Step 10: Completion
+
+    %% Step: Save Findings to Memory
+    AutomatedAgent->>Memory: Save Novel Findings
+    Memory-->>AutomatedAgent: Findings Saved
     AutomatedAgent->>Analyst/Engineer: attempt_completion(result="Detection Rule Validation & Tuning complete for RULE_ID. Recommendations documented and handed over.")
+
+
+```
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

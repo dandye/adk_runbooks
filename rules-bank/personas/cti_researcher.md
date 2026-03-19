@@ -81,3 +81,6 @@ CTI Researchers focus on runbooks related to intelligence gathering, analysis, h
 *   `threat_intel_workflows.md` (Core workflow document)
 *   `report_writing.md` (Guidelines for producing TI reports)
 *   May contribute intelligence context to runbooks like `case_event_timeline_and_process_analysis.md`, `create_an_investigation_report.md`, `phishing_response.md`, or `ransomware_response.md`.
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

@@ -23,6 +23,8 @@
 *   *(Potentially other tools for data aggregation or visualization if available)*
 
 ## Workflow Steps & Diagram
+> **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
+
 
 1.  **Define Scope & Objective:** Clearly define the `${ANALYSIS_FOCUS}` and `${ANALYSIS_TIMEFRAME_DAYS}`. Identify necessary `${DATA_SOURCES}`.
 2.  **Data Collection:** Gather relevant data using specified tools (e.g., export case details, run broad SIEM/BigQuery queries).
@@ -38,7 +40,12 @@ sequenceDiagram
     participant SOAR as secops-soar
     participant SIEM as secops-mcp
     participant BigQuery as bigquery (Optional)
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    AutomatedAgent->>Memory: Query Historical Context
+    Memory-->>AutomatedAgent: Relevant Insights
     Analyst/Researcher->>AutomatedAgent: Start Meta-Analysis\nInput: ANALYSIS_FOCUS, TIMEFRAME_DAYS, DATA_SOURCES (opt)
 
     %% Step 1: Define Scope
@@ -75,9 +82,16 @@ sequenceDiagram
     AutomatedAgent->>AutomatedAgent: write_report(report_name="meta_analysis_${ANALYSIS_FOCUS_Sanitized}_${timestamp}.md", report_contents=ReportMarkdown)
     Note over AutomatedAgent: Report file created
 
+
+    %% Step: Save Findings to Memory
+    AutomatedAgent->>Memory: Save Novel Findings
+    Memory-->>AutomatedAgent: Findings Saved
     AutomatedAgent->>Analyst/Researcher: attempt_completion(result="Meta-analysis complete. Report generated.")
 
 ```
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

@@ -87,3 +87,6 @@ SOC Managers ensure runbooks are followed and effective, rather than executing t
 *   Advanced analysis, hunting, and tuning runbooks (`deep_dive_ioc_analysis.md`, `malware_triage.md`, `guided_ttp_hunt_credential_access.md`, `lateral_movement_hunt_psexec_wmi.md`, `advanced_threat_hunting.md`, `detection_rule_validation_tuning.md`) to understand team capabilities and operational effectiveness.
 *   Reporting runbooks like `create_an_investigation_report.md` or `report_writing.md` to ensure quality documentation.
 *   They oversee the development, maintenance, and effectiveness tracking of all SOC runbooks.
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

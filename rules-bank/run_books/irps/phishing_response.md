@@ -44,6 +44,8 @@ This runbook covers the end-to-end response lifecycle for phishing incidents. It
 *   **Common Steps:** `common_steps/check_duplicate_cases.md`, `common_steps/enrich_ioc.md`, `common_steps/find_relevant_soar_case.md`, `common_steps/document_in_soar.md`
 
 ## Workflow Steps & Diagram
+> **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
+
 
 ```{mermaid}
 sequenceDiagram
@@ -55,7 +57,12 @@ sequenceDiagram
     participant Eradication as Phase 4: Eradication
     participant Recovery as Phase 5: Recovery
     participant LessonsLearned as Phase 6: Lessons Learned
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    IRP->>Memory: Query Historical Context
+    Memory-->>IRP: Relevant Insights
     Analyst->>IRP: Start Phishing Response\nInput: CASE_ID, ALERT_GROUP_IDS, REPORTED_EMAIL_ARTIFACTS
 
     IRP->>Preparation: Verify Prerequisites (Ongoing)
@@ -76,6 +83,10 @@ sequenceDiagram
     IRP->>LessonsLearned: Execute Post-Incident Steps
     LessonsLearned-->>IRP: Review Complete
 
+
+    %% Step: Save Findings to Memory
+    IRP->>Memory: Save Novel Findings
+    Memory-->>IRP: Findings Saved
     IRP-->>Analyst: Incident Response Complete
 ```
 
@@ -248,3 +259,6 @@ sequenceDiagram
 
 ## References
   1. [SOCFortress - Phishing IRP](https://github.com/socfortress/Playbooks/blob/main/IRP-Phishing/README.md)
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

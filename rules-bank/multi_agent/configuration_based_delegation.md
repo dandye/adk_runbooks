@@ -405,3 +405,5 @@ config_api.update_agent_capability(
 ## Summary
 
 The Configuration-Based Delegation System transforms agent coordination from a hardcoded, maintenance-heavy approach to a flexible, data-driven system. By separating delegation logic from code, it enables security teams to adapt quickly to changing requirements while maintaining clear documentation of agent capabilities.
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

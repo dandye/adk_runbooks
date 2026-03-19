@@ -42,6 +42,8 @@ This runbook explicitly **excludes**:
 *   `secops-soar`: `post_case_comment` (for documenting hunt/findings)
 
 ## Workflow Steps & Diagram
+> **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
+
 
 1.  **Receive Inputs:** Obtain `${IOC_LIST}`, `${IOC_TYPES}`, `${HUNT_TIMEFRAME_HOURS}`, etc.
 2.  **Initial Check (Optional):** Use `secops-mcp_get_ioc_matches` to see if any IOCs in the list have recent matches in the SIEM's integrated feeds.
@@ -68,7 +70,12 @@ sequenceDiagram
     participant SIEM as secops-mcp
     participant GTI as gti-mcp
     participant SOAR as secops-soar
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    AutomatedAgent->>Memory: Query Historical Context
+    Memory-->>AutomatedAgent: Relevant Insights
     Analyst/Hunter->>AutomatedAgent: Start IOC Threat Hunt\nInput: IOC_LIST, IOC_TYPES, HUNT_TIMEFRAME_HOURS, ...
 
     %% Step 2: Initial Check (Optional)
@@ -107,9 +114,16 @@ sequenceDiagram
         Note over AutomatedAgent: Escalate findings (Create/Update Incident Case)
         AutomatedAgent->>Analyst/Hunter: attempt_completion(result="IOC Hunt complete. Findings escalated.")
     else No Significant Findings
+
+    %% Step: Save Findings to Memory
+    AutomatedAgent->>Memory: Save Novel Findings
+    Memory-->>AutomatedAgent: Findings Saved
         AutomatedAgent->>Analyst/Hunter: attempt_completion(result="IOC Hunt complete. No significant findings. Hunt documented.")
     end
 ```
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

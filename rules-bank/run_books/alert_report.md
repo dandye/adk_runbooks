@@ -23,6 +23,8 @@ This runbook covers gathering essential details about the alert(s), associated e
 *   `write_report`
 
 ## Workflow Steps & Diagram
+> **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
+
 
 1.  **Receive Input & Context:** Obtain `${CASE_ID}`, `${ALERT_GROUP_IDENTIFIERS}` (or `${ALERT_IDS}`), and optionally `${REPORT_FILENAME_SUFFIX}`. Get case details using `soar-mcp_get_case_full_details`.
 2.  **Identify Target Alerts & Entities:**
@@ -68,7 +70,12 @@ sequenceDiagram
     participant SOAR as secops-soar
     participant SIEM as secops-mcp
     participant GTI as Google Threat Intelligence MCP server
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    AutomatedAgent->>Memory: Query Historical Context
+    Memory-->>AutomatedAgent: Relevant Insights
     Analyst/User->>AutomatedAgent: Generate Alert Report\nInput: CASE_ID, ALERT_GROUP_IDS/ALERT_IDS, FILENAME_SUFFIX (opt)
 
     %% Step 1: Context
@@ -126,4 +133,13 @@ sequenceDiagram
     end
 
     %% Step 9: Completion
+
+    %% Step: Save Findings to Memory
+    AutomatedAgent->>Memory: Save Novel Findings
+    Memory-->>AutomatedAgent: Findings Saved
     AutomatedAgent->>Analyst/User: attempt_completion(result="Alert investigation summary report generated for Case CASE_ID.")
+
+
+```
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

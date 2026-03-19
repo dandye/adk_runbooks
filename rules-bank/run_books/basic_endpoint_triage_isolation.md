@@ -26,6 +26,8 @@ This runbook covers the initial assessment and potential network isolation of an
 *   You may ask follow up question (To confirm isolation)
 
 ## Workflow Steps & Diagram
+> **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
+
 
 1.  **Receive Input:** Obtain `${ENDPOINT_ID}`, `${ENDPOINT_TYPE}`, `${CASE_ID}`, `${ALERT_GROUP_IDENTIFIERS}`, and optionally `${REASON_FOR_TRIAGE}`.
 2.  **Gather Initial Context:**
@@ -63,7 +65,12 @@ sequenceDiagram
     participant SCC as scc-mcp %% Cloud Vuln Check
     participant EDR as EDR (Conceptual) %% EDR Tool
     participant VulnScanner as VulnScanner (Conceptual) %% VM Tool
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    AutomatedAgent->>Memory: Query Historical Context
+    Memory-->>AutomatedAgent: Relevant Insights
     Analyst->>AutomatedAgent: Start Endpoint Triage & Isolation\nInput: ENDPOINT_ID, ENDPOINT_TYPE, CASE_ID, ALERT_GROUP_IDS
 
     %% Step 2: Gather Initial Context
@@ -111,4 +118,13 @@ sequenceDiagram
     SOAR-->>AutomatedAgent: Comment Confirmation
 
     %% Step 9: Completion
+
+    %% Step: Save Findings to Memory
+    AutomatedAgent->>Memory: Save Novel Findings
+    Memory-->>AutomatedAgent: Findings Saved
     AutomatedAgent->>Analyst: attempt_completion(result="Basic Endpoint Triage & Isolation runbook complete for ENDPOINT_ID.")
+
+
+```
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

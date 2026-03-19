@@ -63,3 +63,6 @@ Threat Hunters often operate more freely but leverage specific hunting-focused r
 *   May use parts of `case_event_timeline_and_process_analysis.md`, `deep_dive_ioc_analysis.md`, or `malware_triage.md` to analyze findings.
 *   May contribute findings to `detection_as_code_workflows.md` or `detection_rule_validation_tuning.md`.
 *   Often develop their own ad-hoc hunting procedures based on hypotheses.
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

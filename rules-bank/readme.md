@@ -54,3 +54,6 @@ The following types of files could further enhance an LLM Agent's effectiveness:
 *   **`common_benign_alerts.md`**: Describes alerts often triggered by known benign activity (e.g., vulnerability scans, specific admin scripts) and how to typically handle them.
 
 Having these additional context files would allow the LLM Agent to perform more nuanced analysis, make better-informed decisions, adhere more closely to organizational standards, and require less clarification during complex tasks.
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

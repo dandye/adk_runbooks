@@ -27,7 +27,12 @@ sequenceDiagram
     participant GTI as gti-mcp
     participant SIEM as secops-mcp
     participant SOAR as secops-soar
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    AutomatedAgent->>Memory: Query Historical Context
+    Memory-->>AutomatedAgent: Relevant Insights
     User->>AutomatedAgent: Sweep environment based on GTI Collection ID 'GTI-XYZ'
     AutomatedAgent->>GTI: get_collection_report(id='GTI-XYZ')
     GTI-->>AutomatedAgent: Collection details (Report/Campaign context)
@@ -81,5 +86,14 @@ sequenceDiagram
     else No Existing Case Found
         Note over AutomatedAgent: Generate report locally (as done previously)
         AutomatedAgent->>AutomatedAgent: write_report(report_name="gti_comparison_report_GTI-XYZ_${timestamp}.md", report_contents=ReportMarkdown)
+
+    %% Step: Save Findings to Memory
+    AutomatedAgent->>Memory: Save Novel Findings
+    Memory-->>AutomatedAgent: Findings Saved
         AutomatedAgent->>AutomatedAgent: attempt_completion(result="Environment sweep based on GTI Collection 'GTI-XYZ' complete. Report generated. Recommend manual case creation if needed.")
     end
+
+
+```
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

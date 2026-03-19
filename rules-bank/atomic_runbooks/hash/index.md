@@ -10,3 +10,8 @@ rb_hash_get_gti_report
 rb_hash_get_secops_threat_intel
 rb_hash_lookup_entity_chronicle
 rb_hash_search_process_events_chronicle
+
+
+```
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

@@ -11,7 +11,12 @@
       participant post_case_comment as post_case_comment (secops-soar)
       participant siemplify_close_case as siemplify_close_case (secops-soar)
       participant attempt_completion as attempt_completion (AutomatedAgent)
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    AutomatedAgent->>Memory: Query Historical Context
+    Memory-->>AutomatedAgent: Relevant Insights
       User->>AutomatedAgent: Request case analysis and closure
       AutomatedAgent->>list_cases: list_cases()
       list_cases-->>AutomatedAgent: List of recent cases (IDs: C1, C2, ... CN)
@@ -34,6 +39,13 @@
           AutomatedAgent->>siemplify_close_case: siemplify_close_case(case_id=C_dup, reason="Duplicate", root_cause="Consolidated Investigation")
           siemplify_close_case-->>AutomatedAgent: Closure confirmation
       end
+
+    %% Step: Save Findings to Memory
+    AutomatedAgent->>Memory: Save Novel Findings
+    Memory-->>AutomatedAgent: Findings Saved
       AutomatedAgent->>attempt_completion: attempt_completion(Summary of closed cases)
       Note right of AutomatedAgent: Slack notification not possible due to tool limitations.
 ```
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

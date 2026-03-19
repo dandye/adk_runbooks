@@ -66,7 +66,12 @@ sequenceDiagram
     participant SOAR as secops-soar
     participant SIEM as secops-mcp
     participant GTI as gti-mcp
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    AutomatedAgent->>Memory: Query Historical Context
+    Memory-->>AutomatedAgent: Relevant Insights
     User->>AutomatedAgent: Generate timeline for Case `${CASE_ID}` with full process tree
 
     %% Step 1: Get Initial Case Details & Alerts
@@ -172,6 +177,13 @@ sequenceDiagram
             AutomatedAgent->>AutomatedAgent: attempt_completion(result="Timeline analysis complete. MD Report generated. Optional actions performed.")
         end
     else Report Not Confirmed ("No Report")
+
+    %% Step: Save Findings to Memory
+    AutomatedAgent->>Memory: Save Novel Findings
+    Memory-->>AutomatedAgent: Findings Saved
         AutomatedAgent->>AutomatedAgent: attempt_completion(result="Timeline analysis complete. No report generated.")
     end
 ```
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

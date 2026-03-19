@@ -27,6 +27,8 @@ This sub-runbook executes the `siemplify_get_similar_cases` action in the SOAR p
 *   `secops-soar`: `siemplify_get_similar_cases`
 
 ## Workflow Steps & Diagram
+> **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
+
 
 1.  **Receive Input:** Obtain `${CASE_ID}`, `${ALERT_GROUP_IDENTIFIERS}`, and optional criteria (`${SIMILARITY_CRITERIA}`, `${DAYS_BACK}`, etc.) from the calling runbook.
 2.  **Check Similar Cases:** Call `soar-mcp_siemplify_get_similar_cases` with the provided inputs. Use defaults if optional inputs are not provided.
@@ -37,7 +39,12 @@ sequenceDiagram
     participant CallingRunbook
     participant CheckDuplicates as check_duplicate_cases.md (This Runbook)
     participant SOAR as secops-soar
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    CheckDuplicates->>Memory: Query Historical Context
+    Memory-->>CheckDuplicates: Relevant Insights
     CallingRunbook->>CheckDuplicates: Execute Duplicate Check\nInput: CASE_ID, ALERT_GROUP_IDS, CRITERIA (opt), DAYS_BACK (opt)...
 
     %% Step 2: Check Similar Cases
@@ -46,9 +53,16 @@ sequenceDiagram
     SOAR-->>CheckDuplicates: Similar Case List (SIMILAR_CASE_IDS), Status (SIMILARITY_CHECK_STATUS)
 
     %% Step 3: Return Results
+
+    %% Step: Save Findings to Memory
+    CheckDuplicates->>Memory: Save Novel Findings
+    Memory-->>CheckDuplicates: Findings Saved
     CheckDuplicates-->>CallingRunbook: Return Results:\nSIMILAR_CASE_IDS,\nSIMILARITY_CHECK_STATUS
 
 ```
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

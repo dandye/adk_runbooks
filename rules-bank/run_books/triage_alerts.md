@@ -46,6 +46,8 @@ This runbook explicitly **excludes**:
 *   **Common Steps:** `common_steps/check_duplicate_cases.md`, `common_steps/enrich_ioc.md`, `common_steps/find_relevant_soar_case.md`, `common_steps/document_in_soar.md`, `common_steps/close_soar_artifact.md`
 
 ## Workflow Steps & Diagram
+> **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
+
 
 1.  **Receive Alert/Case:** Obtain the `${ALERT_ID}` or `${CASE_ID}`.
 2.  **Gather Initial Context:** Use `soar-mcp_get_case_full_details` or `list_alerts_by_case` / `list_events_by_alert` to understand the alert type, severity, involved entities (`KEY_ENTITIES`), and triggering events.
@@ -97,7 +99,12 @@ sequenceDiagram
     participant EnrichIOC as common_steps/enrich_ioc.md
     participant DocumentInSOAR as common_steps/document_in_soar.md
     participant CloseArtifact as common_steps/close_soar_artifact.md
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    AutomatedAgent->>Memory: Query Historical Context
+    Memory-->>AutomatedAgent: Relevant Insights
     Analyst->>AutomatedAgent: Start Alert Triage\nInput: ALERT_ID/CASE_ID
 
     %% Step 2: Gather Initial Context
@@ -150,9 +157,16 @@ sequenceDiagram
         AutomatedAgent->>DocumentInSOAR: Execute(Input: CASE_ID, Comment="Initial Findings...")
         DocumentInSOAR-->>AutomatedAgent: Status
         Note over AutomatedAgent: Escalate / Assign / Trigger Next Runbook
+
+    %% Step: Save Findings to Memory
+    AutomatedAgent->>Memory: Save Novel Findings
+    Memory-->>AutomatedAgent: Findings Saved
         AutomatedAgent->>Analyst: End Triage (Escalated)
     end
 ```
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

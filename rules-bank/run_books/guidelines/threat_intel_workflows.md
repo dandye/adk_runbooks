@@ -50,6 +50,8 @@ This runbook explicitly **excludes**:
 *   *(External OSINT tools/feeds - Manual step, not MCP tools)*
 
 ## Workflow Steps & Diagram
+> **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
+
 
 *(This section would outline common CTI processes, potentially branching based on the type of intelligence task.)*
 
@@ -71,7 +73,12 @@ sequenceDiagram
     participant GTI as gti-mcp
     participant SIEM as secops-mcp
     participant SOAR as secops-soar
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    AutomatedAgent->>Memory: Query Historical Context
+    Memory-->>AutomatedAgent: Relevant Insights
     Researcher->>AutomatedAgent: Research Threat Actor\nInput: THREAT_ACTOR_ID
 
     %% Step 2: Initial GTI Lookup
@@ -112,9 +119,16 @@ sequenceDiagram
     AutomatedAgent->>SOAR: post_case_comment(case_id=..., comment="Threat Actor Profile for THREAT_ACTOR_ID available: REPORT_FILE_PATH")
     SOAR-->>AutomatedAgent: Comment Confirmation (DISSEMINATION_STATUS)
 
+
+    %% Step: Save Findings to Memory
+    AutomatedAgent->>Memory: Save Novel Findings
+    Memory-->>AutomatedAgent: Findings Saved
     AutomatedAgent->>Researcher: attempt_completion(result="Threat Actor research complete. Profile generated at REPORT_FILE_PATH. Dissemination: DISSEMINATION_STATUS")
 
 ```
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

@@ -26,6 +26,8 @@ This runbook covers in-depth analysis of a single IOC (IP, Domain, Hash, URL) us
 *   **Common Steps:** `common_steps/pivot_on_ioc_gti.md`, `common_steps/enrich_ioc.md`, `common_steps/correlate_ioc_with_alerts_cases.md`, `common_steps/find_relevant_soar_case.md`, `common_steps/document_in_soar.md`, `common_steps/generate_report_file.md`.
 
 ## Workflow Steps & Diagram
+> **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
+
 
 1.  **Receive Input & Context:** Obtain `${IOC_VALUE}`, `${IOC_TYPE}`, optionally `${CASE_ID}`, `${ALERT_GROUP_IDENTIFIERS}`, `${TIME_FRAME_HOURS}`, `${SKIP_SOAR}`. If `${CASE_ID}` is provided and `${SKIP_SOAR}` is not true, get case details via `soar-mcp_get_case_full_details`.
 2.  **Detailed GTI Report:**
@@ -76,7 +78,12 @@ sequenceDiagram
     participant DocumentInSOAR as common_steps/document_in_soar.md
     participant GenerateReport as common_steps/generate_report_file.md
     participant SOAR as secops-soar %% Underlying tool for documentation & context
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    AutomatedAgent->>Memory: Query Historical Context
+    Memory-->>AutomatedAgent: Relevant Insights
     Analyst->>AutomatedAgent: Start Deep Dive IOC Analysis\nInput: IOC_VALUE, IOC_TYPE, CASE_ID (opt), SKIP_SOAR (opt), ...
 
     %% Step 1: Context
@@ -138,5 +145,14 @@ sequenceDiagram
         Note over AutomatedAgent: Construct REPORT_NAME_VAR (e.g., deep_dive_ioc_${IOC_VALUE_Sanitized}_${timestamp}.md)
         AutomatedAgent->>GenerateReport: Execute(Input: REPORT_CONTENTS=REPORT_CONTENTS_VAR, REPORT_NAME=REPORT_NAME_VAR)
         GenerateReport-->>AutomatedAgent: Results: REPORT_FILE_PATH, WRITE_STATUS
+
+    %% Step: Save Findings to Memory
+    AutomatedAgent->>Memory: Save Novel Findings
+    Memory-->>AutomatedAgent: Findings Saved
         AutomatedAgent->>Analyst: attempt_completion(result="Deep Dive IOC Analysis complete for IOC_VALUE. Report generated at REPORT_FILE_PATH.")
     end
+
+
+```
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

@@ -77,3 +77,6 @@ The Tier 1 Analyst primarily utilizes runbooks focused on initial handling and s
 *   `report_writing.md` (For basic case documentation standards)
 
 *Note: More complex investigation, threat hunting, timeline analysis, or vulnerability management runbooks are typically handled by Tier 2/3 analysts.*
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

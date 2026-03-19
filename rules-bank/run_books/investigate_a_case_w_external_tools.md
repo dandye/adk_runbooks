@@ -23,7 +23,12 @@ sequenceDiagram
     participant GTI as gti-mcp
     participant Okta as okta-mcp
     participant FindCase as common_steps/find_relevant_soar_case.md
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    AutomatedAgent->>Memory: Query Historical Context
+    Memory-->>AutomatedAgent: Relevant Insights
     User->>AutomatedAgent: Investigate Case Y (Anomalous Login)
     AutomatedAgent->>SOAR: list_alerts_by_case(case_id=Y)
     SOAR-->>AutomatedAgent: Alerts for Case Y (Entities: User U, IP I, Host H...)
@@ -52,6 +57,13 @@ sequenceDiagram
     Note over AutomatedAgent: Synthesize all findings (incl. related cases) into a report summary
     AutomatedAgent->>SOAR: post_case_comment(case_id=Y, comment="Investigation Summary: Anomalous login for User U from IP I. GTI/SIEM checks performed. Related Cases: ${RELATED_SOAR_CASES}. Okta details reviewed. User disabled due to suspicious activity. Findings: [...]")
     SOAR-->>AutomatedAgent: Comment confirmation
+
+    %% Step: Save Findings to Memory
+    AutomatedAgent->>Memory: Save Novel Findings
+    Memory-->>AutomatedAgent: Findings Saved
     AutomatedAgent->>AutomatedAgent: attempt_completion(result="Completed investigation for Case Y. User U potentially disabled. Summary posted as comment.")
 
 ```
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

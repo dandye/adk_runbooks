@@ -23,6 +23,8 @@ This sub-runbook executes the `write_report` action. It assumes the report conte
 *   `write_report`
 
 ## Workflow Steps & Diagram
+> **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
+
 
 1.  **Receive Input:** Obtain `${REPORT_CONTENTS}` and `${REPORT_NAME}` from the calling runbook.
 2.  **Prepare Report Details:**
@@ -35,7 +37,12 @@ This sub-runbook executes the `write_report` action. It assumes the report conte
 sequenceDiagram
     participant CallingRunbook
     participant GenerateReportFile as generate_report_file.md (This Runbook)
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    GenerateReportFile->>Memory: Query Historical Context
+    Memory-->>GenerateReportFile: Relevant Insights
     CallingRunbook->>GenerateReportFile: Execute Report Generation\nInput: REPORT_CONTENTS, REPORT_NAME
 
     %% Step 2: Prepare Report Details
@@ -46,9 +53,16 @@ sequenceDiagram
     Note over GenerateReportFile: Store write status (WRITE_STATUS) and returned REPORT_FILE_PATH
 
     %% Step 4: Return Status
+
+    %% Step: Save Findings to Memory
+    GenerateReportFile->>Memory: Save Novel Findings
+    Memory-->>GenerateReportFile: Findings Saved
     GenerateReportFile-->>CallingRunbook: Return Results:\nREPORT_FILE_PATH,\nWRITE_STATUS
 
 ```
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

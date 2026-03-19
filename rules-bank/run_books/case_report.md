@@ -40,6 +40,8 @@ This runbook explicitly **excludes**:
 *   `write_to_file` (Replaces the conceptual `write_report` tool)
 
 ## Workflow Steps & Diagram
+> **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
+
 
 1.  **Gather Case Data:** Retrieve all relevant data for `${CASE_ID}` using `get_case_full_details` (includes basic case info, alerts, comments). Potentially re-run `list_events_by_alert` for key alerts if needed.
 2.  **Synthesize Findings:** Review case comments, alert details, event summaries, and previous enrichment data associated with the case.
@@ -56,7 +58,12 @@ sequenceDiagram
     participant SOAR as secops-soar
     participant SIEM as secops-mcp %% Example servers used during investigation
     participant GTI as gti-mcp  %% Example servers used during investigation
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    AutomatedAgent->>Memory: Query Historical Context
+    Memory-->>AutomatedAgent: Relevant Insights
     Analyst/User->>AutomatedAgent: Generate Case Report\nInput: CASE_ID, ...
 
     %% Step 1: Gather Case Data
@@ -82,9 +89,16 @@ sequenceDiagram
         SOAR-->>AutomatedAgent: Comment Confirmation
     end
 
+
+    %% Step: Save Findings to Memory
+    AutomatedAgent->>Memory: Save Novel Findings
+    Memory-->>AutomatedAgent: Findings Saved
     AutomatedAgent->>Analyst/User: attempt_completion(result="Case investigation report generated for Case CASE_ID.")
 
 ```
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

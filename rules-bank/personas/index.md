@@ -47,3 +47,8 @@ soc_analyst_tier_2
 soc_analyst_tier_3
 soc_manager
 threat_hunter
+
+
+```
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

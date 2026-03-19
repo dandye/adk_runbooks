@@ -24,6 +24,8 @@ This sub-runbook executes the appropriate `gti-mcp_get_entities_related_to_a_...
 *   `gti-mcp`: `get_entities_related_to_an_ip_address`, `get_entities_related_to_a_domain`, `get_entities_related_to_a_file`, `get_entities_related_to_an_url`, `get_entities_related_to_a_collection`
 
 ## Workflow Steps & Diagram
+> **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
+
 
 1.  **Receive Input:** Obtain `${IOC_VALUE}`, `${IOC_TYPE}`, and `${RELATIONSHIP_NAMES}` from the calling runbook. Initialize `${RELATED_ENTITIES}` as an empty structure.
 2.  **Determine GTI Tool:** Based on `${IOC_TYPE}`, select the correct `gti-mcp` tool (e.g., `get_entities_related_to_an_ip_address` for "IP Address").
@@ -37,7 +39,12 @@ sequenceDiagram
     participant CallingRunbook
     participant PivotOnIOC as pivot_on_ioc_gti.md (This Runbook)
     participant GTI as gti-mcp
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    PivotOnIOC->>Memory: Query Historical Context
+    Memory-->>PivotOnIOC: Relevant Insights
     CallingRunbook->>PivotOnIOC: Execute GTI Pivot\nInput: IOC_VALUE, IOC_TYPE, RELATIONSHIP_NAMES
 
     %% Step 2: Determine Tool
@@ -52,9 +59,16 @@ sequenceDiagram
 
     %% Step 4: Return Results
     Note over PivotOnIOC: Set PIVOT_STATUS
+
+    %% Step: Save Findings to Memory
+    PivotOnIOC->>Memory: Save Novel Findings
+    Memory-->>PivotOnIOC: Findings Saved
     PivotOnIOC-->>CallingRunbook: Return Results:\nRELATED_ENTITIES,\nPIVOT_STATUS
 
 ```
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

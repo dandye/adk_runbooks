@@ -44,6 +44,8 @@ This runbook explicitly **excludes**:
 *   `write_to_file` (Replaces `write_report`)
 
 ## Workflow Steps & Diagram
+> **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
+
 
 1.  **List Cases:** Retrieve recent cases using `soar-mcp_list_cases`, filtered by `${NUMBER_OF_CASES}` or `${TIME_FRAME_HOURS}`. Store in `${CASE_LIST}`.
 2.  **Gather Case Details:** For each case ID in `${CASE_LIST}`:
@@ -63,7 +65,12 @@ sequenceDiagram
     participant SOAR as secops-soar
     participant SIEM as secops-mcp
     participant GTI as gti-mcp
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    AutomatedAgent->>Memory: Query Historical Context
+    Memory-->>AutomatedAgent: Relevant Insights
     Analyst/User->>AutomatedAgent: Start Group Cases v2 Workflow\nInput: NUMBER_OF_CASES (opt), TIME_FRAME_HOURS (opt), GROUPING_CRITERIA (opt)
 
     %% Step 1: List Cases
@@ -108,9 +115,16 @@ sequenceDiagram
     Note over AutomatedAgent: Report file created (REPORT_FILE_PATH)
     Note over AutomatedAgent: Prepare GROUPING_ANALYSIS_SUMMARY
 
+
+    %% Step: Save Findings to Memory
+    AutomatedAgent->>Memory: Save Novel Findings
+    Memory-->>AutomatedAgent: Findings Saved
     AutomatedAgent->>Analyst/User: attempt_completion(result="Case grouping analysis complete. Report: REPORT_FILE_PATH. Summary: GROUPING_ANALYSIS_SUMMARY.")
 
 ```
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

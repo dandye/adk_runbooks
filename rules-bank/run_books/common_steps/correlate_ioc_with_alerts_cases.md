@@ -26,6 +26,8 @@ This sub-runbook executes searches using `secops-mcp_get_security_alerts` and `s
 *   `secops-soar`: `list_cases`
 
 ## Workflow Steps & Diagram
+> **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
+
 
 1.  **Receive Input:** Obtain `${IOC_LIST}`, and optional `${TIME_FRAME_HOURS}`, `${SOAR_CASE_FILTER}` from the calling runbook. Initialize `${RELATED_SIEM_ALERTS}` and `${RELATED_SOAR_CASES}` as empty lists/structures.
 2.  **Correlate SIEM Alerts:**
@@ -44,7 +46,12 @@ sequenceDiagram
     participant CorrelateIOC as correlate_ioc_with_alerts_cases.md (This Runbook)
     participant SIEM as secops-mcp
     participant SOAR as secops-soar
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    CorrelateIOC->>Memory: Query Historical Context
+    Memory-->>CorrelateIOC: Relevant Insights
     CallingRunbook->>CorrelateIOC: Execute Correlation\nInput: IOC_LIST, TIME_FRAME_HOURS (opt), SOAR_CASE_FILTER (opt)
 
     %% Step 2: Correlate SIEM Alerts
@@ -59,9 +66,16 @@ sequenceDiagram
 
     %% Step 4: Return Results
     Note over CorrelateIOC: Set CORRELATION_STATUS
+
+    %% Step: Save Findings to Memory
+    CorrelateIOC->>Memory: Save Novel Findings
+    Memory-->>CorrelateIOC: Findings Saved
     CorrelateIOC-->>CallingRunbook: Return Results:\nRELATED_SIEM_ALERTS,\nRELATED_SOAR_CASES,\nCORRELATION_STATUS
 
 ```
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

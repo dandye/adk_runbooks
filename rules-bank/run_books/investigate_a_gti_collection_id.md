@@ -60,7 +60,12 @@ sequenceDiagram
     participant GTI as gti-mcp
     participant SIEM as secops-mcp
     participant SOAR as secops-soar
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    AutomatedAgent->>Memory: Query Historical Context
+    Memory-->>AutomatedAgent: Relevant Insights
     User->>AutomatedAgent: Investigate GTI Collection ID `${COLLECTION_ID}` (Enhanced)
 
     %% Step 1: Initial Collection Context
@@ -114,4 +119,13 @@ sequenceDiagram
     AutomatedAgent->>AutomatedAgent: write_report(report_name=report_name_var, report_contents=report_contents_var)
     Note over AutomatedAgent: Report file created
 
+
+    %% Step: Save Findings to Memory
+    AutomatedAgent->>Memory: Save Novel Findings
+    Memory-->>AutomatedAgent: Findings Saved
     AutomatedAgent->>User: attempt_completion(result="Enhanced investigation complete. Report generated.")
+
+
+```
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

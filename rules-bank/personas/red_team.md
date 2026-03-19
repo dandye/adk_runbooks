@@ -49,3 +49,6 @@ Red Teams typically have their own operational playbooks but interact with Blue 
 *   Their findings directly influence the refinement of Blue Team runbooks and the creation/tuning of detection rules (`detection_rule_validation_tuning.md`, `detection_as_code_workflows.md`).
 *   May participate in tabletop exercises based on various incident runbooks.
 *   Contribute findings that lead to new `apt_threat_hunt.md` or `advanced_threat_hunting.md` hypotheses for the Blue Team.
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

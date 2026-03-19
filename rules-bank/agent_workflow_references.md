@@ -66,8 +66,13 @@ sequenceDiagram
     participant E1 as Search Executor
     participant E2 as Email Executor
     participant E3 as Code Executor
+    participant Memory as Vertex AI Memory
 
     U->>P: Goal: Create presentation
+
+    %% Step: Query Memory Context
+    P->>Memory: Query Historical Context
+    Memory-->>P: Relevant Insights
     P->>P: Analyze & create plan
     P->>E1: Task 1: Research topic
     P->>E2: Task 2: Find templates
@@ -78,6 +83,10 @@ sequenceDiagram
     E3-->>P: Generated slides
 
     P->>P: Combine results
+
+    %% Step: Save Findings to Memory
+    P->>Memory: Save Novel Findings
+    Memory-->>P: Findings Saved
     P->>U: Final presentation
 ```
 
@@ -392,6 +401,7 @@ sequenceDiagram
     participant A2 as Spanish Agent B
     participant A3 as Spanish Agent C
     participant A4 as Multi-lang Agent
+    participant Memory as Vertex AI Memory
 
     C->>+A1: Task Available: Translate to Spanish
     C->>+A2: Task Available: Translate to Spanish
@@ -404,9 +414,17 @@ sequenceDiagram
     A4-->>-C: Bid: Score=80, Load=Low
 
     C->>C: Evaluate bids
+
+    %% Step: Query Memory Context
+    C->>Memory: Query Historical Context
+    Memory-->>C: Relevant Insights
     C->>A1: Task Awarded!
     C->>A2: Task Rejected
     C->>A3: Task Rejected
+
+    %% Step: Save Findings to Memory
+    C->>Memory: Save Novel Findings
+    Memory-->>C: Findings Saved
     C->>A4: Task Rejected
 
     A1->>C: Task Completed
@@ -1714,3 +1732,6 @@ current time from the agent. Run the test to make sure the server works as expec
 ## Success
 - Make sure the test client runs without any errors
 ```
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

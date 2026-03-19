@@ -58,3 +58,5 @@ multi-agent/manager/config/
 ## Integration
 
 This system integrates with the main ADK Runbooks multi-agent system located in `/multi-agent/manager/` and works with both traditional and A2A (Agent-to-Agent) deployment modes.
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

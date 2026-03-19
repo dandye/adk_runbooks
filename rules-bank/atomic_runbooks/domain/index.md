@@ -11,3 +11,8 @@ rb_domain_get_secops_threat_intel
 rb_domain_lookup_entity_chronicle
 rb_domain_search_dns_chronicle
 rb_domain_search_network_traffic_chronicle
+
+
+```
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

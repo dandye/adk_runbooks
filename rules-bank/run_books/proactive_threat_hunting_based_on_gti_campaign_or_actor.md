@@ -27,7 +27,12 @@ sequenceDiagram
     participant SIEM as secops-mcp
     participant SOAR as secops-soar
     participant FindCase as common_steps/find_relevant_soar_case.md
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    AutomatedAgent->>Memory: Query Historical Context
+    Memory-->>AutomatedAgent: Relevant Insights
     User->>AutomatedAgent: Hunt for Campaign/Actor: `${GTI_COLLECTION_ID}`
     AutomatedAgent->>GTI: get_collection_report(id=`${GTI_COLLECTION_ID}`)
     GTI-->>AutomatedAgent: Collection Details (Name, Type, Description)
@@ -110,6 +115,15 @@ sequenceDiagram
             Note over AutomatedAgent: Report file created.
             AutomatedAgent->>AutomatedAgent: attempt_completion(result="Proactive threat hunt for `${GTI_COLLECTION_ID}` complete. Report generated.")
         else Do Nothing
+
+    %% Step: Save Findings to Memory
+    AutomatedAgent->>Memory: Save Novel Findings
+    Memory-->>AutomatedAgent: Findings Saved
              AutomatedAgent->>AutomatedAgent: attempt_completion(result="Proactive threat hunt for `${GTI_COLLECTION_ID}` complete. Findings summarized. No output action taken.")
         end
     end
+
+
+```
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

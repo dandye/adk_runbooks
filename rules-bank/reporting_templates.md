@@ -82,8 +82,17 @@ sequenceDiagram
     participant SIEM as secops-mcp
     participant SOAR as soar-mcp
     participant TI as gti-mcp
+    participant Memory as Vertex AI Memory
 
     Analyst->>SIEM: search_security_events("alert metrics last 24 hours", hours_back=24)
+
+    %% Step: Query Memory Context
+    SIEM->>Memory: Query Historical Context
+    Memory-->>SIEM: Relevant Insights
+
+    %% Step: Save Findings to Memory
+    SIEM->>Memory: Save Novel Findings
+    Memory-->>SIEM: Findings Saved
     SIEM-->>Analyst: Alert counts and response times
     Analyst->>SOAR: get_case_statistics(time_range="24h")
     SOAR-->>Analyst: Case creation/closure data
@@ -220,8 +229,13 @@ sequenceDiagram
     participant SOAR as soar-mcp
     participant IR as IR Team
     participant IT as IT Team
+    participant Memory as Vertex AI Memory
 
     SOC->>SIEM: search_security_events("incident IOCs", hours_back=168)
+
+    %% Step: Query Memory Context
+    SIEM->>Memory: Query Historical Context
+    Memory-->>SIEM: Relevant Insights
     SIEM-->>SOC: Attack timeline data
     SOC->>TI: lookup_ioc(hash="malware_hash")
     TI-->>SOC: Threat intelligence context
@@ -229,6 +243,10 @@ sequenceDiagram
     SOAR-->>SOC: Case ID created
     SOC->>IR: Incident escalation
     IR->>SIEM: search_security_events("lateral movement indicators")
+
+    %% Step: Save Findings to Memory
+    SIEM->>Memory: Save Novel Findings
+    Memory-->>SIEM: Findings Saved
     SIEM-->>IR: Scope assessment data
     IR->>IT: Containment coordination
     IT-->>IR: Systems isolated
@@ -379,14 +397,23 @@ sequenceDiagram
     participant SIEM as secops-mcp
     participant EDR as edr-mcp
     participant SOAR as soar-mcp
+    participant Memory as Vertex AI Memory
 
     Hunter->>TI: get_campaign_iocs(campaign_id="apt29_recent")
+
+    %% Step: Query Memory Context
+    TI->>Memory: Query Historical Context
+    Memory-->>TI: Relevant Insights
     TI-->>Hunter: IOCs and TTPs for hunting
     Hunter->>SIEM: search_security_events("campaign IOCs", hours_back=168)
     SIEM-->>Hunter: Matching security events
     Hunter->>EDR: query_endpoint_data(hostname="suspicious_host")
     EDR-->>Hunter: Process and file execution details
     Hunter->>TI: lookup_ioc(hash="discovered_hash")
+
+    %% Step: Save Findings to Memory
+    TI->>Memory: Save Novel Findings
+    Memory-->>TI: Findings Saved
     TI-->>Hunter: Threat intelligence context
     Hunter->>SOAR: create_case(title="Threat Hunt Finding", severity="medium")
     SOAR-->>Hunter: Case created for tracking
@@ -559,8 +586,17 @@ sequenceDiagram
     participant SIEM as secops-mcp
     participant SOAR as soar-mcp
     participant IT as IT Team
+    participant Memory as Vertex AI Memory
 
     Analyst->>Asset: query_assets(vulnerability="CVE-2024-1234")
+
+    %% Step: Query Memory Context
+    Asset->>Memory: Query Historical Context
+    Memory-->>Asset: Relevant Insights
+
+    %% Step: Save Findings to Memory
+    Asset->>Memory: Save Novel Findings
+    Memory-->>Asset: Findings Saved
     Asset-->>Analyst: Affected systems inventory
     Analyst->>TI: lookup_vulnerability(cve="CVE-2024-1234")
     TI-->>Analyst: Exploitation intelligence
@@ -606,3 +642,6 @@ sequenceDiagram
 - **External Sharing:** Legal and compliance review required
 - **Retention:** Comply with organizational retention policies
 - **Access Control:** Role-based access to sensitive reports
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

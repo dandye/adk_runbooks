@@ -42,3 +42,8 @@ proactive_threat_hunting_based_on_gti_campaign_or_actor
 suspicious_login_triage
 triage_alerts
 ueba_report
+
+
+```
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

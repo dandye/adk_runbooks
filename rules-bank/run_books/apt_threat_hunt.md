@@ -26,6 +26,8 @@ Focuses on SIEM log analysis and GTI correlation for specific TTPs and IOCs rela
 *   **Common Steps:** `common_steps/find_relevant_soar_case.md`, `common_steps/generate_report_file.md`
 
 ## Workflow Steps & Diagram
+> **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
+
 
 1.  **Identify Actor & Gather Intelligence:**
     *   If starting with a name, use `gti-mcp_search_threat_actors` to find the `${THREAT_ACTOR_ID}`.
@@ -84,7 +86,12 @@ sequenceDiagram
     participant SOAR as secops-soar
     participant FindCase as common_steps/find_relevant_soar_case.md
     participant GenerateReport as common_steps/generate_report_file.md
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    AutomatedAgent->>Memory: Query Historical Context
+    Memory-->>AutomatedAgent: Relevant Insights
     Analyst/Hunter->>AutomatedAgent: Start APT Hunt\nInput: THREAT_ACTOR_ID, HUNT_TIMEFRAME_HOURS, ...
 
     %% Step 1: Intelligence Gathering
@@ -158,9 +165,16 @@ sequenceDiagram
         Note over AutomatedAgent: Escalate findings (Create/Update Incident Case)
         AutomatedAgent->>Analyst/Hunter: attempt_completion(result="APT Hunt complete. Threat found and escalated. Report generated at REPORT_FILE_PATH.")
     else No Threat Found
+
+    %% Step: Save Findings to Memory
+    AutomatedAgent->>Memory: Save Novel Findings
+    Memory-->>AutomatedAgent: Findings Saved
         AutomatedAgent->>Analyst/Hunter: attempt_completion(result="APT Hunt complete. No significant findings. Report generated at REPORT_FILE_PATH.")
     end
 ```
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

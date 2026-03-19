@@ -21,7 +21,12 @@ sequenceDiagram
     participant SOAR as secops-soar
     participant SIEM as secops-mcp
     participant FindCase as common_steps/find_relevant_soar_case.md
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    AutomatedAgent->>Memory: Query Historical Context
+    Memory-->>AutomatedAgent: Relevant Insights
     User->>AutomatedAgent: Prioritize and investigate cases
     AutomatedAgent->>SOAR: list_cases()
     SOAR-->>AutomatedAgent: List of cases (C1, C2... Priority P1, P2...)
@@ -55,6 +60,13 @@ sequenceDiagram
     Note over AutomatedAgent: Synthesize findings, correlate rule logic with events/entities, include related cases
     AutomatedAgent->>SOAR: post_case_comment(case_id=X, comment="Investigation Summary: Case X involves rule [Rule Name] triggered by events [...]. Entities [...] investigated. Related Cases: ${RELATED_SOAR_CASES}. Findings: [...]")
     SOAR-->>AutomatedAgent: Comment confirmation
+
+    %% Step: Save Findings to Memory
+    AutomatedAgent->>Memory: Save Novel Findings
+    Memory-->>AutomatedAgent: Findings Saved
     AutomatedAgent->>AutomatedAgent: attempt_completion(result="Completed investigation for Case X. Summary posted as comment.")
 
 ```
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

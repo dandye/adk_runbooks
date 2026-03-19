@@ -23,6 +23,8 @@ This sub-runbook executes the `post_case_comment` action in the SOAR platform. I
 *   `secops-soar`: `post_case_comment`
 
 ## Workflow Steps & Diagram
+> **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
+
 
 1.  **Receive Input:** Obtain `${CASE_ID}`, `${COMMENT_TEXT}`, and optionally `${ALERT_GROUP_IDENTIFIERS}` from the calling runbook.
 2.  **Post Comment:** Call `soar-mcp_post_case_comment` with `case_id=${CASE_ID}` and `comment=${COMMENT_TEXT}` (and `alert_group_identifiers` if needed).
@@ -33,7 +35,12 @@ sequenceDiagram
     participant CallingRunbook
     participant DocumentInSOAR as document_in_soar.md (This Runbook)
     participant SOAR as secops-soar
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    DocumentInSOAR->>Memory: Query Historical Context
+    Memory-->>DocumentInSOAR: Relevant Insights
     CallingRunbook->>DocumentInSOAR: Execute Documentation\nInput: CASE_ID, COMMENT_TEXT, ALERT_GROUP_IDS (opt)
 
     %% Step 2: Post Comment
@@ -41,9 +48,16 @@ sequenceDiagram
     SOAR-->>DocumentInSOAR: Comment Post Result (COMMENT_POST_STATUS)
 
     %% Step 3: Return Status
+
+    %% Step: Save Findings to Memory
+    DocumentInSOAR->>Memory: Save Novel Findings
+    Memory-->>DocumentInSOAR: Findings Saved
     DocumentInSOAR-->>CallingRunbook: Return Status:\nCOMMENT_POST_STATUS
 
 ```
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

@@ -52,7 +52,12 @@ sequenceDiagram
     participant Eradication as Phase 4: Eradication
     participant Recovery as Phase 5: Recovery
     participant LessonsLearned as Phase 6: Lessons Learned
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    IRP->>Memory: Query Historical Context
+    Memory-->>IRP: Relevant Insights
     Analyst->>IRP: Start Ransomware Response\nInput: CASE_ID, ALERT_GROUP_IDS, INITIAL_INDICATORS
 
     IRP->>Preparation: Verify Prerequisites (Ongoing)
@@ -73,6 +78,10 @@ sequenceDiagram
     IRP->>LessonsLearned: Execute Post-Incident Steps
     LessonsLearned-->>IRP: Review Complete
 
+
+    %% Step: Save Findings to Memory
+    IRP->>Memory: Save Novel Findings
+    Memory-->>IRP: Findings Saved
     IRP-->>Analyst: Incident Response Complete
 ```
 
@@ -91,6 +100,8 @@ sequenceDiagram
 ---
 
 ### Phase 2: Identification
+
+> **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `threat_actor_profiles` and `incident_response_status` to identify known ransomware operators or active related incidents.
 
 *   **Objective:** Detect the incident, identify the ransomware strain, determine initial scope, and investigate initial access/lateral movement.
 *   **Sub-Runbooks/Steps:**
@@ -170,6 +181,8 @@ sequenceDiagram
 ---
 
 ### Phase 6: Lessons Learned (Post-Incident)
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 *   **Objective:** Review the incident and response to identify areas for improvement.
 *   **Sub-Runbooks/Steps:** *(Placeholder - Requires dedicated Post-Incident Runbook)*

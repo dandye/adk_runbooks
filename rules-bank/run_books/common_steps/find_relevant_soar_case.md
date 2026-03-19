@@ -28,6 +28,8 @@ This sub-runbook executes searches within the SOAR platform's case list based on
 *   *(Optional) `secops-soar`: `get_case_full_details` (Potentially used internally if initial list is large and needs filtering based on deeper entity checks)*
 
 ## Workflow Steps & Diagram
+> **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
+
 
 1.  **Receive Input:** Obtain `${SEARCH_TERMS}` and optional filters from the calling runbook. Initialize `${RELEVANT_CASE_IDS}` and `${RELEVANT_CASE_SUMMARIES}` as empty.
 2.  **Construct Filter:** Create a filter string or structure suitable for the `soar-mcp_list_cases` tool based on `${SEARCH_TERMS}`, `${SEARCH_FIELDS}`, `${CASE_STATUS_FILTER}`, and `${TIME_FRAME_HOURS}`. *Note: The exact filter construction is highly dependent on the specific SOAR API capabilities exposed by the `list_cases` tool.* This might involve searching across multiple fields or making multiple calls if necessary.
@@ -45,7 +47,12 @@ sequenceDiagram
     participant CallingRunbook
     participant FindCase as find_relevant_soar_case.md (This Runbook)
     participant SOAR as secops-soar
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    FindCase->>Memory: Query Historical Context
+    Memory-->>FindCase: Relevant Insights
     CallingRunbook->>FindCase: Execute Find Relevant Case\nInput: SEARCH_TERMS, FILTERS (opt)...
 
     %% Step 2: Construct Filter
@@ -69,9 +76,16 @@ sequenceDiagram
 
     %% Step 6: Return Results
     Note over FindCase: Set FIND_CASE_STATUS
+
+    %% Step: Save Findings to Memory
+    FindCase->>Memory: Save Novel Findings
+    Memory-->>FindCase: Findings Saved
     FindCase-->>CallingRunbook: Return Results:\nRELEVANT_CASE_IDS,\nRELEVANT_CASE_SUMMARIES,\nFIND_CASE_STATUS
 
 ```
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

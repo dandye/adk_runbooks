@@ -38,6 +38,8 @@ Consolidate findings from a completed or ongoing investigation involving various
 *   `gcs-mcp`: `upload_to_gcs`
 
 ## Workflow Steps
+> **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
+
 
 1.  **Gather Case Context & Identify Key Entities:** Retrieve full details for `${CASE_ID}` using `soar-mcp_get_case_full_details`. Extract relevant alerts, comments, existing entities, priority/status, and **explicitly identify the key entities/IOCs** that are central to the investigation based on this initial context.
 2.  **Synthesize Findings:** Combine information from Step 1 with optional inputs (`${INVESTIGATION_SUMMARY}`, `${KEY_ENTITIES}`, `${INCLUDE_TOOLS}`). Review case comments and alert details to reconstruct the investigation narrative and key findings.
@@ -70,7 +72,12 @@ sequenceDiagram
     participant CS as crowdstrike-mcp
     participant Drive as google-drive-mcp
     participant GCS as gcs-mcp
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    AutomatedAgent->>Memory: Query Historical Context
+    Memory-->>AutomatedAgent: Relevant Insights
     User->>AutomatedAgent: Request Investigation Report for Case X
     AutomatedAgent->>SOAR: list_alerts_by_case(case_id=X)
     SOAR-->>AutomatedAgent: Alerts for Case X (containing entities E1, E2...)
@@ -104,9 +111,16 @@ sequenceDiagram
             GCS-->>AutomatedAgent: GCS upload confirmation
         end
     end
+
+    %% Step: Save Findings to Memory
+    AutomatedAgent->>Memory: Save Novel Findings
+    Memory-->>AutomatedAgent: Findings Saved
     AutomatedAgent->>AutomatedAgent: attempt_completion(result="Investigation report created, attached to Case X, and optionally uploaded.")
 
 ```
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

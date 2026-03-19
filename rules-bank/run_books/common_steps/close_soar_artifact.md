@@ -28,6 +28,8 @@ This sub-runbook executes the appropriate SOAR closure action (`siemplify_close_
 *   `secops-soar`: `siemplify_close_case`, `siemplify_close_alert`
 
 ## Workflow Steps & Diagram
+> **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
+
 
 1.  **Receive Input:** Obtain `${ARTIFACT_ID}`, `${ARTIFACT_TYPE}`, `${CLOSURE_REASON}`, `${ROOT_CAUSE}`, `${CLOSURE_COMMENT}`, and other optional inputs from the calling runbook.
 2.  **Execute Closure:**
@@ -42,7 +44,12 @@ sequenceDiagram
     participant CallingRunbook
     participant CloseArtifact as close_soar_artifact.md (This Runbook)
     participant SOAR as secops-soar
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    CloseArtifact->>Memory: Query Historical Context
+    Memory-->>CloseArtifact: Relevant Insights
     CallingRunbook->>CloseArtifact: Execute Closure\nInput: ARTIFACT_ID, ARTIFACT_TYPE, REASON, ROOT_CAUSE, COMMENT...
 
     %% Step 2: Execute Closure
@@ -55,9 +62,16 @@ sequenceDiagram
     end
 
     %% Step 3: Return Status
+
+    %% Step: Save Findings to Memory
+    CloseArtifact->>Memory: Save Novel Findings
+    Memory-->>CloseArtifact: Findings Saved
     CloseArtifact-->>CallingRunbook: Return Status:\nCLOSURE_STATUS
 
 ```
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

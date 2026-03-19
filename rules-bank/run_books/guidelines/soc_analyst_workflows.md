@@ -20,6 +20,8 @@ This guide references workflows that utilize tools across the security stack, pr
 *   `gti-mcp` (Threat Intelligence Enrichment)
 
 ## Workflow Steps & Diagram
+> **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
+
 
 The standard workflow generally follows these phases. Refer to the linked runbooks for detailed steps and tool usage.
 
@@ -52,11 +54,20 @@ sequenceDiagram
     participant SIEM as secops-mcp
     participant GTI as gti-mcp
     participant Runbooks as rules-bank/run_books/
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    SOAR->>Memory: Query Historical Context
+    Memory-->>SOAR: Relevant Insights
     Analyst->>SOAR: 1. Monitor Alert Queue (list_cases)
     SOAR-->>Analyst: New/Assigned Alerts/Cases
     Analyst->>Runbooks: 2. Consult triage_alerts.md / check_duplicate_cases.md
     Analyst->>SOAR: Get Case/Alert Details (get_case_full_details, list_alerts_by_case)
+
+    %% Step: Save Findings to Memory
+    SOAR->>Memory: Save Novel Findings
+    Memory-->>SOAR: Findings Saved
     SOAR-->>Analyst: Details (IOCs: I1, I2...)
     Analyst->>Runbooks: 3. Consult basic_ioc_enrichment.md
     loop For each Key IOC Ii
@@ -93,6 +104,9 @@ sequenceDiagram
 *   **Malware Alert (Hash Provided):** Start with `triage_alerts.md`, then proceed to `rules-bank/run_books/malware_triage.md`.
 *   **Suspicious Login Alert:** Start with `triage_alerts.md`, then proceed to `rules-bank/run_books/suspicious_login_triage.md`.
 *   **General IOC Investigation:** Start with `triage_alerts.md`, then `basic_ioc_enrichment.md`, potentially followed by `deep_dive_ioc_analysis.md`.
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

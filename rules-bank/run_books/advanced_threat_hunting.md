@@ -25,6 +25,8 @@ This runbook outlines a flexible framework for advanced threat hunting, emphasiz
 *   *(Potentially EDR, Cloud, Identity tools if integrated via MCP)*.
 
 ## Workflow Steps & Diagram
+> **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
+
 
 1.  **Define Hypothesis & Scope:** Clearly articulate the `${HUNT_HYPOTHESIS}`. Define the initial `${TARGET_SCOPE_QUERY}` and `${TIME_FRAME_HOURS}`. Identify relevant GTI reports (`${RELEVANT_GTI_REPORTS}`). Create or identify a `${HUNT_CASE_ID}` for documentation.
 2.  **Deep Intelligence Analysis (GTI/External):**
@@ -67,7 +69,12 @@ sequenceDiagram
     participant OtherTools as EDR/Cloud/IDP (Optional)
     participant IR_Team as Incident Response
     participant SecEng as Security Engineering
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    AutomatedAgent->>Memory: Query Historical Context
+    Memory-->>AutomatedAgent: Relevant Insights
     Analyst/Hunter->>AutomatedAgent: Start Advanced Threat Hunt\nInput: HUNT_HYPOTHESIS, GTI_REPORTS (opt), SCOPE (opt), TIME_FRAME, HUNT_CASE_ID (opt)
 
     %% Step 1: Define Scope & Case
@@ -131,6 +138,13 @@ sequenceDiagram
         AutomatedAgent->>Analyst/Hunter: attempt_completion(result="Advanced Hunt complete. Suspicious activity documented. Recommendations made.")
     else Inconclusive / Negative Findings
         Note over AutomatedAgent: Document negative results and limitations
+
+    %% Step: Save Findings to Memory
+    AutomatedAgent->>Memory: Save Novel Findings
+    Memory-->>AutomatedAgent: Findings Saved
         AutomatedAgent->>Analyst/Hunter: attempt_completion(result="Advanced Hunt complete. No significant findings. Hunt documented.")
     end
 ```
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

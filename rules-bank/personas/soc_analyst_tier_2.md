@@ -102,3 +102,6 @@ Tier 2 Analysts utilize more complex and in-depth runbooks:
 *   `apt_threat_hunt.md`
 
 *Note: Tier 1 runbooks may still be referenced, but Tier 2 focuses on the more analytical and investigative workflows.*
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

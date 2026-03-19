@@ -24,6 +24,8 @@
 *   `secops-soar`: `post_case_comment` (for tracking/review)
 
 ## Workflow Steps & Diagram
+> **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
+
 
 1.  **Rule Development:** Draft the detection logic based on `${RULE_IDEA}` and `${RELEVANT_LOG_SOURCES}`.
 2.  **Testing:** Test the rule logic against `${TEST_DATA_LOCATION}` using `search_security_events` or other methods. Validate syntax (e.g., `validate_udm_query`).
@@ -40,7 +42,12 @@ sequenceDiagram
     participant VersionControl as Git (Conceptual)
     participant CI_CD as CI/CD Pipeline (Conceptual)
     participant SOAR as secops-soar (Optional)
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    AutomatedAgent->>Memory: Query Historical Context
+    Memory-->>AutomatedAgent: Relevant Insights
     Developer/Engineer->>AutomatedAgent: Start Detection-as-Code Workflow\nInput: RULE_IDEA, LOG_SOURCES, TEST_DATA...
 
     %% Step 1: Rule Development
@@ -75,9 +82,16 @@ sequenceDiagram
         SOAR-->>AutomatedAgent: Comment Confirmation
     end
 
+
+    %% Step: Save Findings to Memory
+    AutomatedAgent->>Memory: Save Novel Findings
+    Memory-->>AutomatedAgent: Findings Saved
     AutomatedAgent->>Developer/Engineer: attempt_completion(result="Detection-as-Code workflow initiated/completed for rule idea. Deployment status: [...]")
 
 ```
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

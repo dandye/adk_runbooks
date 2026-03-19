@@ -49,6 +49,8 @@ This runbook explicitly **excludes**:
 *   *(Potentially Identity Provider tools like `okta-mcp.lookup_okta_user` if available and relevant)*
 
 ## Workflow Steps & Diagram
+> **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
+
 
 1.  **Receive Alert/Case:** Obtain the UEBA alert details, associated user/entity, `${CASE_ID}` etc.
 2.  **Gather Context:** Use `get_case_full_details` (if applicable). Use `lookup_entity` for `${USER_ID}` and `${ENTITY_ID}` to get SIEM context. *(Optional: Check IDP for user status/recent activity)*.
@@ -66,7 +68,12 @@ sequenceDiagram
     participant SIEM as secops-mcp
     participant GTI as gti-mcp
     participant IDP as Identity Provider (Optional)
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    AutomatedAgent->>Memory: Query Historical Context
+    Memory-->>AutomatedAgent: Relevant Insights
     User/Analyst->>AutomatedAgent: Analyze UEBA Alert/Case (ID, User, Entity, Anomaly Desc.)
     AutomatedAgent->>SOAR: get_case_full_details (Optional, if CASE_ID provided)
     SOAR-->>AutomatedAgent: Case Context
@@ -92,8 +99,15 @@ sequenceDiagram
     Note over AutomatedAgent: Synthesize findings, assess activity
     AutomatedAgent->>SOAR: post_case_comment(case_id=..., comment="UEBA Analysis Summary... Assessment: [...]. Recommendation: [Close/Monitor/Escalate]")
     SOAR-->>AutomatedAgent: Comment Confirmation
+
+    %% Step: Save Findings to Memory
+    AutomatedAgent->>Memory: Save Novel Findings
+    Memory-->>AutomatedAgent: Findings Saved
     AutomatedAgent->>User/Analyst: attempt_completion(result="UEBA analysis complete. Findings documented.")
 ```
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
 
 ## Completion Criteria
 

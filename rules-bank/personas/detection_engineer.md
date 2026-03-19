@@ -60,3 +60,6 @@ Detection Engineers are central to the detection lifecycle and related processes
 ## References
 
 *   [OSSOCDOCS - PRO - Detection Engineering](https://github.com/madirish/ossocdocs/blob/main/Detection%20Engineering/PRO%20-%20Detection%20Engineering.md)
+
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

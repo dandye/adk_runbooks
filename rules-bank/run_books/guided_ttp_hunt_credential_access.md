@@ -22,6 +22,8 @@ This runbook provides a template for hunting specific TTPs. This example focuses
 *   `secops-soar`: `post_case_comment` (for documenting hunt/findings), `list_cases` (optional, check related cases).
 
 ## Workflow Steps & Diagram
+> **Query Memory Context:** Before deep analysis, use the `LoadMemoryTool` to retrieve historical context for the involved entities or alert types. Check appropriate topics such as `approved_exceptions`, `investigation_patterns`, or `asset_context` to avoid redundant effort and identify known benign behavior.
+
 
 1.  **Receive Input & Define Scope:** Obtain `${TECHNIQUE_IDS}`, `${TIME_FRAME_HOURS}`, optionally `${TARGET_SCOPE_QUERY}` and `${HUNT_HYPOTHESIS}`.
 2.  **Research Techniques (GTI/External):**
@@ -58,7 +60,12 @@ sequenceDiagram
     participant SIEM as secops-mcp
     participant SOAR as secops-soar
     participant MITRE as MITRE ATT&CK (External)
+    participant Memory as Vertex AI Memory
 
+
+    %% Step: Query Memory Context
+    AutomatedAgent->>Memory: Query Historical Context
+    Memory-->>AutomatedAgent: Relevant Insights
     Analyst->>AutomatedAgent: Start Guided TTP Hunt\nInput: TECHNIQUE_IDS, TIME_FRAME_HOURS, TARGET_SCOPE_QUERY (opt), HUNT_HYPOTHESIS (opt)
 
     %% Step 2: Research Techniques
@@ -101,5 +108,14 @@ sequenceDiagram
         Note over AutomatedAgent: Escalate findings (Create new case or link to existing)
         AutomatedAgent->>Analyst: attempt_completion(result="Guided TTP Hunt complete. Findings escalated.")
     else No Significant Findings
+
+    %% Step: Save Findings to Memory
+    AutomatedAgent->>Memory: Save Novel Findings
+    Memory-->>AutomatedAgent: Findings Saved
         AutomatedAgent->>Analyst: attempt_completion(result="Guided TTP Hunt complete. No significant findings. Hunt documented.")
     end
+
+
+```
+
+> **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
