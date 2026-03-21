@@ -47,7 +47,9 @@ A Tier 1 SOC Analyst primarily uses tools for alert triage, basic investigation,
         *   `lookup_entity`: Perform quick lookups for IPs, domains, users, or hashes to get initial context from SIEM data.
     *   **Alert & IoC Verification:**
         *   `get_security_alerts`: Check for recent alerts directly in the SIEM.
-        *   `get_ioc_matches`: See if known IoCs from threat feeds have matched events in the SIEM.
+        *   `get_ioc_matches`: See if known IoCs from threat feeds have matched events in the SIEM (Explicitly ALLOWED for Tier 1 triage).
+    *   **Event Search & Scoping:**
+        *   `search_udm` / `search_security_events`: To perform fleet-wide searches for multiple indicators over extended periods (e.g., up to 168 hours) to scope an alert's impact. This is considered acceptable Tier 1 triage, NOT advanced threat hunting.
     *   **Basic Threat Intelligence Queries:**
         *   `get_threat_intel`: Ask basic questions about CVEs, threat actors, or security concepts for initial understanding.
 
