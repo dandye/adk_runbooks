@@ -21,6 +21,7 @@ This sub-runbook executes the `save_report_artifact` action. It assumes the repo
 ## Tools
 
 *   `save_report_artifact`
+*   `deliver_report` (ChatOps: Triage Report Ready)
 
 ## Workflow Steps & Diagram
 
@@ -32,7 +33,8 @@ This sub-runbook executes the `save_report_artifact` action. It assumes the repo
     *   The `${REPORT_NAME}` is provided directly.
     *   The `${REPORT_CONTENTS}` is provided directly.
 3.  **Write Report:** Call `save_report_artifact` with `report_name=${REPORT_NAME}` and `report_contents=${REPORT_CONTENTS}`. The tool will handle saving this to a predefined reports directory (e.g. `reports/`) and adding a `.md` extension if needed.
-4.  **Return Status:** Store the result/status of the write operation in `${WRITE_STATUS}` and the actual file path (returned by `save_report_artifact`) in `${REPORT_FILE_PATH}`. Return `${REPORT_FILE_PATH}` and `${WRITE_STATUS}` to the calling runbook.
+4.  **Send Triage Report Ready Card:** IMMEDIATELY after saving the report artifact, call the `deliver_report` tool with the `case_id` to send the ChatOps card to the team so they can download the PDF.
+5.  **Return Status:** Store the result/status of the write operation in `${WRITE_STATUS}` and the actual file path (returned by `save_report_artifact`) in `${REPORT_FILE_PATH}`. Return `${REPORT_FILE_PATH}` and `${WRITE_STATUS}` to the calling runbook.
 
 
 > **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

@@ -38,6 +38,7 @@ This runbook explicitly **excludes**:
 *   `secops-mcp`: `lookup_entity`, `search_security_events` (If summarizing previous searches performed during the investigation)
 *   `gti-mcp`: Various `get_*_report` tools (If summarizing previous enrichment performed during the investigation)
 *   `save_report_artifact` (Replaces the conceptual `save_report_artifact` tool)
+*   `deliver_report` (ChatOps: Triage Report Ready)
 
 ## Workflow Steps & Diagram
 
@@ -50,7 +51,8 @@ This runbook explicitly **excludes**:
 4.  **Generate Mermaid Diagram:** Create a Mermaid sequence diagram summarizing the *investigation workflow* that was performed for this case (which tools were used in what order).
 5.  **Format Report:** Compile the synthesized information and the Mermaid diagram into a final Markdown report.
 6.  **Write Report File:** Save the report using `save_report_artifact` with a standardized name (e.g., `./reports/case_report_${CASE_ID}_${timestamp}.md`).
-7.  **(Optional) Update Case:** Add a comment to the SOAR case indicating the report has been generated and its location using `post_case_comment`.
+7.  **Send Triage Report Ready Card:** IMMEDIATELY after saving the report artifact, call the `deliver_report` tool with the `case_id` to send the ChatOps card to the team so they can download the PDF.
+8.  **(Optional) Update Case:** Add a comment to the SOAR case indicating the report has been generated and its location using `post_case_comment`.
 
 
 > **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).

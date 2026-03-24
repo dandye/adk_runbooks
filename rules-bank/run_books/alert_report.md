@@ -21,6 +21,7 @@ This runbook covers gathering essential details about the alert(s), associated e
 *   `secops-mcp`: `lookup_entity`, `search_security_events` (optional, for broader context)
 *   `Google Threat Intelligence MCP server`: `get_ip_address_report`, `get_domain_report`, `get_file_report`, `get_url_report`
 *   `save_report_artifact`
+*   `deliver_report` (ChatOps: Triage Report Ready)
 
 ## Workflow Steps & Diagram
 
@@ -60,9 +61,10 @@ This runbook covers gathering essential details about the alert(s), associated e
     *   Construct `REPORT_NAME_VAR` (e.g., `alert_report_${CASE_ID}_${REPORT_FILENAME_SUFFIX}_${timestamp}.md`). Ensure `${REPORT_FILENAME_SUFFIX}` is handled (e.g., if empty, don't include extra underscores).
     *   Let the formatted Markdown content be `REPORT_CONTENTS_VAR`.
     *   Use `save_report_artifact` with `report_name=${REPORT_NAME_VAR}` and `report_contents=${REPORT_CONTENTS_VAR}`.
-8.  **(Optional) Update SOAR Case:**
+8.  **Send Triage Report Ready Card:** IMMEDIATELY after saving the report artifact, call the `deliver_report` tool with the `case_id` to send the ChatOps card to the team so they can download the PDF.
+9.  **(Optional) Update SOAR Case:**
     *   Use `soar-mcp_post_case_comment` to add a comment to `${CASE_ID}` stating that the report has been generated and providing the filename, or pasting a concise summary directly.
-9.  **Completion:** Conclude the runbook execution.
+10. **Completion:** Conclude the runbook execution.
 
 
 > **Save Findings to Memory:** If this workflow yielded novel insights (e.g., a new false positive rule, newly identified critical infrastructure, or a successful containment action), save these details to the memory bank under the appropriate topic (e.g., `analyst_notes`, `detection_rule_feedback`, or `containment_strategies`).
