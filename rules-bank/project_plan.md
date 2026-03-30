@@ -268,3 +268,6 @@ This project plan and its evolution have been inspired by the following key arti
  1. Security Operations Center Topic on GitHub
     * The GitHub "security-operations-center" topic page lists numerous projects related to SOC operations, including Python modules for SOC enhancement, security maturity tracking matrices, and automation tools that integrate platforms like Wazuh, Shuffle, and TheHive.
     * GitHub URL: https://github.com/topics/security-operations-center
+ 1. CACAO Security Playbooks Version 2.0
+    * The CACAO standard defines the schema and taxonomy for collaborative automated course of action operations for cyber security playbooks. It describes how these playbooks can be created, documented, and shared in a structured and standardized way across organizational boundaries and technological solutions.
+    * URL: https://docs.oasis-open.org/cacao/security-playbooks/v2.0/security-playbooks-v2.0.html
