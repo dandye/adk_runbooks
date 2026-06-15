@@ -57,11 +57,11 @@ sequenceDiagram
             SIEM-->>AutomatedAgent: Broader UDM events for Ej
         end
     end
-    Note over AutomatedAgent: Check for related SOAR cases using all identified entities
+    Note over AutomatedAgent: Check for related SOAR cases and historical investigations using all identified entities
     AutomatedAgent->>FindCase: Execute(Input: SEARCH_TERMS=list(ALL_CASE_ENTITIES), CASE_STATUS_FILTER="Opened")
-    FindCase-->>AutomatedAgent: Results: RELATED_SOAR_CASES
-    Note over AutomatedAgent: Synthesize findings, correlate rule logic with events/entities, include related cases
-    AutomatedAgent->>SOAR: post_case_comment(case_id=X, comment="Investigation Summary: Case X involves rule [Rule Name] triggered by events [...]. Entities [...] investigated. Related Cases: ${RELATED_SOAR_CASES}. Findings: [...]")
+    FindCase-->>AutomatedAgent: Results: RELATED_SOAR_CASES, RELATED_HISTORICAL_INVESTIGATIONS
+    Note over AutomatedAgent: Synthesize findings, correlate rule logic with events/entities, include related cases/investigations
+    AutomatedAgent->>SOAR: post_case_comment(case_id=X, comment="Investigation Summary: Case X involves rule [Rule Name] triggered by events [...]. Entities [...] investigated. Related Cases: ${RELATED_SOAR_CASES}. Related Historical Investigations: ${RELATED_HISTORICAL_INVESTIGATIONS}. Findings: [...]")
     SOAR-->>AutomatedAgent: Comment confirmation
 
     %% Step: Save Findings to Memory

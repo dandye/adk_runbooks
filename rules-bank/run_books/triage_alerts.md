@@ -33,6 +33,7 @@ This runbook explicitly **excludes**:
 *   `${ACTION_TAKEN}`: The action performed based on the assessment (e.g., "Closed", "Escalated", "Priority Changed").
 *   `${SIMILAR_CASE_IDS}`: List of case IDs identified as potentially similar or duplicate by `common_steps/check_duplicate_cases.md`.
 *   `${ENTITY_RELATED_CASES}`: List of case IDs related to key entities involved in the current alert/case, found by `common_steps/find_relevant_soar_case.md`.
+*   `${RELATED_HISTORICAL_INVESTIGATIONS}`: List of related historical investigations/reports retrieved from the Elasticsearch index by `common_steps/find_relevant_soar_case.md`.
 *   `${INITIAL_SIEM_CONTEXT}`: Summary of findings from the alert-specific SIEM search performed in Step 6.
 *   `${ENRICHMENT_RESULTS}`: A structured collection of enrichment data for key entities, gathered by `common_steps/enrich_ioc.md`.
 *   `${DOCUMENTATION_STATUS}`: Status of the attempt to document findings in the SOAR case via `common_steps/document_in_soar.md`.
@@ -62,9 +63,9 @@ This runbook explicitly **excludes**:
         *   `${ROOT_CAUSE}` = `"Similar case is already under investigation"`
         *   `${CLOSURE_COMMENT}` = "Closing as duplicate of [Similar Case ID]"
     *   End runbook execution.
-5.  **Find Entity-Related Cases:**
+5.  **Find Entity-Related Cases and Investigations:**
     *   Execute `common_steps/find_relevant_soar_case.md` with `SEARCH_TERMS=KEY_ENTITIES` (list of entities from Step 2) and `CASE_STATUS_FILTER="Opened"`.
-    *   Obtain `${ENTITY_RELATED_CASES}` (list of potentially relevant open case summaries/IDs).
+    *   Obtain `${ENTITY_RELATED_CASES}` (list of potentially relevant open case summaries/IDs) and `${RELATED_HISTORICAL_INVESTIGATIONS}` (historical reports containing similar entities/patterns).
 6.  **(New) Alert-Specific SIEM Search:**
     *   Based on the alert type identified in Step 2, perform an initial targeted search using `secops-mcp_search_security_events` to gather immediate context. Examples:
         *   **Suspicious Login:** Search for related login events (success/failure) for the user/source IP/hostname around the alert time (e.g., last hour).
@@ -74,7 +75,7 @@ This runbook explicitly **excludes**:
 7.  **Basic Enrichment:** Initialize `ENRICHMENT_RESULTS` structure. For each entity `Ei` in `KEY_ENTITIES`:
     *   Execute `common_steps/enrich_ioc.md` with `IOC_VALUE=Ei` and appropriate `IOC_TYPE`.
     *   Store results (`GTI_FINDINGS`, `SIEM_ENTITY_SUMMARY`, `SIEM_IOC_MATCH_STATUS`) in `ENRICHMENT_RESULTS[Ei]`.
-8.  **Initial Assessment:** Based on alert type, `ENRICHMENT_RESULTS`, `${ENTITY_RELATED_CASES}`, `${INITIAL_SIEM_CONTEXT}`, and potential known benign patterns (referencing `.agentrules/common_benign_alerts.md` if available), make an initial assessment:
+8.  **Initial Assessment:** Based on alert type, `ENRICHMENT_RESULTS`, `${ENTITY_RELATED_CASES}`, `${RELATED_HISTORICAL_INVESTIGATIONS}`, `${INITIAL_SIEM_CONTEXT}`, and potential known benign patterns (referencing `.agentrules/common_benign_alerts.md` if available), make an initial assessment:
     *   False Positive (FP)
     *   Benign True Positive (BTP - expected/authorized activity)
     *   Requires Further Investigation (True Positive - TP or Suspicious)
