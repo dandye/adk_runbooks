@@ -20,13 +20,13 @@ This sub-runbook executes searches within the SOAR platform's case list and the 
 
 *   `${RELEVANT_CASE_IDS}`: A list of case IDs identified as potentially relevant.
 *   `${RELEVANT_CASE_SUMMARIES}`: A list of brief summaries (ID, DisplayName, Priority) for the found cases.
-*   `${RELATED_HISTORICAL_INVESTIGATIONS}`: A list of related historical investigations/reports retrieved from the Elasticsearch index.
+*   `${RELATED_HISTORICAL_INVESTIGATIONS}`: A list of related historical investigations/reports retrieved from the knowledge base.
 *   `${FIND_CASE_STATUS}`: Confirmation or status of the search attempt(s).
 
 ## Tools
 
 *   `secops-soar`: `list_cases`
-*   `orchestrator`: `retrieve_elasticsearch_runbooks` (used to query the Elasticsearch index containing both runbooks and historical investigations)
+*   `orchestrator`: `search_knowledge_base` (used to query the historical cases, alerts, and investigations knowledge base)
 *   *(Optional) `secops-soar`: `get_case_full_details` (Potentially used internally if initial list is large and needs filtering based on deeper entity checks)*
 
 ## Workflow Steps & Diagram
@@ -39,7 +39,7 @@ This sub-runbook executes searches within the SOAR platform's case list and the 
 4.  **Process SOAR Results:** Extract the IDs and potentially basic details (DisplayName, Priority) from the returned cases. Store IDs in `${RELEVANT_CASE_IDS}` and summaries in `${RELEVANT_CASE_SUMMARIES}`.
 5.  **Search Elasticsearch for Historical Investigations:**
     *   Construct a query string using the `${SEARCH_TERMS}` (e.g., combining the key entities).
-    *   Call `retrieve_elasticsearch_runbooks` (or the corresponding RAG retrieval tool if ES is disabled) using the query to search for past/harvested investigations, previous analyst reports, and related procedures.
+    *   Call `search_knowledge_base` (or the corresponding RAG retrieval tool if search_knowledge_base is disabled) using the query to search for past/harvested investigations, previous analyst reports, and related cases.
     *   Analyze the retrieved documents to extract previous analyst verdicts, findings, and remediation steps. Store the matching reports in `${RELATED_HISTORICAL_INVESTIGATIONS}`.
 6.  **(Optional) Refine Results:** If the initial SOAR search returns too many results, potentially use `get_case_full_details` on a subset to perform more specific checks and refine the `${RELEVANT_CASE_IDS}` list.
 7.  **Return Results:** Set `${FIND_CASE_STATUS}` based on the success/failure of the API calls. Return `${RELEVANT_CASE_IDS}`, `${RELEVANT_CASE_SUMMARIES}`, `${RELATED_HISTORICAL_INVESTIGATIONS}`, and `${FIND_CASE_STATUS}` to the calling runbook.
@@ -51,7 +51,7 @@ sequenceDiagram
     participant CallingRunbook
     participant FindCase as find_relevant_soar_case.md (This Runbook)
     participant SOAR as secops-soar
-    participant ES as Elasticsearch Index (retrieve_elasticsearch_runbooks)
+    participant KB as Knowledge Base (search_knowledge_base)
     participant Memory as Vertex AI Memory
 
     %% Step: Query Memory Context
@@ -70,8 +70,8 @@ sequenceDiagram
     Note over FindCase: Extract IDs and Summaries into RELEVANT_CASE_IDS, RELEVANT_CASE_SUMMARIES
 
     %% Step 5: Search Elasticsearch Index
-    FindCase->>ES: retrieve_elasticsearch_runbooks(query=SEARCH_TERMS)
-    ES-->>FindCase: Related Historical Investigations / Runbooks
+    FindCase->>KB: search_knowledge_base(query=SEARCH_TERMS)
+    KB-->>FindCase: Related Historical Investigations / cases
     Note over FindCase: Store results in RELATED_HISTORICAL_INVESTIGATIONS
 
     %% Step 6: Optional Refinement (Conceptual)
@@ -94,4 +94,4 @@ sequenceDiagram
 
 ## Completion Criteria
 
-The `list_cases` search and the Elasticsearch query have been attempted based on the provided terms. A list of potentially relevant case IDs, summaries, related historical investigations, and the status of the search are available.
+The `list_cases` search and the knowledge base query have been attempted based on the provided terms. A list of potentially relevant case IDs, summaries, related historical investigations, and the status of the search are available.
