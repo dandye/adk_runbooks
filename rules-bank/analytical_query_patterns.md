@@ -1,3 +1,11 @@
+---
+type: Guideline
+title: Analytical Query Patterns for AI Agents
+generated:
+  by: human:dandye
+  at: 2025-06-02T12:14:04-04:00
+---
+
 # Analytical Query Patterns for AI Agents
 
 This document serves as a "cookbook" for AI agents, providing templates for common analytical questions and their corresponding query structures for key security tools, with a primary focus on Chronicle SIEM (UDM queries via `secops-mcp - search_security_events`).

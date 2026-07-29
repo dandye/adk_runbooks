@@ -1,3 +1,11 @@
+---
+type: Runbook
+title: "Atomic Runbook: Search URL Activity in Chronicle"
+generated:
+  by: human:dandye
+  at: 2025-05-31T00:07:07-04:00
+---
+
 # Atomic Runbook: Search URL Activity in Chronicle
 
 **ID:** `RB-ATOM-URL-003`

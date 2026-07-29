@@ -1,3 +1,11 @@
+---
+type: Runbook
+title: "Common Step: Close SOAR Case or Alert"
+generated:
+  by: human:dandye
+  at: 2025-11-10T17:21:35-05:00
+---
+
 # Common Step: Close SOAR Case or Alert
 
 ## Objective

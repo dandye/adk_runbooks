@@ -1,3 +1,11 @@
+---
+type: Runbook
+title: "Atomic Runbook: Search IP Network Traffic in Chronicle"
+generated:
+  by: human:dandye
+  at: 2025-05-31T00:07:07-04:00
+---
+
 # Atomic Runbook: Search IP Network Traffic in Chronicle
 
 **ID:** `RB-ATOM-IP-004`

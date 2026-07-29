@@ -1,3 +1,11 @@
+---
+type: Runbook
+title: SOC Analyst Tier 2 Demo Runbook (SOAR Focus)
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20T22:04:42-05:00
+---
+
 # SOC Analyst Tier 2 Demo Runbook (SOAR Focus)
 
 As a SOC Analyst Tier 2, your work revolves around the SOAR platform.

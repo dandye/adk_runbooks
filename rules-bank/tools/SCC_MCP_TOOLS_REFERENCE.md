@@ -1,3 +1,11 @@
+---
+type: Reference
+title: SCC MCP Tools Reference
+generated:
+  by: human:dandye
+  at: 2025-06-19T21:01:22-04:00
+---
+
 # SCC MCP Tools Reference
 
 This document provides a reference for the tools available in the SCC MCP server.

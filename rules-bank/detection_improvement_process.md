@@ -1,3 +1,11 @@
+---
+type: Guideline
+title: Detection Improvement Process for AI Agents
+generated:
+  by: human:dandye
+  at: 2025-05-31T00:07:07-04:00
+---
+
 # Detection Improvement Process for AI Agents
 
 This document outlines the process for AI agents to identify, document, and report potential detection gaps. This formalizes the "Detection Gaps Identification" and "Feedback to Detection Engineering" loop described in the "Blueprint for AI Agents in Cybersecurity."

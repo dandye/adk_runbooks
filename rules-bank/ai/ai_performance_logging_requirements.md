@@ -1,3 +1,11 @@
+---
+type: Guideline
+title: AI Performance Logging Requirements
+generated:
+  by: human:dandye
+  at: 2025-05-31T13:54:55-04:00
+---
+
 # AI Performance Logging Requirements
 
 This document specifies the key data points that AI agents must log for significant actions and decisions. Consistent and comprehensive logging is crucial for calculating PICERL-related metrics, troubleshooting AI behavior, and facilitating continuous improvement.

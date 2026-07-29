@@ -1,3 +1,11 @@
+---
+type: Reference
+title: Project Setup Guide
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20T00:15:29-05:00
+---
+
 ![Screenshot 2025-05-18 at 4 16 04 PM](https://github.com/user-attachments/assets/338a92af-1721-4b6f-9c9c-c451c9581129)
 
 # Project Setup Guide

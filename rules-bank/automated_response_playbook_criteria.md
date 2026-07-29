@@ -1,3 +1,11 @@
+---
+type: Guideline
+title: Automated Response Playbook Criteria
+generated:
+  by: human:dandye
+  at: 2025-05-31T19:50:19-04:00
+---
+
 # Automated Response Playbook Criteria
 
 This document outlines criteria for triggering automated response actions by AI agents or SOAR playbooks. It details pre-conditions, safety checks, and rollback procedures to ensure automated responses are executed safely and effectively. This expands on the original `approved_remediations.md`.

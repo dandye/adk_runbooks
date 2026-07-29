@@ -1,3 +1,11 @@
+---
+type: Guideline
+title: MCP Tool Best Practices & Usage Guide
+generated:
+  by: human:dandye
+  at: 2025-05-31T00:07:07-04:00
+---
+
 # MCP Tool Best Practices & Usage Guide
 
 This document provides best practices, tips, and important considerations for using Model Context Protocol (MCP) tools, especially those interacting with security platforms like Chronicle SIEM and Google Threat Intelligence (GTI).

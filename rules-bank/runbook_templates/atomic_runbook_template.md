@@ -1,3 +1,11 @@
+---
+type: Template
+title: "Atomic Runbook: [Clear, Verb-Oriented Title - e.g., Get_IP_Reputation_From_GTI]"
+generated:
+  by: human:dandye
+  at: 2025-05-31T00:07:07-04:00
+---
+
 # Atomic Runbook: [Clear, Verb-Oriented Title - e.g., Get_IP_Reputation_From_GTI]
 
 **ID:** `RB-ATOM-[UniqueSequentialID]` (e.g., RB-ATOM-001)

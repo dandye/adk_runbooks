@@ -1,3 +1,11 @@
+---
+type: Runbook
+title: "Common Step: Document Findings/Actions in SOAR Case"
+generated:
+  by: human:dandye
+  at: 2025-11-10T17:21:35-05:00
+---
+
 # Common Step: Document Findings/Actions in SOAR Case
 
 ## Objective

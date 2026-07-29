@@ -1,3 +1,11 @@
+---
+type: Reference
+title: Multi-Agent Configuration System
+generated:
+  by: human:dandye
+  at: 2025-06-19T21:05:33-04:00
+---
+
 # Multi-Agent Configuration System
 
 This directory contains documentation and configuration specifications for the ADK Runbooks multi-agent system's intelligent delegation framework.

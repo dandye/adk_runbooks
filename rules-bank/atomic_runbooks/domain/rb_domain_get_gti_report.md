@@ -1,3 +1,11 @@
+---
+type: Runbook
+title: "Atomic Runbook: Get Domain Reputation from GTI"
+generated:
+  by: human:dandye
+  at: 2025-05-31T00:07:07-04:00
+---
+
 # Atomic Runbook: Get Domain Reputation from GTI
 
 **ID:** `RB-ATOM-DOMAIN-001`

@@ -1,3 +1,11 @@
+---
+type: Persona
+title: "Persona: Tier 1 SOC Analyst"
+generated:
+  by: human:dandye
+  at: 2025-05-18T15:35:55-04:00
+---
+
 # Persona: Tier 1 SOC Analyst
 
 ## Overview

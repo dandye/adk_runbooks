@@ -1,3 +1,11 @@
+---
+type: Persona
+title: LLM Judge Persona
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20T22:04:42-05:00
+---
+
 # LLM Judge Persona
 
 ## Role Description

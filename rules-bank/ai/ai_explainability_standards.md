@@ -1,3 +1,11 @@
+---
+type: Guideline
+title: AI Explainability Standards
+generated:
+  by: human:dandye
+  at: 2025-05-31T13:54:55-04:00
+---
+
 # AI Explainability Standards
 
 This document defines standards for AI agent explanations to improve clarity, trustworthiness, and the speed at which human analysts can understand AI-driven decisions. This supports the "Explainability Time/Score" metric within the PICERL AI Performance Framework ("Identification" and "Learning" phases).

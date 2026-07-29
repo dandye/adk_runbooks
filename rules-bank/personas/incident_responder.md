@@ -1,3 +1,11 @@
+---
+type: Persona
+title: "Persona: Incident Responder (IR)"
+generated:
+  by: human:dandye
+  at: 2025-05-17T18:46:00-04:00
+---
+
 # Persona: Incident Responder (IR)
 
 ## Overview

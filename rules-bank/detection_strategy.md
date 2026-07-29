@@ -1,3 +1,11 @@
+---
+type: Guideline
+title: Detection Strategy Overview
+generated:
+  by: human:dandye
+  at: 2025-05-31T19:50:19-04:00
+---
+
 # Detection Strategy Overview
 
 This document outlines the organization's high-level strategy for security detection development, key platforms, focus areas, and how AI agents contribute to and are measured within this strategy.

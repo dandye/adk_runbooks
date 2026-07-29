@@ -1,3 +1,11 @@
+---
+type: Runbook
+title: "Atomic Runbook: Get IP Address Threat Intel via SecOps MCP"
+generated:
+  by: human:dandye
+  at: 2025-05-31T00:07:07-04:00
+---
+
 # Atomic Runbook: Get IP Address Threat Intel via SecOps MCP
 
 **ID:** `RB-ATOM-IP-002`

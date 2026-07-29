@@ -1,3 +1,11 @@
+---
+type: Runbook
+title: "Common Step: Find Relevant SOAR Case"
+generated:
+  by: human:dandye
+  at: 2025-11-10T17:21:35-05:00
+---
+
 # Common Step: Find Relevant SOAR Case
 
 ## Objective

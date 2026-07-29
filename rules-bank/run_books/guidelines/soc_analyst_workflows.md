@@ -1,3 +1,11 @@
+---
+type: Guideline
+title: "Runbook: SOC Analyst Standard Workflow Guide"
+generated:
+  by: human:dandye
+  at: 2025-11-10T17:21:35-05:00
+---
+
 # Runbook: SOC Analyst Standard Workflow Guide
 
 ## Objective

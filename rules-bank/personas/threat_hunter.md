@@ -1,3 +1,11 @@
+---
+type: Persona
+title: "Persona: Threat Hunter"
+generated:
+  by: human:dandye
+  at: 2025-05-17T18:46:00-04:00
+---
+
 # Persona: Threat Hunter
 
 ## Overview

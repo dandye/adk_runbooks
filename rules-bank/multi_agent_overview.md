@@ -1,3 +1,11 @@
+---
+type: Reference
+title: Multi-Agent Systems in ADK
+generated:
+  by: human:dandye
+  at: 2025-06-18T22:23:28-04:00
+---
+
 # Multi-Agent Systems in ADK
 
 This document provides an overview of creating and using multi-agent systems within the Agent Development Kit (ADK). Specialized security agents collaborate to handle complex cybersecurity tasks, each focusing on their area of expertise.

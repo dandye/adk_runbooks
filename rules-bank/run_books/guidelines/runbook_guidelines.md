@@ -1,3 +1,11 @@
+---
+type: Guideline
+title: Runbook Guidelines
+generated:
+  by: human:dandye
+  at: 2025-05-17T18:46:00-04:00
+---
+
 # Runbook Guidelines
 
 This document provides general guidelines for creating, maintaining, and executing runbooks within this security environment.

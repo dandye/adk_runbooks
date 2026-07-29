@@ -1,3 +1,11 @@
+---
+type: Guideline
+title: Data Normalization Map
+generated:
+  by: human:dandye
+  at: 2025-05-31T00:07:07-04:00
+---
+
 # Data Normalization Map
 
 This document provides mappings for common data fields across various log sources and tools to a standardized (e.g., UDM - Unified Data Model) or common internal representation. This helps AI agents correlate data and construct queries effectively.

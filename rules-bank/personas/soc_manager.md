@@ -1,3 +1,11 @@
+---
+type: Persona
+title: "Persona: SOC Manager"
+generated:
+  by: human:dandye
+  at: 2025-05-19T13:39:50-04:00
+---
+
 # Persona: SOC Manager
 
 ## Overview
