@@ -349,3 +349,176 @@ function logAgUiEvent(eventName, payload) {
 
   stream.insertBefore(eventCard, stream.firstChild);
 }
+
+// Workbench View Switcher Logic
+function switchWorkbenchView(viewName) {
+  const btnHitl = document.getElementById('viewBtnHitl');
+  const btnGraph = document.getElementById('viewBtnGraph');
+  const viewHitl = document.getElementById('viewHitlCard');
+  const viewGraph = document.getElementById('viewGraphView');
+
+  if (viewName === 'hitl') {
+    btnHitl.classList.add('active');
+    btnGraph.classList.remove('active');
+    viewHitl.style.display = 'block';
+    viewGraph.style.display = 'none';
+
+    logAgUiEvent('ag_ui.view_switched', {
+      active_view: "HITL_REMEDIATION_APPROVAL_CARD"
+    });
+  } else if (viewName === 'graph') {
+    btnGraph.classList.add('active');
+    btnHitl.classList.remove('active');
+    viewHitl.style.display = 'none';
+    viewGraph.style.display = 'block';
+
+    logAgUiEvent('ag_ui.view_switched', {
+      active_view: "MULTI_AGENT_DELEGATION_GRAPH"
+    });
+  }
+}
+
+// Multi-Agent Delegation Graph Interactive Logic (<AgentDelegationGraph />)
+const nodeDetails = {
+  manager: {
+    role: "ROOT ORCHESTRATOR",
+    title: "ADK Manager Agent",
+    task: "Orchestrate incident triage, delegate sub-tasks to specialized sub-agents, and aggregate security evidence.",
+    thinking: "[13:10:00] Initialized Manager Agent session ag-sess-9042\n[13:10:01] Received security alert INC-2026-9042\n[13:10:02] Delegating CTI lookup to CTI Researcher...\n[13:10:04] Delegating log search to SOC Tier 1...\n[13:10:06] Delegating containment plan to Incident Responder...",
+    toolOutput: `{\n  "orchestration": "ACTIVE",\n  "delegated_subagents": ["cti", "soc", "ir", "de"],\n  "current_phase": "HITL_APPROVAL_WAIT"\n}`
+  },
+  cti: {
+    role: "SUB-AGENT",
+    title: "CTI Researcher Sub-Agent",
+    task: "Query VirusTotal API and Threat Intelligence repository for C2 IP 198.51.100.42 reputation.",
+    thinking: "[13:10:02] Received CTI search request for IP 198.51.100.42\n[13:10:03] Executed tool vt_ip_lookup(ip='198.51.100.42')\n[13:10:04] Found 64/72 malicious engines (Emotet C2)\n[13:10:04] Task completed. Returned evidence to Manager.",
+    toolOutput: `{\n  "ip": "198.51.100.42",\n  "vt_malicious_score": 64,\n  "threat_family": "Emotet",\n  "confidence": "HIGH"\n}`
+  },
+  soc: {
+    role: "SUB-AGENT",
+    title: "SOC Analyst Tier 1 Sub-Agent",
+    task: "Search Chronicle UDM logs for network connection events matching asset prod-db-gateway-01.",
+    thinking: "[13:10:04] Received log search task for asset prod-db-gateway-01\n[13:10:05] Executed tool udm_search(target='prod-db-gateway-01')\n[13:10:06] Located 142 outbound socket connection events to C2 IP\n[13:10:06] Task completed. Returned UDM log summary.",
+    toolOutput: `{\n  "asset": "prod-db-gateway-01",\n  "matching_events": 142,\n  "first_seen": "2026-07-29T12:45:00Z",\n  "protocol": "TCP/8443"\n}`
+  },
+  ir: {
+    role: "SUB-AGENT",
+    title: "Incident Responder Sub-Agent",
+    task: "Synthesize containment parameters and trigger HITL approval for host isolation and firewall block.",
+    thinking: "[13:10:06] Evaluating CTI & SOC evidence for prod-db-gateway-01\n[13:10:07] High threat severity detected - initiating host isolation plan\n[13:10:08] Emitted ag_ui.hitl_requested event to user interface...",
+    toolOutput: `{\n  "proposed_action": "ISOLATE_HOST_AND_BLOCK_C2",\n  "target_asset": "prod-db-gateway-01",\n  "hitl_status": "WAITING_APPROVAL"\n}`
+  },
+  de: {
+    role: "SUB-AGENT",
+    title: "Detection Engineer Sub-Agent",
+    task: "Generate YARA-L 2.0 detection rules based on verified TTPs and test against synthetic UDM logs.",
+    thinking: "[13:10:08] Standing by for post-remediation detection rule synthesis.\n[13:10:09] Rule template pre-loaded for MITRE T1059.001.",
+    toolOutput: `{\n  "status": "IDLE",\n  "ready_for_rule_gen": true,\n  "target_ttp": "T1059.001"\n}`
+  }
+};
+
+let activeSelectedNodeKey = 'ir';
+
+function selectGraphNode(nodeKey) {
+  activeSelectedNodeKey = nodeKey;
+
+  // Clear previous selection highlighting
+  document.querySelectorAll('.agent-node').forEach(n => n.classList.remove('selected-node'));
+
+  const nodeEl = document.getElementById(`node-${nodeKey}`);
+  if (nodeEl) nodeEl.classList.add('selected-node');
+
+  const info = nodeDetails[nodeKey];
+  if (!info) return;
+
+  document.getElementById('detailAgentRole').innerText = info.role;
+  document.getElementById('detailAgentTitle').innerText = info.title;
+  document.getElementById('detailTaskText').innerText = info.task;
+  document.getElementById('detailThinkingText').innerText = info.thinking;
+  document.getElementById('detailToolOutput').innerText = info.toolOutput;
+
+  logAgUiEvent('ag_ui.node_inspected', {
+    selected_node: nodeKey,
+    agent_name: info.title,
+    role: info.role
+  });
+}
+
+function runDelegationSimulation() {
+  logAgUiEvent('ag_ui.delegation_started', {
+    orchestrator: "ADK Manager Agent",
+    incident_id: "INC-2026-9042",
+    mode: "MULTI_AGENT_PARALLEL_EXECUTION"
+  });
+
+  // Step 1: Highlight CTI Researcher
+  setTimeout(() => {
+    selectGraphNode('cti');
+    logAgUiEvent('ag_ui.subagent_tool_executing', {
+      agent: "CTI Researcher",
+      tool: "vt_ip_lookup",
+      status: "EXECUTING"
+    });
+  }, 600);
+
+  // Step 2: Highlight SOC Tier 1
+  setTimeout(() => {
+    selectGraphNode('soc');
+    logAgUiEvent('ag_ui.subagent_tool_executing', {
+      agent: "SOC Analyst Tier 1",
+      tool: "udm_search",
+      status: "EXECUTING"
+    });
+  }, 1400);
+
+  // Step 3: Highlight Incident Responder
+  setTimeout(() => {
+    selectGraphNode('ir');
+    logAgUiEvent('ag_ui.subagent_hitl_triggered', {
+      agent: "Incident Responder",
+      action: "ISOLATE_HOST_AND_BLOCK_C2",
+      status: "WAITING_APPROVAL"
+    });
+  }, 2200);
+
+  // Step 4: Highlight Detection Engineer
+  setTimeout(() => {
+    selectGraphNode('de');
+    logAgUiEvent('ag_ui.delegation_completed', {
+      status: "WORKFLOW_READY",
+      active_node: "Incident Responder"
+    });
+  }, 3000);
+}
+
+function resetDelegationGraph() {
+  selectGraphNode('ir');
+  logAgUiEvent('ag_ui.graph_reset', {
+    status: "GRAPH_STATE_RESET"
+  });
+}
+
+function pauseSubAgentTask() {
+  const info = nodeDetails[activeSelectedNodeKey];
+  logAgUiEvent('ag_ui.analyst_override', {
+    action: "PAUSE_SUBAGENT",
+    target_agent: info ? info.title : activeSelectedNodeKey,
+    timestamp: new Date().toISOString()
+  });
+  alert(`Task paused for ${info ? info.title : activeSelectedNodeKey}. Sub-agent state held.`);
+}
+
+function openDirectiveModal() {
+  const info = nodeDetails[activeSelectedNodeKey];
+  const directive = prompt(`Enter manual directive / context override for ${info ? info.title : activeSelectedNodeKey}:`, "Perform deep PCAP packet capture before host isolation.");
+  if (directive) {
+    logAgUiEvent('ag_ui.analyst_override', {
+      action: "INJECT_DIRECTIVE",
+      target_agent: info ? info.title : activeSelectedNodeKey,
+      directive: directive,
+      timestamp: new Date().toISOString()
+    });
+    alert(`Directive injected into ${info ? info.title : activeSelectedNodeKey}'s context memory!`);
+  }
+}
+

@@ -641,3 +641,307 @@ body {
   border: 1px solid rgba(239, 68, 68, 0.3);
   color: var(--severity-critical);
 }
+
+/* Workbench View Switcher Header */
+.workbench-nav {
+  display: flex;
+  gap: 8px;
+  background: rgba(17, 24, 39, 0.5);
+  border: 1px solid var(--panel-border);
+  padding: 6px;
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(12px);
+}
+
+.workbench-nav-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px 18px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: var(--transition-fast);
+}
+
+.workbench-nav-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.workbench-nav-btn.active {
+  background: var(--accent-blue);
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px var(--accent-blue-glow);
+}
+
+.workbench-view {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Agent Delegation Graph (<AgentDelegationGraph />) */
+.graph-container-card {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border-glow);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(20px);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+}
+
+.graph-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 1px solid var(--panel-border);
+  padding-bottom: 16px;
+}
+
+.graph-controls {
+  display: flex;
+  gap: 10px;
+}
+
+.btn-sm {
+  padding: 6px 14px;
+  font-size: 12px;
+}
+
+/* Graph Legend */
+.graph-legend {
+  display: flex;
+  gap: 20px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  padding: 10px 16px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.status-completed { background: var(--severity-success); box-shadow: 0 0 8px var(--severity-success); }
+.status-running { background: var(--accent-cyan); box-shadow: 0 0 8px var(--accent-cyan); }
+.status-waiting { background: var(--severity-high); box-shadow: 0 0 8px var(--severity-high); }
+.status-idle { background: #6B7280; }
+
+/* Graph Canvas & Topology Tree */
+.graph-canvas {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  padding: 20px 0;
+  position: relative;
+}
+
+.graph-row {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.root-row {
+  z-index: 2;
+}
+
+.sub-agents-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  width: 100%;
+  z-index: 2;
+}
+
+/* Connector Lines */
+.connector-tree-down {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  height: 24px;
+  position: relative;
+}
+
+.tree-line-vertical {
+  width: 2px;
+  height: 100%;
+  background: linear-gradient(to bottom, var(--accent-blue), var(--accent-cyan));
+  box-shadow: 0 0 8px var(--accent-blue-glow);
+}
+
+/* Agent Nodes */
+.agent-node {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  cursor: pointer;
+  transition: var(--transition-normal);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  position: relative;
+}
+
+.agent-node:hover {
+  border-color: var(--accent-blue);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.25);
+}
+
+.agent-node.selected-node {
+  border-color: var(--accent-cyan);
+  background: rgba(6, 182, 212, 0.12);
+  box-shadow: 0 0 16px rgba(6, 182, 212, 0.3);
+}
+
+.node-manager {
+  width: 380px;
+  border-color: rgba(59, 130, 246, 0.4);
+}
+
+.active-pulse {
+  animation: pulseGlow 2s infinite ease-in-out;
+}
+
+@keyframes pulseGlow {
+  0% { box-shadow: 0 0 8px rgba(245, 158, 11, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(245, 158, 11, 0.6); }
+  100% { box-shadow: 0 0 8px rgba(245, 158, 11, 0.3); }
+}
+
+.node-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.node-type {
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+}
+
+.node-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.node-desc, .node-task {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.node-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.tool-chip {
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  background: rgba(6, 182, 212, 0.1);
+  color: var(--accent-cyan);
+  border: 1px solid rgba(6, 182, 212, 0.25);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.node-footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.node-meta {
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-muted);
+}
+
+/* Node Detail & Trajectory Panel */
+.node-detail-panel {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--panel-border);
+  padding-bottom: 12px;
+}
+
+.detail-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr 1fr;
+  gap: 16px;
+}
+
+.detail-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.detail-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.detail-code-box {
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-primary);
+  line-height: 1.5;
+  height: 120px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+

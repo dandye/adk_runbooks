@@ -59,12 +59,22 @@
       </div>
     </aside>
 
-    <!-- Main Workbench: HITL Interactive Approval Card -->
+    <!-- Main Workbench -->
     <section class="main-workbench">
       
-      <h1>Human-in-the-Loop Remediation Approval</h1>
+      <!-- View Navigation Tabs -->
+      <div class="workbench-nav">
+        <button class="workbench-nav-btn active" id="viewBtnHitl" onclick="switchWorkbenchView('hitl')">
+          <span class="nav-icon">&#128737;</span> HITL Approval Card
+        </button>
+        <button class="workbench-nav-btn" id="viewBtnGraph" onclick="switchWorkbenchView('graph')">
+          <span class="nav-icon">&#9094;</span> Multi-Agent Delegation Graph
+        </button>
+      </div>
 
-      <div class="hitl-approval-card" id="approvalCardComponent">
+      <!-- VIEW 1: HITL Interactive Approval Card -->
+      <div id="viewHitlCard" class="workbench-view active">
+        <div class="hitl-approval-card" id="approvalCardComponent">
         
         <!-- Card Header -->
         <div class="card-header">
@@ -190,8 +200,179 @@
             </div>
           </div>
         </div>
+      </div><!-- End VIEW 1: HITL Card -->
 
-      </div>
+      <!-- VIEW 2: Multi-Agent Delegation Graph (<AgentDelegationGraph />) -->
+      <div id="viewGraphView" class="workbench-view" style="display: none;">
+        <div class="graph-container-card">
+          
+          <!-- Graph Header & Control Bar -->
+          <div class="graph-header">
+            <div>
+              <span class="action-type-tag">ORCHESTRATION TOPOLOGY</span>
+              <h2 class="card-main-title">Live Multi-Agent Delegation Graph</h2>
+              <div class="card-subtext">Bi-directional state streaming and hand-off visualization between ADK agents</div>
+            </div>
+            
+            <div class="graph-controls">
+              <button class="btn btn-secondary btn-sm" onclick="resetDelegationGraph()">
+                Reset Graph
+              </button>
+              <button class="btn btn-primary btn-sm" onclick="runDelegationSimulation()">
+                Simulate Agent Delegation Flow
+              </button>
+            </div>
+          </div>
+
+          <!-- Graph Status Legend -->
+          <div class="graph-legend">
+            <div class="legend-item"><span class="legend-dot status-completed"></span> Completed</div>
+            <div class="legend-item"><span class="legend-dot status-running"></span> Active / Executing Tool</div>
+            <div class="legend-item"><span class="legend-dot status-waiting"></span> Waiting for HITL Approval</div>
+            <div class="legend-item"><span class="legend-dot status-idle"></span> Standby / Idle</div>
+          </div>
+
+          <!-- Interactive Node Canvas / Topology Tree -->
+          <div class="graph-canvas">
+            
+            <!-- Root Manager Node -->
+            <div class="graph-row root-row">
+              <div class="agent-node node-manager active-node" id="node-manager" onclick="selectGraphNode('manager')">
+                <div class="node-header">
+                  <span class="node-type">ROOT ORCHESTRATOR</span>
+                  <span class="badge badge-critical" id="badge-manager">ORCHESTRATING</span>
+                </div>
+                <div class="node-title">ADK Manager Agent</div>
+                <div class="node-desc">Coordinates incident investigation, delegates sub-tasks, and aggregates findings.</div>
+                <div class="node-footer">
+                  <span class="node-meta">Active Session: ag-sess-9042</span>
+                  <span class="node-meta">Sub-Agents: 4 Registered</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Connector Line Downward -->
+            <div class="connector-tree-down">
+              <div class="tree-line-vertical"></div>
+              <div class="tree-line-horizontal"></div>
+            </div>
+
+            <!-- Sub-Agents Row -->
+            <div class="graph-row sub-agents-row">
+              
+              <!-- Sub-Agent 1: CTI Researcher -->
+              <div class="agent-node node-sub" id="node-cti" onclick="selectGraphNode('cti')">
+                <div class="node-connector-line"></div>
+                <div class="node-header">
+                  <span class="node-type">SUB-AGENT</span>
+                  <span class="badge badge-medium" id="badge-cti">COMPLETED</span>
+                </div>
+                <div class="node-title">CTI Researcher</div>
+                <div class="node-task">Task: Threat Intel & VT Reputation Lookup</div>
+                <div class="node-tools">
+                  <span class="tool-chip">vt_ip_lookup</span>
+                  <span class="tool-chip">search_threat_intel</span>
+                </div>
+              </div>
+
+              <!-- Sub-Agent 2: SOC Tier 1 -->
+              <div class="agent-node node-sub" id="node-soc" onclick="selectGraphNode('soc')">
+                <div class="node-connector-line"></div>
+                <div class="node-header">
+                  <span class="node-type">SUB-AGENT</span>
+                  <span class="badge badge-medium" id="badge-soc">COMPLETED</span>
+                </div>
+                <div class="node-title">SOC Analyst Tier 1</div>
+                <div class="node-task">Task: Alert Triage & UDM Log Search</div>
+                <div class="node-tools">
+                  <span class="tool-chip">udm_search</span>
+                  <span class="tool-chip">list_case_alerts</span>
+                </div>
+              </div>
+
+              <!-- Sub-Agent 3: Incident Responder -->
+              <div class="agent-node node-sub active-pulse" id="node-ir" onclick="selectGraphNode('ir')">
+                <div class="node-connector-line"></div>
+                <div class="node-header">
+                  <span class="node-type">SUB-AGENT</span>
+                  <span class="badge badge-high" id="badge-ir">WAITING APPROVAL</span>
+                </div>
+                <div class="node-title">Incident Responder</div>
+                <div class="node-task">Task: Host Isolation & C2 Firewall Block</div>
+                <div class="node-tools">
+                  <span class="tool-chip">secops_execute_action</span>
+                </div>
+              </div>
+
+              <!-- Sub-Agent 4: Detection Engineer -->
+              <div class="agent-node node-sub" id="node-de" onclick="selectGraphNode('de')">
+                <div class="node-connector-line"></div>
+                <div class="node-header">
+                  <span class="node-type">SUB-AGENT</span>
+                  <span class="badge badge-medium" id="badge-de" style="background: rgba(107, 114, 128, 0.2); color: #9CA3AF; border-color: rgba(107, 114, 128, 0.3);">IDLE</span>
+                </div>
+                <div class="node-title">Detection Engineer</div>
+                <div class="node-task">Task: YARA-L 2.0 Rule Generation</div>
+                <div class="node-tools">
+                  <span class="tool-chip">generate_rules</span>
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+
+          <!-- Selected Node Detail Drawer & Manual Override Panel -->
+          <div class="node-detail-panel" id="nodeDetailPanel">
+            <div class="detail-header">
+              <div>
+                <span class="action-type-tag" id="detailAgentRole">SUB-AGENT INSPECTOR</span>
+                <h3 id="detailAgentTitle" class="detail-title">Incident Responder Sub-Agent</h3>
+              </div>
+              <div class="btn-group">
+                <button class="btn btn-secondary btn-sm" onclick="pauseSubAgentTask()">
+                  Pause Sub-Agent
+                </button>
+                <button class="btn btn-primary btn-sm" onclick="openDirectiveModal()">
+                  Inject Analyst Directive
+                </button>
+              </div>
+            </div>
+
+            <div class="detail-grid">
+              <div class="detail-block">
+                <div class="section-title">Active Task & Scope</div>
+                <div id="detailTaskText" class="detail-text">Execute host isolation on target host prod-db-gateway-01 and block C2 IP 198.51.100.42.</div>
+              </div>
+
+              <div class="detail-block">
+                <div class="section-title">Current Thinking Trajectory</div>
+                <div id="detailThinkingText" class="detail-code-box">
+[13:12:04] Manager delegated task: "Isolate host and block C2 IP"
+[13:12:05] Analyzing asset risk level (Critical database gateway)
+[13:12:06] Synthesized proposed containment parameters
+[13:12:07] Issued HITL Approval Request to AG-UI Event Stream...
+                </div>
+              </div>
+
+              <div class="detail-block">
+                <div class="section-title">Recent Tool Execution Output</div>
+                <div id="detailToolOutput" class="detail-code-box">
+{
+  "tool": "secops_get_involved_entity",
+  "status": "SUCCESS",
+  "entity": "prod-db-gateway-01",
+  "ip": "192.168.1.105",
+  "risk_score": 92
+}
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      </div><!-- End VIEW 2: Graph -->
 
     </section>
 
