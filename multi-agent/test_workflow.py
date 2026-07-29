@@ -139,7 +139,114 @@ def test_malware_triage_case():
     print("===================================================\n")
 
 
+def test_basic_ioc_enrichment_case():
+    print("=== Testing Basic IOC Enrichment Graph Workflow ===")
+    from manager.workflows.basic_ioc_enrichment_workflow import (
+        build_basic_ioc_enrichment_workflow,
+        IOCEnrichmentInput,
+        extract_ioc_node,
+        ioc_type_router,
+        enrich_domain_branch,
+        siem_search_node,
+        ioc_risk_router,
+        handle_high_risk_ioc_branch,
+        document_ioc_enrichment_node,
+    )
+
+    wf = build_basic_ioc_enrichment_workflow()
+    print(f"Workflow '{wf.name}' created with graph edges.")
+
+    inp = IOCEnrichmentInput(ioc_value="evil-phishing-domain.com", ioc_type="Domain", case_id="CASE-IOC-777")
+    payload = extract_ioc_node(inp)
+    route_type = ioc_type_router(payload)
+    print(f"-> IOC Type Router Branch: '{route_type.actions.route}'")
+
+    enrich_res = enrich_domain_branch(payload)
+    siem_res = siem_search_node(enrich_enrichment := enrich_res)
+    route_risk = ioc_risk_router(siem_res)
+    print(f"-> IOC Risk Router Branch: '{route_risk.actions.route}'")
+
+    outcome = handle_high_risk_ioc_branch(siem_res)
+    report = document_ioc_enrichment_node(outcome)
+    print(f"-> Assessment: {report.assessment}")
+    print("\n--- SOAR Comment Status ---\n" + report.soar_comment_status)
+    print("===================================================\n")
+
+
+def test_endpoint_triage_case():
+    print("=== Testing Endpoint Triage & Isolation Graph Workflow ===")
+    from manager.workflows.endpoint_triage_workflow import (
+        build_endpoint_triage_workflow,
+        EndpointTriageInput,
+        extract_endpoint_node,
+        gather_siem_and_posture_node,
+        assess_compromise_likelihood_node,
+        isolation_router,
+        handle_execute_isolation_branch,
+        document_endpoint_report_node,
+    )
+
+    wf = build_endpoint_triage_workflow()
+    print(f"Workflow '{wf.name}' created with graph edges.")
+
+    inp = EndpointTriageInput(
+        endpoint_id="workstation-finance-01",
+        endpoint_type="Hostname",
+        case_id="CASE-END-505",
+        confirm_isolation=True,
+    )
+
+    payload = extract_endpoint_node(inp)
+    siem_ctx = gather_siem_and_posture_node(payload)
+    assessment = assess_compromise_likelihood_node(siem_ctx)
+    route_iso = isolation_router(assessment)
+    print(f"-> Isolation Router Branch: '{route_iso.actions.route}'")
+
+    outcome = handle_execute_isolation_branch(assessment)
+    report = document_endpoint_report_node(outcome)
+    print(f"-> Isolation Status: {report.isolation_status}")
+    print("\n--- SOAR Comment ---\n" + report.soar_comment)
+    print("===================================================\n")
+
+
+def test_ioc_containment_case():
+    print("=== Testing IOC Containment Graph Workflow ===")
+    from manager.workflows.ioc_containment_workflow import (
+        build_ioc_containment_workflow,
+        ContainmentInput,
+        extract_containment_payload_node,
+        verify_gti_reputation_node,
+        containment_type_router,
+        handle_network_block_branch,
+        document_containment_report_node,
+    )
+
+    wf = build_ioc_containment_workflow()
+    print(f"Workflow '{wf.name}' created with graph edges.")
+
+    inp = ContainmentInput(
+        ioc_value="198.51.100.99",
+        ioc_type="IP Address",
+        case_id="CASE-CNT-303",
+        confirm_action=True,
+    )
+
+    payload = extract_containment_payload_node(inp)
+    rep_res = verify_gti_reputation_node(payload)
+    route_cnt = containment_type_router(rep_res)
+    print(f"-> Containment Router Branch: '{route_cnt.actions.route}'")
+
+    outcome = handle_network_block_branch(rep_res)
+    report = document_containment_report_node(outcome)
+    print(f"-> Action Status: {report.action_status}")
+    print("\n--- SOAR Comment ---\n" + report.soar_comment)
+    print("===================================================\n")
+
+
 if __name__ == "__main__":
     test_low_risk_case()
     test_high_risk_case()
     test_malware_triage_case()
+    test_basic_ioc_enrichment_case()
+    test_endpoint_triage_case()
+    test_ioc_containment_case()

@@ -50,6 +50,25 @@ This runbook focuses on the immediate containment actions based on confirmed mal
         *   **Document Action:** Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and `COMMENT_TEXT="Containment action aborted by analyst for IOC: ${IOC_VALUE} (Type: ${IOC_TYPE})."`. Obtain `${COMMENT_POST_STATUS}`.
 5.  **Completion:** Conclude the runbook execution.
 
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_containment_payload_node["1. extract_containment_payload_node<br/><i>(Extract & Normalize IOC Payload)</i>"]
+    extract_containment_payload_node --> verify_gti_reputation_node["2. verify_gti_reputation_node<br/><i>(Verify GTI Reputation & Ref List)</i>"]
+    verify_gti_reputation_node --> containment_type_router{"3. containment_type_router<br/><i>(Event.actions.route)</i>"}
+
+    containment_type_router -- "NETWORK_BLOCK_BRANCH" --> handle_network_block_branch["4a. handle_network_block_branch<br/><i>(Add IP/Domain to SIEM Blocklist)</i>"]
+    containment_type_router -- "HASH_QUARANTINE_BRANCH" --> handle_hash_quarantine_branch["4b. handle_hash_quarantine_branch<br/><i>(Quarantine Hash via EDR)</i>"]
+    containment_type_router -- "ABORT_CONTAINMENT" --> handle_abort_containment_branch["4c. handle_abort_containment_branch<br/><i>(Abort Unconfirmed Containment)</i>"]
+
+    handle_network_block_branch --> document_containment_report_node["5. document_containment_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_hash_quarantine_branch --> document_containment_report_node
+    handle_abort_containment_branch --> document_containment_report_node
+```
+
+### Sequence Diagram
+
 ```{mermaid}
 sequenceDiagram
     participant Analyst

@@ -77,6 +77,33 @@ This runbook covers fundamental enrichment steps using readily available GTI and
     *   **Else:** Set `${REPORT_GENERATION_STATUS}` = "Skipped".
 9.  **Completion:** Conclude the runbook execution. Present the key findings, assessment, recommendation, documentation status, and report generation status to the analyst.
 
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_ioc_node["1. extract_ioc_node<br/><i>(Extract & Normalize IOC)</i>"]
+    extract_ioc_node --> ioc_type_router{"2. ioc_type_router<br/><i>(Route by IOC_TYPE)</i>"}
+
+    ioc_type_router -- "IP_BRANCH" --> enrich_ip_branch["3a. enrich_ip_branch<br/><i>(GTI & SIEM IP Lookup)</i>"]
+    ioc_type_router -- "DOMAIN_BRANCH" --> enrich_domain_branch["3b. enrich_domain_branch<br/><i>(GTI Domain & Passive DNS)</i>"]
+    ioc_type_router -- "HASH_BRANCH" --> enrich_hash_branch["3c. enrich_hash_branch<br/><i>(GTI File & Behavior Summary)</i>"]
+    ioc_type_router -- "URL_BRANCH" --> enrich_url_branch["3d. enrich_url_branch<br/><i>(GTI URL Report & Domain Rep)</i>"]
+
+    enrich_ip_branch --> siem_search_node["4. siem_search_node<br/><i>(SIEM Event Search & Case Lookup)</i>"]
+    enrich_domain_branch --> siem_search_node
+    enrich_hash_branch --> siem_search_node
+    enrich_url_branch --> siem_search_node
+
+    siem_search_node --> ioc_risk_router{"5. ioc_risk_router<br/><i>(Event.actions.route)</i>"}
+    ioc_risk_router -- "HIGH_RISK_THREAT" --> handle_high_risk_ioc_branch["6a. handle_high_risk_ioc_branch<br/><i>(Recommend Containment)</i>"]
+    ioc_risk_router -- "LOW_RISK_BENIGN" --> handle_low_risk_ioc_branch["6b. handle_low_risk_ioc_branch<br/><i>(Recommend FP / Monitor)</i>"]
+
+    handle_high_risk_ioc_branch --> document_ioc_enrichment_node["7. document_ioc_enrichment_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_low_risk_ioc_branch --> document_ioc_enrichment_node
+```
+
+### Sequence Diagram
+
 ```{mermaid}
 sequenceDiagram
     participant Analyst
