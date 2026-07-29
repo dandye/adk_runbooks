@@ -48,7 +48,22 @@ This runbook covers the end-to-end response lifecycle for ransomware incidents, 
 *   *(External Resources: Ransomware identification sites, known decryptor databases - manual step)*.
 *   **Common Steps:** `common_steps/check_duplicate_cases.md`, `common_steps/find_relevant_soar_case.md`, `common_steps/document_in_soar.md`
 
-## Workflow Steps & Diagram
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_ransomware_irp_payload_node["1. extract_ransomware_irp_payload_node<br/><i>(Extract Initial Affected Host Payload)</i>"]
+    extract_ransomware_irp_payload_node --> assess_ransomware_spread_impact_node["2. assess_ransomware_spread_impact_node<br/><i>(Assess Ransomware Spread & VSS Shadow Deletion)</i>"]
+    assess_ransomware_spread_impact_node --> ransomware_irp_containment_router{"3. ransomware_irp_containment_router<br/><i>(Event.actions.route)</i>"}
+
+    ransomware_irp_containment_router -- "EXECUTE_EMERGENCY_NETWORK_SEGMENTATION" --> handle_emergency_segmentation_branch["4a. handle_emergency_segmentation_branch<br/><i>(Isolate Subnet & EDR Host Containment)</i>"]
+    ransomware_irp_containment_router -- "ISOLATE_SINGLE_HOST" --> handle_single_host_isolation_branch["4b. handle_single_host_isolation_branch<br/><i>(Isolate Host via EDR)</i>"]
+
+    handle_emergency_segmentation_branch --> document_ransomware_irp_report_node["5. document_ransomware_irp_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_single_host_isolation_branch --> document_ransomware_irp_report_node
+```
+
+### Sequence Diagram
 
 ```{mermaid}
 sequenceDiagram

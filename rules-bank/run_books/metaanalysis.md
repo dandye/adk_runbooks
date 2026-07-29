@@ -39,6 +39,23 @@ generated:
 5.  **Develop Recommendations:** Based on the findings, formulate actionable recommendations (e.g., tune specific detection rules, update runbooks, implement new security controls, focus threat hunting efforts).
 6.  **Generate Report:** Create a comprehensive report detailing the analysis objective, methodology, data sources, findings, and recommendations using `write_report` (e.g., `report_name="meta_analysis_${ANALYSIS_FOCUS_Sanitized}_${timestamp}.md"`, `report_contents=ReportMarkdown`). Include visualizations (e.g., Mermaid diagrams summarizing data flow or findings) if applicable.
 
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_meta_analysis_payload_node["1. extract_meta_analysis_payload_node<br/><i>(Extract Target Cases & Timeframe Payload)</i>"]
+    extract_meta_analysis_payload_node --> synthesize_cross_case_patterns_node["2. synthesize_cross_case_patterns_node<br/><i>(Synthesize Cross-Case Entities & TTPs)</i>"]
+    synthesize_cross_case_patterns_node --> meta_analysis_router{"3. meta_analysis_router<br/><i>(Event.actions.route)</i>"}
+
+    meta_analysis_router -- "SYSTEMIC_RISK_IDENTIFIED" --> handle_systemic_risk_branch["4a. handle_systemic_risk_branch<br/><i>(Document Systemic Risk & Remediation)</i>"]
+    meta_analysis_router -- "ISOLATED_INCIDENTS" --> handle_isolated_incidents_branch["4b. handle_isolated_incidents_branch<br/><i>(Document Isolated Incident Analysis)</i>"]
+
+    handle_systemic_risk_branch --> document_meta_analysis_report_node["5. document_meta_analysis_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_isolated_incidents_branch --> document_meta_analysis_report_node
+```
+
+### Sequence Diagram
+
 ```{mermaid}
 sequenceDiagram
     participant Analyst/Researcher

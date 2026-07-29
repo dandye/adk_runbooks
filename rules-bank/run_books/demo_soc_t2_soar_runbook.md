@@ -8,6 +8,21 @@ generated:
 
 # SOC Analyst Tier 2 Demo Runbook (SOAR Focus)
 
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_demo_soc_t2_payload_node["1. extract_demo_soc_t2_payload_node<br/><i>(Extract Case Payload)</i>"]
+    extract_demo_soc_t2_payload_node --> analyze_soc_t2_case_node["2. analyze_soc_t2_case_node<br/><i>(Analyze Severity & Tier 3 Escalation Needs)</i>"]
+    analyze_soc_t2_case_node --> demo_soc_t2_router{"3. demo_soc_t2_router<br/><i>(Event.actions.route)</i>"}
+
+    demo_soc_t2_router -- "ESCALATE_TIER_3" --> handle_escalate_tier_3_branch["4a. handle_escalate_tier_3_branch<br/><i>(Escalate Case to Tier 3 IR)</i>"]
+    demo_soc_t2_router -- "RESOLVE_TIER_2" --> handle_resolve_tier_2_branch["4b. handle_resolve_tier_2_branch<br/><i>(Resolve Case at Tier 2)</i>"]
+
+    handle_escalate_tier_3_branch --> document_demo_soc_t2_report_node["5. document_demo_soc_t2_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_resolve_tier_2_branch --> document_demo_soc_t2_report_node
+```
+
 As a SOC Analyst Tier 2, your work revolves around the SOAR platform.
 
 -   Utilize the tools available from the `secops-soar` server to:

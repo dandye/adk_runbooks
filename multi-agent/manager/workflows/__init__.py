@@ -30,6 +30,14 @@ from .prioritize_investigate_case_workflow import build_prioritize_investigate_c
 from .proactive_gti_threat_hunt_workflow import build_proactive_gti_threat_hunt_workflow
 from .ueba_report_workflow import build_ueba_report_workflow
 
+from .compromised_user_irp_workflow import build_compromised_user_irp_workflow
+from .malware_irp_workflow import build_malware_irp_workflow
+from .phishing_irp_workflow import build_phishing_irp_workflow
+from .ransomware_irp_workflow import build_ransomware_irp_workflow
+from .demo_soc_t2_workflow import build_demo_soc_t2_workflow
+from .group_cases_v2_workflow import build_group_cases_v2_workflow
+from .metaanalysis_workflow import build_metaanalysis_workflow
+
 from .common import (
     BaseWorkflowInput,
     CommonSOAROutcome,
@@ -73,4 +81,11 @@ __all__ = [
     "build_prioritize_investigate_case_workflow",
     "build_proactive_gti_threat_hunt_workflow",
     "build_ueba_report_workflow",
+    "build_compromised_user_irp_workflow",
+    "build_malware_irp_workflow",
+    "build_phishing_irp_workflow",
+    "build_ransomware_irp_workflow",
+    "build_demo_soc_t2_workflow",
+    "build_group_cases_v2_workflow",
+    "build_metaanalysis_workflow",
 ]

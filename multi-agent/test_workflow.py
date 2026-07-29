@@ -243,8 +243,8 @@ def test_ioc_containment_case():
     print("===================================================\n")
 
 
-def test_batch_29_workflows():
-    print("=== Testing All 29 ADK Graph Workflows ===")
+def test_batch_36_workflows():
+    print("=== Testing All 36 ADK Graph Workflows (Including IRPs) ===")
     from manager.workflows import (
         build_close_duplicate_cases_workflow,
         build_cloud_vulnerability_triage_workflow,
@@ -270,6 +270,13 @@ def test_batch_29_workflows():
         build_prioritize_investigate_case_workflow,
         build_proactive_gti_threat_hunt_workflow,
         build_ueba_report_workflow,
+        build_compromised_user_irp_workflow,
+        build_malware_irp_workflow,
+        build_phishing_irp_workflow,
+        build_ransomware_irp_workflow,
+        build_demo_soc_t2_workflow,
+        build_group_cases_v2_workflow,
+        build_metaanalysis_workflow,
     )
 
     wf_list = [
@@ -297,6 +304,13 @@ def test_batch_29_workflows():
         build_prioritize_investigate_case_workflow(),
         build_proactive_gti_threat_hunt_workflow(),
         build_ueba_report_workflow(),
+        build_compromised_user_irp_workflow(),
+        build_malware_irp_workflow(),
+        build_phishing_irp_workflow(),
+        build_ransomware_irp_workflow(),
+        build_demo_soc_t2_workflow(),
+        build_group_cases_v2_workflow(),
+        build_metaanalysis_workflow(),
     ]
 
     for wf in wf_list:
@@ -311,4 +325,4 @@ if __name__ == "__main__":
     test_basic_ioc_enrichment_case()
     test_endpoint_triage_case()
     test_ioc_containment_case()
-    test_batch_29_workflows()
+    test_batch_36_workflows()
