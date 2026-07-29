@@ -96,6 +96,50 @@ def test_high_risk_case():
     print("===================================================\n")
 
 
+def test_malware_triage_case():
+    print("=== Testing Malware Triage Graph Workflow ===")
+    from manager.workflows.malware_triage_workflow import (
+        build_malware_triage_workflow,
+        MalwareTriageInput,
+        extract_hash_node,
+        enrich_gti_file_node,
+        check_siem_execution_node,
+        malware_threat_router,
+        handle_malicious_threat_branch,
+        handle_benign_branch,
+        document_malware_report_node,
+    )
+    
+    workflow = build_malware_triage_workflow()
+    print(f"Workflow '{workflow.name}' created with graph edges.")
+    
+    input_payload = MalwareTriageInput(
+        file_hash="a1b2c3d4e5f67890badmalwarehash123456789012345678901234567890123456",
+        case_id="CASE-MAL-404",
+    )
+    
+    entities = extract_hash_node(input_payload)
+    gti_res = enrich_gti_file_node(entities)
+    siem_res = check_siem_execution_node(gti_res)
+    route_event = malware_threat_router(siem_res)
+    
+    print(f"-> Extracted File Hash: {entities.file_hash}")
+    print(f"-> GTI Detection: {gti_res.detection_ratio} ({gti_res.malware_family})")
+    print(f"-> Threat Router Route: '{route_event.actions.route}'")
+    
+    if route_event.actions.route == "MALICIOUS_THREAT":
+        outcome = handle_malicious_threat_branch(siem_res)
+    else:
+        outcome = handle_benign_branch(siem_res)
+        
+    final_report = document_malware_report_node(outcome)
+    print(f"-> Final Verdict: {final_report.verdict}")
+    print(f"-> Affected Hosts: {final_report.affected_hosts}")
+    print("\n--- SOAR Comment ---\n" + final_report.soar_comment)
+    print("===================================================\n")
+
+
 if __name__ == "__main__":
     test_low_risk_case()
     test_high_risk_case()
+    test_malware_triage_case()
