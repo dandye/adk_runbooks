@@ -120,6 +120,28 @@ body {
   box-shadow: 0 0 8px var(--severity-success);
 }
 
+.protocol-badge-live {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.4);
+  color: var(--severity-success);
+}
+
+.protocol-badge-live .status-dot {
+  background-color: var(--severity-success);
+  box-shadow: 0 0 8px var(--severity-success);
+}
+
+.protocol-badge-sim {
+  background: rgba(107, 114, 128, 0.15);
+  border-color: rgba(107, 114, 128, 0.35);
+  color: #9CA3AF;
+}
+
+.protocol-badge-sim .status-dot {
+  background-color: #6B7280;
+  box-shadow: none;
+}
+
 /* Layout */
 .app-container {
   max-width: 1440px;
@@ -539,6 +561,12 @@ body {
   border-color: var(--severity-critical);
 }
 
+.btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+  pointer-events: none;
+}
+
 /* Right Panel: AG-UI Event Log Inspector */
 .event-inspector-panel {
   background: var(--panel-bg);
@@ -640,50 +668,6 @@ body {
   background: var(--severity-critical-bg);
   border: 1px solid rgba(239, 68, 68, 0.3);
   color: var(--severity-critical);
-}
-
-/* Workbench View Switcher Header */
-.workbench-nav {
-  display: flex;
-  gap: 8px;
-  background: rgba(17, 24, 39, 0.5);
-  border: 1px solid var(--panel-border);
-  padding: 6px;
-  border-radius: var(--radius-lg);
-  backdrop-filter: blur(12px);
-}
-
-.workbench-nav-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  font-family: 'Inter', sans-serif;
-  font-size: 13px;
-  font-weight: 600;
-  padding: 10px 18px;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  transition: var(--transition-fast);
-}
-
-.workbench-nav-btn:hover {
-  color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.workbench-nav-btn.active {
-  background: var(--accent-blue);
-  color: #FFFFFF;
-  box-shadow: 0 4px 12px var(--accent-blue-glow);
-}
-
-.workbench-view {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
 }
 
 /* Agent Delegation Graph (<AgentDelegationGraph />) */
@@ -788,6 +772,14 @@ body {
   width: 2px;
   height: 100%;
   background: linear-gradient(to bottom, var(--accent-blue), var(--accent-cyan));
+  box-shadow: 0 0 8px var(--accent-blue-glow);
+}
+
+.tree-line-horizontal {
+  width: 60%;
+  height: 2px;
+  margin-top: 4px;
+  background: linear-gradient(to right, var(--accent-blue), var(--accent-cyan));
   box-shadow: 0 0 8px var(--accent-blue-glow);
 }
 

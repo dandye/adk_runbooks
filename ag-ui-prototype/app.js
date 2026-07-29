@@ -12,6 +12,7 @@ const scenarios = {
     entityName: "prod-db-gateway-01",
     entityIp: "192.168.1.105",
     entityMac: "00:1B:44:11:3A:B7",
+    c2Ip: "198.51.100.42",
     threatIntel: "VirusTotal score 64/72 (Malicious). C2 IP: 198.51.100.42 (Emotet Infrastructure)",
     mitreTtp: "T1059.001 (PowerShell Execution), T1071.001 (Web Protocols C2)",
     defaultParams: {
@@ -109,6 +110,184 @@ let currentScenarioKey = 'scenario1';
 let currentTab = 'summary';
 let eventsLog = [];
 
+// Handles for in-flight setTimeout-based simulations, so a reset or a
+// repeat click can cancel work that's still pending instead of letting it
+// land later and silently overwrite whatever the user triggered next.
+let pendingTimers = [];
+
+function scheduleTimeout(fn, delay) {
+  const id = setTimeout(fn, delay);
+  pendingTimers.push(id);
+  return id;
+}
+
+function clearPendingTimers() {
+  pendingTimers.forEach(id => clearTimeout(id));
+  pendingTimers = [];
+}
+
+// ============================================================
+// Live ADK Agent Backend (optional)
+// ============================================================
+// Talks to a running `adk web --allow_origins <this-page's-origin>` process
+// (google-adk==1.28.1, per multi-agent/requirements.txt), started from the
+// `multi-agent/` directory, which exposes the `manager` root agent and its
+// real SIEM/SOAR/GTI MCP tools over HTTP. See ag-ui-prototype/README.md for
+// exact run instructions and required .env vars.
+//
+// This client was written by reading the ADK FastAPI server source, not by
+// testing against a live instance with real credentials -- if the session
+// or /run contract differs in practice, adkInit()/adkSendMessage() log the
+// failure via console.warn and the UI falls back to the pre-existing
+// simulated behavior rather than breaking. Every button below still works
+// standalone with no backend running at all.
+//
+// SAFETY: with the SOAR integrations currently enabled in
+// multi-agent/manager/tools/tools.py (CSV, GoogleChronicle, Siemplify,
+// SiemplifyUtilities), there is no host-isolation/EDR tool wired in. "Block
+// C2 IP" has a real backing action (Chronicle reference-list management);
+// "isolate host" does not, by design of what's configured -- the agent is
+// instructed to say so rather than silently no-op. Adding a real
+// host-isolation integration is a deliberate config change in tools.py,
+// not something this prototype does on your behalf.
+const ADK_CONFIG = {
+  baseUrl: (typeof window !== 'undefined' && window.ADK_API_BASE) || 'http://localhost:8000',
+  appName: 'manager',
+  userId: 'ag-ui-analyst'
+};
+
+let adkSessionId = null;
+let adkLive = false;
+
+async function adkInit() {
+  const sessionId = 'ag-ui-' + Math.floor(Math.random() * 1e9);
+  try {
+    const res = await fetch(
+      `${ADK_CONFIG.baseUrl}/apps/${ADK_CONFIG.appName}/users/${ADK_CONFIG.userId}/sessions/${sessionId}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      }
+    );
+    if (!res.ok) throw new Error(`session create failed: HTTP ${res.status}`);
+    adkSessionId = sessionId;
+    adkLive = true;
+  } catch (err) {
+    adkLive = false;
+    console.warn('[adk] live backend unavailable, staying in simulated mode:', err.message);
+  }
+  updateLiveModeBadge();
+}
+
+function updateLiveModeBadge() {
+  const badge = document.getElementById('protocolBadge');
+  if (!badge) return;
+  badge.textContent = '';
+  badge.classList.toggle('protocol-badge-live', adkLive);
+  badge.classList.toggle('protocol-badge-sim', !adkLive);
+
+  const dot = document.createElement('span');
+  dot.className = 'status-dot';
+  const label = document.createElement('span');
+  label.textContent = adkLive
+    ? `LIVE — connected to "${ADK_CONFIG.appName}" agent`
+    : 'SIMULATED — no live agent backend connected';
+
+  badge.appendChild(dot);
+  badge.appendChild(label);
+}
+
+// Sends `text` as one user turn to the live agent. Never throws -- callers
+// must check `.ok` and fall back to simulated behavior when it's false.
+async function adkSendMessage(text, { timeoutMs = 45000 } = {}) {
+  if (!adkLive || !adkSessionId) return { ok: false, reason: 'not_live' };
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${ADK_CONFIG.baseUrl}/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        app_name: ADK_CONFIG.appName,
+        user_id: ADK_CONFIG.userId,
+        session_id: adkSessionId,
+        new_message: { role: 'user', parts: [{ text }] }
+      })
+    });
+    clearTimeout(timer);
+
+    if (!res.ok) {
+      const bodyText = await res.text().catch(() => '');
+      console.warn('[adk] /run returned', res.status, bodyText);
+      return { ok: false, reason: 'http_error', status: res.status };
+    }
+
+    const events = await res.json();
+    return { ok: true, events, ...summarizeAdkEvents(events) };
+  } catch (err) {
+    clearTimeout(timer);
+    const reason = err.name === 'AbortError' ? 'timeout' : 'network_error';
+    console.warn('[adk] /run failed:', reason, err);
+    return { ok: false, reason };
+  }
+}
+
+// Best-effort extraction across the ADK Event/Content schema. Tolerant of
+// snake_case/camelCase key variants since this was written from the ADK
+// server source, not a captured live response -- if fields come back empty
+// against a real backend, check the browser console (raw events are always
+// logged to the event stream regardless) and adjust the key lookups here.
+function summarizeAdkEvents(events) {
+  const toolCalls = [];
+  const toolResponses = [];
+  let finalText = '';
+
+  if (!Array.isArray(events)) return { toolCalls, toolResponses, finalText };
+
+  for (const evt of events) {
+    const content = evt && (evt.content || evt.Content);
+    const parts = content && (content.parts || content.Parts);
+    if (!Array.isArray(parts)) continue;
+
+    for (const part of parts) {
+      const fc = part.functionCall || part.function_call;
+      if (fc) toolCalls.push({ name: fc.name, args: fc.args || fc.arguments });
+
+      const fr = part.functionResponse || part.function_response;
+      if (fr) toolResponses.push({ name: fr.name, response: fr.response });
+
+      if (typeof part.text === 'string' && part.text.trim()) {
+        finalText = part.text; // last text part wins -- typically the agent's closing summary
+      }
+    }
+  }
+  return { toolCalls, toolResponses, finalText };
+}
+
+function renderAdkResult(eventName, result) {
+  logAgUiEvent(eventName, {
+    live: true,
+    tool_calls: result.toolCalls,
+    tool_responses: result.toolResponses,
+    agent_summary: result.finalText
+  });
+}
+
+function setButtonBusy(btnId, busyLabel) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return () => {};
+  const original = btn.innerText;
+  btn.disabled = true;
+  btn.innerText = busyLabel;
+  return () => {
+    btn.disabled = false;
+    btn.innerText = original;
+  };
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   initApp();
 });
@@ -118,6 +297,8 @@ function initApp() {
   loadScenario(currentScenarioKey);
   setupTabListeners();
   selectGraphNode('ir');
+  updateAdvanceIrpButtonLabel();
+  adkInit();
 }
 
 function renderScenarioSelectors() {
@@ -193,21 +374,60 @@ function loadScenario(key) {
 }
 
 function setupTabListeners() {
-  const tabs = document.querySelectorAll('.tab-btn');
+  // Scoped to the HITL approval card only. The IOC Enrichment card has its
+  // own .tab-btn elements (wired via switchIocTab's inline onclick) — a
+  // document-wide querySelectorAll('.tab-btn') here previously matched both
+  // tab systems, so clicking an IOC tab also ran this handler, which cleared
+  // .active from every .tab-content on the page (including the HITL card's)
+  // and then threw on getElementById(null) because IOC buttons have no
+  // data-tab attribute.
+  const scope = document.getElementById('approvalCardComponent');
+  if (!scope) return;
+
+  const tabs = scope.querySelectorAll('.tab-btn');
   tabs.forEach(tab => {
     tab.addEventListener('click', (e) => {
-      tabs.forEach(t => t.classList.remove('active'));
-      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-      
-      e.target.classList.add('active');
       const targetId = e.target.getAttribute('data-tab');
-      document.getElementById(targetId).classList.add('active');
+      if (!targetId) return;
+      const targetPanel = document.getElementById(targetId);
+      if (!targetPanel) return;
+
+      tabs.forEach(t => t.classList.remove('active'));
+      scope.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+      e.target.classList.add('active');
+      targetPanel.classList.add('active');
     });
   });
 }
 
+// Builds the natural-language instruction sent to the live agent for an
+// approved action. The agent (not this client) decides which real tool(s)
+// to call -- see the SAFETY note above adkSendMessage's definition re:
+// host isolation having no real backing tool in the current config.
+function buildApprovalInstruction(s, params) {
+  switch (s.actionType) {
+    case 'isolate_host_and_block_c2':
+      return `An analyst has approved containment for incident ${s.incidentId}. `
+        + `Block C2 IP ${s.c2Ip} using whatever real IP-blocking capability you have available `
+        + `(e.g. add it to the relevant Chronicle IP blocklist reference list). Separately, attempt to `
+        + `isolate host ${s.entityName} (${s.entityIp}); if you do not have a real host-isolation or EDR tool `
+        + `available, say so explicitly rather than treating it as done. Approved parameters: isolation `
+        + `duration ${params.durationHours}h, preserve RAM: ${params.preserveRam}, notify SOC lead: ${params.notifySOCLead}.`;
+    case 'deploy_yaral_rule':
+      return `An analyst has approved deployment of this Chronicle YARA-L 2.0 detection rule for incident `
+        + `${s.incidentId}. Create and enable it:\n\n${s.payloadAfter.rule_text}`;
+    case 'bulk_close_cases':
+      return `An analyst has approved bulk-closing the false-positive alerts for incident ${s.incidentId} `
+        + `on asset ${s.entityName} (${s.entityIp}). Reason: approved vulnerability scan during a whitelisted `
+        + `maintenance window. Close the related case/alerts accordingly.`;
+    default:
+      return `An analyst has approved the proposed action for incident ${s.incidentId}: ${s.title}.`;
+  }
+}
+
 // Action Handlers
-function approveAction() {
+async function approveAction() {
   const s = scenarios[currentScenarioKey];
   const duration = document.getElementById('paramDuration').value;
   const preserveRam = document.getElementById('paramPreserveRam').checked;
@@ -228,15 +448,30 @@ function approveAction() {
     timestamp: new Date().toISOString()
   });
 
-  showStatusBanner('success', `Action Approved! Executing MCP Tool Call: ${s.mcpToolCall}`);
+  if (adkLive) {
+    showStatusBanner('success', 'Action approved. Sending to live agent for execution...');
+    const restoreButton = setButtonBusy('btnApproveAction', 'Sending to agent…');
+    const result = await adkSendMessage(buildApprovalInstruction(s, updatedParams));
+    restoreButton();
 
+    if (result.ok) {
+      renderAdkResult('ag_ui.mcp_tool_executed', result);
+      showStatusBanner('success', result.finalText || `Live agent processed the approved action for ${s.mcpToolCall}.`);
+      return;
+    }
+    showStatusBanner('danger', `Live agent call failed (${result.reason}) — falling back to simulated execution.`);
+  } else {
+    showStatusBanner('success', `Action Approved! Executing MCP Tool Call: ${s.mcpToolCall}`);
+  }
+
+  clearPendingTimers();
   // Simulate MCP Tool Execution after 1s
-  setTimeout(() => {
+  scheduleTimeout(() => {
     logAgUiEvent('ag_ui.mcp_tool_executed', {
       mcp_tool: s.mcpToolCall,
       execution_status: "SUCCESS",
       result_code: 200,
-      details: "Operation successfully applied to target asset."
+      details: "Operation successfully applied to target asset. (SIMULATED — no live agent backend)"
     });
   }, 1000);
 }
@@ -259,7 +494,7 @@ function hideRejectionForm() {
   if (mainFooter) mainFooter.style.display = 'flex';
 }
 
-function submitRejection() {
+async function submitRejection() {
   const reason = document.getElementById('rejectionReasonInput').value;
   if (!reason) {
     alert('Please enter a feedback message for the agent.');
@@ -278,11 +513,25 @@ function submitRejection() {
   showStatusBanner('danger', `Action Rejected. Feedback sent to ${s.agentName}: "${reason}"`);
   hideRejectionForm();
 
+  if (adkLive) {
+    const restoreButton = setButtonBusy('btnConfirmRejection', 'Sending feedback…');
+    const result = await adkSendMessage(
+      `An analyst rejected your proposed action "${s.title}" for incident ${s.incidentId} with this feedback: `
+      + `"${reason}". Re-evaluate and propose an alternative approach; do not execute the original action.`
+    );
+    restoreButton();
+    if (result.ok) {
+      renderAdkResult('ag_ui.agent_re-thinking', result);
+      return;
+    }
+  }
+
+  clearPendingTimers();
   // Simulate agent re-evaluation event
-  setTimeout(() => {
+  scheduleTimeout(() => {
     logAgUiEvent('ag_ui.agent_re-thinking', {
       agent: s.agentName,
-      thought: `Received analyst feedback "${reason}". Adjusting remediation strategy...`
+      thought: `Received analyst feedback "${reason}". Adjusting remediation strategy... (SIMULATED)`
     });
   }, 1200);
 }
@@ -314,7 +563,12 @@ function showStatusBanner(type, message) {
   const banner = document.getElementById('statusBanner');
   banner.style.display = 'flex';
   banner.className = `status-banner ${type === 'success' ? 'status-banner-success' : 'status-banner-danger'}`;
-  banner.innerHTML = `<span>${message}</span>`;
+  // message can contain analyst-entered text (rejection reason, etc.) — use
+  // textContent, not innerHTML, so it can never be interpreted as markup.
+  banner.textContent = '';
+  const span = document.createElement('span');
+  span.textContent = message;
+  banner.appendChild(span);
 }
 
 function resetStatusBanner() {
@@ -338,45 +592,32 @@ function logAgUiEvent(eventName, payload) {
 
   eventsLog.unshift(eventObj);
 
+  // payload can carry analyst-entered text (rejection feedback, injected
+  // directives, forensic notes) — JSON.stringify does not escape "<"/">",
+  // so this is built with textContent/createElement rather than innerHTML
+  // to rule out DOM XSS regardless of what payload contains.
   const eventCard = document.createElement('div');
   eventCard.className = 'event-card';
-  eventCard.innerHTML = `
-    <div class="event-header">
-      <span class="event-name">${eventName}</span>
-      <span class="event-time">${timeStr}</span>
-    </div>
-    <div class="event-body">${JSON.stringify(payload, null, 2)}</div>
-  `;
+
+  const header = document.createElement('div');
+  header.className = 'event-header';
+  const nameSpan = document.createElement('span');
+  nameSpan.className = 'event-name';
+  nameSpan.textContent = eventName;
+  const timeSpan = document.createElement('span');
+  timeSpan.className = 'event-time';
+  timeSpan.textContent = timeStr;
+  header.appendChild(nameSpan);
+  header.appendChild(timeSpan);
+
+  const body = document.createElement('div');
+  body.className = 'event-body';
+  body.textContent = JSON.stringify(payload, null, 2);
+
+  eventCard.appendChild(header);
+  eventCard.appendChild(body);
 
   stream.insertBefore(eventCard, stream.firstChild);
-}
-
-// Workbench View Switcher Logic
-function switchWorkbenchView(viewName) {
-  const btnHitl = document.getElementById('viewBtnHitl');
-  const btnGraph = document.getElementById('viewBtnGraph');
-  const viewHitl = document.getElementById('viewHitlCard');
-  const viewGraph = document.getElementById('viewGraphView');
-
-  if (viewName === 'hitl') {
-    btnHitl.classList.add('active');
-    btnGraph.classList.remove('active');
-    viewHitl.style.display = 'block';
-    viewGraph.style.display = 'none';
-
-    logAgUiEvent('ag_ui.view_switched', {
-      active_view: "HITL_REMEDIATION_APPROVAL_CARD"
-    });
-  } else if (viewName === 'graph') {
-    btnGraph.classList.add('active');
-    btnHitl.classList.remove('active');
-    viewHitl.style.display = 'none';
-    viewGraph.style.display = 'block';
-
-    logAgUiEvent('ag_ui.view_switched', {
-      active_view: "MULTI_AGENT_DELEGATION_GRAPH"
-    });
-  }
 }
 
 // Multi-Agent Delegation Graph Interactive Logic (<AgentDelegationGraph />)
@@ -446,6 +687,11 @@ function selectGraphNode(nodeKey) {
 }
 
 function runDelegationSimulation() {
+  // Cancel any still-pending steps from a previous run so overlapping
+  // clicks can't interleave two simulations or resurrect a stale one after
+  // a reset.
+  clearPendingTimers();
+
   logAgUiEvent('ag_ui.delegation_started', {
     orchestrator: "ADK Manager Agent",
     incident_id: "INC-2026-9042",
@@ -453,7 +699,7 @@ function runDelegationSimulation() {
   });
 
   // Step 1: Highlight CTI Researcher
-  setTimeout(() => {
+  scheduleTimeout(() => {
     selectGraphNode('cti');
     logAgUiEvent('ag_ui.subagent_tool_executing', {
       agent: "CTI Researcher",
@@ -463,7 +709,7 @@ function runDelegationSimulation() {
   }, 600);
 
   // Step 2: Highlight SOC Tier 1
-  setTimeout(() => {
+  scheduleTimeout(() => {
     selectGraphNode('soc');
     logAgUiEvent('ag_ui.subagent_tool_executing', {
       agent: "SOC Analyst Tier 1",
@@ -473,7 +719,7 @@ function runDelegationSimulation() {
   }, 1400);
 
   // Step 3: Highlight Incident Responder
-  setTimeout(() => {
+  scheduleTimeout(() => {
     selectGraphNode('ir');
     logAgUiEvent('ag_ui.subagent_hitl_triggered', {
       agent: "Incident Responder",
@@ -483,7 +729,7 @@ function runDelegationSimulation() {
   }, 2200);
 
   // Step 4: Highlight Detection Engineer
-  setTimeout(() => {
+  scheduleTimeout(() => {
     selectGraphNode('de');
     logAgUiEvent('ag_ui.delegation_completed', {
       status: "WORKFLOW_READY",
@@ -493,6 +739,7 @@ function runDelegationSimulation() {
 }
 
 function resetDelegationGraph() {
+  clearPendingTimers();
   selectGraphNode('ir');
   logAgUiEvent('ag_ui.graph_reset', {
     status: "GRAPH_STATE_RESET"
@@ -524,6 +771,13 @@ function openDirectiveModal() {
 }
 
 // Component 3: Threat Intel & IOC Enrichment Card Interactive Logic (<IOCEnrichmentCard />)
+// This card's body (VT score, hashes, passive DNS, MITRE chips) is static
+// markup in index.html and is NOT re-rendered by loadScenario() when the
+// sidebar scenario changes — it always reflects scenario1's Emotet C2
+// incident. So its action buttons below intentionally read scenario1's
+// data directly rather than `scenarios[currentScenarioKey]`, and they act
+// on scenario1's C2 IP (the actual IOC this card enriches), not the
+// currently-selected scenario's target *host* IP.
 function switchIocTab(tabName) {
   const btnHashes = document.getElementById('iocTabBtnHashes');
   const btnDns = document.getElementById('iocTabBtnDns');
@@ -548,51 +802,110 @@ function switchIocTab(tabName) {
   }
 }
 
-function delegateToThreatHunter() {
-  const s = scenarios[currentScenarioKey];
+async function delegateToThreatHunter() {
+  const ioc = scenarios.scenario1;
   logAgUiEvent('ag_ui.delegate_threat_hunt', {
     target_agent: "Threat Hunter Sub-Agent",
-    target_ioc: s.entityIp,
-    incident_id: s.incidentId,
+    target_ioc: ioc.c2Ip,
+    incident_id: ioc.incidentId,
     directive: "Search all internal UDM logs across all organizational endpoints for matching IOC communication."
   });
 
-  alert(`Delegated IOC threat hunt task for ${s.entityIp} to Threat Hunter Sub-Agent.`);
+  if (adkLive) {
+    const restore = setButtonBusy('btnDelegateThreatHunter', 'Delegating…');
+    const result = await adkSendMessage(
+      `Search all internal Chronicle UDM logs across all endpoints for any communication with IOC ${ioc.c2Ip}.`
+    );
+    restore();
+    if (result.ok) {
+      renderAdkResult('ag_ui.delegate_threat_hunt_result', result);
+      alert(result.finalText || `Live agent completed the threat-hunt search for ${ioc.c2Ip}.`);
+      return;
+    }
+  }
+
+  alert(`Delegated IOC threat hunt task for ${ioc.c2Ip} to Threat Hunter Sub-Agent. (SIMULATED)`);
 }
 
-function pivotUdmSearch() {
-  const s = scenarios[currentScenarioKey];
+async function pivotUdmSearch() {
+  const ioc = scenarios.scenario1;
   logAgUiEvent('ag_ui.pivot_udm_search', {
     mcp_tool: "udm_search",
-    query: `target.ip = "${s.entityIp}" OR principal.ip = "${s.entityIp}"`,
+    query: `target.ip = "${ioc.c2Ip}" OR principal.ip = "${ioc.c2Ip}"`,
     timestamp: new Date().toISOString()
   });
 
-  alert(`Executing UDM search pivot for IOC ${s.entityIp}...`);
+  if (adkLive) {
+    const restore = setButtonBusy('btnPivotUdmSearch', 'Searching…');
+    const result = await adkSendMessage(
+      `Search Chronicle UDM logs for events where target.ip or principal.ip is ${ioc.c2Ip}.`
+    );
+    restore();
+    if (result.ok) {
+      renderAdkResult('ag_ui.pivot_udm_search_result', result);
+      alert(result.finalText || `Live agent completed the UDM search pivot for ${ioc.c2Ip}.`);
+      return;
+    }
+  }
+
+  alert(`Executing UDM search pivot for IOC ${ioc.c2Ip}... (SIMULATED)`);
 }
 
-function blockIocPerimeter() {
-  const s = scenarios[currentScenarioKey];
+async function blockIocPerimeter() {
+  const ioc = scenarios.scenario1;
   logAgUiEvent('ag_ui.block_ioc_firewall', {
     action: "BLOCK_PERIMETER_IP",
-    ioc: s.entityIp,
+    ioc: ioc.c2Ip,
     rule_id: `FW-BLOCK-${Math.floor(Math.random() * 9000 + 1000)}`
   });
 
-  alert(`Perimeter firewall rule created blocking IOC ${s.entityIp}.`);
+  if (adkLive) {
+    const restore = setButtonBusy('btnBlockIocPerimeter', 'Blocking…');
+    const result = await adkSendMessage(
+      `Add IP ${ioc.c2Ip} to the appropriate Chronicle IP blocklist reference list. This is a real, `
+      + `production write action — confirm what list you added it to.`
+    );
+    restore();
+    if (result.ok) {
+      renderAdkResult('ag_ui.block_ioc_firewall_result', result);
+      alert(result.finalText || `Live agent blocked IOC ${ioc.c2Ip}.`);
+      return;
+    }
+  }
+
+  alert(`Perimeter firewall rule created blocking IOC ${ioc.c2Ip}. (SIMULATED)`);
 }
 
 // Component 4: Detection Engineering Sandbox Logic (<DetectionEngineeringSandbox />)
-function runSyntheticRuleTest() {
+async function runSyntheticRuleTest() {
+  const ruleText = document.getElementById('ruleCodeText').textContent;
+
+  if (adkLive) {
+    const restore = setButtonBusy('btnRunSyntheticTest', 'Validating…');
+    // There is no real "inject synthetic logs and count matches" tool in the
+    // currently-enabled toolset -- the closest real capability is syntax
+    // validation, so that's what actually gets asked for in live mode
+    // rather than pretending a synthetic-simulation tool exists.
+    const result = await adkSendMessage(
+      `Validate the syntax of this YARA-L 2.0 rule and report any errors or warnings:\n\n${ruleText}`
+    );
+    restore();
+    if (result.ok) {
+      renderAdkResult('ag_ui.test_rule_synthetic', result);
+      alert(result.finalText || 'Live agent validated the rule syntax.');
+      return;
+    }
+  }
+
   logAgUiEvent('ag_ui.test_rule_synthetic', {
     rule_id: "ru_apt29_token_impersonation_v1",
     synthetic_events_injected: 14,
     matches_found: 12,
     precision_score: "85.7%",
-    status: "SIMULATION_PASSED"
+    status: "SIMULATION_PASSED (SIMULATED)"
   });
 
-  alert('Ran synthetic UDM log simulation test. 12 matches detected with 98.2% confidence.');
+  alert('Ran synthetic UDM log simulation test. 12 matches detected (85.7% precision). (SIMULATED)');
 }
 
 function tuneRuleParameters() {
@@ -607,15 +920,30 @@ function tuneRuleParameters() {
   }
 }
 
-function deployRuleToSecOps() {
+async function deployRuleToSecOps() {
+  const ruleText = document.getElementById('ruleCodeText').textContent;
+
+  if (adkLive) {
+    const restore = setButtonBusy('btnDeployRule', 'Deploying…');
+    const result = await adkSendMessage(
+      `Create and enable this Chronicle YARA-L 2.0 detection rule:\n\n${ruleText}`
+    );
+    restore();
+    if (result.ok) {
+      renderAdkResult('ag_ui.deploy_rule_secops', result);
+      alert(result.finalText || 'Live agent processed the rule deployment.');
+      return;
+    }
+  }
+
   logAgUiEvent('ag_ui.deploy_rule_secops', {
     mcp_tool: "secops_create_rule",
     rule_name: "apt29_token_impersonation",
     status: "LIVE_ENABLED",
-    chronicle_tenant: "secops-tenant-prod"
+    chronicle_tenant: "secops-tenant-prod (SIMULATED)"
   });
 
-  alert('Deployed YARA-L 2.0 detection rule to Google SecOps production instance!');
+  alert('Deployed YARA-L 2.0 detection rule to Google SecOps production instance! (SIMULATED)');
 }
 
 // Component 5: IRP Progress Tracker Logic (<IRPProgressTracker />)
@@ -645,21 +973,63 @@ function attachForensicNote() {
   }
 }
 
+const irpPhases = [
+  { step: 1, label: "PHASE 1: IDENTIFICATION (25%)", percentage: 25 },
+  { step: 2, label: "PHASE 2: CONTAINMENT (60%)", percentage: 60 },
+  { step: 3, label: "PHASE 3: ERADICATION (75%)", percentage: 75 },
+  { step: 4, label: "PHASE 4: RECOVERY (100%)", percentage: 100 }
+];
+let currentIrpPhaseIndex = 1; // starts at Phase 2: Containment (index 1), matching the initial HTML
+
+function updateAdvanceIrpButtonLabel() {
+  const btn = document.getElementById('btnAdvanceIrpPhase');
+  if (!btn) return;
+  if (currentIrpPhaseIndex >= irpPhases.length - 1) {
+    btn.innerText = "Advance IRP Phase";
+    btn.disabled = true;
+  } else {
+    const nextPhaseName = irpPhases[currentIrpPhaseIndex + 1].label.split(': ')[1].split(' (')[0];
+    btn.innerText = `Advance IRP Phase • ${nextPhaseName.charAt(0)}${nextPhaseName.slice(1).toLowerCase()}`;
+  }
+}
+
 function advanceIrpPhase() {
+  if (currentIrpPhaseIndex >= irpPhases.length - 1) {
+    alert("Incident Response Plan is already at the final phase (Recovery).");
+    return;
+  }
+
+  const previous = irpPhases[currentIrpPhaseIndex];
+  currentIrpPhaseIndex += 1;
+  const current = irpPhases[currentIrpPhaseIndex];
+
+  // Mark the step we're leaving as completed, and the connector before it.
+  const prevStepEl = document.getElementById(`irpStep${previous.step}`);
+  const prevConnectorEl = document.getElementById(`irpConnector${previous.step}`);
+  if (prevStepEl) {
+    prevStepEl.classList.remove('step-active');
+    prevStepEl.classList.add('step-completed');
+  }
+  if (prevConnectorEl) prevConnectorEl.classList.add('line-completed');
+
+  const currentStepEl = document.getElementById(`irpStep${current.step}`);
+  if (currentStepEl) currentStepEl.classList.add('step-active');
+
   const badge = document.getElementById('irpPhaseBadge');
   if (badge) {
-    badge.innerText = "PHASE 3: ERADICATION (75%)";
-    badge.style.color = "var(--severity-high)";
+    badge.innerText = current.label;
+    badge.style.color = current.step === irpPhases.length ? "var(--severity-success)" : "var(--severity-high)";
   }
 
   logAgUiEvent('ag_ui.irp_phase_advanced', {
-    previous_phase: "PHASE 2: CONTAINMENT",
-    current_phase: "PHASE 3: ERADICATION",
-    completion_percentage: 75,
+    previous_phase: previous.label,
+    current_phase: current.label,
+    completion_percentage: current.percentage,
     timestamp: new Date().toISOString()
   });
 
-  alert("Advanced Incident Response Plan to Phase 3: Eradication!");
+  updateAdvanceIrpButtonLabel();
+  alert(`Advanced Incident Response Plan to ${current.label}!`);
 }
 
 

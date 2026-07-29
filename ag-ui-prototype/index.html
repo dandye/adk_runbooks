@@ -19,9 +19,9 @@
       </div>
     </div>
 
-    <div class="protocol-badge">
+    <div class="protocol-badge" id="protocolBadge">
       <span class="status-dot"></span>
-      AG-UI PROTOCOL CONNECTED (v0.8.2)
+      <span>Checking agent connection&hellip;</span>
     </div>
   </header>
 
@@ -96,7 +96,7 @@
           
           <!-- Root Manager Node -->
           <div class="graph-row root-row">
-            <div class="agent-node node-manager active-node" id="node-manager" onclick="selectGraphNode('manager')">
+            <div class="agent-node node-manager" id="node-manager" onclick="selectGraphNode('manager')">
               <div class="node-header">
                 <span class="node-type">ROOT ORCHESTRATOR</span>
                 <span class="badge badge-critical" id="badge-manager">ORCHESTRATING</span>
@@ -275,8 +275,8 @@
 
           <!-- Tabbed Detail Tabs: Hashes vs Passive DNS vs MITRE Matrix -->
           <div class="tabs-container">
-            <button class="tab-btn active" id="iocTabBtnHashes" onclick="switchIocTab('hashes')">Associated Malicious Hashes (3)</button>
-            <button class="tab-btn" id="iocTabBtnDns" onclick="switchIocTab('dns')">Passive DNS Resolutions (4)</button>
+            <button class="tab-btn active" id="iocTabBtnHashes" onclick="switchIocTab('hashes')">Associated Malicious Hashes (2)</button>
+            <button class="tab-btn" id="iocTabBtnDns" onclick="switchIocTab('dns')">Passive DNS Resolutions (2)</button>
             <button class="tab-btn" id="iocTabBtnMitre" onclick="switchIocTab('mitre')">MITRE ATT&CK TTP Alignment</button>
           </div>
 
@@ -293,12 +293,12 @@
                 </thead>
                 <tbody id="iocHashesTable">
                   <tr>
-                    <td><code class="code-sm">e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</code></td>
+                    <td><code class="code-sm">7a1c9e4f2b8d035a6c91e7f4482d3b0e9f5a1c7d8e2b4f691a3c5d7e9b0f2a4c</code></td>
                     <td>win_emotet_payload.dll (PE32)</td>
                     <td><span class="badge badge-critical">68/72 Malicious</span></td>
                   </tr>
                   <tr>
-                    <td><code class="code-sm">5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9</code></td>
+                    <td><code class="code-sm">3f8b2d6a9c1e4570b3d8f2a6c9e1b4d7f0a3c6e9b2d5f8a1c4e7b0d3f6a9c2e5</code></td>
                     <td>invoice_doc_macro.doc (Office Macro)</td>
                     <td><span class="badge badge-critical">62/72 Malicious</span></td>
                   </tr>
@@ -356,14 +356,14 @@
 
         <!-- Card Footer Downstream Actions -->
         <div class="card-footer">
-          <button class="btn btn-secondary" onclick="delegateToThreatHunter()">
+          <button class="btn btn-secondary" id="btnDelegateThreatHunter" onclick="delegateToThreatHunter()">
             Delegate to Threat Hunter Agent
           </button>
           <div class="btn-group">
-            <button class="btn btn-secondary" onclick="pivotUdmSearch()">
+            <button class="btn btn-secondary" id="btnPivotUdmSearch" onclick="pivotUdmSearch()">
               Pivot UDM Log Search
             </button>
-            <button class="btn btn-primary" onclick="blockIocPerimeter()">
+            <button class="btn btn-primary" id="btnBlockIocPerimeter" onclick="blockIocPerimeter()">
               Block IOC at Perimeter Firewall
             </button>
           </div>
@@ -382,7 +382,7 @@
             <div class="card-subtext">Synthesized detection rule & synthetic UDM log simulation results from Detection Engineer Sub-Agent</div>
           </div>
           <div class="hitl-tag" style="background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.4); color: var(--severity-success);">
-            <span>SIMULATION PASSED (98.2%)</span>
+            <span>SIMULATION PASSED (85.7%)</span>
           </div>
         </div>
 
@@ -456,14 +456,14 @@
 
         <!-- Card Footer Actions -->
         <div class="card-footer">
-          <button class="btn btn-secondary" onclick="runSyntheticRuleTest()">
+          <button class="btn btn-secondary" id="btnRunSyntheticTest" onclick="runSyntheticRuleTest()">
             Run Synthetic Event Test
           </button>
           <div class="btn-group">
             <button class="btn btn-secondary" onclick="tuneRuleParameters()">
               Tune Rule Logic
             </button>
-            <button class="btn btn-primary" onclick="deployRuleToSecOps()">
+            <button class="btn btn-primary" id="btnDeployRule" onclick="deployRuleToSecOps()">
               Deploy Rule to Google SecOps
             </button>
           </div>
@@ -491,25 +491,25 @@
           
           <!-- Visual Phase Stepper Progress Bar -->
           <div class="phase-stepper">
-            <div class="phase-step step-completed">
+            <div class="phase-step step-completed" id="irpStep1">
               <div class="step-icon">1</div>
               <div class="step-label">Identification</div>
             </div>
-            <div class="step-connector line-completed"></div>
-            
-            <div class="phase-step step-active">
+            <div class="step-connector line-completed" id="irpConnector1"></div>
+
+            <div class="phase-step step-active" id="irpStep2">
               <div class="step-icon">2</div>
               <div class="step-label">Containment</div>
             </div>
-            <div class="step-connector"></div>
-            
-            <div class="phase-step">
+            <div class="step-connector" id="irpConnector2"></div>
+
+            <div class="phase-step" id="irpStep3">
               <div class="step-icon">3</div>
               <div class="step-label">Eradication</div>
             </div>
-            <div class="step-connector"></div>
-            
-            <div class="phase-step">
+            <div class="step-connector" id="irpConnector3"></div>
+
+            <div class="phase-step" id="irpStep4">
               <div class="step-icon">4</div>
               <div class="step-label">Recovery</div>
             </div>
@@ -574,7 +574,7 @@
             Attach Analyst Forensic Note
           </button>
           <div class="btn-group">
-            <button class="btn btn-primary" onclick="advanceIrpPhase()">
+            <button class="btn btn-primary" id="btnAdvanceIrpPhase" onclick="advanceIrpPhase()">
               Advance IRP Phase &bull; Eradication
             </button>
           </div>
@@ -665,7 +665,7 @@
               <div class="form-group">
                 <label class="checkbox-group">
                   <input type="checkbox" id="paramNotifySOC" checked>
-                  <span class="form-label">Notify On-Call SOC Lead via Slack / PageDuty</span>
+                  <span class="form-label">Notify On-Call SOC Lead via Slack / PagerDuty</span>
                 </label>
               </div>
             </form>
@@ -692,7 +692,7 @@
             <button class="btn btn-secondary" onclick="modifyParameters()">
               Update Parameters
             </button>
-            <button class="btn btn-primary" onclick="approveAction()">
+            <button class="btn btn-primary" id="btnApproveAction" onclick="approveAction()">
               Approve & Execute Action
             </button>
           </div>
@@ -705,7 +705,7 @@
             <textarea id="rejectionReasonInput" class="form-textarea" rows="2" placeholder="e.g. Host is critical production database server. Please isolate network egress instead of full host shutdown."></textarea>
             <div class="btn-group" style="justify-content: flex-end;">
               <button class="btn btn-secondary" onclick="hideRejectionForm()">Cancel</button>
-              <button class="btn btn-danger" onclick="submitRejection()">Confirm Rejection & Send Feedback</button>
+              <button class="btn btn-danger" id="btnConfirmRejection" onclick="submitRejection()">Confirm Rejection & Send Feedback</button>
             </div>
           </div>
         </div>
