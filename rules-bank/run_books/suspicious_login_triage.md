@@ -83,6 +83,25 @@ This runbook covers the initial investigation steps to gather context about a su
     *   **Else:** Set `${REPORT_GENERATION_STATUS}` = "Skipped".
 11. **Completion:** Conclude the runbook execution. Tier 1 analyst acts on the recommendation in the comment. Report generation status provided if applicable.
 
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_entities_node["1. extract_entities_node<br/><i>(Extract User ID, Source IP, Hostname)</i>"]
+    extract_entities_node --> enrich_user_node["2. enrich_user_node<br/><i>(SIEM User Context)</i>"]
+    enrich_user_node --> enrich_ip_node["3. enrich_ip_node<br/><i>(GTI & SIEM IP Threat Intel)</i>"]
+    enrich_ip_node --> analyze_logins_node["4. analyze_logins_node<br/><i>(72h UDM Pattern Analysis)</i>"]
+    analyze_logins_node --> triage_risk_router{"5. triage_risk_router<br/><i>(Event.actions.route)</i>"}
+
+    triage_risk_router -- "LOW_RISK_BENIGN" --> handle_low_risk_branch["6a. handle_low_risk_branch<br/><i>(Draft FP Closure Note)</i>"]
+    triage_risk_router -- "HIGH_RISK_SUSPICIOUS" --> handle_high_risk_branch["6b. handle_high_risk_branch<br/><i>(Draft Escalation & Lockdown)</i>"]
+
+    handle_low_risk_branch --> document_and_report_node["7. document_and_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_high_risk_branch --> document_and_report_node
+```
+
+### Sequence Diagram
+
 ```{mermaid}
 sequenceDiagram
     participant Analyst
