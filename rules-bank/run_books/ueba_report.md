@@ -66,6 +66,23 @@ This runbook explicitly **excludes**:
 6.  **Synthesize Findings:** Combine UEBA anomaly details, SIEM logs, baseline comparison, and enrichment data. Determine if the activity is explainable, benign, or suspicious/malicious.
 7.  **Document & Recommend:** Document findings and assessment in the SOAR case using `post_case_comment`. Recommend next steps: [Close as Benign/Explained | Monitor User/Entity | Escalate for Incident Response (Trigger relevant runbook like Compromised User Account Response)].
 
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_ueba_payload_node["1. extract_ueba_payload_node<br/><i>(Extract User & Timeframe Scope Payload)</i>"]
+    extract_ueba_payload_node --> compute_ueba_anomalies_node["2. compute_ueba_anomalies_node<br/><i>(Compute Behavior Risk Score & Anomalies)</i>"]
+    compute_ueba_anomalies_node --> ueba_behavior_router{"3. ueba_behavior_router<br/><i>(Event.actions.route)</i>"}
+
+    ueba_behavior_router -- "HIGH_RISK_USER_ANOMALY" --> handle_high_risk_user_branch["4a. handle_high_risk_user_branch<br/><i>(Escalate High Risk Anomaly for Compromise Triage)</i>"]
+    ueba_behavior_router -- "STANDARD_USER_PROFILE" --> handle_standard_user_branch["4b. handle_standard_user_branch<br/><i>(Document Standard User Behavior)</i>"]
+
+    handle_high_risk_user_branch --> document_ueba_report_node["5. document_ueba_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_standard_user_branch --> document_ueba_report_node
+```
+
+### Sequence Diagram
+
 ```{mermaid}
 sequenceDiagram
     participant User/Analyst

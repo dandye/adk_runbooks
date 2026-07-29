@@ -67,6 +67,23 @@ Uses Tools:
 17. (Optional, based on user feedback) Execute selected SOAR actions.
 18. Conclude with `attempt_completion`.
 
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_timeline_payload_node["1. extract_timeline_payload_node<br/><i>(Extract Case Payload)</i>"]
+    extract_timeline_payload_node --> reconstruct_process_tree_node["2. reconstruct_process_tree_node<br/><i>(Reconstruct Timeline & Process Tree)</i>"]
+    reconstruct_process_tree_node --> timeline_process_router{"3. timeline_process_router<br/><i>(Event.actions.route)</i>"}
+
+    timeline_process_router -- "MALICIOUS_PROCESS_TREE" --> handle_malicious_tree_branch["4a. handle_malicious_tree_branch<br/><i>(Document Malicious Process Tree)</i>"]
+    timeline_process_router -- "NORMAL_PROCESS_EXECUTION" --> handle_normal_execution_branch["4b. handle_normal_execution_branch<br/><i>(Document Normal Execution)</i>"]
+
+    handle_malicious_tree_branch --> document_timeline_report_node["5. document_timeline_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_normal_execution_branch --> document_timeline_report_node
+```
+
+### Sequence Diagram
+
 ```{mermaid}
 sequenceDiagram
     participant User

@@ -57,6 +57,23 @@ This runbook explicitly **excludes**:
 6.  **Format Report:** Compile the synthesized information and the Mermaid diagram into a final Markdown report. Store as `${REPORT_CONTENT}`.
 7.  **Write Report File:** Save the report using `write_to_file` with `path="./reports/detection_report_${RULE_ID}_${timestamp}.md"` (adjust filename if multiple RULE_IDS) and `content=${REPORT_CONTENT}`. Store path in `${REPORT_FILE_PATH}` and status in `${REPORT_GENERATION_STATUS}`.
 
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_detection_report_payload_node["1. extract_detection_report_payload_node<br/><i>(Extract Rule & Scope Payload)</i>"]
+    extract_detection_report_payload_node --> fetch_detection_stats_node["2. fetch_detection_stats_node<br/><i>(Fetch Historical Alert Stats & FP Rate)</i>"]
+    fetch_detection_stats_node --> detection_report_router{"3. detection_report_router<br/><i>(Event.actions.route)</i>"}
+
+    detection_report_router -- "HIGH_NOISE_LEVEL" --> handle_high_noise_branch["4a. handle_high_noise_branch<br/><i>(Document High Noise & Recommend Tuning)</i>"]
+    detection_report_router -- "OPTIMAL_PERFORMANCE" --> handle_optimal_performance_branch["4b. handle_optimal_performance_branch<br/><i>(Document Optimal Rule Performance)</i>"]
+
+    handle_high_noise_branch --> document_detection_report_node["5. document_detection_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_optimal_performance_branch --> document_detection_report_node
+```
+
+### Sequence Diagram
+
 ```{mermaid}
 sequenceDiagram
     participant Analyst/User

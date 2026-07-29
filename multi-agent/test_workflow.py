@@ -243,8 +243,8 @@ def test_ioc_containment_case():
     print("===================================================\n")
 
 
-def test_batch_10_workflows():
-    print("=== Testing 10 Additional Graph Workflows ===")
+def test_batch_29_workflows():
+    print("=== Testing All 29 ADK Graph Workflows ===")
     from manager.workflows import (
         build_close_duplicate_cases_workflow,
         build_cloud_vulnerability_triage_workflow,
@@ -256,6 +256,20 @@ def test_batch_10_workflows():
         build_investigate_case_external_tools_workflow,
         build_lateral_movement_hunt_workflow,
         build_triage_alerts_workflow,
+        build_advanced_threat_hunting_workflow,
+        build_alert_report_workflow,
+        build_apt_threat_hunt_workflow,
+        build_timeline_process_analysis_workflow,
+        build_case_report_workflow,
+        build_detection_as_code_tuning_workflow,
+        build_detection_report_workflow,
+        build_group_cases_workflow,
+        build_investigate_gti_collection_workflow,
+        build_ioc_threat_hunt_workflow,
+        build_post_incident_review_workflow,
+        build_prioritize_investigate_case_workflow,
+        build_proactive_gti_threat_hunt_workflow,
+        build_ueba_report_workflow,
     )
 
     wf_list = [
@@ -269,6 +283,20 @@ def test_batch_10_workflows():
         build_investigate_case_external_tools_workflow(),
         build_lateral_movement_hunt_workflow(),
         build_triage_alerts_workflow(),
+        build_advanced_threat_hunting_workflow(),
+        build_alert_report_workflow(),
+        build_apt_threat_hunt_workflow(),
+        build_timeline_process_analysis_workflow(),
+        build_case_report_workflow(),
+        build_detection_as_code_tuning_workflow(),
+        build_detection_report_workflow(),
+        build_group_cases_workflow(),
+        build_investigate_gti_collection_workflow(),
+        build_ioc_threat_hunt_workflow(),
+        build_post_incident_review_workflow(),
+        build_prioritize_investigate_case_workflow(),
+        build_proactive_gti_threat_hunt_workflow(),
+        build_ueba_report_workflow(),
     ]
 
     for wf in wf_list:
@@ -283,4 +311,4 @@ if __name__ == "__main__":
     test_basic_ioc_enrichment_case()
     test_endpoint_triage_case()
     test_ioc_containment_case()
-    test_batch_10_workflows()
+    test_batch_29_workflows()

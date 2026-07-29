@@ -61,6 +61,23 @@ Instructions:
     *   Use the `write_report` tool.
     *   Arguments: `report_name=${report_name_var}`, `report_contents=${report_contents_var}`.
 
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_gti_collection_payload_node["1. extract_gti_collection_payload_node<br/><i>(Extract GTI Collection ID Payload)</i>"]
+    extract_gti_collection_payload_node --> fetch_gti_collection_report_node["2. fetch_gti_collection_report_node<br/><i>(Fetch GTI Collection Intel & SIEM Correlation)</i>"]
+    fetch_gti_collection_report_node --> gti_collection_investigation_router{"3. gti_collection_investigation_router<br/><i>(Event.actions.route)</i>"}
+
+    gti_collection_investigation_router -- "ACTIVE_CAMPAIGN_DETECTED" --> handle_active_campaign_branch["4a. handle_active_campaign_branch<br/><i>(Document Active Campaign Matches)</i>"]
+    gti_collection_investigation_router -- "NO_SIEM_MATCH" --> handle_no_siem_match_branch["4b. handle_no_siem_match_branch<br/><i>(Document No SIEM Matches)</i>"]
+
+    handle_active_campaign_branch --> document_gti_collection_report_node["5. document_gti_collection_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_no_siem_match_branch --> document_gti_collection_report_node
+```
+
+### Sequence Diagram
+
 ```{mermaid}
 sequenceDiagram
     participant User

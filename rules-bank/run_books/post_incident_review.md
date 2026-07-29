@@ -59,6 +59,23 @@ This runbook outlines the process for conducting a PIR meeting, analyzing incide
     *   Store any formal PIR report in the designated repository.
 8.  **Completion:** Conclude the runbook execution.
 
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_pir_payload_node["1. extract_pir_payload_node<br/><i>(Extract Incident Case Payload)</i>"]
+    extract_pir_payload_node --> compute_incident_metrics_node["2. compute_incident_metrics_node<br/><i>(Compute MTTD, MTTR & Lessons Learned)</i>"]
+    compute_incident_metrics_node --> pir_outcome_router{"3. pir_outcome_router<br/><i>(Event.actions.route)</i>"}
+
+    pir_outcome_router -- "PIR_ACTION_ITEMS_CREATED" --> handle_action_items_created_branch["4a. handle_action_items_created_branch<br/><i>(Create Remediation Action Items)</i>"]
+    pir_outcome_router -- "PIR_ARCHIVED" --> handle_pir_archived_branch["4b. handle_pir_archived_branch<br/><i>(Archive PIR Review)</i>"]
+
+    handle_action_items_created_branch --> document_pir_report_node["5. document_pir_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_pir_archived_branch --> document_pir_report_node
+```
+
+### Sequence Diagram
+
 ```{mermaid}
 sequenceDiagram
     participant PIR_Lead/Analyst

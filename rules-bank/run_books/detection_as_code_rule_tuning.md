@@ -24,6 +24,19 @@ graph LR
     F -->|Pull Request| G[GitHub]
     G -->|CI/CD Pipeline| H[SIEM Platform]
     H -->|Deploy| I[Production Rules]
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_dac_payload_node["1. extract_dac_payload_node<br/><i>(Extract DAC Rule & Commit Payload)</i>"]
+    extract_dac_payload_node --> run_dac_ci_pipeline_node["2. run_dac_ci_pipeline_node<br/><i>(Execute Lint & Syntax Validation)</i>"]
+    run_dac_ci_pipeline_node --> dac_ci_router{"3. dac_ci_router<br/><i>(Event.actions.route)</i>"}
+
+    dac_ci_router -- "MERGE_PRODUCTION" --> handle_merge_production_branch["4a. handle_merge_production_branch<br/><i>(Merge PR & Deploy to Production)</i>"]
+    dac_ci_router -- "BLOCK_CI_FAILURE" --> handle_block_ci_failure_branch["4b. handle_block_ci_failure_branch<br/><i>(Block PR on CI Failure)</i>"]
+
+    handle_merge_production_branch --> document_dac_report_node["5. document_dac_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_block_ci_failure_branch --> document_dac_report_node
 ```
 
 ## Prerequisites
