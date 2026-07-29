@@ -228,6 +228,149 @@
 
       </div><!-- End Component 1: Graph -->
 
+      <!-- Component 3: Interactive Threat Intel & IOC Enrichment Card (<IOCEnrichmentCard />) -->
+      <div class="ioc-enrichment-card" id="iocEnrichmentCardComponent">
+        
+        <!-- Card Header -->
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="action-type-tag" id="iocTypeTag">TOOL GENERATIVE UI &bull; VT_IP_LOOKUP</span>
+            <h2 class="card-main-title" id="iocTitle">Threat Intel & IOC Reputation Breakdown</h2>
+            <div class="card-subtext" id="iocSubtitle">Real-time threat intelligence enrichment returned by CTI Researcher Sub-Agent</div>
+          </div>
+          <div class="hitl-tag" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.4); color: var(--severity-critical);">
+            <span id="iocVerdictTag">HIGH CONFIDENCE MALICIOUS</span>
+          </div>
+        </div>
+
+        <!-- Card Body -->
+        <div class="card-body">
+          
+          <!-- Reputation Metric Scoreboard -->
+          <div class="ioc-score-grid">
+            <div class="score-card">
+              <span class="score-label">VirusTotal Score</span>
+              <div class="score-value-group">
+                <span class="score-number text-danger" id="vtScoreNum">64 / 72</span>
+                <span class="score-sub">Security Vendors Flagged</span>
+              </div>
+            </div>
+
+            <div class="score-card">
+              <span class="score-label">Threat Actor / Campaign</span>
+              <div class="score-value-group">
+                <span class="score-text" id="iocCampaign">Emotet Botnet Infrastructure</span>
+                <span class="score-sub">Known C2 Operator</span>
+              </div>
+            </div>
+
+            <div class="score-card">
+              <span class="score-label">ASN / Host Provider</span>
+              <div class="score-value-group">
+                <span class="score-text" id="iocAsn">AS16276 OVH SAS (FR)</span>
+                <span class="score-sub">Host Country: France</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tabbed Detail Tabs: Hashes vs Passive DNS vs MITRE Matrix -->
+          <div class="tabs-container">
+            <button class="tab-btn active" id="iocTabBtnHashes" onclick="switchIocTab('hashes')">Associated Malicious Hashes (3)</button>
+            <button class="tab-btn" id="iocTabBtnDns" onclick="switchIocTab('dns')">Passive DNS Resolutions (4)</button>
+            <button class="tab-btn" id="iocTabBtnMitre" onclick="switchIocTab('mitre')">MITRE ATT&CK TTP Alignment</button>
+          </div>
+
+          <!-- Tab 1: Associated Hashes -->
+          <div id="tabIocHashes" class="tab-content active">
+            <div class="ioc-table-container">
+              <table class="ioc-table">
+                <thead>
+                  <tr>
+                    <th>SHA256 Hash</th>
+                    <th>File Name / Type</th>
+                    <th>VT Detection Rate</th>
+                  </tr>
+                </thead>
+                <tbody id="iocHashesTable">
+                  <tr>
+                    <td><code class="code-sm">e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</code></td>
+                    <td>win_emotet_payload.dll (PE32)</td>
+                    <td><span class="badge badge-critical">68/72 Malicious</span></td>
+                  </tr>
+                  <tr>
+                    <td><code class="code-sm">5feceb66ffc86f38d952786c6d696c79c2dbc239dd4e91b46729d73a27fb57e9</code></td>
+                    <td>invoice_doc_macro.doc (Office Macro)</td>
+                    <td><span class="badge badge-critical">62/72 Malicious</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Tab 2: Passive DNS -->
+          <div id="tabIocDns" class="tab-content">
+            <div class="ioc-table-container">
+              <table class="ioc-table">
+                <thead>
+                  <tr>
+                    <th>Domain Name</th>
+                    <th>First Seen</th>
+                    <th>Last Seen</th>
+                  </tr>
+                </thead>
+                <tbody id="iocDnsTable">
+                  <tr>
+                    <td><code class="code-sm">c2-update-sync-node8.com</code></td>
+                    <td>2026-07-20 04:12:00</td>
+                    <td>2026-07-29 12:44:10</td>
+                  </tr>
+                  <tr>
+                    <td><code class="code-sm">cdn-auth-check-live.org</code></td>
+                    <td>2026-07-15 18:30:22</td>
+                    <td>2026-07-28 23:10:05</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Tab 3: MITRE ATT&CK -->
+          <div id="tabIocMitre" class="tab-content">
+            <div class="mitre-chip-grid">
+              <div class="mitre-chip">
+                <span class="mitre-id">T1071.001</span>
+                <span class="mitre-name">Application Layer Protocol: Web Protocols</span>
+              </div>
+              <div class="mitre-chip">
+                <span class="mitre-id">T1573.001</span>
+                <span class="mitre-name">Encrypted Channel: Symmetric Cryptography</span>
+              </div>
+              <div class="mitre-chip">
+                <span class="mitre-id">T1059.001</span>
+                <span class="mitre-name">Command and Scripting Interpreter: PowerShell</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Card Footer Downstream Actions -->
+        <div class="card-footer">
+          <button class="btn btn-secondary" onclick="delegateToThreatHunter()">
+            Delegate to Threat Hunter Agent
+          </button>
+          <div class="btn-group">
+            <button class="btn btn-secondary" onclick="pivotUdmSearch()">
+              Pivot UDM Log Search
+            </button>
+            <button class="btn btn-primary" onclick="blockIocPerimeter()">
+              Block IOC at Perimeter Firewall
+            </button>
+          </div>
+        </div>
+
+      </div><!-- End Component 3: IOC Enrichment -->
+
       <!-- Component 2: HITL Interactive Approval Card (<HITLRemediationApproval />) -->
       <div class="hitl-approval-card" id="approvalCardComponent">
         

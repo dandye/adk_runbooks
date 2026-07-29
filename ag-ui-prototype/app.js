@@ -523,3 +523,63 @@ function openDirectiveModal() {
   }
 }
 
+// Component 3: Threat Intel & IOC Enrichment Card Interactive Logic (<IOCEnrichmentCard />)
+function switchIocTab(tabName) {
+  const btnHashes = document.getElementById('iocTabBtnHashes');
+  const btnDns = document.getElementById('iocTabBtnDns');
+  const btnMitre = document.getElementById('iocTabBtnMitre');
+
+  const tabHashes = document.getElementById('tabIocHashes');
+  const tabDns = document.getElementById('tabIocDns');
+  const tabMitre = document.getElementById('tabIocMitre');
+
+  [btnHashes, btnDns, btnMitre].forEach(b => b && b.classList.remove('active'));
+  [tabHashes, tabDns, tabMitre].forEach(t => t && t.classList.remove('active'));
+
+  if (tabName === 'hashes') {
+    if (btnHashes) btnHashes.classList.add('active');
+    if (tabHashes) tabHashes.classList.add('active');
+  } else if (tabName === 'dns') {
+    if (btnDns) btnDns.classList.add('active');
+    if (tabDns) tabDns.classList.add('active');
+  } else if (tabName === 'mitre') {
+    if (btnMitre) btnMitre.classList.add('active');
+    if (tabMitre) tabMitre.classList.add('active');
+  }
+}
+
+function delegateToThreatHunter() {
+  const s = scenarios[currentScenarioKey];
+  logAgUiEvent('ag_ui.delegate_threat_hunt', {
+    target_agent: "Threat Hunter Sub-Agent",
+    target_ioc: s.entityIp,
+    incident_id: s.incidentId,
+    directive: "Search all internal UDM logs across all organizational endpoints for matching IOC communication."
+  });
+
+  alert(`Delegated IOC threat hunt task for ${s.entityIp} to Threat Hunter Sub-Agent.`);
+}
+
+function pivotUdmSearch() {
+  const s = scenarios[currentScenarioKey];
+  logAgUiEvent('ag_ui.pivot_udm_search', {
+    mcp_tool: "udm_search",
+    query: `target.ip = "${s.entityIp}" OR principal.ip = "${s.entityIp}"`,
+    timestamp: new Date().toISOString()
+  });
+
+  alert(`Executing UDM search pivot for IOC ${s.entityIp}...`);
+}
+
+function blockIocPerimeter() {
+  const s = scenarios[currentScenarioKey];
+  logAgUiEvent('ag_ui.block_ioc_firewall', {
+    action: "BLOCK_PERIMETER_IP",
+    ioc: s.entityIp,
+    rule_id: `FW-BLOCK-${Math.floor(Math.random() * 9000 + 1000)}`
+  });
+
+  alert(`Perimeter firewall rule created blocking IOC ${s.entityIp}.`);
+}
+
+
