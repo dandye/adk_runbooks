@@ -117,6 +117,7 @@ function initApp() {
   renderScenarioSelectors();
   loadScenario(currentScenarioKey);
   setupTabListeners();
+  selectGraphNode('ir');
 }
 
 function renderScenarioSelectors() {
