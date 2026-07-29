@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ADK Runbooks - AG-UI Interactive Approval Card Prototype</title>
+  <meta name="description" content="AG-UI Protocol Interactive Remediation Approval Card component prototype for ADK Runbooks multi-agent cybersecurity framework.">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-icon">AG</div>
+      <div>
+        <div class="brand-title">ADK Runbooks Cyber Ops</div>
+        <div class="brand-subtitle">AG-UI / CopilotKit Protocol Experimentation</div>
+      </div>
+    </div>
+
+    <div class="protocol-badge">
+      <span class="status-dot"></span>
+      AG-UI PROTOCOL CONNECTED (v0.8.2)
+    </div>
+  </header>
+
+  <!-- Main Application Container -->
+  <main class="app-container">
+
+    <!-- Sidebar: Scenario Selector -->
+    <aside class="sidebar-panel">
+      <div>
+        <h2 class="section-title">Security Scenarios</h2>
+        <div id="scenarioList" class="scenario-list">
+          <!-- Populated by JavaScript -->
+        </div>
+      </div>
+
+      <!-- Agent Session Status Card -->
+      <div class="agent-status-card">
+        <h3 class="section-title">Agent Session State</h3>
+        <div class="info-row">
+          <span class="info-label">Orchestrator:</span>
+          <span class="info-value">ADK Manager Agent</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Runtime:</span>
+          <span class="info-value">Google ADK 2.0</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Protocol:</span>
+          <span class="info-value">AG-UI Event Bus</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">MCP Server:</span>
+          <span class="info-value">SecOps Remote MCP</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Workbench: HITL Interactive Approval Card -->
+    <section class="main-workbench">
+      
+      <h1>Human-in-the-Loop Remediation Approval</h1>
+
+      <div class="hitl-approval-card" id="approvalCardComponent">
+        
+        <!-- Card Header -->
+        <div class="card-header">
+          <div class="card-title-group">
+            <span id="cardActionType" class="action-type-tag">ISOLATE_HOST_AND_BLOCK_C2</span>
+            <h2 id="cardMainTitle" class="card-main-title">Isolate Compromised Host & Block C2 IP</h2>
+            <div id="cardSubtitle" class="card-subtext">High confidence malware C2 beaconing detected from internal host</div>
+          </div>
+          <div class="hitl-tag">
+            <span>ACTION REQUIRED</span>
+          </div>
+        </div>
+
+        <!-- Card Body -->
+        <div class="card-body">
+          
+          <!-- Context Grid -->
+          <div class="context-grid">
+            <div class="context-item">
+              <span class="context-label">Incident ID</span>
+              <span id="cardIncidentId" class="context-value">INC-2026-9042</span>
+            </div>
+            <div class="context-item">
+              <span class="context-label">Proposing Agent</span>
+              <span id="cardAgentName" class="context-value">Incident Responder Agent</span>
+            </div>
+            <div class="context-item">
+              <span class="context-label">Target Asset</span>
+              <span id="entityName" class="context-value">prod-db-gateway-01</span>
+            </div>
+            <div class="context-item">
+              <span class="context-label">Target IP / MAC</span>
+              <span id="entityIp" class="context-value">192.168.1.105</span>
+            </div>
+            <div class="context-item">
+              <span class="context-label">MAC Address</span>
+              <span id="entityMac" class="context-value">00:1B:44:11:3A:B7</span>
+            </div>
+            <div class="context-item">
+              <span class="context-label">MITRE ATT&CK TTP</span>
+              <span id="mitreTtpText" class="context-value">T1059.001</span>
+            </div>
+          </div>
+
+          <!-- Threat Intelligence Summary Box -->
+          <div class="agent-status-card">
+            <div class="section-title">Threat Intelligence Context</div>
+            <div id="threatIntelText" class="card-subtext">
+              VirusTotal score 64/72 (Malicious). C2 IP: 198.51.100.42 (Emotet Infrastructure)
+            </div>
+          </div>
+
+          <!-- Tabbed Inspector: Payload Diff vs Parameter Tweaker -->
+          <div class="tabs-container">
+            <button class="tab-btn active" data-tab="tabSummary">Summary & Parameters</button>
+            <button class="tab-btn" data-tab="tabPayloadDiff">Proposed JSON Payload Diff</button>
+          </div>
+
+          <!-- Tab Content 1: Summary & Parameters Form -->
+          <div id="tabSummary" class="tab-content active">
+            <form class="params-form" onsubmit="return false;">
+              <div class="form-group">
+                <label class="form-label" for="paramDuration">Isolation Timeout Duration</label>
+                <select id="paramDuration" class="form-select">
+                  <option value="1">1 Hour (Quick Quarantine)</option>
+                  <option value="4" selected>4 Hours (Standard Investigation Window)</option>
+                  <option value="24">24 Hours (Deep Forensic Hold)</option>
+                  <option value="0">Indefinite (Until Manual Release)</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="checkbox-group">
+                  <input type="checkbox" id="paramPreserveRam" checked>
+                  <span class="form-label">Preserve System Memory (RAM) for Forensic Analysis</span>
+                </label>
+              </div>
+
+              <div class="form-group">
+                <label class="checkbox-group">
+                  <input type="checkbox" id="paramNotifySOC" checked>
+                  <span class="form-label">Notify On-Call SOC Lead via Slack / PageDuty</span>
+                </label>
+              </div>
+            </form>
+          </div>
+
+          <!-- Tab Content 2: Payload Diff Box -->
+          <div id="tabPayloadDiff" class="tab-content">
+            <div id="payloadDiffBox" class="payload-box">
+              <!-- Populated by JavaScript -->
+            </div>
+          </div>
+
+          <!-- Status Execution Banner -->
+          <div id="statusBanner" class="status-banner" style="display: none;"></div>
+
+        </div>
+
+        <!-- Card Footer Actions -->
+        <div id="mainCardFooter" class="card-footer">
+          <button class="btn btn-secondary" onclick="toggleRejectionForm()">
+            Reject Action
+          </button>
+          <div class="btn-group">
+            <button class="btn btn-secondary" onclick="modifyParameters()">
+              Update Parameters
+            </button>
+            <button class="btn btn-primary" onclick="approveAction()">
+              Approve & Execute Action
+            </button>
+          </div>
+        </div>
+
+        <!-- Rejection Feedback Sub-Panel -->
+        <div id="rejectionFormPanel" class="card-footer" style="display: none;">
+          <div class="rejection-panel">
+            <label class="form-label" for="rejectionReasonInput">Provide Feedback to Sub-Agent</label>
+            <textarea id="rejectionReasonInput" class="form-textarea" rows="2" placeholder="e.g. Host is critical production database server. Please isolate network egress instead of full host shutdown."></textarea>
+            <div class="btn-group" style="justify-content: flex-end;">
+              <button class="btn btn-secondary" onclick="hideRejectionForm()">Cancel</button>
+              <button class="btn btn-danger" onclick="submitRejection()">Confirm Rejection & Send Feedback</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- Right Panel: Live AG-UI Protocol Inspector -->
+    <aside class="event-inspector-panel">
+      <div class="inspector-header">
+        <h2 class="section-title">AG-UI Protocol Stream</h2>
+        <span class="action-type-tag">LIVE EVENTS</span>
+      </div>
+      <div id="eventStream" class="event-stream">
+        <!-- Event stream populated by JavaScript -->
+      </div>
+    </aside>
+
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
