@@ -582,4 +582,41 @@ function blockIocPerimeter() {
   alert(`Perimeter firewall rule created blocking IOC ${s.entityIp}.`);
 }
 
+// Component 4: Detection Engineering Sandbox Logic (<DetectionEngineeringSandbox />)
+function runSyntheticRuleTest() {
+  logAgUiEvent('ag_ui.test_rule_synthetic', {
+    rule_id: "ru_apt29_token_impersonation_v1",
+    synthetic_events_injected: 14,
+    matches_found: 12,
+    precision_score: "85.7%",
+    status: "SIMULATION_PASSED"
+  });
+
+  alert('Ran synthetic UDM log simulation test. 12 matches detected with 98.2% confidence.');
+}
+
+function tuneRuleParameters() {
+  const newDeduplication = prompt("Enter updated deduplication window duration (e.g. 5m, 10m, 30m):", "15m");
+  if (newDeduplication) {
+    logAgUiEvent('ag_ui.tune_rule_parameters', {
+      rule_id: "ru_apt29_token_impersonation_v1",
+      updated_deduplication_window: newDeduplication,
+      timestamp: new Date().toISOString()
+    });
+    alert(`Rule parameters updated. Set deduplication window to ${newDeduplication}.`);
+  }
+}
+
+function deployRuleToSecOps() {
+  logAgUiEvent('ag_ui.deploy_rule_secops', {
+    mcp_tool: "secops_create_rule",
+    rule_name: "apt29_token_impersonation",
+    status: "LIVE_ENABLED",
+    chronicle_tenant: "secops-tenant-prod"
+  });
+
+  alert('Deployed YARA-L 2.0 detection rule to Google SecOps production instance!');
+}
+
+
 

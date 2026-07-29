@@ -371,6 +371,106 @@
 
       </div><!-- End Component 3: IOC Enrichment -->
 
+      <!-- Component 4: YARA-L Rule Live Sandbox & Coverage Evaluator (<DetectionEngineeringSandbox />) -->
+      <div class="sandbox-card" id="detectionEngineeringSandboxComponent">
+        
+        <!-- Card Header -->
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="action-type-tag">DETECTION ENGINEERING &bull; YARA-L 2.0 SANDBOX</span>
+            <h2 class="card-main-title">YARA-L Rule Live Sandbox & Coverage Evaluator</h2>
+            <div class="card-subtext">Synthesized detection rule & synthetic UDM log simulation results from Detection Engineer Sub-Agent</div>
+          </div>
+          <div class="hitl-tag" style="background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.4); color: var(--severity-success);">
+            <span>SIMULATION PASSED (98.2%)</span>
+          </div>
+        </div>
+
+        <!-- Card Body -->
+        <div class="card-body">
+          
+          <!-- Code View & Simulation Result Split Grid -->
+          <div class="sandbox-grid">
+            
+            <!-- Left: YARA-L Rule Code Box -->
+            <div class="rule-code-container">
+              <div class="section-title">YARA-L 2.0 Rule Definition</div>
+              <pre class="rule-code-box"><code id="ruleCodeText">rule apt29_token_impersonation {
+  meta:
+    author = "Detection Engineer Agent"
+    description = "Detects elevated privilege token abuse pattern"
+    severity = "HIGH"
+    mitre_attack = "T1134.001"
+  events:
+    $e.metadata.event_type = "USER_LOGIN"
+    $e.target.user.attribute = "ELEVATED"
+    $e.security_result.action = "ALLOW"
+  condition:
+    $e
+}</code></pre>
+            </div>
+
+            <!-- Right: Synthetic Test Results & Metrics -->
+            <div class="simulation-metrics-container">
+              <div class="section-title">Synthetic UDM Log Test Metrics</div>
+              
+              <div class="sim-metric-row">
+                <span class="info-label">Synthetic Logs Injected:</span>
+                <span class="info-value">14 Events</span>
+              </div>
+              <div class="sim-metric-row">
+                <span class="info-label">Rule Matches Triggered:</span>
+                <span class="info-value text-success">12 Matches (85.7% Precision)</span>
+              </div>
+              <div class="sim-metric-row">
+                <span class="info-label">False Positive Risk:</span>
+                <span class="info-value text-success">2.4% (LOW RISK)</span>
+              </div>
+              <div class="sim-metric-row">
+                <span class="info-label">Execution Latency:</span>
+                <span class="info-value">14 ms</span>
+              </div>
+              <div class="sim-metric-row">
+                <span class="info-label">MITRE TTP Coverage Expansion:</span>
+                <span class="badge badge-high">+1 TTP (T1134.001)</span>
+              </div>
+
+              <!-- Test Event Log Snippet -->
+              <div class="test-event-box">
+                <div class="section-title" style="font-size: 10px;">Matched Synthetic Log Sample</div>
+                <div class="code-sm" style="display: block; white-space: pre-wrap;">
+{
+  "event_type": "USER_LOGIN",
+  "principal": { "user": "svc_admin" },
+  "target": { "user": "SYSTEM", "attribute": "ELEVATED" },
+  "security_result": { "action": "ALLOW" }
+}
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- Card Footer Actions -->
+        <div class="card-footer">
+          <button class="btn btn-secondary" onclick="runSyntheticRuleTest()">
+            Run Synthetic Event Test
+          </button>
+          <div class="btn-group">
+            <button class="btn btn-secondary" onclick="tuneRuleParameters()">
+              Tune Rule Logic
+            </button>
+            <button class="btn btn-primary" onclick="deployRuleToSecOps()">
+              Deploy Rule to Google SecOps
+            </button>
+          </div>
+        </div>
+
+      </div><!-- End Component 4: Detection Sandbox -->
+
       <!-- Component 2: HITL Interactive Approval Card (<HITLRemediationApproval />) -->
       <div class="hitl-approval-card" id="approvalCardComponent">
         
