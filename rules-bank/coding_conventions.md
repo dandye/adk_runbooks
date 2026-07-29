@@ -1,3 +1,11 @@
+---
+type: Guideline
+title: Coding Conventions
+generated:
+  by: human:dandye
+  at: 2025-05-17T18:46:00-04:00
+---
+
 # Coding Conventions
 
 This document outlines the coding conventions for the Python code within the `google-mcp-security` project. The project aims to follow the [Google Python Style Guide](https://google.github.io/styleguide/pyguide.html).

@@ -1,3 +1,11 @@
+---
+type: Template
+title: "Detection Use-Case Package: [USE_CASE_NAME_Placeholder]"
+generated:
+  by: human:dandye
+  at: 2025-05-31T00:07:07-04:00
+---
+
 # Detection Use-Case Package: [USE_CASE_NAME_Placeholder]
 
 ## 1. Use-Case Overview

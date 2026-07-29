@@ -1,3 +1,11 @@
+---
+type: Guideline
+title: "AI Performance Framework: PICERL Index"
+generated:
+  by: human:dandye
+  at: 2025-05-31T13:54:55-04:00
+---
+
 # AI Performance Framework: PICERL Index
 
 This document introduces the PICERL Index (Preparation, Identification, Containment, Eradication, Recovery, and Learning) as a framework for measuring and improving the effectiveness of AI agents in Security Operations. It outlines how various documents within this `rules-bank` support each phase and lists key metrics for AI agent performance.

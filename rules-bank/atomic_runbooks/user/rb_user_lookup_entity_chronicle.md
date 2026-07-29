@@ -1,3 +1,11 @@
+---
+type: Runbook
+title: "Atomic Runbook: Lookup User Entity Activity in Chronicle"
+generated:
+  by: human:dandye
+  at: 2025-05-31T00:07:07-04:00
+---
+
 # Atomic Runbook: Lookup User Entity Activity in Chronicle
 
 **ID:** `RB-ATOM-USER-001`

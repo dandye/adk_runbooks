@@ -1,3 +1,11 @@
+---
+type: Guideline
+title: Reporting Templates & Guidelines
+generated:
+  by: human:dandye
+  at: 2025-11-10T17:21:35-05:00
+---
+
 # Reporting Templates & Guidelines
 
 This file outlines standard formats and required elements for common reports generated during security operations.

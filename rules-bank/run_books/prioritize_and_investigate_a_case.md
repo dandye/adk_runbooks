@@ -1,3 +1,11 @@
+---
+type: Runbook
+title: Prioritize and Investigate a Case
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20T22:04:42-05:00
+---
+
 # Prioritize and Investigate a Case
 
 From a list of cases, identify cases of the highest severity and potential impact based on underlying alerts and detections. Get rule logic to validate the detections in the cases. After identifying the highest N priority cases -> Explain the entirety of the case to the analyst in the context of the underlying rule logic (explain the rule logic and how it applies to this case). Get entity context to determine if there are additional alerts, detections, or events that may not have been included in the case but are potentially applicable.

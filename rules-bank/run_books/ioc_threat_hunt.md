@@ -1,3 +1,11 @@
+---
+type: Runbook
+title: "Runbook: IOC Threat Hunt"
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20T22:04:42-05:00
+---
+
 # Runbook: IOC Threat Hunt
 
 ## Objective

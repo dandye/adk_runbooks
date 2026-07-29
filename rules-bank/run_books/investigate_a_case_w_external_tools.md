@@ -1,3 +1,11 @@
+---
+type: Runbook
+title: Investigate a Case + external tools
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20T22:04:42-05:00
+---
+
 # Investigate a Case + external tools
 
 Using SecOps, GTI, and Okta. Start with a Case (anomalous login Alerts). Find the entities involved and look up any related indicators. Find any users involved and look up Okta information to determine any suspicious characteristics. If confident in disposition, disable that User. Finally, provide a report about any identified activity for security analyst consumption.

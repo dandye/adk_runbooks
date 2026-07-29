@@ -1,3 +1,11 @@
+---
+type: Incident Response Plan
+title: Phishing Incident Response Plan (IRP) / Runbook
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20T22:04:42-05:00
+---
+
 # Phishing Incident Response Plan (IRP) / Runbook
 
 ## Objective

@@ -1,3 +1,11 @@
+---
+type: Reference
+title: Agent Workflow References
+generated:
+  by: human:dandye
+  at: 2025-11-10T17:21:35-05:00
+---
+
 # Agent Workflow References
 
 This document contains references to blog posts and other resources that demonstrate how to organize agents into workflows.

@@ -1,3 +1,11 @@
+---
+type: Runbook
+title: "Common Step: Confirm Action with User"
+generated:
+  by: human:dandye
+  at: 2025-05-19T16:11:00-04:00
+---
+
 # Common Step: Confirm Action with User
 
 ## Objective

@@ -1,3 +1,11 @@
+---
+type: Guideline
+title: AI Decision Review Guidelines
+generated:
+  by: human:dandye
+  at: 2025-05-31T13:54:55-04:00
+---
+
 # AI Decision Review Guidelines
 
 This document outlines the procedures for human analysts to review AI-driven alert triage and investigation decisions. It also defines a standardized feedback format to support the "Identification" and "Learning" phases of the PICERL AI Performance Framework, specifically targeting "Feedback Loop Metrics" and "Escalation-to-Accuracy Ratio."

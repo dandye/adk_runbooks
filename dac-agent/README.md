@@ -1,3 +1,11 @@
+---
+type: Reference
+title: Detection-as-Code (DAC) Agent
+generated:
+  by: human:dandye
+  at: 2025-06-19T21:01:22-04:00
+---
+
 # Detection-as-Code (DAC) Agent
 
 An autonomous agent for Detection-as-Code rule tuning based on SOAR case feedback and analyst input.

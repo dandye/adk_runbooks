@@ -1,3 +1,11 @@
+---
+type: Guideline
+title: SOP & Automation Effectiveness Review Process
+generated:
+  by: human:dandye
+  at: 2025-05-31T00:07:07-04:00
+---
+
 # SOP & Automation Effectiveness Review Process
 
 This document outlines the process for periodically reviewing the effectiveness of Standard Operating Procedures (SOPs)/runbooks and their associated automation. The goal is to ensure they remain efficient, relevant, and aligned with the organization's security posture and the capabilities of both human analysts and AI agents. This supports the "Optimization & Metrics" aspect of the Detection Engineering lifecycle and the "Learning" phase of the PICERL framework.

@@ -1,3 +1,11 @@
+---
+type: Runbook
+title: "Atomic Runbook: Search File Hash Process Events in Chronicle"
+generated:
+  by: human:dandye
+  at: 2025-05-31T00:07:07-04:00
+---
+
 # Atomic Runbook: Search File Hash Process Events in Chronicle
 
 **ID:** `RB-ATOM-HASH-004`

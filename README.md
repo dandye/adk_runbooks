@@ -1,3 +1,11 @@
+---
+type: Reference
+title: ADK Runbooks
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20T00:15:29-05:00
+---
+
 # ADK Runbooks
 
 A comprehensive multi-agent cybersecurity operations system built on Google's Agent Development Kit (ADK). This project provides specialized AI agents that collaborate to handle security operations tasks including incident response, threat hunting, detection engineering, and security operations center (SOC) activities.

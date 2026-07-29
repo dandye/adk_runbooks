@@ -1,3 +1,11 @@
+---
+type: Guideline
+title: Log Source Overview
+generated:
+  by: human:dandye
+  at: 2025-05-31T00:07:07-04:00
+---
+
 # Log Source Overview
 
 This document identifies critical log sources for security monitoring, their primary ingestion methods, typical retention periods, and how AI agents can assist in monitoring their health and coverage.

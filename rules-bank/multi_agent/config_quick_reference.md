@@ -1,3 +1,11 @@
+---
+type: Reference
+title: Configuration System Quick Reference
+generated:
+  by: human:dandye
+  at: 2025-06-19T21:04:23-04:00
+---
+
 # Configuration System Quick Reference
 
 ## File Locations

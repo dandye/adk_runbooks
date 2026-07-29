@@ -1,3 +1,11 @@
+---
+type: Report
+title: "Incident Report: Case 2451 - SOAR/Chronicle Discrepancy and File IoC Investigation"
+generated:
+  by: human:dandye
+  at: 2025-05-17T18:46:00-04:00
+---
+
 user: update that report with the MCP Tools that were used
 [soc_analyst_tier2]: ## Incident Report: Case 2451 - SOAR/Chronicle Discrepancy and File IoC Investigation
 

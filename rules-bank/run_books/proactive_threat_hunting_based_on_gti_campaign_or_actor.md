@@ -1,3 +1,11 @@
+---
+type: Runbook
+title: Proactive Threat Hunting based on GTI Campaign/Actor
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20T22:04:42-05:00
+---
+
 # Proactive Threat Hunting based on GTI Campaign/Actor
 
 Objective: Given a GTI Campaign or Threat Actor Collection ID (`${GTI_COLLECTION_ID}`), proactively search the local environment (SIEM) for related IOCs and TTPs (approximated by searching related entities). If any IOCs from the report are also found in the SecOps tenant (confirmed presence), perform deeper enrichment on those specific IOCs using GTI and check for related SIEM alerts or SOAR cases. Once done, summarize findings in a markdown report. Provide as much detail as possible.

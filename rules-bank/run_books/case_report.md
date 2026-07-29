@@ -1,3 +1,11 @@
+---
+type: Runbook
+title: "Runbook: Generate Case Investigation Report"
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20T22:04:42-05:00
+---
+
 # Runbook: Generate Case Investigation Report
 
 ## Objective

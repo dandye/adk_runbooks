@@ -1,3 +1,11 @@
+---
+type: Guideline
+title: Security Personas
+generated:
+  by: human:dandye
+  at: 2025-05-17T18:46:00-04:00
+---
+
 # Security Personas
 
 This directory contains descriptions of various security roles, outlining their typical responsibilities, skills, commonly used tools (especially within the MCP context), and relevant runbooks.

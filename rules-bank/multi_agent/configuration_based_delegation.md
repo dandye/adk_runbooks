@@ -1,3 +1,11 @@
+---
+type: Reference
+title: Configuration-Based Delegation System
+generated:
+  by: human:dandye
+  at: 2025-06-19T21:04:23-04:00
+---
+
 # Configuration-Based Delegation System
 
 ## Overview

@@ -1,3 +1,11 @@
+---
+type: Guideline
+title: Indicator Handling Protocols
+generated:
+  by: human:dandye
+  at: 2025-05-31T19:50:19-04:00
+---
+
 # Indicator Handling Protocols
 
 This document outlines standardized initial investigation steps, preferred tools, and key questions for different types of indicators. It is designed to guide both human analysts and AI agents in the initial phase of indicator-based investigation.

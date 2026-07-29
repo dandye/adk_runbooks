@@ -1,3 +1,11 @@
+---
+type: Guideline
+title: Rules Bank Directory Overview
+generated:
+  by: human:dandye
+  at: 2025-05-18T18:48:26-04:00
+---
+
 # Rules Bank Directory Overview
 
 This directory contains configuration files and documentation to provide context and guidance for LLM Agents operating within this security environment.

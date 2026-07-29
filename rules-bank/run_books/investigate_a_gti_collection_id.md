@@ -1,3 +1,11 @@
+---
+type: Runbook
+title: Investigate Google Threat Intelligence Collection ID (Enhanced)
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20T22:04:42-05:00
+---
+
 # Investigate Google Threat Intelligence Collection ID (Enhanced)
 
 Objective: Investigate Google Threat Intelligence Collection ID provided by the user `${COLLECTION_ID}`. Enrich findings with detailed entity reports and correlate with the local environment (SIEM/SOAR). Create a timestamped markdown report summarizing findings, correlations, and recommended actions.

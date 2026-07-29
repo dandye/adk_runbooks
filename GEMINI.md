@@ -1,3 +1,11 @@
+---
+type: Reference
+title: GEMINI.md
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20T00:15:29-05:00
+---
+
 # GEMINI.md
 
 This file provides guidance to Gemini Code when working with code in this repository.

@@ -1,3 +1,11 @@
+---
+type: Guideline
+title: Suggested New MCP Tools
+generated:
+  by: human:dandye
+  at: 2025-05-17T18:46:00-04:00
+---
+
 # Suggested New MCP Tools
 
 Based on the current toolsets for SecOps (SIEM), SOAR, GTI, and SCC, and considering the workflows outlined in the runbooks and personas, here are some potential new MCP tools that could significantly enhance the agent's (and analysts') capabilities:

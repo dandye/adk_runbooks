@@ -1,3 +1,11 @@
+---
+type: Runbook
+title: Deep Dive IOC Analysis Runbook
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20T22:04:42-05:00
+---
+
 # Deep Dive IOC Analysis Runbook
 
 ## Objective

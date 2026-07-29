@@ -1,3 +1,11 @@
+---
+type: Runbook
+title: Compare GTI Collection to IoCs, Events in SecOps
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20T22:04:42-05:00
+---
+
 # Compare GTI Collection to IoCs, Events in SecOps
 
 From a GTI Collection (could be a Private Collection as well), search the past 3 days for any UDM events containing:

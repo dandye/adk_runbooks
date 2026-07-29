@@ -1,3 +1,11 @@
+---
+type: Persona
+title: "Persona: Cyber Threat Intelligence (CTI) Researcher"
+generated:
+  by: human:dandye
+  at: 2025-06-02T12:14:04-04:00
+---
+
 # Persona: Cyber Threat Intelligence (CTI) Researcher
 
 ## Overview

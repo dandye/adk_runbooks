@@ -1,3 +1,11 @@
+---
+type: Guideline
+title: "Project Plan: Enhance LLM Agent Context"
+generated:
+  by: human:dandye
+  at: 2026-03-30T21:16:55-04:00
+---
+
 # Project Plan: Enhance LLM Agent Context
 
 **Project Goal:** To create a comprehensive set of context files within the rules-bank directory, improving the LLM Agent's understanding of the environment, tools, policies, and relevant threats.

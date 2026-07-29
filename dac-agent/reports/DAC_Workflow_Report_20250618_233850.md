@@ -1,3 +1,11 @@
+---
+type: Report
+title: Detection-as-Code Workflow Execution Report
+generated:
+  by: human:dandye
+  at: 2025-06-19T21:01:22-04:00
+---
+
 # Detection-as-Code Workflow Execution Report
 
 **Generated**: 20250618_233850
