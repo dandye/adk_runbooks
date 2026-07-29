@@ -618,5 +618,50 @@ function deployRuleToSecOps() {
   alert('Deployed YARA-L 2.0 detection rule to Google SecOps production instance!');
 }
 
+// Component 5: IRP Progress Tracker Logic (<IRPProgressTracker />)
+function toggleIrpCheck(chkId, label) {
+  const el = document.getElementById(chkId);
+  const isChecked = el ? el.checked : false;
+
+  logAgUiEvent('ag_ui.irp_step_toggled', {
+    step_label: label,
+    completed: isChecked,
+    analyst_override: true,
+    timestamp: new Date().toISOString()
+  });
+}
+
+function attachForensicNote() {
+  const note = prompt("Enter forensic investigation note to attach to active IRP:", "Volatile RAM dump captured via MemoryForensicsAgent. Extracted suspicious DLL payload.");
+  if (note) {
+    logAgUiEvent('ag_ui.irp_note_attached', {
+      playbook: "irp_malware_c2.md",
+      incident_id: "INC-2026-9042",
+      forensic_note: note,
+      timestamp: new Date().toISOString()
+    });
+
+    alert("Forensic note successfully attached to active Incident Response Plan!");
+  }
+}
+
+function advanceIrpPhase() {
+  const badge = document.getElementById('irpPhaseBadge');
+  if (badge) {
+    badge.innerText = "PHASE 3: ERADICATION (75%)";
+    badge.style.color = "var(--severity-high)";
+  }
+
+  logAgUiEvent('ag_ui.irp_phase_advanced', {
+    previous_phase: "PHASE 2: CONTAINMENT",
+    current_phase: "PHASE 3: ERADICATION",
+    completion_percentage: 75,
+    timestamp: new Date().toISOString()
+  });
+
+  alert("Advanced Incident Response Plan to Phase 3: Eradication!");
+}
+
+
 
 

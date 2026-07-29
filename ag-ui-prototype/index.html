@@ -471,6 +471,117 @@
 
       </div><!-- End Component 4: Detection Sandbox -->
 
+      <!-- Component 5: Incident Response Plan (IRP) Live Playbook Tracker (<IRPProgressTracker />) -->
+      <div class="irp-tracker-card" id="irpTrackerComponent">
+        
+        <!-- Card Header -->
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="action-type-tag">SHARED STATE SYNC &bull; PLAYBOOK TRACKER</span>
+            <h2 class="card-main-title">Incident Response Plan (IRP) Live Playbook Tracker</h2>
+            <div class="card-subtext">Active Playbook: Malware C2 Beaconing IRP (rules-bank/irp_malware_c2.md)</div>
+          </div>
+          <div class="hitl-tag" style="background: rgba(59, 130, 246, 0.1); border-color: rgba(59, 130, 246, 0.4); color: var(--accent-blue);">
+            <span id="irpPhaseBadge">PHASE 2: CONTAINMENT (60%)</span>
+          </div>
+        </div>
+
+        <!-- Card Body -->
+        <div class="card-body">
+          
+          <!-- Visual Phase Stepper Progress Bar -->
+          <div class="phase-stepper">
+            <div class="phase-step step-completed">
+              <div class="step-icon">1</div>
+              <div class="step-label">Identification</div>
+            </div>
+            <div class="step-connector line-completed"></div>
+            
+            <div class="phase-step step-active">
+              <div class="step-icon">2</div>
+              <div class="step-label">Containment</div>
+            </div>
+            <div class="step-connector"></div>
+            
+            <div class="phase-step">
+              <div class="step-icon">3</div>
+              <div class="step-label">Eradication</div>
+            </div>
+            <div class="step-connector"></div>
+            
+            <div class="phase-step">
+              <div class="step-icon">4</div>
+              <div class="step-label">Recovery</div>
+            </div>
+          </div>
+
+          <!-- Automated Verification Checklist -->
+          <div class="checklist-container">
+            <div class="section-title">Automated Sub-Agent Verification Checklist</div>
+            
+            <div class="checklist-item item-done">
+              <input type="checkbox" checked id="chk1" onchange="toggleIrpCheck('chk1', 'Verify C2 IP reputation score')">
+              <div class="checklist-text-group">
+                <span class="checklist-title">Verify VirusTotal C2 IP reputation score</span>
+                <span class="checklist-meta">Auto-verified by CTI Researcher Sub-Agent (Score: 64/72 Malicious)</span>
+              </div>
+              <span class="badge badge-medium">COMPLETED</span>
+            </div>
+
+            <div class="checklist-item item-done">
+              <input type="checkbox" checked id="chk2" onchange="toggleIrpCheck('chk2', 'Query UDM logs for affected endpoint socket events')">
+              <div class="checklist-text-group">
+                <span class="checklist-title">Query UDM logs for affected endpoint socket events</span>
+                <span class="checklist-meta">Auto-verified by SOC Tier 1 Sub-Agent (142 outbound socket events)</span>
+              </div>
+              <span class="badge badge-medium">COMPLETED</span>
+            </div>
+
+            <div class="checklist-item item-active">
+              <input type="checkbox" id="chk3" onchange="toggleIrpCheck('chk3', 'Isolate host network egress & block C2 IP')">
+              <div class="checklist-text-group">
+                <span class="checklist-title">Isolate host network egress & block C2 IP</span>
+                <span class="checklist-meta">Assigned to Incident Responder Agent (Awaiting HITL Approval)</span>
+              </div>
+              <span class="badge badge-high">IN PROGRESS</span>
+            </div>
+
+            <div class="checklist-item">
+              <input type="checkbox" id="chk4" onchange="toggleIrpCheck('chk4', 'Preserve system memory (RAM) dump for forensics')">
+              <div class="checklist-text-group">
+                <span class="checklist-title">Preserve system memory (RAM) dump for forensics</span>
+                <span class="checklist-meta">Pending containment execution completion</span>
+              </div>
+              <span class="badge badge-medium" style="background: rgba(107, 114, 128, 0.2); color: #9CA3AF; border-color: rgba(107, 114, 128, 0.3);">PENDING</span>
+            </div>
+
+            <div class="checklist-item">
+              <input type="checkbox" id="chk5" onchange="toggleIrpCheck('chk5', 'Synthesize and deploy YARA-L 2.0 detection rule')">
+              <div class="checklist-text-group">
+                <span class="checklist-title">Synthesize and deploy YARA-L 2.0 detection rule</span>
+                <span class="checklist-meta">Assigned to Detection Engineer Sub-Agent</span>
+              </div>
+              <span class="badge badge-medium" style="background: rgba(107, 114, 128, 0.2); color: #9CA3AF; border-color: rgba(107, 114, 128, 0.3);">PENDING</span>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- Card Footer Actions -->
+        <div class="card-footer">
+          <button class="btn btn-secondary" onclick="attachForensicNote()">
+            Attach Analyst Forensic Note
+          </button>
+          <div class="btn-group">
+            <button class="btn btn-primary" onclick="advanceIrpPhase()">
+              Advance IRP Phase &bull; Eradication
+            </button>
+          </div>
+        </div>
+
+      </div><!-- End Component 5: IRP Tracker -->
+
       <!-- Component 2: HITL Interactive Approval Card (<HITLRemediationApproval />) -->
       <div class="hitl-approval-card" id="approvalCardComponent">
         
