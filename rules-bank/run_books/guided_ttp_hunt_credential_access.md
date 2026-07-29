@@ -58,6 +58,23 @@ This runbook provides a template for hunting specific TTPs. This example focuses
     *   If no significant findings, conclude the hunt and document it.
 9.  **Completion:** Conclude the runbook execution.
 
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_hunt_payload_node["1. extract_hunt_payload_node<br/><i>(Extract Hunt Scope Payload)</i>"]
+    extract_hunt_payload_node --> search_lsass_events_node["2. search_lsass_events_node<br/><i>(Search LSASS & Mimikatz Events)</i>"]
+    search_lsass_events_node --> hunt_threat_router{"3. hunt_threat_router<br/><i>(Event.actions.route)</i>"}
+
+    hunt_threat_router -- "CONFIRMED_CREDENTIAL_DUMPING" --> handle_confirmed_dumping_branch["4a. handle_confirmed_dumping_branch<br/><i>(Reset Passwords & Isolate Host)</i>"]
+    hunt_threat_router -- "CLEAN_HUNT" --> handle_clean_hunt_branch["4b. handle_clean_hunt_branch<br/><i>(Document Clean Hunt Outcome)</i>"]
+
+    handle_confirmed_dumping_branch --> document_hunt_report_node["5. document_hunt_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_clean_hunt_branch --> document_hunt_report_node
+```
+
+### Sequence Diagram
+
 ```{mermaid}
 sequenceDiagram
     participant Analyst

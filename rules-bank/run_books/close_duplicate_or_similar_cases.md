@@ -6,7 +6,22 @@ generated:
   at: 2025-12-20T22:04:42-05:00
 ---
 
-# Close duplicate/similar Cases Workflow
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_primary_case_node["1. extract_primary_case_node<br/><i>(Extract Case Payload)</i>"]
+    extract_primary_case_node --> find_similar_cases_node["2. find_similar_cases_node<br/><i>(Search Similar Cases in SOAR)</i>"]
+    find_similar_cases_node --> duplicate_case_router{"3. duplicate_case_router<br/><i>(Event.actions.route)</i>"}
+
+    duplicate_case_router -- "CLOSE_DUPLICATES" --> handle_close_duplicates_branch["4a. handle_close_duplicates_branch<br/><i>(Close & Comment Duplicate Cases)</i>"]
+    duplicate_case_router -- "SKIP_CLOSURE" --> handle_skip_closure_branch["4b. handle_skip_closure_branch<br/><i>(Skip Closure)</i>"]
+
+    handle_close_duplicates_branch --> document_closure_report_node["5. document_closure_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_skip_closure_branch --> document_closure_report_node
+```
+
+### Sequence Diagram
 
 ```{mermaid}
   sequenceDiagram

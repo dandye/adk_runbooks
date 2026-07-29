@@ -22,6 +22,23 @@ Uses tools:
  * **Common Steps:** {doc}`common_steps/find_relevant_soar_case </run_books/common_steps/find_relevant_soar_case>`
 
 
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_ext_payload_node["1. extract_ext_payload_node<br/><i>(Extract Case Payload)</i>"]
+    extract_ext_payload_node --> query_external_tool_node["2. query_external_tool_node<br/><i>(Query External Tool Intel)</i>"]
+    query_external_tool_node --> external_tool_router{"3. external_tool_router<br/><i>(Event.actions.route)</i>"}
+
+    external_tool_router -- "ESCALATE_TIER2" --> handle_escalate_external_branch["4a. handle_escalate_external_branch<br/><i>(Escalate to Tier 2)</i>"]
+    external_tool_router -- "CLOSE_BENIGN" --> handle_close_external_branch["4b. handle_close_external_branch<br/><i>(Close Case as Benign)</i>"]
+
+    handle_escalate_external_branch --> document_external_report_node["5. document_external_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_close_external_branch --> document_external_report_node
+```
+
+### Sequence Diagram
+
 ```{mermaid}
 sequenceDiagram
     participant User

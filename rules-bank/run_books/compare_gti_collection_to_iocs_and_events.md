@@ -28,6 +28,24 @@ Uses tools:
  * `soar-mcp_post_case_comment`
  * `soar-mcp_list_cases` (Optional, for finding existing case)
 
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_collection_node["1. extract_collection_node<br/><i>(Extract GTI Collection Payload)</i>"]
+    extract_collection_node --> fetch_gti_collection_iocs_node["2. fetch_gti_collection_iocs_node<br/><i>(Fetch GTI Collection IOCs & Actor Metadata)</i>"]
+    fetch_gti_collection_iocs_node --> match_siem_events_node["3. match_siem_events_node<br/><i>(SIEM Event & IOC Match Search)</i>"]
+    match_siem_events_node --> gti_overlap_router{"4. gti_overlap_router<br/><i>(Event.actions.route)</i>"}
+
+    gti_overlap_router -- "CAMPAIGN_MATCHED" --> handle_campaign_matched_branch["5a. handle_campaign_matched_branch<br/><i>(Document Critical Campaign Match)</i>"]
+    gti_overlap_router -- "NO_MATCH" --> handle_no_match_branch["5b. handle_no_match_branch<br/><i>(Document No Overlap)</i>"]
+
+    handle_campaign_matched_branch --> document_gti_report_node["6. document_gti_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_no_match_branch --> document_gti_report_node
+```
+
+### Sequence Diagram
+
 ```{mermaid}
 sequenceDiagram
     participant User

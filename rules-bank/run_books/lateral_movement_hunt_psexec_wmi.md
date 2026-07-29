@@ -70,6 +70,23 @@ This runbook provides a template for hunting specific lateral movement TTPs, foc
     *   If no significant findings, conclude the hunt and document it thoroughly.
 11. **Completion:** Conclude the runbook execution.
 
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_lat_move_payload_node["1. extract_lat_move_payload_node<br/><i>(Extract Hunt Scope Payload)</i>"]
+    extract_lat_move_payload_node --> search_psexec_wmi_events_node["2. search_psexec_wmi_events_node<br/><i>(Search PsExec & WMI Remote Events)</i>"]
+    search_psexec_wmi_events_node --> lateral_movement_router{"3. lateral_movement_router<br/><i>(Event.actions.route)</i>"}
+
+    lateral_movement_router -- "HIGH_LATERAL_MOVEMENT" --> handle_high_lateral_movement_branch["4a. handle_high_lateral_movement_branch<br/><i>(Isolate Source & Target Hosts)</i>"]
+    lateral_movement_router -- "CLEAN_HUNT" --> handle_clean_lateral_hunt_branch["4b. handle_clean_lateral_hunt_branch<br/><i>(Document Clean Hunt Outcome)</i>"]
+
+    handle_high_lateral_movement_branch --> document_lateral_report_node["5. document_lateral_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_clean_lateral_hunt_branch --> document_lateral_report_node
+```
+
+### Sequence Diagram
+
 ```{mermaid}
 sequenceDiagram
     participant Analyst

@@ -243,6 +243,39 @@ def test_ioc_containment_case():
     print("===================================================\n")
 
 
+def test_batch_10_workflows():
+    print("=== Testing 10 Additional Graph Workflows ===")
+    from manager.workflows import (
+        build_close_duplicate_cases_workflow,
+        build_cloud_vulnerability_triage_workflow,
+        build_compare_gti_collection_workflow,
+        build_create_investigation_report_workflow,
+        build_deep_dive_ioc_analysis_workflow,
+        build_detection_rule_validation_workflow,
+        build_credential_access_hunt_workflow,
+        build_investigate_case_external_tools_workflow,
+        build_lateral_movement_hunt_workflow,
+        build_triage_alerts_workflow,
+    )
+
+    wf_list = [
+        build_close_duplicate_cases_workflow(),
+        build_cloud_vulnerability_triage_workflow(),
+        build_compare_gti_collection_workflow(),
+        build_create_investigation_report_workflow(),
+        build_deep_dive_ioc_analysis_workflow(),
+        build_detection_rule_validation_workflow(),
+        build_credential_access_hunt_workflow(),
+        build_investigate_case_external_tools_workflow(),
+        build_lateral_movement_hunt_workflow(),
+        build_triage_alerts_workflow(),
+    ]
+
+    for wf in wf_list:
+        print(f"-> Workflow '{wf.name}' successfully constructed with graph edges.")
+    print("===================================================\n")
+
+
 if __name__ == "__main__":
     test_low_risk_case()
     test_high_risk_case()
@@ -250,3 +283,4 @@ if __name__ == "__main__":
     test_basic_ioc_enrichment_case()
     test_endpoint_triage_case()
     test_ioc_containment_case()
+    test_batch_10_workflows()

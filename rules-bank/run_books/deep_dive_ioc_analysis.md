@@ -71,6 +71,25 @@ This runbook covers in-depth analysis of a single IOC (IP, Domain, Hash, URL) us
         *   Execute `common_steps/generate_report_file.md` with `REPORT_CONTENTS=${REPORT_CONTENTS_VAR}` and `REPORT_NAME=${REPORT_NAME_VAR}`. Obtain `${REPORT_FILE_PATH}` and `${WRITE_STATUS}`.
 8.  **Completion:** Conclude the runbook execution. Inform analyst of completion status and report location (SOAR comment or local file path).
 
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_deep_dive_payload_node["1. extract_deep_dive_payload_node<br/><i>(Extract Deep Dive Payload)</i>"]
+    extract_deep_dive_payload_node --> query_gti_deep_dive_node["2. query_gti_deep_dive_node<br/><i>(GTI Deep Dive & Threat Attribution)</i>"]
+    query_gti_deep_dive_node --> deep_dive_threat_router{"3. deep_dive_threat_router<br/><i>(Event.actions.route)</i>"}
+
+    deep_dive_threat_router -- "ADVANCED_PERSISTENT_THREAT" --> handle_apt_branch["4a. handle_apt_branch<br/><i>(Trigger Enterprise APT Containment)</i>"]
+    deep_dive_threat_router -- "COMMODITY_MALWARE" --> handle_commodity_branch["4b. handle_commodity_branch<br/><i>(Standard EDR Quarantine)</i>"]
+    deep_dive_threat_router -- "BENIGN" --> handle_benign_deep_dive_branch["4c. handle_benign_deep_dive_branch<br/><i>(Document Benign Outcome)</i>"]
+
+    handle_apt_branch --> document_deep_dive_report_node["5. document_deep_dive_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_commodity_branch --> document_deep_dive_report_node
+    handle_benign_deep_dive_branch --> document_deep_dive_report_node
+```
+
+### Sequence Diagram
+
 ```{mermaid}
 sequenceDiagram
     participant Analyst

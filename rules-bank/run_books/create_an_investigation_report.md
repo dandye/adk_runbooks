@@ -66,6 +66,23 @@ Consolidate findings from a completed or ongoing investigation involving various
     *   Document upload status/location via `common_steps/document_in_soar.md`.
 11. **Completion:** Conclude the runbook execution.
 
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_report_payload_node["1. extract_report_payload_node<br/><i>(Extract Report Payload)</i>"]
+    extract_report_payload_node --> fetch_soar_case_details_node["2. fetch_soar_case_details_node<br/><i>(Fetch SOAR Case Details & Severity)</i>"]
+    fetch_soar_case_details_node --> report_type_router{"3. report_type_router<br/><i>(Event.actions.route)</i>"}
+
+    report_type_router -- "EXECUTIVE_SUMMARY" --> handle_executive_summary_branch["4a. handle_executive_summary_branch<br/><i>(Generate Executive Report)</i>"]
+    report_type_router -- "DETAILED_TECHNICAL" --> handle_detailed_technical_branch["4b. handle_detailed_technical_branch<br/><i>(Generate Technical Report)</i>"]
+
+    handle_executive_summary_branch --> document_final_report_node["5. document_final_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_detailed_technical_branch --> document_final_report_node
+```
+
+### Sequence Diagram
+
 ```{mermaid}
 sequenceDiagram
     participant User
