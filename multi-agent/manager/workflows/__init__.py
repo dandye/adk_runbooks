@@ -15,7 +15,20 @@ from .investigate_case_external_tools_workflow import build_investigate_case_ext
 from .lateral_movement_hunt_workflow import build_lateral_movement_hunt_workflow
 from .triage_alerts_workflow import build_triage_alerts_workflow
 
+from .common import (
+    BaseWorkflowInput,
+    CommonSOAROutcome,
+    sanitize_entity_value,
+    format_soar_comment,
+    generate_markdown_summary,
+)
+
 __all__ = [
+    "BaseWorkflowInput",
+    "CommonSOAROutcome",
+    "sanitize_entity_value",
+    "format_soar_comment",
+    "generate_markdown_summary",
     "build_suspicious_login_workflow",
     "build_malware_triage_workflow",
     "build_basic_ioc_enrichment_workflow",
