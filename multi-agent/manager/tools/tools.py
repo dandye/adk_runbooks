@@ -208,7 +208,9 @@ def get_agent_tools():
   # Or does Agent expect a list of callables?
   # The Agent logic handles MCPToolset objects specifically.
   # So we cannot easily wrap individual MCP tools without wrapping the MCPToolset class itself.
-  # Given constraints, we will proceed with wrapping the native tools.
+  # Import executable ADK Graph Workflow tools
+  from .workflow_tools import get_all_workflow_tools
+  workflow_tools = [instrument_tool(t) for t in get_all_workflow_tools()]
 
   return (
       siem_toolset,
@@ -218,4 +220,5 @@ def get_agent_tools():
       wrapped_get_current_time,
       wrapped_read_file_content,
       get_execution_metrics,  # Not wrapped to avoid recursive metrics
+      *workflow_tools,
   )
