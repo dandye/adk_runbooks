@@ -1,6 +1,7 @@
 ---
 type: Persona
 title: "Persona: Compliance Manager"
+description: "Persona who ensures the organization meets applicable compliance frameworks and regulations by assessing controls, managing audits, and reporting on compliance posture."
 generated:
   by: human:dandye
   at: 2025-05-17T18:46:00-04:00

@@ -1,6 +1,7 @@
 ---
 type: Persona
 title: "Persona: Cyber Threat Intelligence (CTI) Researcher"
+description: "Persona who researches threat actors, malware families, and campaigns to produce actionable cyber threat intelligence that informs detection, hunting, and incident response."
 generated:
   by: human:dandye
   at: 2025-06-02T12:14:04-04:00

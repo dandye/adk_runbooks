@@ -1,6 +1,7 @@
 ---
 type: Persona
 title: "Persona: Threat Hunter"
+description: "Persona who proactively, hypothesis-drivenly searches for advanced threats that evade existing detections, bridging CTI, detection engineering, and incident response."
 generated:
   by: human:dandye
   at: 2025-05-17T18:46:00-04:00

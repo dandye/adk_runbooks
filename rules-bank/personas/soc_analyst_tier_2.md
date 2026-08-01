@@ -1,6 +1,7 @@
 ---
 type: Persona
 title: "Persona: Tier 2 SOC Analyst"
+description: "Persona who investigates incidents escalated from Tier 1, performing deeper threat analysis, advanced enrichment, and proactive hunting based on intelligence."
 generated:
   by: human:dandye
   at: 2025-05-18T15:35:55-04:00

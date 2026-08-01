@@ -1,6 +1,7 @@
 ---
 type: Persona
 title: LLM Judge Persona
+description: "Persona that impartially evaluates other AI agents' execution of security runbooks against defined rubrics and required operational artifacts."
 generated:
   by: process:google-labs-jules
   at: 2025-12-20T22:04:42-05:00

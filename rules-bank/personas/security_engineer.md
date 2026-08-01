@@ -1,6 +1,7 @@
 ---
 type: Persona
 title: "Persona: Security Engineer"
+description: "Persona responsible for designing, deploying, and maintaining the organization's security tooling and automation, including SIEM, SOAR, and detection content."
 generated:
   by: human:dandye
   at: 2025-06-02T12:14:04-04:00

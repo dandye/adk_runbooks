@@ -1,6 +1,7 @@
 ---
 type: Persona
 title: "Persona: Tier 1 SOC Analyst"
+description: "Persona who performs first-line alert monitoring and initial triage, closing false positives/duplicates or escalating real threats to Tier 2/3 analysts."
 generated:
   by: human:dandye
   at: 2025-05-18T15:35:55-04:00

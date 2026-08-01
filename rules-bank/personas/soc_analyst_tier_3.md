@@ -1,6 +1,7 @@
 ---
 type: Persona
 title: "Persona: Tier 3 SOC Analyst"
+description: "Persona representing the SOC's highest level of technical expertise, leading response to the most complex incidents and performing advanced threat hunting."
 generated:
   by: human:dandye
   at: 2025-05-17T18:46:00-04:00

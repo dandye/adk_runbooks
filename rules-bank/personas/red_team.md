@@ -1,6 +1,7 @@
 ---
 type: Persona
 title: "Persona: Red Team Member"
+description: "Persona who emulates real-world adversary TTPs through penetration testing and attack simulation to assess the organization's detection and response capabilities."
 generated:
   by: human:dandye
   at: 2025-05-17T18:46:00-04:00

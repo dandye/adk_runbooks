@@ -1,6 +1,7 @@
 ---
 type: Persona
 title: "Persona: Incident Responder (IR)"
+description: "Persona who manages the end-to-end response to confirmed security incidents, from triage through containment, eradication, and recovery."
 generated:
   by: human:dandye
   at: 2025-05-17T18:46:00-04:00

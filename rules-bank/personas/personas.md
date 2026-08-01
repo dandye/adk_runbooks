@@ -1,6 +1,7 @@
 ---
 type: Guideline
 title: Security Personas
+description: "Index and overview of the security personas defined in this directory, covering their typical responsibilities, skills, tools, and related runbooks."
 generated:
   by: human:dandye
   at: 2025-05-17T18:46:00-04:00

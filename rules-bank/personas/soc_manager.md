@@ -1,6 +1,7 @@
 ---
 type: Persona
 title: "Persona: SOC Manager"
+description: "Persona who leads the SOC team and its operations, managing personnel, processes, and technology to bridge technical operations with business objectives."
 generated:
   by: human:dandye
   at: 2025-05-19T13:39:50-04:00
