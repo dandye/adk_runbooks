@@ -1,0 +1,578 @@
+version: '1.0'
+project: Agentic-SOC-Agentspace
+description: Project-specific technical dictionary extending ASD-STE100 for Security
+  Operations runbooks and agents
+technical_names:
+- term: file hash
+  part_of_speech: noun
+  category: data
+  definition: Cryptographic hash identifying a file (MD5, SHA1, SHA256).
+  forbidden_synonyms:
+  - hash digest
+- term: MD5
+  part_of_speech: noun
+  category: data
+  definition: 128-bit cryptographic hash algorithm.
+- term: SHA1
+  part_of_speech: noun
+  category: data
+  definition: 160-bit cryptographic hash algorithm.
+- term: SHA256
+  part_of_speech: noun
+  category: data
+  definition: 256-bit cryptographic hash algorithm.
+- term: GTI
+  part_of_speech: noun
+  category: tool
+  definition: Google Threat Intelligence platform (VirusTotal).
+- term: SIEM
+  part_of_speech: noun
+  category: tool
+  definition: Security Information and Event Management platform (Chronicle).
+- term: SOAR
+  part_of_speech: noun
+  category: tool
+  definition: Security Orchestration, Automation, and Response platform.
+- term: SOAR case
+  part_of_speech: noun
+  category: process
+  definition: An incident record in the SOAR platform.
+  forbidden_synonyms:
+  - case ticket
+- term: threat intelligence
+  part_of_speech: noun
+  category: data
+  definition: Evidence-based knowledge about threats, actors, and vulnerabilities.
+- term: network indicator
+  part_of_speech: noun
+  category: data
+  definition: IP address, domain, or URL associated with malicious network traffic.
+- term: behavioral indicator
+  part_of_speech: noun
+  category: data
+  definition: Observed system or process activity associated with malicious behavior.
+- term: registry key
+  part_of_speech: noun
+  category: software
+  definition: A hierarchical database element in Windows operating systems.
+- term: dropped file
+  part_of_speech: noun
+  category: data
+  definition: A file created on an endpoint during malware execution.
+- term: endpoint
+  part_of_speech: noun
+  category: hardware
+  definition: A workstation, server, or virtual machine connected to the network.
+- term: lateral movement
+  part_of_speech: noun
+  category: process
+  definition: Techniques used by adversaries to extend access across a network.
+- term: initial access
+  part_of_speech: noun
+  category: process
+  definition: The vector or technique used by an attacker to gain entry.
+- term: persistence mechanism
+  part_of_speech: noun
+  category: software
+  definition: Configurations or artifacts that allow malware to persist across restarts.
+- term: decryptor
+  part_of_speech: noun
+  category: tool
+  definition: Software tool used to restore encrypted files.
+- term: security control
+  part_of_speech: noun
+  category: process
+  definition: A technical or administrative defense mechanism.
+- term: phishing
+  part_of_speech: noun
+  category: process
+  definition: Social engineering attacks delivered via email or messaging.
+- term: ransomware
+  part_of_speech: noun
+  category: software
+  definition: Malware designed to encrypt files and demand ransom.
+- term: malware
+  part_of_speech: noun
+  category: software
+  definition: Malicious software designed to cause harm.
+- term: MFA
+  part_of_speech: noun
+  category: process
+  definition: Multi-Factor Authentication security process.
+- term: mailbox
+  part_of_speech: noun
+  category: software
+  definition: An electronic destination for user email messages.
+- term: APT
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing APT in SOC security operations.
+- term: BEC
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing BEC in SOC security operations.
+- term: BigQuery
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing BigQuery in SOC security operations.
+- term: Brand Impersonation
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing Brand Impersonation in SOC security operations.
+- term: CTI
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing CTI in SOC security operations.
+- term: Credential Access
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing Credential Access in SOC security operations.
+- term: Credential Harvesting
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing Credential Harvesting in SOC security operations.
+- term: DNS event
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing DNS event in SOC security operations.
+- term: EDR
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing EDR in SOC security operations.
+- term: HTTP event
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing HTTP event in SOC security operations.
+- term: IOC
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing IOC in SOC security operations.
+- term: IP address
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing IP address in SOC security operations.
+- term: LSASS
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing LSASS in SOC security operations.
+- term: MITRE ATT&CK
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing MITRE ATT&CK in SOC security operations.
+- term: Malware Delivery
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing Malware Delivery in SOC security operations.
+- term: NTDS.dit
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing NTDS.dit in SOC security operations.
+- term: PsExec
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing PsExec in SOC security operations.
+- term: SAM registry
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing SAM registry in SOC security operations.
+- term: SCC
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing SCC in SOC security operations.
+- term: SMB
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing SMB in SOC security operations.
+- term: SOC analyst
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing SOC analyst in SOC security operations.
+- term: SQL
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing SQL in SOC security operations.
+- term: Spear Phishing
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing Spear Phishing in SOC security operations.
+- term: TTP
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing TTP in SOC security operations.
+- term: UEBA
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing UEBA in SOC security operations.
+- term: URL
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing URL in SOC security operations.
+- term: WMI
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing WMI in SOC security operations.
+- term: YARA-L
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing YARA-L in SOC security operations.
+- term: alert report
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing alert report in SOC security operations.
+- term: anomaly
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing anomaly in SOC security operations.
+- term: artifact
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing artifact in SOC security operations.
+- term: audit log
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing audit log in SOC security operations.
+- term: behavioral baseline
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing behavioral baseline in SOC security operations.
+- term: campaign
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing campaign in SOC security operations.
+- term: case report
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing case report in SOC security operations.
+- term: cloud resource
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing cloud resource in SOC security operations.
+- term: clustering
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing clustering in SOC security operations.
+- term: collection
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing collection in SOC security operations.
+- term: command line
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing command line in SOC security operations.
+- term: comment
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing comment in SOC security operations.
+- term: containment
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing containment in SOC security operations.
+- term: coverage
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing coverage in SOC security operations.
+- term: data lake
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing data lake in SOC security operations.
+- term: detection report
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing detection report in SOC security operations.
+- term: detection rule
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing detection rule in SOC security operations.
+- term: domain
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing domain in SOC security operations.
+- term: duplicate case
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing duplicate case in SOC security operations.
+- term: entity
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing entity in SOC security operations.
+- term: escalation
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing escalation in SOC security operations.
+- term: evidence
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing evidence in SOC security operations.
+- term: executive summary
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing executive summary in SOC security operations.
+- term: false positive
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing false positive in SOC security operations.
+- term: firewall
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing firewall in SOC security operations.
+- term: grouping
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing grouping in SOC security operations.
+- term: header artifact
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing header artifact in SOC security operations.
+- term: historical data
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing historical data in SOC security operations.
+- term: hypothesis
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing hypothesis in SOC security operations.
+- term: impact
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing impact in SOC security operations.
+- term: impossible travel
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing impossible travel in SOC security operations.
+- term: incident
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing incident in SOC security operations.
+- term: incident response
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing incident response in SOC security operations.
+- term: inputs
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing inputs in SOC security operations.
+- term: investigation report
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing investigation report in SOC security operations.
+- term: login event
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing login event in SOC security operations.
+- term: manual action
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing manual action in SOC security operations.
+- term: markdown
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing markdown in SOC security operations.
+- term: meta-analysis
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing meta-analysis in SOC security operations.
+- term: network connection
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing network connection in SOC security operations.
+- term: objective
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing objective in SOC security operations.
+- term: playbook
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing playbook in SOC security operations.
+- term: post-incident review
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing post-incident review in SOC security operations.
+- term: priority
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing priority in SOC security operations.
+- term: process execution event
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing process execution event in SOC security
+    operations.
+- term: process tree
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing process tree in SOC security operations.
+- term: pull request
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing pull request in SOC security operations.
+- term: relationship
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing relationship in SOC security operations.
+- term: remediation
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing remediation in SOC security operations.
+- term: report
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing report in SOC security operations.
+- term: report file
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing report file in SOC security operations.
+- term: repository
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing repository in SOC security operations.
+- term: reputation
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing reputation in SOC security operations.
+- term: root cause
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing root cause in SOC security operations.
+- term: rule tuning
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing rule tuning in SOC security operations.
+- term: runbook
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing runbook in SOC security operations.
+- term: sandbox
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing sandbox in SOC security operations.
+- term: search term
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing search term in SOC security operations.
+- term: security alert
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing security alert in SOC security operations.
+- term: session token
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing session token in SOC security operations.
+- term: severity
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing severity in SOC security operations.
+- term: threat actor
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing threat actor in SOC security operations.
+- term: threat hunt
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing threat hunt in SOC security operations.
+- term: timeline
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing timeline in SOC security operations.
+- term: tools
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing tools in SOC security operations.
+- term: trend
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing trend in SOC security operations.
+- term: triage
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing triage in SOC security operations.
+- term: true positive
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing true positive in SOC security operations.
+- term: user account
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing user account in SOC security operations.
+- term: verdict
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing verdict in SOC security operations.
+- term: vulnerability
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing vulnerability in SOC security operations.
+- term: workflow
+  part_of_speech: noun
+  category: security_operations
+  definition: Technical term representing workflow in SOC security operations.
+technical_verbs:
+- term: isolate
+  part_of_speech: verb
+  definition: Disconnect an endpoint from the network to halt threat activity.
+  approved_usage: Isolate affected endpoints immediately.
+- term: quarantine
+  part_of_speech: verb
+  definition: Move a malicious email or file to a secure isolated store.
+  approved_usage: Quarantine matching phishing messages in user mailboxes.
+- term: re-image
+  part_of_speech: verb
+  definition: Reinstall the operating system from a verified clean image.
+  approved_usage: Clean or re-image infected hosts.
+- term: enrich
+  part_of_speech: verb
+  definition: Add threat intelligence reputation data to an indicator.
+  approved_usage: Enrich extracted indicators with threat intelligence tools.
+- term: patch
+  part_of_speech: verb
+  definition: Apply software updates to resolve security vulnerabilities.
+  approved_usage: Install security patches before you connect hosts to the network.
+- term: escalate
+  part_of_speech: verb
+  definition: Assign or forward an incident to a higher tier or specialist.
+  approved_usage: Escalate the case to Tier 2 if containment fails.
+- term: triage
+  part_of_speech: verb
+  definition: Perform initial analysis and severity prioritization.
+  approved_usage: Triage incoming security alerts.
+- term: authenticate
+  part_of_speech: verb
+  definition: Technical action verb for authenticate process in SOC operations.
+  approved_usage: Authenticate the target entity according to security policy.
+- term: close
+  part_of_speech: verb
+  definition: Technical action verb for close process in SOC operations.
+  approved_usage: Close the target entity according to security policy.
+- term: contain
+  part_of_speech: verb
+  definition: Technical action verb for contain process in SOC operations.
+  approved_usage: Contain the target entity according to security policy.
+- term: eradicate
+  part_of_speech: verb
+  definition: Technical action verb for eradicate process in SOC operations.
+  approved_usage: Eradicate the target entity according to security policy.
+- term: revoke
+  part_of_speech: verb
+  definition: Technical action verb for revoke process in SOC operations.
+  approved_usage: Revoke the target entity according to security policy.
+- term: tune
+  part_of_speech: verb
+  definition: Technical action verb for tune process in SOC operations.
+  approved_usage: Tune the target entity according to security policy.
+forbidden_project_words:
+- word: ensure
+  replacement: make sure / to [verb]
+- word: retrieve
+  replacement: get
+- word: via
+  replacement: with
+- word: locate
+  replacement: find
+- word: categorize
+  replacement: classify
+- word: prior to
+  replacement: before
+- word: utilize
+  replacement: use
+- word: subsequently
+  replacement: then
+- word: terminate
+  replacement: stop / close
