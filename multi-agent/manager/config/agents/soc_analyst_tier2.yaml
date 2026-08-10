@@ -1,0 +1,28 @@
+agent_name: soc_analyst_tier2
+display_name: "SOC Analyst Tier 2"
+description: "Deep investigation and SOAR case management specialist"
+expertise_areas:
+  - deep_investigation
+  - soar_case_management
+  - advanced_ioc_analysis
+  - lateral_movement_analysis
+  - cloud_vulnerability_triage
+mcp_servers:
+  - name: soar-mcp
+    description: "SOAR platform operations"
+  - name: secops-mcp
+    description: "SIEM operations"
+  - name: gti-mcp
+    description: "Threat Intelligence"
+delegation_triggers:
+  - "SOAR case"
+  - "deep investigation"
+  - "case management"
+  - "lateral movement"
+capabilities:
+  can_escalate_to:
+    - soc_analyst_tier3
+    - incident_responder
+  handles_alert_severity:
+    - medium
+    - high

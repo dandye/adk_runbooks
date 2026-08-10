@@ -1,0 +1,25 @@
+agent_name: soc_analyst_tier1
+display_name: "SOC Analyst Tier 1"
+description: "Initial alert triage and basic IOC enrichment specialist"
+expertise_areas:
+  - alert_triage
+  - basic_ioc_enrichment
+  - phishing_email_analysis
+  - suspicious_login_analysis
+mcp_servers:
+  - name: secops-mcp
+    description: "SIEM operations"
+  - name: gti-mcp
+    description: "Threat Intelligence"
+delegation_triggers:
+  - "triage"
+  - "alert"
+  - "suspicious login"
+  - "phishing"
+capabilities:
+  can_escalate_to:
+    - soc_analyst_tier2
+    - incident_responder
+  handles_alert_severity:
+    - low
+    - medium

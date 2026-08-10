@@ -1,0 +1,28 @@
+agent_name: soc_analyst_tier3
+display_name: "SOC Analyst Tier 3"
+description: "Advanced incident response and deep-dive analysis specialist"
+expertise_areas:
+  - advanced_incident_response
+  - deep_dive_analysis
+  - malware_triage
+  - ransomware_response
+  - compromised_user_response
+mcp_servers:
+  - name: soar-mcp
+    description: "SOAR platform operations"
+  - name: secops-mcp
+    description: "SIEM operations"
+  - name: gti-mcp
+    description: "Threat Intelligence"
+delegation_triggers:
+  - "escalated incident"
+  - "major security event"
+  - "ransomware"
+  - "compromised user"
+  - "malware"
+capabilities:
+  can_escalate_to:
+    - incident_responder
+  handles_alert_severity:
+    - high
+    - critical

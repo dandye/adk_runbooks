@@ -1,0 +1,19 @@
+agent_name: detection_engineer
+display_name: "Detection Engineer"
+description: "Detection rule development and tuning specialist"
+expertise_areas:
+  - detection_rule_development
+  - rule_tuning
+  - detection_as_code
+  - analytics_management
+mcp_servers:
+  - name: secops-mcp
+    description: "SIEM operations"
+delegation_triggers:
+  - "detection rule"
+  - "tuning"
+  - "false positive"
+  - "new detection"
+capabilities:
+  can_escalate_to:
+    - manager
