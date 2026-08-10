@@ -13,6 +13,7 @@ from .sub_agents.detection_engineer import agent as detection_engineer_agent_mod
 from .sub_agents.llm_judge import agent as llm_judge_agent_module
 
 from .tools.tools import get_current_time, write_report, get_agent_tools, load_persona_and_runbooks, read_file_content
+from google.adk.tools import load_memory
 
 # Set the root logger to output debug messages
 logging.basicConfig(level=logging.ERROR)
@@ -63,6 +64,11 @@ persona_description = load_persona_and_runbooks(
     runbook_files,
     default_persona_description="SOC Manager: Responsible for delegating to other agents and writing reports."
 )
+
+async def auto_save_session_to_memory_callback(callback_context):
+    if hasattr(callback_context._invocation_context, 'memory_service') and callback_context._invocation_context.memory_service:
+        await callback_context._invocation_context.memory_service.add_session_to_memory(
+            callback_context._invocation_context.session)
 
 # Create the root agent directly
 root_agent = Agent(
@@ -115,5 +121,7 @@ root_agent = Agent(
         get_current_time,
         write_report,
         read_file_content,
+        load_memory,
     ],
+    after_agent_callback=auto_save_session_to_memory_callback,
 )
