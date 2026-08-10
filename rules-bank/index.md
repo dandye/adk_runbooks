@@ -17,6 +17,7 @@ multi_agent/README
 multi_agent/configuration_based_delegation
 multi_agent/config_quick_reference
 multi_agent/agent_workflow_references
+setup_memory_bank
 ```
 
 ### Setup & Configuration
