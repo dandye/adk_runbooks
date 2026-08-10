@@ -12,7 +12,18 @@ from .sub_agents.incident_responder import agent as incident_responder_agent_mod
 from .sub_agents.detection_engineer import agent as detection_engineer_agent_module
 from .sub_agents.llm_judge import agent as llm_judge_agent_module
 
-from .tools.tools import get_current_time, write_report, get_agent_tools, load_persona_and_runbooks, read_file_content
+from .tools.tools import (
+    get_current_time,
+    write_report,
+    get_agent_tools,
+    load_persona_and_runbooks,
+    read_file_content,
+    create_case_worktree,
+    create_bead,
+    update_bead,
+    log_work,
+    list_beads,
+)
 
 # Set the root logger to output debug messages
 logging.basicConfig(level=logging.ERROR)
@@ -99,6 +110,14 @@ root_agent = Agent(
     - write_report
     - read_file_content
 
+    **Gas Town Protocol (Persistent Investigations):**
+    You are required to use the 'Gas Town' protocol for all investigations to ensure state persistence and auditability.
+    1.  **Start of Case:** Call `create_case_worktree(case_id)` to initialize the investigation workspace.
+    2.  **Delegation:** When assigning a task to a sub-agent (or yourself), create a persistent 'Bead' using `create_bead(...)`. This tracks the assignment formally.
+    3.  **Tracking:** Monitor progress using `list_beads(case_id)`.
+    4.  **Updates:** Update bead status using `update_bead(...)` when tasks are completed.
+    5.  **Logging:** Save critical artifacts (evidence, intermediate thoughts) using `log_work(...)`. This ensures 'Time Travel' debugging is possible.
+
     Always aim for clear, coordinated, and efficient execution of security operations, leveraging your sub-agents effectively according to their roles and the active IRP.
     """,
     sub_agents=[
@@ -115,5 +134,10 @@ root_agent = Agent(
         get_current_time,
         write_report,
         read_file_content,
+        create_case_worktree,
+        create_bead,
+        update_bead,
+        log_work,
+        list_beads,
     ],
 )
