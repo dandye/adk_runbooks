@@ -68,3 +68,22 @@ def generate_markdown_summary(
 {soar_comment}
 ```
 """
+
+import os
+from datetime import datetime
+
+def save_workflow_report_to_disk(report_name: str, report_markdown: str) -> str:
+    """Writes workflow generated markdown reports to the reports directory."""
+    reports_dir = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "..", "reports")
+    )
+    os.makedirs(reports_dir, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    base_name, ext = os.path.splitext(report_name)
+    if not ext:
+        ext = ".md"
+    file_name = f"{base_name}_{timestamp}{ext}"
+    file_path = os.path.join(reports_dir, file_name)
+    with open(file_path, "w") as f:
+        f.write(report_markdown)
+    return file_path

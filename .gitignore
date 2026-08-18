@@ -18,3 +18,7 @@ hello-a2a/
 multi-agent/manager/sub_agents/*/*.log
 .DS_Store
 
+
+# Local ADK databases
+**/.adk/
+

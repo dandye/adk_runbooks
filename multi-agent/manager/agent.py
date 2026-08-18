@@ -1,5 +1,11 @@
 import logging
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from manager/.env and external/mcp-security/.env
+BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(BASE_DIR / ".env")
+load_dotenv((BASE_DIR / "../../external/mcp-security/.env").resolve())
 
 from google.adk.agents import Agent
 
@@ -32,30 +38,30 @@ initialized_llm_judge = llm_judge_agent_module.get_agent(shared_tools)
 
 # Load persona and runbooks for the manager
 BASE_DIR = Path(__file__).resolve().parent
-persona_file_path = (BASE_DIR / "../../../adk_runbooks/rules-bank/personas/soc_manager.md").resolve()
+persona_file_path = (BASE_DIR / "../../rules-bank/personas/soc_manager.md").resolve()
 runbook_files = [
     # Guidelines
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/guidelines/report_writing.md").resolve(),
+    (BASE_DIR / "../../rules-bank/run_books/guidelines/report_writing.md").resolve(),
     # IRPs
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/irps/compromised_user_account_response.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/irps/phishing_response.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/irps/ransomware_response.md").resolve(),
+    (BASE_DIR / "../../rules-bank/run_books/irps/compromised_user_account_response.md").resolve(),
+    (BASE_DIR / "../../rules-bank/run_books/irps/phishing_response.md").resolve(),
+    (BASE_DIR / "../../rules-bank/run_books/irps/ransomware_response.md").resolve(),
     # Runbooks
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/triage_alerts.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/prioritize_and_investigate_a_case.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/close_duplicate_or_similar_cases.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/basic_ioc_enrichment.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/suspicious_login_triage.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/investigate_a_case_w_external_tools.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/ioc_containment.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/basic_endpoint_triage_isolation.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/deep_dive_ioc_analysis.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/malware_triage.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/guided_ttp_hunt_credential_access.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/lateral_movement_hunt_psexec_wmi.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/advanced_threat_hunting.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/detection_rule_validation_tuning.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/create_an_investigation_report.md").resolve(),
+    (BASE_DIR / "../../rules-bank/run_books/triage_alerts.md").resolve(),
+    (BASE_DIR / "../../rules-bank/run_books/prioritize_and_investigate_a_case.md").resolve(),
+    (BASE_DIR / "../../rules-bank/run_books/close_duplicate_or_similar_cases.md").resolve(),
+    (BASE_DIR / "../../rules-bank/run_books/basic_ioc_enrichment.md").resolve(),
+    (BASE_DIR / "../../rules-bank/run_books/suspicious_login_triage.md").resolve(),
+    (BASE_DIR / "../../rules-bank/run_books/investigate_a_case_w_external_tools.md").resolve(),
+    (BASE_DIR / "../../rules-bank/run_books/ioc_containment.md").resolve(),
+    (BASE_DIR / "../../rules-bank/run_books/basic_endpoint_triage_isolation.md").resolve(),
+    (BASE_DIR / "../../rules-bank/run_books/deep_dive_ioc_analysis.md").resolve(),
+    (BASE_DIR / "../../rules-bank/run_books/malware_triage.md").resolve(),
+    (BASE_DIR / "../../rules-bank/run_books/guided_ttp_hunt_credential_access.md").resolve(),
+    (BASE_DIR / "../../rules-bank/run_books/lateral_movement_hunt_psexec_wmi.md").resolve(),
+    (BASE_DIR / "../../rules-bank/run_books/advanced_threat_hunting.md").resolve(),
+    (BASE_DIR / "../../rules-bank/run_books/detection_rule_validation_tuning.md").resolve(),
+    (BASE_DIR / "../../rules-bank/run_books/create_an_investigation_report.md").resolve(),
 ]
 
 persona_description = load_persona_and_runbooks(

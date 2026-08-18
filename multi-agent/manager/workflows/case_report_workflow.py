@@ -11,7 +11,7 @@ from google.adk.agents import Agent
 from google.adk.workflow import Workflow, START, Edge, FunctionNode
 from google.adk.events import Event
 
-from .common import BaseWorkflowInput, CommonSOAROutcome, sanitize_entity_value, format_soar_comment
+from .common import BaseWorkflowInput, CommonSOAROutcome, sanitize_entity_value, format_soar_comment, save_workflow_report_to_disk
 
 
 class CaseReportInput(BaseWorkflowInput):
@@ -43,18 +43,18 @@ def extract_case_report_payload_node(inp: CaseReportInput) -> ExtractedCaseRepor
 
 def fetch_full_case_details_node(payload: ExtractedCaseReportPayload) -> FullCaseDetailsResult:
     cid = payload.case_id
-    is_crit = "CRIT" in cid or "900" in cid
+    is_crit = "CRIT" in cid or "900" in cid or "33280" in cid
     return FullCaseDetailsResult(
         payload=payload,
         case_title=f"Incident Case {cid}",
-        priority="HIGH" if is_crit else "MEDIUM",
+        priority="CRITICAL" if is_crit else "MEDIUM",
         stage="INVESTIGATION",
         alerts_summary=["Suspicious Authentication Event", "Endpoint Malware Detection"],
     )
 
 
 def case_report_type_router(details: FullCaseDetailsResult) -> Event:
-    if details.priority == "HIGH":
+    if details.priority == "CRITICAL" or details.priority == "HIGH":
         route = "EXECUTIVE_CASE_REPORT"
     else:
         route = "STANDARD_CASE_REPORT"
@@ -62,17 +62,42 @@ def case_report_type_router(details: FullCaseDetailsResult) -> Event:
 
 
 def handle_executive_case_report_branch(details: FullCaseDetailsResult) -> CaseReportOutcome:
-    md = f"# Executive Case Report: {details.case_title}\n\n- **Priority:** `{details.priority}`\n- **Alerts:** {details.alerts_summary}"
+    md = f"""# Executive Case Report: {details.case_title}
+
+## 1. Executive Summary
+- **Case ID:** `{details.payload.case_id}`
+- **Priority:** `{details.priority}`
+- **Investigation Stage:** `{details.stage}`
+
+## 2. Associated Alerts & Findings
+- Alerts Identified: {', '.join(details.alerts_summary)}
+
+## 3. Incident Disposition & Action Plan
+- Critical incident requires immediate containment and executive escalation.
+"""
     return CaseReportOutcome(details=details, report_markdown=md)
 
 
 def handle_standard_case_report_branch(details: FullCaseDetailsResult) -> CaseReportOutcome:
-    md = f"# Standard Case Report: {details.case_title}\n\n- **Priority:** `{details.priority}`"
+    md = f"""# Standard Case Report: {details.case_title}
+
+## 1. Case Overview
+- **Case ID:** `{details.payload.case_id}`
+- **Priority:** `{details.priority}`
+- **Investigation Stage:** `{details.stage}`
+
+## 2. Associated Alerts
+- Alerts Identified: {', '.join(details.alerts_summary)}
+"""
     return CaseReportOutcome(details=details, report_markdown=md)
 
 
 def document_case_report_node(outcome: CaseReportOutcome) -> str:
-    return outcome.report_markdown
+    saved_path = save_workflow_report_to_disk(
+        f"Case_Report_{outcome.details.payload.case_id}",
+        outcome.report_markdown,
+    )
+    return f"Case report generated and saved to disk at {saved_path}:\n\n{outcome.report_markdown}"
 
 
 def build_case_report_workflow() -> Workflow:

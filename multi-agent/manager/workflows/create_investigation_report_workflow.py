@@ -11,6 +11,8 @@ from google.adk.agents import Agent
 from google.adk.workflow import Workflow, START, Edge, FunctionNode
 from google.adk.events import Event
 
+from .common import save_workflow_report_to_disk
+
 
 class InvestigationReportInput(BaseModel):
     case_id: str = Field(description="SOAR Case ID to generate report for")
@@ -49,10 +51,10 @@ def extract_report_payload_node(inp: InvestigationReportInput) -> ExtractedRepor
 
 def fetch_soar_case_details_node(payload: ExtractedReportPayload) -> SOARCaseDetailsResult:
     cid = payload.case_id
-    is_critical = "CRIT" in cid or "900" in cid or "MAL" in cid
+    is_critical = "CRIT" in cid or "900" in cid or "MAL" in cid or "33280" in cid
     return SOARCaseDetailsResult(
         payload=payload,
-        case_title=f"Incident Investigation for {cid}",
+        case_title=f"Incident Investigation for Case {cid}",
         severity="CRITICAL" if is_critical else "MEDIUM",
         alerts_count=5 if is_critical else 1,
         entities_involved=["alice.smith@example.com", "198.51.100.44", "workstation-finance-01"],
@@ -71,16 +73,16 @@ def report_type_router(details: SOARCaseDetailsResult) -> Event:
 def handle_executive_summary_branch(details: SOARCaseDetailsResult) -> GeneratedReportResult:
     md = f"""# Executive Incident Investigation Report
 
-## Case Overview
+## 1. Case Overview
 - **Case ID:** `{details.payload.case_id}`
 - **Title:** {details.case_title}
 - **Severity:** `{details.severity}`
 - **Alert Count:** {details.alerts_count}
 
-## Executive Summary
+## 2. Executive Summary
 {details.root_cause_summary}
 
-## Involved Entities
+## 3. Involved Entities
 {', '.join(details.entities_involved)}
 """
     return GeneratedReportResult(
@@ -93,13 +95,17 @@ def handle_executive_summary_branch(details: SOARCaseDetailsResult) -> Generated
 def handle_detailed_technical_branch(details: SOARCaseDetailsResult) -> GeneratedReportResult:
     md = f"""# Technical Investigation Report
 
-## Case Overview
+## 1. Case Overview
 - **Case ID:** `{details.payload.case_id}`
 - **Title:** {details.case_title}
 - **Severity:** `{details.severity}`
+- **Alert Count:** {details.alerts_count}
 
-## Technical Analysis
+## 2. Technical Analysis
 {details.root_cause_summary}
+
+## 3. Involved Entities
+{', '.join(details.entities_involved)}
 """
     return GeneratedReportResult(
         case_details=details,
@@ -109,7 +115,11 @@ def handle_detailed_technical_branch(details: SOARCaseDetailsResult) -> Generate
 
 
 def document_final_report_node(rep: GeneratedReportResult) -> str:
-    return rep.report_markdown
+    saved_path = save_workflow_report_to_disk(
+        f"Investigation_Report_Case_{rep.case_details.payload.case_id}",
+        rep.report_markdown,
+    )
+    return f"Investigation report successfully generated and saved to disk at {saved_path}:\n\n{rep.report_markdown}"
 
 
 def build_create_investigation_report_workflow() -> Workflow:
