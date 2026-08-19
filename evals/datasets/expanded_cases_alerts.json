@@ -1,0 +1,488 @@
+[
+  {
+    "test_id": "TEST-EXP-MALWARE-IRP-33279",
+    "workflow_name": "malware_irp_workflow",
+    "description": "Execute malware outbreak response and EDR host isolation on Case 33279 (Lokibot C2).",
+    "runbook_reference": "rules-bank/run_books/irps/malware_incident_response.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "case_id": "33279",
+      "target_host": "ZENYA-RIGHT.corp.cymbal.org",
+      "file_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "confirm_host_isolation": true
+    },
+    "expected": {
+      "expected_route": "ISOLATE_HOST_AND_BLOCK_IOCS",
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "TEST-EXP-PHISHING-IRP-33285",
+    "workflow_name": "phishing_irp_workflow",
+    "description": "Execute widespread phishing containment and inbox purge on Case 33285.",
+    "runbook_reference": "rules-bank/run_books/irps/phishing_response.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "case_id": "33285",
+      "phishing_subject": "URGENT: Outstanding Invoice Payment Verification Required",
+      "sender_email": "billing-update@spoofed-cymbal-vendor.com",
+      "confirm_purge_inbox": true
+    },
+    "expected": {
+      "expected_route": "PURGE_INBOXES_AND_BLOCK_DOMAINS",
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "TEST-EXP-RANSOMWARE-IRP-33286",
+    "workflow_name": "ransomware_irp_workflow",
+    "description": "Execute critical ransomware network segmentation and multi-host isolation on Case 33286.",
+    "runbook_reference": "rules-bank/run_books/irps/ransomware_response.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "case_id": "33286",
+      "initial_affected_host": "DC-PROD-01.corp.cymbal.org",
+      "confirm_network_segmentation": true
+    },
+    "expected": {
+      "expected_route": "EXECUTE_EMERGENCY_NETWORK_SEGMENTATION",
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "TEST-EXP-COMPROMISED-USER-33284",
+    "workflow_name": "compromised_user_irp_workflow",
+    "description": "Execute account disablement and session termination on Case 33284 (Scattered Spider).",
+    "runbook_reference": "rules-bank/run_books/irps/compromised_user_account_response.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "case_id": "33284",
+      "user_id": "alex.kim@cymbal-investments.org",
+      "confirm_account_disable": true
+    },
+    "expected": {
+      "expected_route": "DISABLE_ACCOUNT_REVOKE_SESSIONS",
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "TEST-EXP-ALERT-REPORT-AVOSLOCKER",
+    "workflow_name": "alert_report_workflow",
+    "description": "Investigate critical Chronicle alert de_4ee5885c (AvosLocker ransomware encryptor).",
+    "runbook_reference": "rules-bank/run_books/alert_report.md",
+    "rubric_type": "REPORTING",
+    "input": {
+      "alert_id": "de_4ee5885c",
+      "case_id": "33286"
+    },
+    "expected": {
+      "expected_route": "CRITICAL_TRUE_POSITIVE_TRIAGE",
+      "required_output_fields": [
+        "report_markdown",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "TEST-EXP-CASE-REPORT-LOKIBOT",
+    "workflow_name": "case_report_workflow",
+    "description": "Compile technical incident investigation report for Case 33279.",
+    "runbook_reference": "rules-bank/run_books/case_report.md",
+    "rubric_type": "REPORTING",
+    "input": {
+      "case_id": "33279",
+      "report_type": "Technical",
+      "include_timeline": true
+    },
+    "expected": {
+      "expected_route": "STANDARD_CASE_REPORT",
+      "required_output_fields": [
+        "report_markdown",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "TEST-EXP-INVESTIGATION-REPORT-01",
+    "workflow_name": "create_investigation_report_workflow",
+    "description": "Generate comprehensive investigation report across multi-host alerts.",
+    "runbook_reference": "rules-bank/run_books/create_an_investigation_report.md",
+    "rubric_type": "REPORTING",
+    "input": {
+      "case_id": "33286",
+      "report_scope": "FULL_INVESTIGATION"
+    },
+    "expected": {
+      "required_output_fields": [
+        "report_markdown",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "TEST-EXP-SUSPICIOUS-LOGIN-HIGH",
+    "workflow_name": "suspicious_login_workflow",
+    "description": "Triage suspicious login from anomalous foreign ASN.",
+    "runbook_reference": "rules-bank/run_books/suspicious_login_triage.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "case_id": "CASE-9002",
+      "user_id": "bob.jones@example.com",
+      "source_ip": "198.51.100.44",
+      "hostname": "production-db-server"
+    },
+    "expected": {
+      "expected_route": "HIGH_RISK_SUSPICIOUS",
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "TEST-EXP-MALWARE-TRIAGE-01",
+    "workflow_name": "malware_triage_workflow",
+    "description": "Analyze binary file hash and isolate compromised host.",
+    "runbook_reference": "rules-bank/run_books/malware_triage.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "case_id": "CASE-MAL-404",
+      "file_hash": "a1b2c3d4e5f67890badmalwarehash123456789012345678901234567890123456"
+    },
+    "expected": {
+      "expected_route": "MALICIOUS_THREAT",
+      "required_output_fields": [
+        "verdict",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "TEST-EXP-ENDPOINT-TRIAGE-ISOLATE",
+    "workflow_name": "endpoint_triage_workflow",
+    "description": "Inspect endpoint compromise posture and execute network isolation.",
+    "runbook_reference": "rules-bank/run_books/basic_endpoint_triage_isolation.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "case_id": "33286",
+      "endpoint_id": "srv-workstation-finance-01",
+      "endpoint_type": "Hostname",
+      "confirm_isolation": true
+    },
+    "expected": {
+      "expected_route": "EXECUTE_ISOLATION",
+      "required_output_fields": [
+        "isolation_status",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "TEST-EXP-IOC-CONTAINMENT-IP",
+    "workflow_name": "ioc_containment_workflow",
+    "description": "Enforce firewall block rule for malicious C2 IP.",
+    "runbook_reference": "rules-bank/run_books/ioc_containment.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "case_id": "33286",
+      "ioc_value": "198.51.100.99",
+      "ioc_type": "IP Address",
+      "confirm_action": true
+    },
+    "expected": {
+      "expected_route": "NETWORK_BLOCK_BRANCH",
+      "required_output_fields": [
+        "action_status",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "TEST-EXP-BASIC-IOC-ENRICH",
+    "workflow_name": "basic_ioc_enrichment_workflow",
+    "description": "Enrich malicious phishing domain and check SIEM logs.",
+    "runbook_reference": "rules-bank/run_books/basic_ioc_enrichment.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "case_id": "CASE-IOC-777",
+      "ioc_value": "evil-phishing-domain.com",
+      "ioc_type": "Domain"
+    },
+    "expected": {
+      "expected_route": "HIGH_RISK_THREAT",
+      "required_output_fields": [
+        "action_taken",
+        "report_markdown"
+      ]
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "TEST-EXP-TRIAGE-ALERTS-01",
+    "workflow_name": "triage_alerts_workflow",
+    "description": "Perform multi-alert initial triage and severity correlation on Case 33279.",
+    "runbook_reference": "rules-bank/run_books/triage_alerts.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "alert_ids": [
+        "ALT-488701",
+        "ALT-488702",
+        "ALT-488837"
+      ]
+    },
+    "expected": {
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "TEST-EXP-LATERAL-MOVE-HUNT-01",
+    "workflow_name": "lateral_movement_hunt_workflow",
+    "description": "Hunt for anomalous PsExec and WMI remote execution.",
+    "runbook_reference": "rules-bank/run_books/lateral_movement_hunt_psexec_wmi.md",
+    "rubric_type": "THREAT_HUNTING",
+    "input": {
+      "time_range_hours": 48,
+      "technique": "T1047_WMI"
+    },
+    "expected": {
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "TEST-EXP-CREDENTIAL-HUNT-01",
+    "workflow_name": "credential_access_hunt_workflow",
+    "description": "Hunt for LSASS memory dumping and Mimikatz execution on domain controllers.",
+    "runbook_reference": "rules-bank/run_books/guided_ttp_hunt_credential_access.md",
+    "rubric_type": "THREAT_HUNTING",
+    "input": {
+      "time_range_hours": 24,
+      "hunt_scope": "DOMAIN_CONTROLLERS"
+    },
+    "expected": {
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "TEST-EXP-ADVANCED-HUNT-01",
+    "workflow_name": "advanced_threat_hunting_workflow",
+    "description": "Hypothesis-driven threat hunt for living-off-the-land certutil binary misuse.",
+    "runbook_reference": "rules-bank/run_books/advanced_threat_hunting.md",
+    "rubric_type": "THREAT_HUNTING",
+    "input": {
+      "hypothesis": "Adversaries utilizing certutil.exe to decode base64 malware stagers",
+      "lookback_days": 7
+    },
+    "expected": {
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "TEST-EXP-APT-THREAT-HUNT-01",
+    "workflow_name": "apt_threat_hunt_workflow",
+    "description": "Multi-stage hunt for APT29 CozyBear / Midnight Blizzard infrastructure.",
+    "runbook_reference": "rules-bank/run_books/apt_threat_hunt.md",
+    "rubric_type": "THREAT_HUNTING",
+    "input": {
+      "threat_actor_name": "APT29",
+      "target_sector": "GOVERNMENT"
+    },
+    "expected": {
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "TEST-EXP-PROACTIVE-GTI-HUNT-01",
+    "workflow_name": "proactive_gti_threat_hunt_workflow",
+    "description": "Proactive enterprise threat hunt for newly disclosed Volt Typhoon campaign IOCs.",
+    "runbook_reference": "rules-bank/run_books/proactive_threat_hunting_based_on_gti_campaign_or_actor.md",
+    "rubric_type": "THREAT_HUNTING",
+    "input": {
+      "campaign_or_actor_name": "CAMP-VOLT-TYPHOON"
+    },
+    "expected": {
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "TEST-EXP-IOC-THREAT-HUNT-01",
+    "workflow_name": "ioc_threat_hunt_workflow",
+    "description": "Proactive enterprise scan for bulk IOC sightings across data lake.",
+    "runbook_reference": "rules-bank/run_books/ioc_threat_hunt.md",
+    "rubric_type": "THREAT_HUNTING",
+    "input": {
+      "ioc_list": [
+        "198.51.100.1",
+        "badphish.org",
+        "35.213.146.136"
+      ]
+    },
+    "expected": {
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "TEST-EXP-CLOSE-DUPLICATES-01",
+    "workflow_name": "close_duplicate_cases_workflow",
+    "description": "Identify and de-duplicate redundant Okta password spray cases.",
+    "runbook_reference": "rules-bank/run_books/close_duplicate_or_similar_cases.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "primary_case_id": "CASE-DUP-100",
+      "similarity_days_back": 7,
+      "confirm_close": true
+    },
+    "expected": {
+      "expected_route": "CLOSE_DUPLICATES",
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "TEST-EXP-GROUP-CASES-V2-01",
+    "workflow_name": "group_cases_v2_workflow",
+    "description": "Cluster related security cases based on shared proxy infrastructure.",
+    "runbook_reference": "rules-bank/run_books/group_cases_v2.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "case_ids": [
+        "CASE-33284",
+        "CASE-33285"
+      ]
+    },
+    "expected": {
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "TEST-EXP-TIMELINE-PROCESS-01",
+    "workflow_name": "timeline_process_analysis_workflow",
+    "description": "Reconstruct parent-child process execution tree on host 10.205.11.19.",
+    "runbook_reference": "rules-bank/run_books/case_event_timeline_and_process_analysis.md",
+    "rubric_type": "REPORTING",
+    "input": {
+      "case_id": "33279",
+      "focus_host": "10.205.11.19"
+    },
+    "expected": {
+      "required_output_fields": [
+        "report_markdown",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "TEST-EXP-UEBA-EXFIL-01",
+    "workflow_name": "ueba_report_workflow",
+    "description": "Generate UEBA anomaly report for service account data exfiltration.",
+    "runbook_reference": "rules-bank/run_books/ueba_report.md",
+    "rubric_type": "REPORTING",
+    "input": {
+      "user_id": "svc-backup-pipeline@corp.cymbal.org",
+      "lookback_days": 14
+    },
+    "expected": {
+      "required_output_fields": [
+        "report_markdown",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "TEST-EXP-DETECTION-RULE-VAL-01",
+    "workflow_name": "detection_rule_validation_workflow",
+    "description": "Validate honeytoken secret access rule compilation and historical trigger rates.",
+    "runbook_reference": "rules-bank/run_books/detection_rule_validation_tuning.md",
+    "rubric_type": "DETECTION_ENGINEERING",
+    "input": {
+      "rule_id": "ru_bfc779f0",
+      "rule_name": "gcp_honeytoken_secret_access_T1555",
+      "validation_days": 14
+    },
+    "expected": {
+      "expected_route": "DEPLOY_PRODUCTION",
+      "required_output_fields": [
+        "action_taken",
+        "report_markdown"
+      ]
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "TEST-EXP-DETECTION-REPORT-01",
+    "workflow_name": "detection_report_workflow",
+    "description": "Produce monthly detection efficacy report and false positive ratio metrics.",
+    "runbook_reference": "rules-bank/run_books/detection_report.md",
+    "rubric_type": "REPORTING",
+    "input": {
+      "rule_id": "ru_bfc779f0",
+      "report_period_days": 30
+    },
+    "expected": {
+      "required_output_fields": [
+        "report_markdown",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0
+  }
+]

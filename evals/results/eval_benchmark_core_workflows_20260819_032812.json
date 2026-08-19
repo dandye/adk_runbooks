@@ -1,0 +1,183 @@
+{
+  "timestamp": "2026-08-19T03:28:12.093428+00:00",
+  "summary": {
+    "total_tests": 10,
+    "passed_tests": 10,
+    "failed_tests": 0,
+    "pass_rate": 100.0,
+    "average_score": 95.5,
+    "average_duration_seconds": 0.0048
+  },
+  "results": [
+    {
+      "test_id": "TEST-CORE-SUSP-LOGIN-001",
+      "workflow_name": "suspicious_login_workflow",
+      "passed": true,
+      "total_score": 93.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0142,
+      "rubric_profile": "TRIAGE_IRP_RUBRIC",
+      "category_scores": {
+        "Context & Enrichment": 18.0,
+        "Analysis & Decision": 25.0,
+        "Action Execution": 20.0,
+        "Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-CORE-SUSP-LOGIN-002",
+      "workflow_name": "suspicious_login_workflow",
+      "passed": true,
+      "total_score": 93.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0025,
+      "rubric_profile": "TRIAGE_IRP_RUBRIC",
+      "category_scores": {
+        "Context & Enrichment": 18.0,
+        "Analysis & Decision": 25.0,
+        "Action Execution": 20.0,
+        "Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-CORE-MALWARE-001",
+      "workflow_name": "malware_triage_workflow",
+      "passed": true,
+      "total_score": 100.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0023,
+      "rubric_profile": "TRIAGE_IRP_RUBRIC",
+      "category_scores": {
+        "Context & Enrichment": 25.0,
+        "Analysis & Decision": 25.0,
+        "Action Execution": 20.0,
+        "Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-CORE-IOC-ENRICH-001",
+      "workflow_name": "basic_ioc_enrichment_workflow",
+      "passed": true,
+      "total_score": 95.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0043,
+      "rubric_profile": "TRIAGE_IRP_RUBRIC",
+      "category_scores": {
+        "Context & Enrichment": 25.0,
+        "Analysis & Decision": 25.0,
+        "Action Execution": 20.0,
+        "Documentation": 10.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-CORE-ENDPOINT-001",
+      "workflow_name": "endpoint_triage_workflow",
+      "passed": true,
+      "total_score": 93.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0028,
+      "rubric_profile": "TRIAGE_IRP_RUBRIC",
+      "category_scores": {
+        "Context & Enrichment": 18.0,
+        "Analysis & Decision": 25.0,
+        "Action Execution": 20.0,
+        "Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-CORE-CONTAINMENT-001",
+      "workflow_name": "ioc_containment_workflow",
+      "passed": true,
+      "total_score": 93.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0031,
+      "rubric_profile": "TRIAGE_IRP_RUBRIC",
+      "category_scores": {
+        "Context & Enrichment": 18.0,
+        "Analysis & Decision": 25.0,
+        "Action Execution": 20.0,
+        "Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-CORE-CASE-REPORT-001",
+      "workflow_name": "case_report_workflow",
+      "passed": true,
+      "total_score": 95.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.004,
+      "rubric_profile": "REPORTING_RUBRIC",
+      "category_scores": {
+        "Data Collection": 25.0,
+        "Report Generation": 25.0,
+        "Quality & Clarity": 15.0,
+        "Delivery": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-CORE-ALERT-REPORT-001",
+      "workflow_name": "alert_report_workflow",
+      "passed": true,
+      "total_score": 100.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0052,
+      "rubric_profile": "REPORTING_RUBRIC",
+      "category_scores": {
+        "Data Collection": 25.0,
+        "Report Generation": 30.0,
+        "Quality & Clarity": 15.0,
+        "Delivery": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-CORE-COMPROMISED-USER-001",
+      "workflow_name": "compromised_user_irp_workflow",
+      "passed": true,
+      "total_score": 93.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0036,
+      "rubric_profile": "TRIAGE_IRP_RUBRIC",
+      "category_scores": {
+        "Context & Enrichment": 18.0,
+        "Analysis & Decision": 25.0,
+        "Action Execution": 20.0,
+        "Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-CORE-DETECTION-RULE-001",
+      "workflow_name": "detection_rule_validation_workflow",
+      "passed": true,
+      "total_score": 100.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0063,
+      "rubric_profile": "DETECTION_ENGINEERING_RUBRIC",
+      "category_scores": {
+        "Requirement Analysis": 20.0,
+        "Technical Implementation": 30.0,
+        "Validation & Testing": 20.0,
+        "Git/Process Compliance": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    }
+  ]
+}
