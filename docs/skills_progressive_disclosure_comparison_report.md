@@ -1,3 +1,15 @@
+---
+type: Report
+title: "Skills Progressive Disclosure Architecture: Comparative Analysis & Benchmark Report"
+description: "Comparative benchmark report measuring prompt character reduction, evaluation pass rates, and performance across 62 standardized skills."
+generated:
+  by: human:dandye
+  at: 2026-08-20T04:00:00-04:00
+related:
+  - ./skills_progressive_disclosure_overview.md
+  - ./adk_graph_workflows_overview.md
+---
+
 # Skills Progressive Disclosure Architecture: Comparative Analysis & Benchmark Report
 
 ## Executive Summary
@@ -116,8 +128,8 @@ evals/tests/test_rubrics.py (4 tests) ................................. PASSED
 ## 5. Summary of Copied Artifacts from Sibling Worktrees
 
 The following prior evaluation reports and cross-experiment comparative benchmarks were copied from sibling worktrees into this worktree for direct comparison:
-- [`report.md`](file:///usr/local/google/home/dandye/Projects/adk_runbooks__worktrees/skills_v0001/report.md): Master Evaluation & Grading Scorecard across multi-agent security experiments.
-- [`TEST_PLAN.md`](file:///usr/local/google/home/dandye/Projects/adk_runbooks__worktrees/skills_v0001/TEST_PLAN.md): Multi-Agent security evaluation test plan.
-- [`presentation/adk_graph_workflows_slide_deck.md`](file:///usr/local/google/home/dandye/Projects/adk_runbooks__worktrees/skills_v0001/presentation/adk_graph_workflows_slide_deck.md): Slide deck covering graph workflows vs autonomous loop paradigms.
-- [`multi-agent/reports/`](file:///usr/local/google/home/dandye/Projects/adk_runbooks__worktrees/skills_v0001/multi-agent/reports/): 3-way benchmarks, graph vs non-graph case studies, and telemetry stats files.
-- [`evals/results/`](file:///usr/local/google/home/dandye/Projects/adk_runbooks__worktrees/skills_v0001/evals/results/): JSON and Markdown evaluation results across prior runs.
+- [`report.md`](file://report.md): Master Evaluation & Grading Scorecard across multi-agent security experiments.
+- [`TEST_PLAN.md`](file://TEST_PLAN.md): Multi-Agent security evaluation test plan.
+- [`presentation/adk_graph_workflows_slide_deck.md`](file://presentation/adk_graph_workflows_slide_deck.md): Slide deck covering graph workflows vs autonomous loop paradigms.
+- [`multi-agent/reports/`](file://multi-agent/reports/): 3-way benchmarks, graph vs non-graph case studies, and telemetry stats files.
+- [`evals/results/`](file://evals/results/): JSON and Markdown evaluation results across prior runs.

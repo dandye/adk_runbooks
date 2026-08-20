@@ -1,3 +1,15 @@
+---
+type: Reference
+title: "Design Specification: Converting Runbooks to Skills with Progressive Disclosure"
+description: "Design specification for migrating monolithic runbooks into standard modular SKILL.md packages with 3-tier progressive disclosure."
+generated:
+  by: process:google-labs-jules
+  at: 2026-08-20T02:00:00-04:00
+related:
+  - ../plans/2026-08-20-convert-runbooks-to-skills-progressive-disclosure.md
+  - ../../skills_progressive_disclosure_overview.md
+---
+
 # Architecture Design: Converting Runbooks to Skills with Progressive Disclosure
 
 - **Date:** 2026-08-20

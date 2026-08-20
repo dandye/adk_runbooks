@@ -1,3 +1,15 @@
+---
+type: Reference
+title: "Design Specification: Multi-Agent Security Workflows Evaluation & Rubric Framework"
+description: "Technical design specification for declarative evaluation datasets, programmatic rubric scoring engines, and automated benchmarks for ADK workflows."
+generated:
+  by: process:google-labs-jules
+  at: 2026-08-19T12:00:00-04:00
+related:
+  - ../plans/2026-08-19-agent-evals-framework.md
+  - ../../adk_graph_workflows_overview.md
+---
+
 # ADK Runbooks: Agent Workflows Evaluation & Rubric Framework Design
 
 **Date:** 2026-08-19  

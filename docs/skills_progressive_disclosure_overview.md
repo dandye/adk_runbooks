@@ -1,3 +1,17 @@
+---
+type: Reference
+title: "Skills & Progressive Disclosure Framework"
+description: "Architecture and benchmark results for transforming monolithic prompt-concatenated runbooks into on-demand progressive disclosure skills."
+generated:
+  by: human:dandye
+  at: 2026-08-20T04:00:00-04:00
+related:
+  - ./skills_progressive_disclosure_comparison_report.md
+  - ./progressive_mcp_discovery_overview.md
+  - ./adk_graph_workflows_overview.md
+  - ./superpowers/specs/2026-08-20-convert-runbooks-to-skills-progressive-disclosure-design.md
+---
+
 # Skills & Progressive Disclosure Framework
 
 **Pull Request Reference:** [#69 (dandye/adk_runbooks#69)](https://github.com/dandye/adk_runbooks/pull/69)  

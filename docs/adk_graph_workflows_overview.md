@@ -1,3 +1,16 @@
+---
+type: Report
+title: "ADK Graph Workflows for SecOps Runbooks & Incident Response Plans"
+description: "Overview and empirical benchmarks of compiling 36 SecOps runbooks and incident response plans into deterministic ADK Graph Workflows."
+generated:
+  by: human:dandye
+  at: 2026-08-19T14:00:00-04:00
+related:
+  - ./skills_progressive_disclosure_overview.md
+  - ./progressive_mcp_discovery_overview.md
+  - ../rules-bank/multi_agent_overview.md
+---
+
 # ADK Graph Workflows for SecOps Runbooks & Incident Response Plans
 
 **Pull Request Reference:** [#65 (dandye/adk_runbooks#65)](https://github.com/dandye/adk_runbooks/pull/65)  

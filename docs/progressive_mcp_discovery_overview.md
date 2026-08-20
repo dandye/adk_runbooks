@@ -1,3 +1,16 @@
+---
+type: Reference
+title: "Progressive MCP Tool Discovery & Dynamic Schema Expansion"
+description: "Architecture and benchmark evaluation for client-side progressive MCP tool discovery and dynamic schema expansion across connected security MCP servers."
+generated:
+  by: human:dandye
+  at: 2026-08-20T16:00:00-04:00
+related:
+  - ./skills_progressive_disclosure_overview.md
+  - ./adk_graph_workflows_overview.md
+  - ./superpowers/specs/2026-08-20-progressive-discovery-mcp-design.md
+---
+
 # Progressive MCP Tool Discovery & Dynamic Schema Expansion
 
 **Pull Request Reference:** [#70 (dandye/adk_runbooks#70)](https://github.com/dandye/adk_runbooks/pull/70)  

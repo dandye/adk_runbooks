@@ -1,3 +1,15 @@
+---
+type: Guideline
+title: "Implementation Plan: Agent Workflows Evaluation & Rubric Framework"
+description: "Task-by-task implementation plan for building the declarative evaluation harness and rubric scoring engine for ADK graph workflows."
+generated:
+  by: process:google-labs-jules
+  at: 2026-08-19T12:30:00-04:00
+related:
+  - ../specs/2026-08-19-agent-evals-framework-design.md
+  - ../../adk_graph_workflows_overview.md
+---
+
 # Agent Workflows Evaluation & Rubric Framework Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -11,7 +23,7 @@
 **Spec:** [`docs/superpowers/specs/2026-08-19-agent-evals-framework-design.md`](../specs/2026-08-19-agent-evals-framework-design.md)
 
 ## Global Constraints
-- Target workspace directory: `/usr/local/google/home/dandye/Projects/adk_runbooks__worktrees/graph_v00001`
+- Target workspace directory: `Repository root`
 - Multi-worktree portability: Use `pathlib.Path(__file__).parents[...]` for relative file references; never hardcode machine-specific paths.
 - Zero mandatory external network dependencies during local test execution: Evaluators must operate deterministically.
 - Rubric criteria must match `rules-bank/run_books/` 100-point scales (Reporting, Triage/IRP, Detection Engineering).

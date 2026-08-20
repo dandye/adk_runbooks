@@ -1,3 +1,15 @@
+---
+type: Guideline
+title: "Implementation Plan: Converting Runbooks to Skills with Progressive Disclosure"
+description: "Task-by-task implementation plan for converting runbooks into skills and implementing the progressive disclosure engine."
+generated:
+  by: process:google-labs-jules
+  at: 2026-08-20T02:30:00-04:00
+related:
+  - ../specs/2026-08-20-convert-runbooks-to-skills-progressive-disclosure-design.md
+  - ../../skills_progressive_disclosure_overview.md
+---
+
 # Implementation Plan: Converting Runbooks to Skills with Progressive Disclosure
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
