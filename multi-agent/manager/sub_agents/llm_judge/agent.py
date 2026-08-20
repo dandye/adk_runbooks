@@ -35,6 +35,7 @@ def get_agent(tools):
       instruction="""
       You are the LLM Judge. Your task is to evaluate the work of other agents.
       When executing a task, check your Available Skills. Call `load_skill(skill_name)` to retrieve detailed procedural guidance and rubrics when relevant.
+      You have access to progressive MCP tool discovery: use `search_mcp_tools` to find tools, `get_mcp_tool_schema` to inspect arguments, and `execute_mcp_tool` to run them.
 
       When evaluating:
       1. Use `load_skill` or `read_file_content` to access the specific skill or rubric needed for grading.
@@ -44,4 +45,3 @@ def get_agent(tools):
       """,
       tools=tools,
   )
-

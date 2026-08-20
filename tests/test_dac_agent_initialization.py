@@ -12,6 +12,9 @@ from agent import initialize_actual_dac_agent, root_agent, get_root_agent
 from tools.tools import (
     load_skill,
     list_available_skills,
+    search_mcp_tools,
+    get_mcp_tool_schema,
+    execute_mcp_tool,
     load_persona_with_skills_catalog,
     load_persona_and_runbooks,
     get_dac_agent_tools,
@@ -41,6 +44,9 @@ def test_dac_agent_initialization():
     tool_names = [getattr(t, "__name__", str(t)) for t in dac_agent.tools]
     assert any("load_skill" in name for name in tool_names), "load_skill tool missing from dac_agent"
     assert any("list_available_skills" in name for name in tool_names), "list_available_skills tool missing from dac_agent"
+    assert any("search_mcp_tools" in name for name in tool_names), "search_mcp_tools tool missing from dac_agent"
+    assert any("get_mcp_tool_schema" in name for name in tool_names), "get_mcp_tool_schema tool missing from dac_agent"
+    assert any("execute_mcp_tool" in name for name in tool_names), "execute_mcp_tool tool missing from dac_agent"
 
 
 def test_dac_root_agent_deferred():
@@ -51,6 +57,9 @@ def test_dac_root_agent_deferred():
     tool_names = [getattr(t, "__name__", str(t)) for t in agent.tools]
     assert any("load_skill" in name for name in tool_names)
     assert any("list_available_skills" in name for name in tool_names)
+    assert any("search_mcp_tools" in name for name in tool_names)
+    assert any("get_mcp_tool_schema" in name for name in tool_names)
+    assert any("execute_mcp_tool" in name for name in tool_names)
 
 
 def test_dac_tools_skills_support(tmp_path: Path):
@@ -72,6 +81,20 @@ def test_dac_tools_skills_support(tmp_path: Path):
     # Test list_available_skills tool
     catalog = list_available_skills()
     assert "detection-as-code-rule-tuning" in catalog
+
+
+def test_dac_tools_mcp_discovery_support():
+    # Test search_mcp_tools
+    res = search_mcp_tools(query="case")
+    assert isinstance(res, str)
+
+    # Test get_mcp_tool_schema with missing tool
+    schema_res = get_mcp_tool_schema("nonexistent_tool")
+    assert "Error" in schema_res or "not found" in schema_res.lower()
+
+    # Test execute_mcp_tool with nonexistent tool
+    exec_res = execute_mcp_tool("nonexistent_tool")
+    assert "Error" in exec_res or "not found" in exec_res.lower()
 
 
 def test_dac_legacy_load_persona_and_runbooks(tmp_path: Path):

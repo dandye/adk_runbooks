@@ -4,6 +4,9 @@ from manager.agent import root_agent
 from manager.tools.tools import (
     load_skill,
     list_available_skills,
+    search_mcp_tools,
+    get_mcp_tool_schema,
+    execute_mcp_tool,
     get_agent_tools,
 )
 from manager.sub_agents.soc_analyst_tier1.agent import get_agent as get_soc_analyst_tier1
@@ -25,6 +28,9 @@ def test_manager_agent_initialization():
     tool_names = [getattr(t, "__name__", str(t)) for t in root_agent.tools]
     assert any("load_skill" in name for name in tool_names), "load_skill tool missing from manager"
     assert any("list_available_skills" in name for name in tool_names), "list_available_skills tool missing from manager"
+    assert any("search_mcp_tools" in name for name in tool_names), "search_mcp_tools tool missing from manager"
+    assert any("get_mcp_tool_schema" in name for name in tool_names), "get_mcp_tool_schema tool missing from manager"
+    assert any("execute_mcp_tool" in name for name in tool_names), "execute_mcp_tool tool missing from manager"
 
     # Verify sub-agents are registered on root_agent
     sub_agent_names = [sa.name for sa in root_agent.sub_agents]
@@ -102,3 +108,6 @@ def test_sub_agents_initialization(getter, expected_name, expected_skills):
     tool_names = [getattr(t, "__name__", str(t)) for t in agent.tools]
     assert any("load_skill" in name for name in tool_names), f"load_skill tool missing from {agent.name}"
     assert any("list_available_skills" in name for name in tool_names), f"list_available_skills missing from {agent.name}"
+    assert any("search_mcp_tools" in name for name in tool_names), f"search_mcp_tools missing from {agent.name}"
+    assert any("get_mcp_tool_schema" in name for name in tool_names), f"get_mcp_tool_schema missing from {agent.name}"
+    assert any("execute_mcp_tool" in name for name in tool_names), f"execute_mcp_tool missing from {agent.name}"

@@ -26,6 +26,9 @@ from .tools.tools import (
     read_file_content,
     load_skill,
     list_available_skills,
+    search_mcp_tools,
+    get_mcp_tool_schema,
+    execute_mcp_tool,
 )
 
 # Set the root logger to output debug messages
@@ -94,12 +97,15 @@ root_agent = Agent(
     - llm_judge: Evaluating the quality and completeness of runbook executions by other agents.
 
     **Your Tools:**
-    You have direct access to these tools for oversight, skill retrieval, and reporting:
+    You have direct access to these tools for oversight, skill retrieval, tool discovery, and reporting:
     - load_skill
     - list_available_skills
     - get_current_time
     - write_report
     - read_file_content
+    - search_mcp_tools
+    - get_mcp_tool_schema
+    - execute_mcp_tool
 
     Always aim for clear, coordinated, and efficient execution of security operations, leveraging your sub-agents effectively according to their roles and the active IRP.
     """,
@@ -119,5 +125,8 @@ root_agent = Agent(
         read_file_content,
         load_skill,
         list_available_skills,
+        search_mcp_tools,
+        get_mcp_tool_schema,
+        execute_mcp_tool,
     ],
 )

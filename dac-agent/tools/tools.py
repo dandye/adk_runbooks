@@ -1,24 +1,33 @@
+import asyncio
 import contextlib
+import inspect
+import json
 import os
 import re
 import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
-# Ensure project root is in sys.path for skills imports
+# Ensure project root and multi-agent directory are in sys.path
 _project_root = Path(__file__).resolve().parent.parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
+_multi_agent_dir = _project_root / "multi-agent"
+if str(_multi_agent_dir) not in sys.path:
+    sys.path.insert(0, str(_multi_agent_dir))
 
 from google.adk.tools.mcp_tool import MCPToolset, StdioConnectionParams
 from google.adk.tools.mcp_tool.mcp_session_manager import StdioServerParameters
 from skills.registry import SkillRegistry
+from manager.tools.mcp_registry import MCPToolRegistry
 
 TIMEOUT = 60
 
-# Initialize global skill registry
+# Initialize global skill registry and MCP tool registry
 global_skill_registry = SkillRegistry()
+global_mcp_registry = MCPToolRegistry()
 
 
 def get_current_time() -> dict:
@@ -59,241 +68,314 @@ def write_report(report_name: str, report_contents: str):
     if not ext:
         ext = ".md"
 
-    # Check if a timestamp is already part of the base name to avoid duplication.
-    if re.search(r"_\d{8}(_\d{6})?$", base_name):
-        file_name = f"{base_name}{ext}"
+    # Timestamp pattern: matches _YYYYMMDD_HHMMSS at the end of the base name
+    # e.g., _20250529_170700
+    timestamp_pattern = r'_\d{8}_\d{6}$'
+
+    if not re.search(timestamp_pattern, base_name):
+        current_time_str = get_current_time()["current_time"]
+        final_filename = f"{base_name}_{current_time_str}{ext}"
     else:
-        timestamp = get_current_time()["current_time"]
-        file_name = f"{base_name}_{timestamp}{ext}"
+        final_filename = f"{base_name}{ext}"
 
-    file_path = os.path.join(reports_dir, file_name)
+    file_path = os.path.join(reports_dir, final_filename)
+    try:
+        with open(file_path, 'w', encoding="utf-8") as f:
+            f.write(report_contents)
+        return f"Report successfully written to {file_path}"
+    except Exception as e:
+        return f"Error writing report to {file_path}: {e}"
 
-    with open(file_path, "w") as f:
-        f.write(report_contents)
 
+def git_create_branch(repo_path: str, branch_name: str) -> dict:
+    """Creates a new git branch in the specified repository.
 
-def git_create_branch(branch_name: str, base_branch: str = "main") -> dict:
-    """Creates a new Git branch from the specified base branch.
-    
     Args:
-        branch_name: Name of the new branch to create
-        base_branch: Base branch to create from (default: main)
-    
+        repo_path (str): Path to the git repository
+        branch_name (str): Name of the branch to create
+
     Returns:
-        dict: Result of the Git operation
+        dict: Result with 'success', 'branch', and optional 'error' message
     """
     try:
-        # Fetch latest changes
-        subprocess.run(["git", "fetch", "origin"], check=True, capture_output=True)
+        # Check if repository exists and is clean
+        status_result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            check=True
+        )
         
-        # Checkout base branch and pull latest
-        subprocess.run(["git", "checkout", base_branch], check=True, capture_output=True)
-        subprocess.run(["git", "pull", "origin", base_branch], check=True, capture_output=True)
+        # Checkout main first to branch from clean state
+        subprocess.run(
+            ["git", "checkout", "main"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            check=True
+        )
         
         # Create and checkout new branch
-        result = subprocess.run(
-            ["git", "checkout", "-b", branch_name], 
-            check=True, capture_output=True, text=True
+        subprocess.run(
+            ["git", "checkout", "-b", branch_name],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            check=True
         )
         
         return {
             "success": True,
-            "branch_name": branch_name,
-            "message": f"Created branch {branch_name} from {base_branch}",
-            "output": result.stdout
+            "branch": branch_name,
+            "message": f"Successfully created and checked out branch '{branch_name}'"
         }
     except subprocess.CalledProcessError as e:
         return {
             "success": False,
+            "error": f"Git operation failed: {e.stderr.strip() if e.stderr else str(e)}",
+            "branch": branch_name
+        }
+    except Exception as e:
+        return {
+            "success": False,
             "error": str(e),
-            "stderr": e.stderr.decode() if e.stderr else "",
-            "stdout": e.stdout.decode() if e.stdout else ""
+            "branch": branch_name
         }
 
 
-def git_commit_changes(file_paths: list, commit_message: str) -> dict:
-    """Commits specified files with the given commit message.
-    
+def git_commit_changes(repo_path: str, file_paths: list, commit_message: str) -> dict:
+    """Stages specified files and commits them with the given message.
+
     Args:
-        file_paths: List of file paths to add and commit
-        commit_message: Commit message
-    
+        repo_path (str): Path to the git repository
+        file_paths (list): List of relative file paths to commit
+        commit_message (str): Commit message following conventional commits
+
     Returns:
-        dict: Result of the Git operation
+        dict: Result with 'success', 'commit_hash', and optional 'error' message
     """
     try:
-        # Add specified files
+        # Stage specified files
         for file_path in file_paths:
-            subprocess.run(["git", "add", file_path], check=True, capture_output=True)
+            subprocess.run(
+                ["git", "add", file_path],
+                cwd=repo_path,
+                capture_output=True,
+                text=True,
+                check=True
+            )
         
         # Commit changes
-        result = subprocess.run(
-            ["git", "commit", "-m", commit_message], 
-            check=True, capture_output=True, text=True
+        commit_result = subprocess.run(
+            ["git", "commit", "-m", commit_message],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            check=True
         )
+        
+        # Get commit hash
+        hash_result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        
+        commit_hash = hash_result.stdout.strip()
         
         return {
             "success": True,
-            "message": f"Committed {len(file_paths)} files",
-            "files": file_paths,
-            "output": result.stdout
+            "commit_hash": commit_hash,
+            "message": f"Successfully committed changes with hash {commit_hash[:8]}"
         }
     except subprocess.CalledProcessError as e:
         return {
             "success": False,
-            "error": str(e),
-            "stderr": e.stderr.decode() if e.stderr else "",
-            "stdout": e.stdout.decode() if e.stdout else ""
+            "error": f"Git commit failed: {e.stderr.strip() if e.stderr else str(e)}"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
         }
 
 
-def git_push_branch(branch_name: str) -> dict:
-    """Pushes the current branch to origin.
-    
+def git_push_branch(repo_path: str, branch_name: str, remote: str = "origin") -> dict:
+    """Pushes a branch to the remote repository.
+
     Args:
-        branch_name: Name of the branch to push
-    
+        repo_path (str): Path to the git repository
+        branch_name (str): Name of the branch to push
+        remote (str): Remote name, defaults to 'origin'
+
     Returns:
-        dict: Result of the Git operation
+        dict: Result with 'success', 'branch', and optional 'error' message
     """
     try:
-        result = subprocess.run(
-            ["git", "push", "-u", "origin", branch_name], 
-            check=True, capture_output=True, text=True
+        subprocess.run(
+            ["git", "push", "-u", remote, branch_name],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            check=True
         )
         
         return {
             "success": True,
-            "branch_name": branch_name,
-            "message": f"Pushed branch {branch_name} to origin",
-            "output": result.stdout
+            "branch": branch_name,
+            "remote": remote,
+            "message": f"Successfully pushed branch '{branch_name}' to '{remote}'"
         }
     except subprocess.CalledProcessError as e:
         return {
             "success": False,
+            "error": f"Git push failed: {e.stderr.strip() if e.stderr else str(e)}",
+            "branch": branch_name
+        }
+    except Exception as e:
+        return {
+            "success": False,
             "error": str(e),
-            "stderr": e.stderr.decode() if e.stderr else "",
-            "stdout": e.stdout.decode() if e.stdout else ""
+            "branch": branch_name
         }
 
 
-def create_github_pr(title: str, body: str, base_branch: str = "main") -> dict:
-    """Creates a GitHub pull request using the gh CLI.
-    
+def create_github_pr(repo_path: str, branch_name: str, title: str, body: str, base: str = "main") -> dict:
+    """Creates a GitHub Pull Request using GitHub CLI (gh).
+
     Args:
-        title: PR title
-        body: PR description/body
-        base_branch: Target branch for the PR (default: main)
-    
+        repo_path (str): Path to the git repository
+        branch_name (str): Head branch containing changes
+        title (str): PR title following conventional format
+        body (str): Comprehensive PR description with context and checklist
+        base (str): Base branch to merge into, defaults to 'main'
+
     Returns:
-        dict: Result of the PR creation
+        dict: Result with 'success', 'pr_url', 'pr_number', and optional 'error'
     """
     try:
-        result = subprocess.run([
-            "gh", "pr", "create",
-            "--title", title,
-            "--body", body,
-            "--base", base_branch
-        ], check=True, capture_output=True, text=True)
+        # Check if gh CLI is installed and authenticated
+        auth_check = subprocess.run(
+            ["gh", "auth", "status"],
+            capture_output=True,
+            text=True
+        )
         
-        pr_url = result.stdout.strip()
+        if auth_check.returncode != 0:
+            return {
+                "success": False,
+                "error": "GitHub CLI (gh) is not authenticated. Please run 'gh auth login' first."
+            }
+        
+        # Create pull request
+        pr_result = subprocess.run(
+            [
+                "gh", "pr", "create",
+                "--head", branch_name,
+                "--base", base,
+                "--title", title,
+                "--body", body
+            ],
+            cwd=repo_path,
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        
+        pr_url = pr_result.stdout.strip()
+        
+        # Extract PR number from URL
+        pr_number_match = re.search(r'/pull/(\d+)', pr_url)
+        pr_number = pr_number_match.group(1) if pr_number_match else None
         
         return {
             "success": True,
             "pr_url": pr_url,
-            "title": title,
-            "message": f"Created PR: {pr_url}"
+            "pr_number": pr_number,
+            "message": f"Successfully created PR #{pr_number}: {pr_url}"
         }
     except subprocess.CalledProcessError as e:
         return {
             "success": False,
-            "error": str(e),
-            "stderr": e.stderr.decode() if e.stderr else "",
-            "stdout": e.stdout.decode() if e.stdout else ""
+            "error": f"PR creation failed: {e.stderr.strip() if e.stderr else str(e)}"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
         }
 
 
 def validate_yaml_file(file_path: str) -> dict:
-    """Validates YAML syntax for detection rule files.
-    
+    """Validates YAML syntax of a detection rule file.
+
     Args:
-        file_path: Path to the YAML file to validate
-    
+        file_path (str): Path to the YAML file to validate
+
     Returns:
-        dict: Validation result
+        dict: Result with 'valid', 'errors', and optional details
     """
     try:
         import yaml
         
-        with open(file_path, 'r') as f:
-            yaml.safe_load(f)
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+            
+        # Parse all documents in the YAML file
+        docs = list(yaml.safe_load_all(content))
         
         return {
             "valid": True,
-            "file_path": file_path,
-            "message": "YAML syntax is valid"
+            "documents_count": len(docs),
+            "message": f"YAML syntax is valid ({len(docs)} documents found)"
         }
     except yaml.YAMLError as e:
         return {
             "valid": False,
-            "file_path": file_path,
-            "error": str(e),
-            "message": f"YAML syntax error in {file_path}"
-        }
-    except FileNotFoundError:
-        return {
-            "valid": False,
-            "file_path": file_path,
-            "error": "File not found",
-            "message": f"File {file_path} not found"
+            "error": f"YAML syntax error: {str(e)}",
+            "line": getattr(e, 'problem_mark', None).line if hasattr(e, 'problem_mark') else None,
+            "column": getattr(e, 'problem_mark', None).column if hasattr(e, 'problem_mark') else None
         }
     except Exception as e:
         return {
             "valid": False,
-            "file_path": file_path,
-            "error": str(e),
-            "message": f"Error validating {file_path}"
+            "error": f"Failed to read or validate file: {str(e)}"
         }
 
 
-def find_rule_files(rule_pattern: str, search_dir: str = None) -> dict:
-    """Searches for detection rule files matching a pattern.
-    
+def find_rule_files(repo_path: str, rule_pattern: str) -> dict:
+    """Finds detection rule files matching a pattern in the repository.
+
     Args:
-        rule_pattern: Pattern to search for (rule name, ID, etc.)
-        search_dir: Directory to search in (default: rules/ directory)
-    
+        repo_path (str): Path to the detection rules repository
+        rule_pattern (str): Name or pattern to search for (e.g., 'suspicious_login')
+
     Returns:
-        dict: Search results with matching files
+        dict: Result with 'files' list and count
     """
-    if search_dir is None:
-        # Default to rules directory in dac-agent directory
-        search_dir = os.path.join(os.path.dirname(__file__), "..", "rules")
-    
-    matching_files = []
-    
     try:
-        for root, _dirs, files in os.walk(search_dir):
-            for file in files:
-                if file.endswith(('.yaml', '.yml')):
-                    file_path = os.path.join(root, file)
-                    try:
-                        with open(file_path, 'r') as f:
-                            content = f.read()
-                            if rule_pattern.lower() in content.lower():
-                                matching_files.append({
-                                    "file_path": file_path,
-                                    "file_name": file,
-                                    "directory": root
-                                })
-                    except Exception:
-                        continue
+        matching_files = []
+        repo_path_obj = Path(repo_path)
+        
+        # Search for .yaml and .yml files
+        for ext in ['*.yaml', '*.yml']:
+            for file_path in repo_path_obj.rglob(ext):
+                if rule_pattern.lower() in file_path.name.lower():
+                    rel_path = file_path.relative_to(repo_path_obj)
+                    matching_files.append({
+                        "path": str(rel_path),
+                        "full_path": str(file_path),
+                        "filename": file_path.name
+                    })
         
         return {
             "success": True,
-            "pattern": rule_pattern,
             "matches": matching_files,
-            "count": len(matching_files)
+            "count": len(matching_files),
+            "pattern": rule_pattern
         }
     except Exception as e:
         return {
@@ -345,6 +427,100 @@ def list_available_skills(category: str = "") -> str:
     else:
         catalog = global_skill_registry.get_skill_catalog()
         return catalog if catalog else "No skills registered."
+
+
+def search_mcp_tools(query: str = "", server: str = "") -> str:
+    """Discovers available MCP security tools by keyword or server without loading full schemas.
+
+    Use this tool to find relevant MCP tools for SIEM (Chronicle), SOAR (SecOps SOAR),
+    or GTI (VirusTotal) before requesting their schema or executing them.
+
+    Args:
+        query: Optional search keyword to filter tool names, descriptions, or servers.
+        server: Optional server filter ('siem', 'soar', 'gti', etc.).
+
+    Returns:
+        str: Formatted list of matching tools with concise descriptions.
+    """
+    tools = global_mcp_registry.search_tools(query=query, server=server)
+    if not tools:
+        msg = "No MCP tools found"
+        if query and server:
+            msg += f" matching query '{query}' and server '{server}'."
+        elif query:
+            msg += f" matching query '{query}'."
+        elif server:
+            msg += f" for server '{server}'."
+        else:
+            msg += " in registry."
+        return msg
+
+    lines = ["### Discovered MCP Security Tools\n"]
+    for t in tools:
+        lines.append(f"- **`{t['name']}`** (`{t['server']}`): {t['description']}")
+    return "\n".join(lines)
+
+
+def get_mcp_tool_schema(tool_name: str) -> str:
+    """Retrieves the full JSON Schema, parameter definitions, and descriptions for an MCP tool.
+
+    Use this tool to inspect required parameters, types, and schema details before executing
+    an MCP tool via `execute_mcp_tool`.
+
+    Args:
+        tool_name: The name of the MCP tool (e.g. 'secops_get_alert', 'soar_close_case').
+
+    Returns:
+        str: Formatted JSON schema description of the tool's parameters.
+    """
+    schema_info = global_mcp_registry.get_tool_schema(tool_name)
+    if not schema_info:
+        return f"Error: MCP tool '{tool_name}' not found in registry. Use `search_mcp_tools` to discover available tools."
+
+    return json.dumps(schema_info, indent=2)
+
+
+def execute_mcp_tool(tool_name: str, arguments: dict[str, Any] | str | None = None) -> str:
+    """Executes an MCP security tool dynamically with the supplied arguments.
+
+    Args:
+        tool_name: The name of the MCP tool to execute.
+        arguments: Dictionary of arguments matching the tool's input schema (or JSON string).
+
+    Returns:
+        str: JSON-formatted result of the tool execution, or an error message.
+    """
+    if arguments is None:
+        arguments = {}
+    elif isinstance(arguments, str):
+        try:
+            arguments = json.loads(arguments)
+        except Exception as e:
+            return f"Error parsing arguments JSON: {e}"
+
+    if not isinstance(arguments, dict):
+        return f"Error: arguments must be a dictionary or valid JSON object, got {type(arguments).__name__}."
+
+    try:
+        result = global_mcp_registry.execute_tool(tool_name, arguments)
+        if inspect.iscoroutine(result):
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+
+            if loop and loop.is_running():
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    result = pool.submit(asyncio.run, result).result()
+            else:
+                result = asyncio.run(result)
+
+        if isinstance(result, str):
+            return result
+        return json.dumps(result, indent=2, default=str)
+    except Exception as e:
+        return f"Error executing tool '{tool_name}': {e}"
 
 
 def load_persona_with_skills_catalog(
@@ -491,6 +667,11 @@ async def get_dac_agent_tools():
         )
     )
 
+    # Register toolsets into global_mcp_registry
+    global_mcp_registry.register_mcp_toolset(soar_toolset, server_name="soar")
+    global_mcp_registry.register_mcp_toolset(siem_toolset, server_name="siem")
+    global_mcp_registry.register_mcp_toolset(gti_toolset, server_name="gti")
+
     # Register toolsets for cleanup
     common_exit_stack.push_async_callback(soar_toolset.close)
     common_exit_stack.push_async_callback(siem_toolset.close)
@@ -510,4 +691,7 @@ async def get_dac_agent_tools():
         find_rule_files,
         load_skill,
         list_available_skills,
+        search_mcp_tools,
+        get_mcp_tool_schema,
+        execute_mcp_tool,
     ), common_exit_stack

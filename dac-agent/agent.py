@@ -108,6 +108,7 @@ async def initialize_actual_dac_agent():
 
         **Key Tools Available:**
         - Skill loading: load_skill, list_available_skills
+        - Progressive MCP Discovery: search_mcp_tools, get_mcp_tool_schema, execute_mcp_tool
         - SOAR MCP Server: List and analyze cases, read analyst comments
         - SIEM MCP Server: Search events, validate rules, estimate impact
         - GitHub operations: Create branches, commits, pull requests
