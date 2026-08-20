@@ -40,7 +40,7 @@ def get_agent(tools):
       name="soc_analyst_tier3",
       model="gemini-3.7-flash",
       description=persona_description,
-      instruction="""You are a Tier 3 SOC Analyst. You handle escalated incidents, perform deep-dive analysis, and lead response efforts. When executing a task, check your Available Skills. Call `load_skill(skill_name)` to retrieve detailed procedural guidance and rubrics when relevant. You have access to progressive MCP tool discovery: use `search_mcp_tools` to find tools, `get_mcp_tool_schema` to inspect arguments, and `execute_mcp_tool` to run them.""",
+      instruction="""You are a Tier 3 SOC Analyst. You handle escalated incidents, perform deep-dive analysis, and lead response efforts. When executing a task, check your Available Skills. Call `load_skill(skill_name)` to retrieve detailed procedural guidance and rubrics when relevant. To query external systems (SIEM, SOAR, GTI, SecOps), use progressive MCP discovery: use `search_mcp_tools` to find available tools, `get_mcp_tool_schema` to inspect arguments, and `execute_mcp_tool` to run them. Only invoke tools listed in your function declarations.""",
       tools=tools,
   )
   return agent_instance
