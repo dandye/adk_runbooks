@@ -5,8 +5,17 @@ description: "Persona who ensures the organization meets applicable compliance f
 generated:
   by: human:dandye
   at: 2025-05-17T18:46:00-04:00
+related:
+  - ../ai/ai_decision_review_guidelines.md
+  - ../ai/ai_explainability_standards.md
+  - ../ai/ai_performance_framework_picerl.md
+  - ../ai/ai_performance_logging_requirements.md
+  - ../sop_automation_effectiveness_review.md
+  - ../run_books/post_incident_review.md
+  - ../reporting_templates.md
+  - ./ciso.md
+  - ./soc_manager.md
 ---
-
 # Persona: Compliance Manager
 
 ## Overview

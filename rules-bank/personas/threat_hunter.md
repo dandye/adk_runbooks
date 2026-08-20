@@ -5,8 +5,21 @@ description: "Persona who proactively, hypothesis-drivenly searches for advanced
 generated:
   by: human:dandye
   at: 2025-05-17T18:46:00-04:00
+related:
+  - ../run_books/apt_threat_hunt.md
+  - ../run_books/proactive_threat_hunting_based_on_gti_campaign_or_actor.md
+  - ../run_books/ioc_threat_hunt.md
+  - ../run_books/advanced_threat_hunting.md
+  - ../run_books/guided_ttp_hunt_credential_access.md
+  - ../run_books/lateral_movement_hunt_psexec_wmi.md
+  - ../run_books/case_event_timeline_and_process_analysis.md
+  - ../run_books/deep_dive_ioc_analysis.md
+  - ../run_books/malware_triage.md
+  - ./cti_researcher.md
+  - ./detection_engineer.md
+  - ./soc_analyst_tier_3.md
+  - ./incident_responder.md
 ---
-
 # Persona: Threat Hunter
 
 ## Overview

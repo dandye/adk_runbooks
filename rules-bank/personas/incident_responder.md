@@ -5,8 +5,21 @@ description: "Persona who manages the end-to-end response to confirmed security 
 generated:
   by: human:dandye
   at: 2025-05-17T18:46:00-04:00
+related:
+  - ../run_books/case_event_timeline_and_process_analysis.md
+  - ../run_books/create_an_investigation_report.md
+  - ../run_books/investigate_a_case_w_external_tools.md
+  - ../run_books/ioc_containment.md
+  - ../run_books/basic_endpoint_triage_isolation.md
+  - ../run_books/irps/phishing_response.md
+  - ../run_books/irps/compromised_user_account_response.md
+  - ../run_books/irps/ransomware_response.md
+  - ../run_books/irps/malware_incident_response.md
+  - ../run_books/post_incident_review.md
+  - ./soc_analyst_tier_2.md
+  - ./soc_analyst_tier_3.md
+  - ./threat_hunter.md
 ---
-
 # Persona: Incident Responder (IR)
 
 ## Overview

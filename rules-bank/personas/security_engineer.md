@@ -5,8 +5,16 @@ description: "Persona responsible for designing, deploying, and maintaining the 
 generated:
   by: human:dandye
   at: 2025-06-02T12:14:04-04:00
+related:
+  - ../run_books/detection_as_code_workflows.md
+  - ../run_books/detection_rule_validation_tuning.md
+  - ../run_books/cloud_vulnerability_triage_and_contextualization.md
+  - ../detection_strategy.md
+  - ../coding_conventions.md
+  - ./detection_engineer.md
+  - ./soc_manager.md
+  - ./ciso.md
 ---
-
 # Persona: Security Engineer
 
 ## Overview

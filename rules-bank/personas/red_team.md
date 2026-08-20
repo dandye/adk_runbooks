@@ -5,8 +5,18 @@ description: "Persona who emulates real-world adversary TTPs through penetration
 generated:
   by: human:dandye
   at: 2025-05-17T18:46:00-04:00
+related:
+  - ../run_books/irps/compromised_user_account_response.md
+  - ../run_books/basic_endpoint_triage_isolation.md
+  - ../run_books/irps/phishing_response.md
+  - ../run_books/irps/ransomware_response.md
+  - ../run_books/detection_rule_validation_tuning.md
+  - ../run_books/detection_as_code_workflows.md
+  - ../run_books/apt_threat_hunt.md
+  - ./threat_hunter.md
+  - ./detection_engineer.md
+  - ./security_engineer.md
 ---
-
 # Persona: Red Team Member
 
 ## Overview

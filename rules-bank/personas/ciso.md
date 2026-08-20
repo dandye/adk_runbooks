@@ -5,8 +5,15 @@ description: "Senior executive persona who owns enterprise security strategy, go
 generated:
   by: human:dandye
   at: 2025-05-17T18:46:00-04:00
+related:
+  - ../reporting_templates.md
+  - ../run_books/post_incident_review.md
+  - ../sop_automation_effectiveness_review.md
+  - ../detection_strategy.md
+  - ../detection_improvement_process.md
+  - ./soc_manager.md
+  - ./compliance_manager.md
 ---
-
 # Persona: Chief Information Security Officer (CISO)
 
 ## Overview
