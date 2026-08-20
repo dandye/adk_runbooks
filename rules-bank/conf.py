@@ -5,10 +5,18 @@
 
 import os
 import sys
-# If extensions (or modules to document with autodoc) are in another directory,
-# add these directories to sys.path here. If the directory is relative to the
-# documentation root, use os.path.abspath to make it absolute, like shown here.
-# sys.path.insert(0, os.path.abspath('.'))
+import json
+from datetime import date, datetime
+
+# Enable JSON serialization of datetime objects parsed from YAML frontmatter by MyST parser
+_orig_dumps = json.dumps
+
+def _custom_dumps(obj, *args, **kwargs):
+    if "default" not in kwargs:
+        kwargs["default"] = lambda o: o.isoformat() if isinstance(o, (datetime, date)) else str(o)
+    return _orig_dumps(obj, *args, **kwargs)
+
+json.dumps = _custom_dumps
 
 
 # -- Project information -----------------------------------------------------
