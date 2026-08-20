@@ -119,14 +119,5 @@ root_agent = Agent(
         initialized_detection_engineer,
         initialized_llm_judge,
     ],
-    tools=[
-        get_current_time,
-        write_report,
-        read_file_content,
-        load_skill,
-        list_available_skills,
-        search_mcp_tools,
-        get_mcp_tool_schema,
-        execute_mcp_tool,
-    ],
+    tools=list(shared_tools),
 )

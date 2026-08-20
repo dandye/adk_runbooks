@@ -47,7 +47,7 @@ class MCPToolRegistry:
 
         if hasattr(toolset, "get_tools") and callable(getattr(toolset, "get_tools")):
             if inspect.iscoroutinefunction(toolset.get_tools):
-                # Async get_tools requires active runtime connection
+                # Async get_tools is handled dynamically by ADK during session lifecycle
                 pass
             else:
                 try:
