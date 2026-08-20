@@ -171,6 +171,7 @@ sequenceDiagram
     else No Significant Findings
         AutomatedAgent->>Analyst: attempt_completion(result="Lateral Movement Hunt complete. No significant findings. Hunt documented.")
     end
+```
 
 ## Rubrics
 

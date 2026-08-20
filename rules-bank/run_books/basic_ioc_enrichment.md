@@ -166,6 +166,7 @@ sequenceDiagram
 
     %% Step 9: Completion
     AutomatedAgent->>Analyst: attempt_completion(result="Basic IOC enrichment v2 complete for IOC_VALUE. Assessment: ASSESSMENT. Recommendation: RECOMMENDATION. Documentation: DOCUMENTATION_STATUS. Report: REPORT_GENERATION_STATUS.")
+```
 
 ## Rubrics
 

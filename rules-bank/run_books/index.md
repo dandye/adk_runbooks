@@ -42,3 +42,4 @@ proactive_threat_hunting_based_on_gti_campaign_or_actor
 suspicious_login_triage
 triage_alerts
 ueba_report
+```

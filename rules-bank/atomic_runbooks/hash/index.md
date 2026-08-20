@@ -10,3 +10,4 @@ rb_hash_get_gti_report
 rb_hash_get_secops_threat_intel
 rb_hash_lookup_entity_chronicle
 rb_hash_search_process_events_chronicle
+```

@@ -145,6 +145,7 @@ sequenceDiagram
     Note over AutomatedAgent: Report file created
 
     AutomatedAgent->>User: attempt_completion(result="Enhanced investigation complete. Report generated.")
+```
 
 ## Rubrics
 

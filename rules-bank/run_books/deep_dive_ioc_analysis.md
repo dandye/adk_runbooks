@@ -172,6 +172,7 @@ sequenceDiagram
         GenerateReport-->>AutomatedAgent: Results: REPORT_FILE_PATH, WRITE_STATUS
         AutomatedAgent->>Analyst: attempt_completion(result="Deep Dive IOC Analysis complete for IOC_VALUE. Report generated at REPORT_FILE_PATH.")
     end
+```
 
 ## Rubrics
 

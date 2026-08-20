@@ -114,6 +114,7 @@ sequenceDiagram
         AutomatedAgent->>AutomatedAgent: write_report(report_name="gti_comparison_report_GTI-XYZ_${timestamp}.md", report_contents=ReportMarkdown)
         AutomatedAgent->>AutomatedAgent: attempt_completion(result="Environment sweep based on GTI Collection 'GTI-XYZ' complete. Report generated. Recommend manual case creation if needed.")
     end
+```
 
 ## Rubrics
 

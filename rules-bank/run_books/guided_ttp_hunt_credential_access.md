@@ -133,6 +133,7 @@ sequenceDiagram
     else No Significant Findings
         AutomatedAgent->>Analyst: attempt_completion(result="Guided TTP Hunt complete. No significant findings. Hunt documented.")
     end
+```
 
 ## Rubrics
 

@@ -142,6 +142,7 @@ sequenceDiagram
          DocumentInSOAR-->>AutomatedAgent: Results: COMMENT_POST_STATUS
          AutomatedAgent->>Analyst: attempt_completion(result="IOC Containment runbook aborted for IOC_VALUE.")
     end
+```
 
 ## Rubrics
 

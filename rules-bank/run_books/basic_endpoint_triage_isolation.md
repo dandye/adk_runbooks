@@ -143,6 +143,7 @@ sequenceDiagram
 
     %% Step 9: Completion
     AutomatedAgent->>Analyst: attempt_completion(result="Basic Endpoint Triage & Isolation runbook complete for ENDPOINT_ID.")
+```
 
 ## Rubrics
 

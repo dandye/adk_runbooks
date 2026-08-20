@@ -157,6 +157,7 @@ sequenceDiagram
 
     %% Step 9: Completion
     AutomatedAgent->>Analyst/User: attempt_completion(result="Alert investigation summary report generated for Case CASE_ID.")
+```
 
 ## Rubrics
 

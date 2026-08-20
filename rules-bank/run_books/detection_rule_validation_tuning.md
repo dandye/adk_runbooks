@@ -156,6 +156,7 @@ sequenceDiagram
 
     %% Step 10: Completion
     AutomatedAgent->>Analyst/Engineer: attempt_completion(result="Detection Rule Validation & Tuning complete for RULE_ID. Recommendations documented and handed over.")
+```
 
 ## Rubrics
 
