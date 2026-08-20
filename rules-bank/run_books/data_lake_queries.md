@@ -1,9 +1,14 @@
 ---
 type: Runbook
 title: "Runbook: Data Lake Queries"
+description: "Use when constructing complex big data analytical queries across Chronicle Data Lake and BigQuery security exports."
 generated:
   by: process:google-labs-jules
   at: 2025-12-20T22:04:42-05:00
+related:
+  - ./index.md
+  - ./basic_ioc_enrichment.md
+  - ../indicator_handling_protocols.md
 ---
 
 # Runbook: Data Lake Queries

@@ -1,9 +1,14 @@
 ---
 type: Runbook
-title: Detection-as-Code Rule Tuning Workflow
+title: "Detection-as-Code Rule Tuning Workflow"
+description: "Use when submitting and verifying rule tuning pull requests in detection-as-code repositories."
 generated:
   by: process:google-labs-jules
   at: 2025-12-20T22:04:42-05:00
+related:
+  - ./index.md
+  - ./basic_ioc_enrichment.md
+  - ../indicator_handling_protocols.md
 ---
 
 # Detection-as-Code Rule Tuning Workflow

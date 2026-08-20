@@ -1,9 +1,14 @@
 ---
 type: Runbook
-title: Advanced Threat Hunting (Hypothesis-Driven) Runbook
+title: "Advanced Threat Hunting (Hypothesis-Driven) Runbook"
+description: "Use when formulating hypotheses and executing deep-dive proactive threat hunting missions."
 generated:
   by: process:google-labs-jules
   at: 2025-12-20T22:04:42-05:00
+related:
+  - ./index.md
+  - ./basic_ioc_enrichment.md
+  - ../indicator_handling_protocols.md
 ---
 
 # Advanced Threat Hunting (Hypothesis-Driven) Runbook

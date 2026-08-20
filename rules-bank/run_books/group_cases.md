@@ -1,9 +1,14 @@
 ---
 type: Runbook
-title: Group Cases Workflow
+title: "Group Cases Workflow"
+description: "Use when clustering related security cases by common entities, campaigns, or alert types."
 generated:
   by: process:google-labs-jules
   at: 2025-12-20T22:04:42-05:00
+related:
+  - ./index.md
+  - ./basic_ioc_enrichment.md
+  - ../indicator_handling_protocols.md
 ---
 
 # Group Cases Workflow

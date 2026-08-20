@@ -1,9 +1,14 @@
 ---
 type: Runbook
 title: "Common Step: Close SOAR Case or Alert"
+description: "Use when setting SOAR alert or case closure status and root cause reason codes."
 generated:
   by: human:dandye
   at: 2025-11-10T17:21:35-05:00
+related:
+  - ./index.md
+  - ../basic_ioc_enrichment.md
+  - ../../mcp_tool_best_practices.md
 ---
 
 # Common Step: Close SOAR Case or Alert

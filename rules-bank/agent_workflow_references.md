@@ -1,9 +1,14 @@
 ---
 type: Guideline
-title: Agent Workflow References
+title: "Agent Workflow References"
+description: "Comprehensive catalog of 15+ multi-agent design patterns, state machines, consensus loops, and workflow architectures with Mermaid diagrams."
 generated:
   by: human:dandye
   at: 2025-07-30T22:29:48-04:00
+related:
+  - ./multi_agent_overview.md
+  - ./architecture/adk_graph_workflows_overview.md
+  - ./multi_agent/configuration_based_delegation.md
 ---
 
 # Agent Workflow References

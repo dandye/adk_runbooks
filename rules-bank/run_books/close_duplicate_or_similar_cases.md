@@ -1,9 +1,14 @@
 ---
 type: Runbook
-title: Close duplicate/similar Cases Workflow
+title: "Close duplicate/similar Cases Workflow"
+description: "Use when identifying, linking, and closing duplicate or similar SOAR cases across alert queues."
 generated:
   by: process:google-labs-jules
   at: 2025-12-20T22:04:42-05:00
+related:
+  - ./index.md
+  - ./basic_ioc_enrichment.md
+  - ../indicator_handling_protocols.md
 ---
 
 ### ADK Graph-Based Workflow Diagram

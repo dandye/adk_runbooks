@@ -1,9 +1,14 @@
 ---
 type: Runbook
 title: "Common Step: Check for Duplicate/Similar SOAR Cases"
+description: "Use when checking SOAR cases for overlapping entities to detect duplicate incidents."
 generated:
   by: human:dandye
   at: 2025-11-10T17:21:35-05:00
+related:
+  - ./index.md
+  - ../basic_ioc_enrichment.md
+  - ../../mcp_tool_best_practices.md
 ---
 
 # Common Step: Check for Duplicate/Similar SOAR Cases

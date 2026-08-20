@@ -1,9 +1,14 @@
 ---
 type: Runbook
 title: "Common Step: Confirm Action with User"
+description: "Use when verifying containment or response actions prior to execution in SOAR."
 generated:
   by: human:dandye
   at: 2025-05-19T16:11:00-04:00
+related:
+  - ./index.md
+  - ../basic_ioc_enrichment.md
+  - ../../mcp_tool_best_practices.md
 ---
 
 # Common Step: Confirm Action with User

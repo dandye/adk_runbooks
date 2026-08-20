@@ -1,9 +1,14 @@
 ---
 type: Template
 title: "Detection Use-Case Package: [USE_CASE_NAME_Placeholder]"
+description: "Standardized template package for authoring Detection Use-Case (DUC) specifications, YARA-L rules, and response playbooks."
 generated:
   by: human:dandye
   at: 2025-05-31T00:07:07-04:00
+related:
+  - ../detection_strategy.md
+  - ../detection_improvement_process.md
+  - ../runbook_templates/atomic_runbook_template.md
 ---
 
 # Detection Use-Case Package: [USE_CASE_NAME_Placeholder]

@@ -1,9 +1,14 @@
 ---
 type: Runbook
-title: Post-Incident Review (PIR) Runbook
+title: "Post-Incident Review (PIR) Runbook"
+description: "Use when conducting Post-Incident Reviews (PIR) to evaluate MTTD/MTTR metrics and document lessons learned."
 generated:
   by: process:google-labs-jules
   at: 2025-12-20T22:04:42-05:00
+related:
+  - ./index.md
+  - ./basic_ioc_enrichment.md
+  - ../indicator_handling_protocols.md
 ---
 
 # Post-Incident Review (PIR) Runbook

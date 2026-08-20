@@ -1,9 +1,14 @@
 ---
 type: Runbook
 title: "Common Step: Document Findings/Actions in SOAR Case"
+description: "Use when adding case comments, tags, or status updates to document actions in SOAR."
 generated:
   by: human:dandye
   at: 2025-11-10T17:21:35-05:00
+related:
+  - ./index.md
+  - ../basic_ioc_enrichment.md
+  - ../../mcp_tool_best_practices.md
 ---
 
 # Common Step: Document Findings/Actions in SOAR Case

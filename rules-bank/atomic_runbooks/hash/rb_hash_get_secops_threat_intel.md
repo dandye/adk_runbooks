@@ -1,9 +1,14 @@
 ---
 type: Runbook
 title: "Atomic Runbook: Get File Hash Threat Intel via SecOps MCP"
+description: "Use when retrieving SecOps threat intelligence matches for a SHA256, SHA1, or MD5 hash."
 generated:
   by: human:dandye
   at: 2025-05-31T00:07:07-04:00
+related:
+  - ../index.md
+  - ../../indicator_handling_protocols.md
+  - ../../mcp_tool_best_practices.md
 ---
 
 # Atomic Runbook: Get File Hash Threat Intel via SecOps MCP

@@ -1,9 +1,14 @@
 ---
 type: Runbook
 title: "Guided TTP Hunt Runbook (Example: Credential Access)"
+description: "Use when hunting for credential dumping, LSASS access, and Kerberoasting behaviors."
 generated:
   by: process:google-labs-jules
   at: 2025-12-20T22:04:42-05:00
+related:
+  - ./index.md
+  - ./basic_ioc_enrichment.md
+  - ../indicator_handling_protocols.md
 ---
 
 # Guided TTP Hunt Runbook (Example: Credential Access)

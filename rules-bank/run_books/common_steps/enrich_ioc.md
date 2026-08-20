@@ -1,9 +1,14 @@
 ---
 type: Runbook
 title: "Common Step: Enrich IOC (GTI + SIEM)"
+description: "Use when standardizing multi-source threat intelligence enrichment for indicators."
 generated:
   by: human:dandye
   at: 2025-11-10T17:21:35-05:00
+related:
+  - ./index.md
+  - ../basic_ioc_enrichment.md
+  - ../../mcp_tool_best_practices.md
 ---
 
 # Common Step: Enrich IOC (GTI + SIEM)

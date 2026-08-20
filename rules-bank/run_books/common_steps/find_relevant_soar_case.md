@@ -1,9 +1,14 @@
 ---
 type: Runbook
 title: "Common Step: Find Relevant SOAR Case"
+description: "Use when searching SOAR for active or historical cases relevant to an alert or investigation."
 generated:
   by: human:dandye
   at: 2025-11-10T17:21:35-05:00
+related:
+  - ./index.md
+  - ../basic_ioc_enrichment.md
+  - ../../mcp_tool_best_practices.md
 ---
 
 # Common Step: Find Relevant SOAR Case

@@ -1,9 +1,14 @@
 ---
 type: Runbook
 title: "Atomic Runbook: Get File Hash Reputation from GTI"
+description: "Use when querying GTI and VirusTotal reputation and sandbox verdicts for a file hash."
 generated:
   by: human:dandye
   at: 2025-05-31T00:07:07-04:00
+related:
+  - ../index.md
+  - ../../indicator_handling_protocols.md
+  - ../../mcp_tool_best_practices.md
 ---
 
 # Atomic Runbook: Get File Hash Reputation from GTI

@@ -1,9 +1,14 @@
 ---
 type: Runbook
-title: Suspicious Login Alert Triage Runbook
+title: "Suspicious Login Alert Triage Runbook"
+description: "Use when triaging anomalous or suspicious user authentication events, impossible travel, and credential anomalies."
 generated:
   by: process:google-labs-jules
   at: 2025-12-20T22:04:42-05:00
+related:
+  - ./index.md
+  - ./basic_ioc_enrichment.md
+  - ../indicator_handling_protocols.md
 ---
 
 # Suspicious Login Alert Triage Runbook

@@ -1,9 +1,14 @@
 ---
 type: Runbook
 title: "Common Step: Pivot on IOC using GTI Relationships"
+description: "Use when pivoting on an indicator in GTI to discover related infrastructure, malware samples, and campaigns."
 generated:
   by: human:dandye
   at: 2025-11-10T17:21:35-05:00
+related:
+  - ./index.md
+  - ../basic_ioc_enrichment.md
+  - ../../mcp_tool_best_practices.md
 ---
 
 # Common Step: Pivot on IOC using GTI Relationships

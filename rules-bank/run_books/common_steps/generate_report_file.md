@@ -1,9 +1,14 @@
 ---
 type: Runbook
 title: "Common Step: Generate Report File"
+description: "Use when generating and saving formatted markdown and PDF investigation reports to disk."
 generated:
   by: human:dandye
   at: 2025-05-19T13:12:49-04:00
+related:
+  - ./index.md
+  - ../basic_ioc_enrichment.md
+  - ../../mcp_tool_best_practices.md
 ---
 
 # Common Step: Generate Report File

@@ -1,9 +1,13 @@
 ---
 type: Guideline
 title: "Runbook: Threat Intelligence Workflows"
+description: "Use when operationalizing cyber threat intelligence across detection, triage, and threat hunting workflows."
 generated:
   by: human:dandye
   at: 2025-11-10T17:21:35-05:00
+related:
+  - ./index.md
+  - ../../coding_conventions.md
 ---
 
 # Runbook: Threat Intelligence Workflows
