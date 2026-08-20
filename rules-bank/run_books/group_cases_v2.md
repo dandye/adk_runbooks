@@ -64,6 +64,23 @@ This runbook explicitly **excludes**:
 5.  **Enrich Key Entities (Optional):** For high-priority groups in `${PRIORITIZED_GROUPS}`, identify key shared entities. Perform basic enrichment on these entities using `secops-mcp_lookup_entity` and relevant `gti-mcp` tools. Store in `${ENRICHMENT_DATA_SUMMARY}`.
 6.  **Generate Summary Report:** Create a Markdown report (`${REPORT_CONTENT}`) summarizing the `${PRIORITIZED_GROUPS}`, the rationale for grouping and prioritization, and key findings (including `${ENRICHMENT_DATA_SUMMARY}` if available). Use `write_to_file` to save the report to `${REPORT_FILE_PATH}` (e.g., `./reports/case_grouping_report_${timestamp}.md`).
 
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_group_v2_payload_node["1. extract_group_v2_payload_node<br/><i>(Extract Environment & Similarity Threshold Payload)</i>"]
+    extract_group_v2_payload_node --> compute_v2_case_clusters_node["2. compute_v2_case_clusters_node<br/><i>(Compute Entity & Alert Similarity Clusters)</i>"]
+    compute_v2_case_clusters_node --> group_cases_v2_router{"3. group_cases_v2_router<br/><i>(Event.actions.route)</i>"}
+
+    group_cases_v2_router -- "MERGE_HIGH_SIMILARITY_CASES" --> handle_merge_high_similarity_branch["4a. handle_merge_high_similarity_branch<br/><i>(Consolidate High Similarity Case Clusters)</i>"]
+    group_cases_v2_router -- "NO_MERGE_REQUIRED" --> handle_no_merge_required_branch["4b. handle_no_merge_required_branch<br/><i>(Document Case Groupings)</i>"]
+
+    handle_merge_high_similarity_branch --> document_group_v2_report_node["5. document_group_v2_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_no_merge_required_branch --> document_group_v2_report_node
+```
+
+### Sequence Diagram
+
 ```{mermaid}
 sequenceDiagram
     participant Analyst/User

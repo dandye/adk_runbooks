@@ -1,0 +1,722 @@
+[
+  {
+    "test_id": "TEST-01-SUSPICIOUS-LOGIN",
+    "workflow_name": "suspicious_login_workflow",
+    "description": "Triage suspicious login authentication attempt.",
+    "runbook_reference": "skills/triage/suspicious-login-triage/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "case_id": "CASE-1001",
+      "user_id": "alice.smith@example.com",
+      "source_ip": "192.168.1.50",
+      "hostname": "corp-laptop-alice"
+    },
+    "expected": {
+      "expected_route": "LOW_RISK_BENIGN",
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/triage/suspicious-login-triage/SKILL.md"
+  },
+  {
+    "test_id": "TEST-02-MALWARE-TRIAGE",
+    "workflow_name": "malware_triage_workflow",
+    "description": "Analyze binary file hash and isolate compromised host.",
+    "runbook_reference": "skills/triage/malware-triage/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "case_id": "CASE-MAL-404",
+      "file_hash": "a1b2c3d4e5f67890badmalwarehash123456789012345678901234567890123456"
+    },
+    "expected": {
+      "expected_route": "MALICIOUS_THREAT",
+      "required_output_fields": [
+        "verdict",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/triage/malware-triage/SKILL.md"
+  },
+  {
+    "test_id": "TEST-03-BASIC-IOC-ENRICHMENT",
+    "workflow_name": "basic_ioc_enrichment_workflow",
+    "description": "Enrich domain IOC and assess reputation.",
+    "runbook_reference": "skills/investigation/basic-ioc-enrichment/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "case_id": "CASE-IOC-777",
+      "ioc_value": "evil-phishing-domain.com",
+      "ioc_type": "Domain"
+    },
+    "expected": {
+      "expected_route": "HIGH_RISK_THREAT",
+      "required_output_fields": [
+        "action_taken",
+        "report_markdown"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/investigation/basic-ioc-enrichment/SKILL.md"
+  },
+  {
+    "test_id": "TEST-04-ENDPOINT-TRIAGE",
+    "workflow_name": "endpoint_triage_workflow",
+    "description": "Inspect endpoint compromise posture and isolate.",
+    "runbook_reference": "skills/triage/basic-endpoint-triage-isolation/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "case_id": "CASE-END-505",
+      "endpoint_id": "workstation-finance-01",
+      "endpoint_type": "Hostname",
+      "confirm_isolation": true
+    },
+    "expected": {
+      "expected_route": "EXECUTE_ISOLATION",
+      "required_output_fields": [
+        "isolation_status",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/triage/basic-endpoint-triage-isolation/SKILL.md"
+  },
+  {
+    "test_id": "TEST-05-IOC-CONTAINMENT",
+    "workflow_name": "ioc_containment_workflow",
+    "description": "Enforce firewall block rule for malicious IP.",
+    "runbook_reference": "skills/investigation/ioc-containment/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "case_id": "CASE-CNT-303",
+      "ioc_value": "198.51.100.99",
+      "ioc_type": "IP Address",
+      "confirm_action": true
+    },
+    "expected": {
+      "expected_route": "NETWORK_BLOCK_BRANCH",
+      "required_output_fields": [
+        "action_status",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/investigation/ioc-containment/SKILL.md"
+  },
+  {
+    "test_id": "TEST-06-CLOSE-DUPLICATES",
+    "workflow_name": "close_duplicate_cases_workflow",
+    "description": "Identify and de-duplicate redundant case alerts.",
+    "runbook_reference": "skills/investigation/close-duplicate-cases/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "primary_case_id": "CASE-DUP-100",
+      "similarity_days_back": 7,
+      "confirm_close": true
+    },
+    "expected": {
+      "expected_route": "CLOSE_DUPLICATES",
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/investigation/close-duplicate-cases/SKILL.md"
+  },
+  {
+    "test_id": "TEST-07-CLOUD-VULN-TRIAGE",
+    "workflow_name": "cloud_vulnerability_triage_workflow",
+    "description": "Prioritize cloud asset vulnerabilities based on exploitability.",
+    "runbook_reference": "skills/triage/cloud-vulnerability-triage/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "finding_id": "FINDING-GCP-VULN-001",
+      "resource_name": "//compute.googleapis.com/projects/corp/instances/web-prod-01",
+      "cve_id": "CVE-2026-12345",
+      "cvss_score": 9.8
+    },
+    "expected": {
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/triage/cloud-vulnerability-triage/SKILL.md"
+  },
+  {
+    "test_id": "TEST-08-COMPARE-GTI-COLLECTION",
+    "workflow_name": "compare_gti_collection_workflow",
+    "description": "Correlate active threat collection indicators with internal telemetry.",
+    "runbook_reference": "skills/investigation/compare-gti-collection/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "collection_id": "COL-APT29-2026",
+      "case_id": "CASE-GTI-300"
+    },
+    "expected": {
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/investigation/compare-gti-collection/SKILL.md"
+  },
+  {
+    "test_id": "TEST-09-CREATE-INVESTIGATION-REPORT",
+    "workflow_name": "create_investigation_report_workflow",
+    "description": "Generate end-to-end technical incident report.",
+    "runbook_reference": "skills/reporting/create-investigation-report/SKILL.md",
+    "rubric_type": "REPORTING",
+    "input": {
+      "case_id": "33279",
+      "report_scope": "FULL_INVESTIGATION"
+    },
+    "expected": {
+      "required_output_fields": [
+        "report_markdown",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/reporting/create-investigation-report/SKILL.md"
+  },
+  {
+    "test_id": "TEST-10-DEEP-DIVE-IOC-ANALYSIS",
+    "workflow_name": "deep_dive_ioc_analysis_workflow",
+    "description": "In-depth behavioral analysis of complex network IOCs.",
+    "runbook_reference": "skills/investigation/deep-dive-ioc-analysis/SKILL.md",
+    "rubric_type": "THREAT_HUNTING",
+    "input": {
+      "ioc_value": "185.220.101.5",
+      "ioc_type": "IP Address",
+      "case_id": "CASE-DD-400"
+    },
+    "expected": {
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/investigation/deep-dive-ioc-analysis/SKILL.md"
+  },
+  {
+    "test_id": "TEST-11-DETECTION-RULE-VALIDATION",
+    "workflow_name": "detection_rule_validation_workflow",
+    "description": "Validate YARA-L rule syntax, historical telemetry, and FP rate.",
+    "runbook_reference": "skills/detection/detection-rule-validation-tuning/SKILL.md",
+    "rubric_type": "DETECTION_ENGINEERING",
+    "input": {
+      "rule_id": "ru_bfc779f0",
+      "rule_name": "gcp_honeytoken_secret_access_T1555",
+      "validation_days": 14
+    },
+    "expected": {
+      "expected_route": "DEPLOY_PRODUCTION",
+      "required_output_fields": [
+        "action_taken",
+        "report_markdown"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/detection/detection-rule-validation-tuning/SKILL.md"
+  },
+  {
+    "test_id": "TEST-12-CREDENTIAL-ACCESS-HUNT",
+    "workflow_name": "credential_access_hunt_workflow",
+    "description": "Proactive hunt for LSASS memory dumps and token theft.",
+    "runbook_reference": "skills/hunting/guided-ttp-hunt-credential-access/SKILL.md",
+    "rubric_type": "THREAT_HUNTING",
+    "input": {
+      "time_range_hours": 24,
+      "hunt_scope": "DOMAIN_CONTROLLERS"
+    },
+    "expected": {
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/hunting/guided-ttp-hunt-credential-access/SKILL.md"
+  },
+  {
+    "test_id": "TEST-13-INVESTIGATE-EXTERNAL-TOOLS",
+    "workflow_name": "investigate_case_external_tools_workflow",
+    "description": "Correlate case context with VirusTotal, Shodan, and AlienVault.",
+    "runbook_reference": "skills/investigation/investigate-case-external-tools/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "target_entity": "malicious-domain-lookup.org",
+      "external_tool": "VirusTotal",
+      "case_id": "CASE-EXT-500"
+    },
+    "expected": {
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/investigation/investigate-case-external-tools/SKILL.md"
+  },
+  {
+    "test_id": "TEST-14-LATERAL-MOVEMENT-HUNT",
+    "workflow_name": "lateral_movement_hunt_workflow",
+    "description": "Hunt for PsExec, WMI, and Remote PowerShell execution.",
+    "runbook_reference": "skills/hunting/lateral-movement-hunt-psexec-wmi/SKILL.md",
+    "rubric_type": "THREAT_HUNTING",
+    "input": {
+      "time_range_hours": 48,
+      "technique": "T1047_WMI"
+    },
+    "expected": {
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/hunting/lateral-movement-hunt-psexec-wmi/SKILL.md"
+  },
+  {
+    "test_id": "TEST-15-TRIAGE-ALERTS",
+    "workflow_name": "triage_alerts_workflow",
+    "description": "Initial queue triage, deduplication, and severity evaluation.",
+    "runbook_reference": "skills/triage/triage-alerts/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "alert_ids": [
+        "ALT-1001",
+        "ALT-1002"
+      ]
+    },
+    "expected": {
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/triage/triage-alerts/SKILL.md"
+  },
+  {
+    "test_id": "TEST-16-ADVANCED-THREAT-HUNTING",
+    "workflow_name": "advanced_threat_hunting_workflow",
+    "description": "Multi-stage hypothesis threat hunt across endpoint logs.",
+    "runbook_reference": "skills/hunting/advanced-threat-hunting/SKILL.md",
+    "rubric_type": "THREAT_HUNTING",
+    "input": {
+      "hypothesis": "Adversary living-off-the-land with certutil downloading payloads",
+      "lookback_days": 7
+    },
+    "expected": {
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/hunting/advanced-threat-hunting/SKILL.md"
+  },
+  {
+    "test_id": "TEST-17-ALERT-REPORT",
+    "workflow_name": "alert_report_workflow",
+    "description": "Generate comprehensive alert investigation report.",
+    "runbook_reference": "skills/reporting/alert-report/SKILL.md",
+    "rubric_type": "REPORTING",
+    "input": {
+      "alert_id": "de_4ee5885c",
+      "case_id": "33284"
+    },
+    "expected": {
+      "expected_route": "CRITICAL_TRUE_POSITIVE_TRIAGE",
+      "required_output_fields": [
+        "report_markdown",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/reporting/alert-report/SKILL.md"
+  },
+  {
+    "test_id": "TEST-18-APT-THREAT-HUNT",
+    "workflow_name": "apt_threat_hunt_workflow",
+    "description": "Targeted hunt for state-sponsored actor TTPs and C2 channels.",
+    "runbook_reference": "skills/hunting/apt-threat-hunt/SKILL.md",
+    "rubric_type": "THREAT_HUNTING",
+    "input": {
+      "threat_actor_name": "APT29",
+      "target_sector": "GOVERNMENT"
+    },
+    "expected": {
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/hunting/apt-threat-hunt/SKILL.md"
+  },
+  {
+    "test_id": "TEST-19-TIMELINE-PROCESS-ANALYSIS",
+    "workflow_name": "timeline_process_analysis_workflow",
+    "description": "Chronological timeline reconstruction and process ancestry tree.",
+    "runbook_reference": "skills/investigation/case-event-timeline-analysis/SKILL.md",
+    "rubric_type": "REPORTING",
+    "input": {
+      "case_id": "33279",
+      "focus_host": "10.205.11.19"
+    },
+    "expected": {
+      "required_output_fields": [
+        "report_markdown",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/investigation/case-event-timeline-analysis/SKILL.md"
+  },
+  {
+    "test_id": "TEST-20-CASE-REPORT",
+    "workflow_name": "case_report_workflow",
+    "description": "Standard SOAR case closure incident report.",
+    "runbook_reference": "skills/reporting/case-report/SKILL.md",
+    "rubric_type": "REPORTING",
+    "input": {
+      "case_id": "33279",
+      "report_type": "Executive",
+      "include_timeline": true
+    },
+    "expected": {
+      "expected_route": "STANDARD_CASE_REPORT",
+      "required_output_fields": [
+        "report_markdown",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/reporting/case-report/SKILL.md"
+  },
+  {
+    "test_id": "TEST-21-DETECTION-AS-CODE-TUNING",
+    "workflow_name": "detection_as_code_tuning_workflow",
+    "description": "Tune and refactor detection rules in CI/CD pipeline.",
+    "runbook_reference": "skills/detection/detection-as-code-rule-tuning/SKILL.md",
+    "rubric_type": "DETECTION_ENGINEERING",
+    "input": {
+      "rule_file_path": "rules/yara/honeytoken_access.yaral",
+      "rule_id": "ru_tuned_01",
+      "optimization_goal": "REDUCE_FP"
+    },
+    "expected": {
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/detection/detection-as-code-rule-tuning/SKILL.md"
+  },
+  {
+    "test_id": "TEST-22-DETECTION-REPORT",
+    "workflow_name": "detection_report_workflow",
+    "description": "Produce detection rule health, trigger frequency, and latency report.",
+    "runbook_reference": "skills/reporting/detection-report/SKILL.md",
+    "rubric_type": "REPORTING",
+    "input": {
+      "rule_id": "ru_bfc779f0",
+      "report_period_days": 30
+    },
+    "expected": {
+      "required_output_fields": [
+        "report_markdown",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/reporting/detection-report/SKILL.md"
+  },
+  {
+    "test_id": "TEST-23-GROUP-CASES",
+    "workflow_name": "group_cases_workflow",
+    "description": "Correlate related cases sharing common attack infrastructure.",
+    "runbook_reference": "skills/investigation/group-cases/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "target_case_ids": [
+        "CASE-101",
+        "CASE-102",
+        "CASE-103"
+      ]
+    },
+    "expected": {
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/investigation/group-cases/SKILL.md"
+  },
+  {
+    "test_id": "TEST-24-INVESTIGATE-GTI-COLLECTION",
+    "workflow_name": "investigate_gti_collection_workflow",
+    "description": "Investigate threat campaign bundle and extract indicators.",
+    "runbook_reference": "skills/investigation/investigate-gti-collection/SKILL.md",
+    "rubric_type": "THREAT_HUNTING",
+    "input": {
+      "collection_id": "COL-RANSOMWARE-BLACKCAT"
+    },
+    "expected": {
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/investigation/investigate-gti-collection/SKILL.md"
+  },
+  {
+    "test_id": "TEST-25-IOC-THREAT-HUNT",
+    "workflow_name": "ioc_threat_hunt_workflow",
+    "description": "Perform enterprise search for compromised IP and domain sightings.",
+    "runbook_reference": "skills/hunting/ioc-threat-hunt/SKILL.md",
+    "rubric_type": "THREAT_HUNTING",
+    "input": {
+      "ioc_list": [
+        "198.51.100.1",
+        "badphish.org"
+      ]
+    },
+    "expected": {
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/hunting/ioc-threat-hunt/SKILL.md"
+  },
+  {
+    "test_id": "TEST-26-POST-INCIDENT-REVIEW",
+    "workflow_name": "post_incident_review_workflow",
+    "description": "Synthesize post-incident review lessons learned and action items.",
+    "runbook_reference": "skills/reporting/report-writing-guidelines/SKILL.md",
+    "rubric_type": "THREAT_HUNTING",
+    "input": {
+      "incident_case_id": "33279",
+      "incident_type": "MALWARE_OUTBREAK"
+    },
+    "expected": {
+      "required_output_fields": [
+        "report_markdown",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/reporting/report-writing-guidelines/SKILL.md"
+  },
+  {
+    "test_id": "TEST-27-PRIORITIZE-INVESTIGATE-CASE",
+    "workflow_name": "prioritize_investigate_case_workflow",
+    "description": "Compute urgency score and assign investigative priority.",
+    "runbook_reference": "skills/investigation/prioritize-and-investigate-case/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "case_id": "CASE-PRIO-600"
+    },
+    "expected": {
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/investigation/prioritize-and-investigate-case/SKILL.md"
+  },
+  {
+    "test_id": "TEST-28-PROACTIVE-GTI-THREAT-HUNT",
+    "workflow_name": "proactive_gti_threat_hunt_workflow",
+    "description": "Proactively sweep environment for indicators from new threat bulletin.",
+    "runbook_reference": "skills/hunting/proactive-hunt-gti-campaign/SKILL.md",
+    "rubric_type": "THREAT_HUNTING",
+    "input": {
+      "campaign_or_actor_name": "CAMP-VOLT-TYPHOON"
+    },
+    "expected": {
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/hunting/proactive-hunt-gti-campaign/SKILL.md"
+  },
+  {
+    "test_id": "TEST-29-UEBA-REPORT",
+    "workflow_name": "ueba_report_workflow",
+    "description": "Generate User and Entity Behavior Analytics deviation report.",
+    "runbook_reference": "skills/reporting/report-writing-guidelines/SKILL.md",
+    "rubric_type": "REPORTING",
+    "input": {
+      "user_id": "bob.jones@example.com",
+      "lookback_days": 14
+    },
+    "expected": {
+      "required_output_fields": [
+        "report_markdown",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/reporting/report-writing-guidelines/SKILL.md"
+  },
+  {
+    "test_id": "TEST-30-COMPROMISED-USER-IRP",
+    "workflow_name": "compromised_user_irp_workflow",
+    "description": "Execute privileged user credential invalidation IRP.",
+    "runbook_reference": "skills/irps/compromised-user-account-response/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "case_id": "33284",
+      "user_id": "admin_alex@corp.cymbal.org",
+      "confirm_account_disable": true
+    },
+    "expected": {
+      "expected_route": "DISABLE_ACCOUNT_REVOKE_SESSIONS",
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/irps/compromised-user-account-response/SKILL.md"
+  },
+  {
+    "test_id": "TEST-31-MALWARE-IRP",
+    "workflow_name": "malware_irp_workflow",
+    "description": "Execute emergency malware containment and process termination.",
+    "runbook_reference": "skills/irps/malware-incident-response/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "target_host": "endpoint-101",
+      "file_hash": "malicioushash123",
+      "case_id": "CASE-MAL-IRP"
+    },
+    "expected": {
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/irps/malware-incident-response/SKILL.md"
+  },
+  {
+    "test_id": "TEST-32-PHISHING-IRP",
+    "workflow_name": "phishing_irp_workflow",
+    "description": "Execute phishing email containment and message purge.",
+    "runbook_reference": "skills/irps/phishing-response/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "phishing_subject": "Urgent Wire Transfer",
+      "sender_email": "attacker@phish.net",
+      "recipient_email": "victim@example.com",
+      "case_id": "CASE-PHISH-IRP"
+    },
+    "expected": {
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/irps/phishing-response/SKILL.md"
+  },
+  {
+    "test_id": "TEST-33-RANSOMWARE-IRP",
+    "workflow_name": "ransomware_irp_workflow",
+    "description": "Execute ransomware emergency isolation and network segmentation.",
+    "runbook_reference": "skills/irps/ransomware-response/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "initial_affected_host": "srv-app-01",
+      "case_id": "CASE-RANSOM-IRP"
+    },
+    "expected": {
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/irps/ransomware-response/SKILL.md"
+  },
+  {
+    "test_id": "TEST-34-DEMO-SOC-T2",
+    "workflow_name": "demo_soc_t2_workflow",
+    "description": "Execute demo Tier 2 SOAR incident investigation.",
+    "runbook_reference": "skills/triage/triage-alerts/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "case_id": "CASE-DEMO-T2"
+    },
+    "expected": {
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/triage/triage-alerts/SKILL.md"
+  },
+  {
+    "test_id": "TEST-35-GROUP-CASES-V2",
+    "workflow_name": "group_cases_v2_workflow",
+    "description": "Execute advanced entity-clustering case grouping v2.",
+    "runbook_reference": "skills/investigation/group-cases-v2/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "case_ids": [
+        "CASE-V2-01",
+        "CASE-V2-02"
+      ]
+    },
+    "expected": {
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/investigation/group-cases-v2/SKILL.md"
+  },
+  {
+    "test_id": "TEST-36-METAANALYSIS",
+    "workflow_name": "metaanalysis_workflow",
+    "description": "Analyze recurring alert telemetry trends and operational bottlenecks.",
+    "runbook_reference": "skills/hunting/advanced-threat-hunting/SKILL.md",
+    "rubric_type": "THREAT_HUNTING",
+    "input": {
+      "target_case_ids": [
+        "CASE-33279",
+        "CASE-33284"
+      ]
+    },
+    "expected": {
+      "required_output_fields": [
+        "report_markdown",
+        "soar_comment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/hunting/advanced-threat-hunting/SKILL.md"
+  }
+]

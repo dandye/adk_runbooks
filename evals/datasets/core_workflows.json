@@ -1,0 +1,331 @@
+[
+  {
+    "test_id": "TEST-CORE-SUSP-LOGIN-001",
+    "workflow_name": "suspicious_login_workflow",
+    "description": "Evaluate low-risk internal IP authentication triage.",
+    "runbook_reference": "skills/triage/suspicious-login-triage/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "case_id": "CASE-1001",
+      "user_id": "alice.smith@example.com",
+      "source_ip": "192.168.1.50",
+      "hostname": "corp-laptop-alice"
+    },
+    "expected": {
+      "expected_route": "LOW_RISK_BENIGN",
+      "required_nodes": [
+        "extract_entities_node",
+        "enrich_user_node",
+        "enrich_ip_node",
+        "triage_risk_router",
+        "handle_low_risk_branch",
+        "document_and_report_node"
+      ],
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ],
+      "required_comment_substrings": [
+        "Low",
+        "Benign"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/triage/suspicious-login-triage/SKILL.md"
+  },
+  {
+    "test_id": "TEST-CORE-SUSP-LOGIN-002",
+    "workflow_name": "suspicious_login_workflow",
+    "description": "Evaluate high-risk external IP authentication triage.",
+    "runbook_reference": "skills/triage/suspicious-login-triage/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "case_id": "CASE-9002",
+      "user_id": "bob.jones@example.com",
+      "source_ip": "198.51.100.44",
+      "hostname": "production-db-server"
+    },
+    "expected": {
+      "expected_route": "HIGH_RISK_SUSPICIOUS",
+      "required_nodes": [
+        "extract_entities_node",
+        "enrich_user_node",
+        "enrich_ip_node",
+        "triage_risk_router",
+        "handle_high_risk_branch",
+        "document_and_report_node"
+      ],
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ],
+      "required_comment_substrings": [
+        "High",
+        "Escalate"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/triage/suspicious-login-triage/SKILL.md"
+  },
+  {
+    "test_id": "TEST-CORE-MALWARE-001",
+    "workflow_name": "malware_triage_workflow",
+    "description": "Evaluate malicious file hash detection and host containment.",
+    "runbook_reference": "skills/triage/malware-triage/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "case_id": "CASE-MAL-404",
+      "file_hash": "a1b2c3d4e5f67890badmalwarehash123456789012345678901234567890123456"
+    },
+    "expected": {
+      "expected_route": "MALICIOUS_THREAT",
+      "required_nodes": [
+        "extract_hash_node",
+        "enrich_gti_file_node",
+        "check_siem_execution_node",
+        "malware_threat_router",
+        "handle_malicious_threat_branch",
+        "document_malware_report_node"
+      ],
+      "required_output_fields": [
+        "verdict",
+        "affected_hosts",
+        "soar_comment"
+      ],
+      "required_comment_substrings": [
+        "Malicious",
+        "Isolate"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/triage/malware-triage/SKILL.md"
+  },
+  {
+    "test_id": "TEST-CORE-IOC-ENRICH-001",
+    "workflow_name": "basic_ioc_enrichment_workflow",
+    "description": "Evaluate threat intelligence domain enrichment and risk routing.",
+    "runbook_reference": "skills/investigation/basic-ioc-enrichment/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "case_id": "CASE-IOC-777",
+      "ioc_value": "evil-phishing-domain.com",
+      "ioc_type": "Domain"
+    },
+    "expected": {
+      "expected_route": "HIGH_RISK_THREAT",
+      "required_nodes": [
+        "extract_ioc_node",
+        "ioc_type_router",
+        "enrich_domain_branch",
+        "siem_search_node",
+        "ioc_risk_router",
+        "handle_high_risk_ioc_branch",
+        "document_ioc_enrichment_node"
+      ],
+      "required_output_fields": [
+        "action_taken",
+        "report_markdown"
+      ],
+      "required_comment_substrings": [
+        "High_Risk",
+        "Phishing"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/investigation/basic-ioc-enrichment/SKILL.md"
+  },
+  {
+    "test_id": "TEST-CORE-ENDPOINT-001",
+    "workflow_name": "endpoint_triage_workflow",
+    "description": "Evaluate host compromise likelihood assessment and network isolation.",
+    "runbook_reference": "skills/triage/basic-endpoint-triage-isolation/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "case_id": "CASE-END-505",
+      "endpoint_id": "workstation-finance-01",
+      "endpoint_type": "Hostname",
+      "confirm_isolation": true
+    },
+    "expected": {
+      "expected_route": "EXECUTE_ISOLATION",
+      "required_nodes": [
+        "extract_endpoint_node",
+        "gather_siem_and_posture_node",
+        "assess_compromise_likelihood_node",
+        "isolation_router",
+        "handle_execute_isolation_branch",
+        "document_endpoint_report_node"
+      ],
+      "required_output_fields": [
+        "isolation_status",
+        "soar_comment"
+      ],
+      "required_comment_substrings": [
+        "Isolated",
+        "Endpoint"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/triage/basic-endpoint-triage-isolation/SKILL.md"
+  },
+  {
+    "test_id": "TEST-CORE-CONTAINMENT-001",
+    "workflow_name": "ioc_containment_workflow",
+    "description": "Evaluate IP reputation verification and perimeter firewall block.",
+    "runbook_reference": "skills/investigation/ioc-containment/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "case_id": "CASE-CNT-303",
+      "ioc_value": "198.51.100.99",
+      "ioc_type": "IP Address",
+      "confirm_action": true
+    },
+    "expected": {
+      "expected_route": "NETWORK_BLOCK_BRANCH",
+      "required_nodes": [
+        "extract_containment_payload_node",
+        "verify_gti_reputation_node",
+        "containment_type_router",
+        "handle_network_block_branch",
+        "document_containment_report_node"
+      ],
+      "required_output_fields": [
+        "action_status",
+        "soar_comment"
+      ],
+      "required_comment_substrings": [
+        "Blocked",
+        "Containment"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/investigation/ioc-containment/SKILL.md"
+  },
+  {
+    "test_id": "TEST-CORE-CASE-REPORT-001",
+    "workflow_name": "case_report_workflow",
+    "description": "Evaluate comprehensive case report generation and synthesis.",
+    "runbook_reference": "skills/reporting/case-report/SKILL.md",
+    "rubric_type": "REPORTING",
+    "input": {
+      "case_id": "33279",
+      "report_type": "Executive",
+      "include_timeline": true
+    },
+    "expected": {
+      "expected_route": "STANDARD_CASE_REPORT",
+      "required_nodes": [
+        "extract_case_report_payload_node",
+        "fetch_full_case_details_node",
+        "case_report_type_router",
+        "handle_standard_case_report_branch",
+        "document_case_report_node"
+      ],
+      "required_output_fields": [
+        "report_markdown",
+        "soar_comment"
+      ],
+      "required_comment_substrings": [
+        "Case Report"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/reporting/case-report/SKILL.md"
+  },
+  {
+    "test_id": "TEST-CORE-ALERT-REPORT-001",
+    "workflow_name": "alert_report_workflow",
+    "description": "Evaluate critical severity alert investigation reporting.",
+    "runbook_reference": "skills/reporting/alert-report/SKILL.md",
+    "rubric_type": "REPORTING",
+    "input": {
+      "alert_id": "de_4ee5885c",
+      "case_id": "33284"
+    },
+    "expected": {
+      "expected_route": "CRITICAL_TRUE_POSITIVE_TRIAGE",
+      "required_nodes": [
+        "extract_alert_payload_node",
+        "fetch_alert_and_rule_telemetry_node",
+        "threat_intelligence_enrichment_node",
+        "alert_triage_decision_router",
+        "handle_critical_tp_triage_branch",
+        "document_alert_report_node"
+      ],
+      "required_output_fields": [
+        "report_markdown",
+        "soar_comment"
+      ],
+      "required_comment_substrings": [
+        "Investigation",
+        "AvosLocker"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/reporting/alert-report/SKILL.md"
+  },
+  {
+    "test_id": "TEST-CORE-COMPROMISED-USER-001",
+    "workflow_name": "compromised_user_irp_workflow",
+    "description": "Evaluate privileged user account compromise response IRP.",
+    "runbook_reference": "skills/irps/compromised-user-account-response/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "input": {
+      "case_id": "33284",
+      "user_id": "admin_alex@corp.cymbal.org",
+      "confirm_account_disable": true
+    },
+    "expected": {
+      "expected_route": "DISABLE_ACCOUNT_REVOKE_SESSIONS",
+      "required_nodes": [
+        "extract_user_irp_payload_node",
+        "assess_user_compromise_impact_node",
+        "user_containment_router",
+        "handle_disable_account_branch",
+        "document_user_irp_report_node"
+      ],
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ],
+      "required_comment_substrings": [
+        "Account",
+        "Revoked"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/irps/compromised-user-account-response/SKILL.md"
+  },
+  {
+    "test_id": "TEST-CORE-DETECTION-RULE-001",
+    "workflow_name": "detection_rule_validation_workflow",
+    "description": "Evaluate YARA-L rule syntax, historical telemetry, and FP rate validation.",
+    "runbook_reference": "skills/detection/detection-rule-validation-tuning/SKILL.md",
+    "rubric_type": "DETECTION_ENGINEERING",
+    "input": {
+      "rule_id": "ru_bfc779f0",
+      "rule_name": "gcp_honeytoken_secret_access_T1555",
+      "validation_days": 14
+    },
+    "expected": {
+      "expected_route": "DEPLOY_PRODUCTION",
+      "required_nodes": [
+        "extract_rule_payload_node",
+        "validate_yara_l_rule_node",
+        "rule_tuning_router",
+        "handle_deploy_prod_branch",
+        "document_rule_report_node"
+      ],
+      "required_output_fields": [
+        "action_taken",
+        "report_markdown"
+      ],
+      "required_comment_substrings": [
+        "Detection Rule Validation",
+        "DEPLOY_PRODUCTION"
+      ]
+    },
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/detection/detection-rule-validation-tuning/SKILL.md"
+  }
+]

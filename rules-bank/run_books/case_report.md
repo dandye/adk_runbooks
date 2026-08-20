@@ -57,6 +57,23 @@ This runbook explicitly **excludes**:
 6.  **Write Report File:** Save the report using `write_to_file` with a standardized name (e.g., `./reports/case_report_${CASE_ID}_${timestamp}.md`).
 7.  **(Optional) Update Case:** Add a comment to the SOAR case indicating the report has been generated and its location using `post_case_comment`.
 
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_case_report_payload_node["1. extract_case_report_payload_node<br/><i>(Extract Case Payload)</i>"]
+    extract_case_report_payload_node --> fetch_full_case_details_node["2. fetch_full_case_details_node<br/><i>(Fetch Full Case Details & Priority)</i>"]
+    fetch_full_case_details_node --> case_report_type_router{"3. case_report_type_router<br/><i>(Event.actions.route)</i>"}
+
+    case_report_type_router -- "EXECUTIVE_CASE_REPORT" --> handle_executive_case_report_branch["4a. handle_executive_case_report_branch<br/><i>(Generate Executive Case Report)</i>"]
+    case_report_type_router -- "STANDARD_CASE_REPORT" --> handle_standard_case_report_branch["4b. handle_standard_case_report_branch<br/><i>(Generate Standard Case Report)</i>"]
+
+    handle_executive_case_report_branch --> document_case_report_node["5. document_case_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_standard_case_report_branch --> document_case_report_node
+```
+
+### Sequence Diagram
+
 ```{mermaid}
 sequenceDiagram
     participant Analyst/User

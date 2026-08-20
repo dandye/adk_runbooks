@@ -69,6 +69,23 @@ This runbook explicitly **excludes**:
     *   If confirmed malicious activity related to the hunted IOCs is found, escalate by creating/updating an incident case.
     *   If no significant findings, conclude the hunt and document it.
 
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_ioc_hunt_payload_node["1. extract_ioc_hunt_payload_node<br/><i>(Extract Target IOCs Payload)</i>"]
+    extract_ioc_hunt_payload_node --> execute_ioc_siem_search_node["2. execute_ioc_siem_search_node<br/><i>(Iterative SIEM Search Across IOC List)</i>"]
+    execute_ioc_siem_search_node --> ioc_hunt_router{"3. ioc_hunt_router<br/><i>(Event.actions.route)</i>"}
+
+    ioc_hunt_router -- "IOC_MATCHES_FOUND" --> handle_ioc_matches_found_branch["4a. handle_ioc_matches_found_branch<br/><i>(Contain Assets & Block Matched IOCs)</i>"]
+    ioc_hunt_router -- "NO_IOC_MATCHES" --> handle_no_ioc_matches_branch["4b. handle_no_ioc_matches_branch<br/><i>(Document Clean Hunt Outcome)</i>"]
+
+    handle_ioc_matches_found_branch --> document_ioc_hunt_report_node["5. document_ioc_hunt_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_no_ioc_matches_branch --> document_ioc_hunt_report_node
+```
+
+### Sequence Diagram
+
 ```{mermaid}
 sequenceDiagram
     participant Analyst/Hunter

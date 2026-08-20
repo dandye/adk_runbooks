@@ -1,0 +1,235 @@
+{
+  "timestamp": "2026-08-20T21:31:33.278924+00:00",
+  "summary": {
+    "total_tests": 10,
+    "passed_tests": 10,
+    "failed_tests": 0,
+    "pass_rate": 100.0,
+    "average_score": 95.5,
+    "average_duration_seconds": 0.0051,
+    "total_estimated_tokens": 14055,
+    "average_tokens_per_test": 1405.5
+  },
+  "results": [
+    {
+      "test_id": "TEST-CORE-SUSP-LOGIN-001",
+      "workflow_name": "suspicious_login_workflow",
+      "passed": true,
+      "total_score": 93.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0165,
+      "tokens": {
+        "estimated_input": 991,
+        "estimated_output": 261,
+        "total": 1252
+      },
+      "rubric_profile": "TRIAGE_IRP_RUBRIC",
+      "category_scores": {
+        "Context & Enrichment": 18.0,
+        "Analysis & Decision": 25.0,
+        "Action Execution": 20.0,
+        "Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-CORE-SUSP-LOGIN-002",
+      "workflow_name": "suspicious_login_workflow",
+      "passed": true,
+      "total_score": 93.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.012,
+      "tokens": {
+        "estimated_input": 991,
+        "estimated_output": 306,
+        "total": 1297
+      },
+      "rubric_profile": "TRIAGE_IRP_RUBRIC",
+      "category_scores": {
+        "Context & Enrichment": 18.0,
+        "Analysis & Decision": 25.0,
+        "Action Execution": 20.0,
+        "Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-CORE-MALWARE-001",
+      "workflow_name": "malware_triage_workflow",
+      "passed": true,
+      "total_score": 100.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0026,
+      "tokens": {
+        "estimated_input": 867,
+        "estimated_output": 416,
+        "total": 1283
+      },
+      "rubric_profile": "TRIAGE_IRP_RUBRIC",
+      "category_scores": {
+        "Context & Enrichment": 25.0,
+        "Analysis & Decision": 25.0,
+        "Action Execution": 20.0,
+        "Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-CORE-IOC-ENRICH-001",
+      "workflow_name": "basic_ioc_enrichment_workflow",
+      "passed": true,
+      "total_score": 95.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0035,
+      "tokens": {
+        "estimated_input": 982,
+        "estimated_output": 286,
+        "total": 1268
+      },
+      "rubric_profile": "TRIAGE_IRP_RUBRIC",
+      "category_scores": {
+        "Context & Enrichment": 25.0,
+        "Analysis & Decision": 25.0,
+        "Action Execution": 20.0,
+        "Documentation": 10.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-CORE-ENDPOINT-001",
+      "workflow_name": "endpoint_triage_workflow",
+      "passed": true,
+      "total_score": 93.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0024,
+      "tokens": {
+        "estimated_input": 871,
+        "estimated_output": 328,
+        "total": 1199
+      },
+      "rubric_profile": "TRIAGE_IRP_RUBRIC",
+      "category_scores": {
+        "Context & Enrichment": 18.0,
+        "Analysis & Decision": 25.0,
+        "Action Execution": 20.0,
+        "Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-CORE-CONTAINMENT-001",
+      "workflow_name": "ioc_containment_workflow",
+      "passed": true,
+      "total_score": 93.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0025,
+      "tokens": {
+        "estimated_input": 746,
+        "estimated_output": 284,
+        "total": 1030
+      },
+      "rubric_profile": "TRIAGE_IRP_RUBRIC",
+      "category_scores": {
+        "Context & Enrichment": 18.0,
+        "Analysis & Decision": 25.0,
+        "Action Execution": 20.0,
+        "Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-CORE-CASE-REPORT-001",
+      "workflow_name": "case_report_workflow",
+      "passed": true,
+      "total_score": 95.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0029,
+      "tokens": {
+        "estimated_input": 738,
+        "estimated_output": 412,
+        "total": 1150
+      },
+      "rubric_profile": "REPORTING_RUBRIC",
+      "category_scores": {
+        "Data Collection": 25.0,
+        "Report Generation": 25.0,
+        "Quality & Clarity": 15.0,
+        "Delivery": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-CORE-ALERT-REPORT-001",
+      "workflow_name": "alert_report_workflow",
+      "passed": true,
+      "total_score": 100.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0031,
+      "tokens": {
+        "estimated_input": 851,
+        "estimated_output": 2247,
+        "total": 3098
+      },
+      "rubric_profile": "REPORTING_RUBRIC",
+      "category_scores": {
+        "Data Collection": 25.0,
+        "Report Generation": 30.0,
+        "Quality & Clarity": 15.0,
+        "Delivery": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-CORE-COMPROMISED-USER-001",
+      "workflow_name": "compromised_user_irp_workflow",
+      "passed": true,
+      "total_score": 93.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0027,
+      "tokens": {
+        "estimated_input": 743,
+        "estimated_output": 204,
+        "total": 947
+      },
+      "rubric_profile": "TRIAGE_IRP_RUBRIC",
+      "category_scores": {
+        "Context & Enrichment": 18.0,
+        "Analysis & Decision": 25.0,
+        "Action Execution": 20.0,
+        "Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-CORE-DETECTION-RULE-001",
+      "workflow_name": "detection_rule_validation_workflow",
+      "passed": true,
+      "total_score": 100.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0031,
+      "tokens": {
+        "estimated_input": 745,
+        "estimated_output": 786,
+        "total": 1531
+      },
+      "rubric_profile": "DETECTION_ENGINEERING_RUBRIC",
+      "category_scores": {
+        "Requirement Analysis": 20.0,
+        "Technical Implementation": 30.0,
+        "Validation & Testing": 20.0,
+        "Git/Process Compliance": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    }
+  ]
+}

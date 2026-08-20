@@ -1,50 +1,45 @@
 from pathlib import Path
 from google.adk.agents import Agent
 
-from ...tools.tools import load_persona_and_runbooks
+from ...tools.tools import load_persona_with_skills_catalog
 
 
-# Changed to a synchronous function that accepts tools and exit_stack
 def get_agent(tools):
   """Configures and returns a Detection Engineer Agent instance.
 
-  This function sets up the agent with a specific persona, runbooks,
+  This function sets up the agent with a specific persona, skills catalog,
   and tools focused on creating, tuning, and managing security
   detection rules and analytics.
 
   Args:
-      tools (tuple): A tuple containing the pre-initialized MCP toolsets.
+      tools (tuple): A tuple containing the pre-initialized MCP toolsets and meta-tools.
 
   Returns:
       Agent: An initialized instance of the Detection Engineer agent.
   """
-  # Removed: tools, common_exit_stack = await get_agent_tools()
-
   BASE_DIR = Path(__file__).resolve().parent
   persona_file_path = (BASE_DIR / "../../../../rules-bank/personas/detection_engineer.md").resolve()
-  runbook_files = [
-    (BASE_DIR / "../../../../rules-bank/run_books/detection_rule_validation_tuning.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/detection_as_code_workflows.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/detection_report.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/guided_ttp_hunt_credential_access.md").resolve(), # For TTP understanding
-    (BASE_DIR / "../../../../rules-bank/run_books/guidelines/report_writing.md").resolve(), # For documenting detections
+  skills = [
+      "detection-engineering-coverage-evaluation",
+      "detection-rule-validation-tuning",
+      "detection-as-code-workflows",
+      "detection-report",
+      "guided-ttp-hunt-credential-access",
+      "report-writing-guidelines",
   ]
 
-  persona_description = load_persona_and_runbooks(
-      persona_file_path,
-      runbook_files,
+  persona_description = load_persona_with_skills_catalog(
+      str(persona_file_path),
+      skill_names=skills,
       default_persona_description="Default Detection Engineer description: "
       "Responsible for creating, tuning, and managing security detection rules."
   )
 
-  agent_instance = Agent( # Renamed to avoid conflict
+  agent_instance = Agent(
       name="detection_engineer",
-      model="gemini-2.5-pro",
+      model="gemini-3.7-flash",
       description=persona_description,
-      instruction="You are a Detection Engineer. "
-      "Your role involves designing, developing, testing, and maintaining "
-      "security detection rules and analytics to identify threats and "
-      "malicious activities.",
-      tools=tools, # Use passed-in tools
+      instruction="""You are a Detection Engineer. Your role involves designing, developing, testing, and maintaining security detection rules and analytics to identify threats and malicious activities. When executing a task, check your Available Skills. Call `load_skill(skill_name)` to retrieve detailed procedural guidance and rubrics when relevant. To query external systems (SIEM, SOAR, GTI, SecOps), use progressive MCP discovery: use `search_mcp_tools` to find available tools, `get_mcp_tool_schema` to inspect arguments, and `execute_mcp_tool` to run them. Only invoke tools listed in your function declarations.""",
+      tools=tools,
   )
-  return agent_instance # Only return the agent instance
+  return agent_instance

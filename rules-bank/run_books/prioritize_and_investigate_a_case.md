@@ -22,6 +22,23 @@ Use the tools:
  * UDM search for activity from principal or target
  * **Common Steps:** {doc}`common_steps/find_relevant_soar_case </run_books/common_steps/find_relevant_soar_case>`
 
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_prioritization_payload_node["1. extract_prioritization_payload_node<br/><i>(Extract Case Payload)</i>"]
+    extract_prioritization_payload_node --> compute_case_risk_score_node["2. compute_case_risk_score_node<br/><i>(Calculate Risk Score & Priority)</i>"]
+    compute_case_risk_score_node --> case_risk_router{"3. case_risk_router<br/><i>(Event.actions.route)</i>"}
+
+    case_risk_router -- "IMMEDIATE_ESCALATION" --> handle_immediate_escalation_branch["4a. handle_immediate_escalation_branch<br/><i>(Elevate Priority & Escalate)</i>"]
+    case_risk_router -- "STANDARD_TRIAGE" --> handle_standard_triage_branch["4b. handle_standard_triage_branch<br/><i>(Standard Triage Pathway)</i>"]
+
+    handle_immediate_escalation_branch --> document_prioritization_report_node["5. document_prioritization_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_standard_triage_branch --> document_prioritization_report_node
+```
+
+### Sequence Diagram
+
 ```{mermaid}
 sequenceDiagram
     participant User

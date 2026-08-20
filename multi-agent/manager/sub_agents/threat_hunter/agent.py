@@ -1,44 +1,44 @@
 from pathlib import Path
 from google.adk.agents import Agent
 
-from ...tools.tools import load_persona_and_runbooks
+from ...tools.tools import load_persona_with_skills_catalog
 
 
 def get_agent(tools):
   """Configures and returns a Threat Hunter Agent instance.
 
-  This function sets up the agent with a specific persona, runbooks,
+  This function sets up the agent with a specific persona, skills catalog,
   and tools tailored for proactive threat hunting activities.
 
   Args:
-      tools (tuple): A tuple containing the pre-initialized MCP toolsets.
+      tools (tuple): A tuple containing the pre-initialized MCP toolsets and meta-tools.
 
   Returns:
       Agent: An initialized instance of the Threat Hunter agent.
   """
   BASE_DIR = Path(__file__).resolve().parent
   persona_file_path = (BASE_DIR / "../../../../rules-bank/personas/threat_hunter.md").resolve()
-  runbook_files = [
-    (BASE_DIR / "../../../../rules-bank/run_books/advanced_threat_hunting.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/apt_threat_hunt.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/ioc_threat_hunt.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/guided_ttp_hunt_credential_access.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/lateral_movement_hunt_psexec_wmi.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/proactive_threat_hunting_based_on_gti_campaign_or_actor.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/guidelines/report_writing.md").resolve(),
+  skills = [
+      "advanced-threat-hunting",
+      "apt-threat-hunt",
+      "ioc-threat-hunt",
+      "guided-ttp-hunt-credential-access",
+      "lateral-movement-hunt-psexec-wmi",
+      "proactive-hunt-gti-campaign",
+      "report-writing-guidelines",
   ]
 
-  persona_description = load_persona_and_runbooks(
-      persona_file_path,
-      runbook_files,
+  persona_description = load_persona_with_skills_catalog(
+      str(persona_file_path),
+      skill_names=skills,
       default_persona_description="Default Threat Hunter description: Responsible for proactive threat hunting."
   )
 
   agent_instance = Agent(
       name="threat_hunter",
-      model="gemini-2.5-pro",
+      model="gemini-3.7-flash",
       description=persona_description,
-      instruction="""You are a Threat Hunter agent.""",
+      instruction="""You are a Threat Hunter agent. When executing a task, check your Available Skills. Call `load_skill(skill_name)` to retrieve detailed procedural guidance and rubrics when relevant. To query external systems (SIEM, SOAR, GTI, SecOps), use progressive MCP discovery: use `search_mcp_tools` to find available tools, `get_mcp_tool_schema` to inspect arguments, and `execute_mcp_tool` to run them. Only invoke tools listed in your function declarations.""",
       tools=tools,
   )
   return agent_instance

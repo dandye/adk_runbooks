@@ -1,0 +1,40 @@
+{
+  "alert_id": "de_4ee5885c-dbce-16c1-96fa-12da21a652d0",
+  "rule_id": "ru_bfc779f0-b4d1-4645-8531-4384cf41cb23",
+  "scenario": "Cloud Honeytoken Secret Access & Rule Validation",
+  "timestamp": "2026-08-17T23:35:00Z",
+  "paradigms": {
+    "version_a_prompt_only": {
+      "session_id": "0c9a3cb2-9a3e-4a61-90ea-66123702c0df",
+      "total_events": 30,
+      "total_tool_calls": 14,
+      "prompt_tokens": 4912158,
+      "candidates_tokens": 2059,
+      "total_tokens": 4921680
+    },
+    "version_b_runbook_guided": {
+      "session_id": "c2a2eabc-895a-4098-b633-a82a47b52a22",
+      "total_events": 20,
+      "total_tool_calls": 9,
+      "prompt_tokens": 3356021,
+      "candidates_tokens": 2947,
+      "total_tokens": 3361652
+    },
+    "version_c_graph_workflow": {
+      "session_id": "052abe3c-992a-4dc6-9ff9-2064926998de",
+      "total_events": 6,
+      "total_tool_calls": 2,
+      "prompt_tokens": 870091,
+      "candidates_tokens": 210,
+      "total_tokens": 870838
+    }
+  },
+  "graph_savings": {
+    "vs_prompt_only_token_percent": 82.3,
+    "vs_runbook_guided_token_percent": 74.1,
+    "vs_prompt_only_turns_percent": 80.0,
+    "vs_runbook_guided_turns_percent": 70.0,
+    "vs_prompt_only_tool_calls_percent": 85.7,
+    "vs_runbook_guided_tool_calls_percent": 77.8
+  }
+}

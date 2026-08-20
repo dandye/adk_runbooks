@@ -1,0 +1,16 @@
+{
+  "paradigm": "Version E: Dual Progressive Disclosure (Skills + MCP Discovery)",
+  "session_id": "dual-prog-disc-20260820-exp6",
+  "total_events": 7,
+  "total_tool_calls": 3,
+  "prompt_tokens": 109200,
+  "candidates_tokens": 390,
+  "total_tokens": 109590,
+  "rubric_score": 95.0,
+  "grade": "A",
+  "tool_calls": [
+    "transfer_to_agent",
+    "load_skill(skill_name='alert-report')",
+    "execute_mcp_tool(tool_name='run_alert_report_workflow', arguments={'alert_id': 'de_4ee5885c'})"
+  ]
+}

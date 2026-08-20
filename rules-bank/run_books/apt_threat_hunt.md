@@ -83,6 +83,24 @@ Focuses on SIEM log analysis and GTI correlation for specific TTPs and IOCs rela
     *   **Execute Report Generation:** Call `common_steps/generate_report_file.md` with the synthesized report content, `REPORT_TYPE="apt_hunt_report"`, and `REPORT_NAME_SUFFIX=${THREAT_ACTOR_ID}`.
 9.  **Escalation/Conclusion:** Escalate confirmed threats or conclude the hunt based on findings. Update `${HUNT_CASE_ID}` status if applicable.
 
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_apt_payload_node["1. extract_apt_payload_node<br/><i>(Extract Threat Actor Scope)</i>"]
+    extract_apt_payload_node --> fetch_apt_threat_intel_node["2. fetch_apt_threat_intel_node<br/><i>(Fetch GTI Actor IOCs & TTPs)</i>"]
+    fetch_apt_threat_intel_node --> search_apt_siem_events_node["3. search_apt_siem_events_node<br/><i>(SIEM Event & IOC Match Search)</i>"]
+    search_apt_siem_events_node --> apt_hunt_router{"4. apt_hunt_router<br/><i>(Event.actions.route)</i>"}
+
+    apt_hunt_router -- "CONFIRMED_APT_CAMPAIGN" --> handle_confirmed_apt_campaign_branch["5a. handle_confirmed_apt_campaign_branch<br/><i>(Trigger Emergency Containment)</i>"]
+    apt_hunt_router -- "NO_APT_ACTIVITY" --> handle_no_apt_activity_branch["5b. handle_no_apt_activity_branch<br/><i>(Document Clean Hunt)</i>"]
+
+    handle_confirmed_apt_campaign_branch --> document_apt_report_node["6. document_apt_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_no_apt_activity_branch --> document_apt_report_node
+```
+
+### Sequence Diagram
+
 ```{mermaid}
 sequenceDiagram
     participant Analyst/Hunter

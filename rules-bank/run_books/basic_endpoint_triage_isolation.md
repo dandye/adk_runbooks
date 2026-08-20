@@ -62,6 +62,24 @@ This runbook covers the initial assessment and potential network isolation of an
     *   Document recommended next steps in the case comment.
 9.  **Completion:** Conclude the runbook execution.
 
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_endpoint_node["1. extract_endpoint_node<br/><i>(Extract & Normalize Metadata)</i>"]
+    extract_endpoint_node --> gather_siem_and_posture_node["2. gather_siem_and_posture_node<br/><i>(SIEM Activity & Vuln Posture Check)</i>"]
+    gather_siem_and_posture_node --> assess_compromise_likelihood_node["3. assess_compromise_likelihood_node<br/><i>(Assess Compromise & Urgency)</i>"]
+    assess_compromise_likelihood_node --> isolation_router{"4. isolation_router<br/><i>(Event.actions.route)</i>"}
+
+    isolation_router -- "EXECUTE_ISOLATION" --> handle_execute_isolation_branch["5a. handle_execute_isolation_branch<br/><i>(Execute EDR Host Isolation)</i>"]
+    isolation_router -- "SKIP_ISOLATION" --> handle_skip_isolation_branch["5b. handle_skip_isolation_branch<br/><i>(Skip Isolation & Monitor)</i>"]
+
+    handle_execute_isolation_branch --> document_endpoint_report_node["6. document_endpoint_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_skip_isolation_branch --> document_endpoint_report_node
+```
+
+### Sequence Diagram
+
 ```{mermaid}
 sequenceDiagram
     participant Analyst

@@ -1,0 +1,45 @@
+{
+  "case_id": "33279",
+  "comparison_timestamp": "2026-08-17T22:58:00Z",
+  "benchmark_summary": {
+    "graph_session_id": "7b151b0e-b227-4f74-a5bd-c035b3e9ad33",
+    "nograph_session_id": "ac4d5383-b9d3-4435-9f20-b72a8620ce00",
+    "token_reduction_percent": 53.8,
+    "prompt_token_reduction_percent": 53.7,
+    "turns_reduction_percent": 50.0,
+    "tool_calls_reduction_percent": 81.8
+  },
+  "graph_workflow_run": {
+    "session_id": "7b151b0e-b227-4f74-a5bd-c035b3e9ad33",
+    "total_events": 6,
+    "total_tool_calls": 2,
+    "prompt_tokens": 869557,
+    "candidates_tokens": 76,
+    "total_tokens": 870767,
+    "tool_calls": [
+      "transfer_to_agent",
+      "run_case_report_workflow"
+    ]
+  },
+  "nograph_autonomous_run": {
+    "session_id": "ac4d5383-b9d3-4435-9f20-b72a8620ce00",
+    "total_events": 12,
+    "total_tool_calls": 11,
+    "prompt_tokens": 1879840,
+    "candidates_tokens": 1536,
+    "total_tokens": 1884197,
+    "tool_calls": [
+      "transfer_to_agent",
+      "soar-mcp_get_case_full_details",
+      "soar-mcp_list_events_by_alert",
+      "soar-mcp_list_events_by_alert",
+      "soar-mcp_list_events_by_alert",
+      "secops-mcp_lookup_entity",
+      "secops-mcp_lookup_entity",
+      "gti-mcp_get_ip_address_report",
+      "gti-mcp_get_domain_report",
+      "gti-mcp_get_url_report",
+      "write_report"
+    ]
+  }
+}

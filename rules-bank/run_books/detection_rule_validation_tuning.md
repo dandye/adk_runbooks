@@ -65,6 +65,25 @@ This runbook covers the analysis of a single detection rule's historical perform
 9.  **Handover:** Assign the case/report to the Security Engineering team for implementation and testing of the proposed tuning changes.
 10. **Completion:** Conclude the runbook execution.
 
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_rule_payload_node["1. extract_rule_payload_node<br/><i>(Extract YARA-L Rule Payload)</i>"]
+    extract_rule_payload_node --> validate_yara_l_rule_node["2. validate_yara_l_rule_node<br/><i>(Historical Validation & Syntax Check)</i>"]
+    validate_yara_l_rule_node --> rule_tuning_router{"3. rule_tuning_router<br/><i>(Event.actions.route)</i>"}
+
+    rule_tuning_router -- "REJECT_COMPILATION_ERROR" --> handle_reject_syntax_branch["4a. handle_reject_syntax_branch<br/><i>(Reject Syntax / Compilation Error)</i>"]
+    rule_tuning_router -- "TUNE_FILTER_FP" --> handle_tune_fp_branch["4b. handle_tune_fp_branch<br/><i>(Apply Noise & FP Exclusions)</i>"]
+    rule_tuning_router -- "DEPLOY_PRODUCTION" --> handle_deploy_prod_branch["4c. handle_deploy_prod_branch<br/><i>(Deploy to Production)</i>"]
+
+    handle_reject_syntax_branch --> document_rule_report_node["5. document_rule_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_tune_fp_branch --> document_rule_report_node
+    handle_deploy_prod_branch --> document_rule_report_node
+```
+
+### Sequence Diagram
+
 ```{mermaid}
 sequenceDiagram
     participant Analyst/Engineer

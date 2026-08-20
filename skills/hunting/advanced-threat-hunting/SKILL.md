@@ -1,0 +1,201 @@
+---
+name: advanced-threat-hunting
+description: Use when formulating hypotheses and executing deep-dive proactive threat
+  hunting missions.
+category: hunting
+version: 1.0.0
+type: Skill
+title: 'Skill: Advanced Threat Hunting (Hypothesis-Driven) Runbook'
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20 22:04:42-05:00
+---
+
+# Advanced Threat Hunting (Hypothesis-Driven) Runbook
+
+## Objective
+
+Conduct proactive, hypothesis-driven threat hunts based on broad threat intelligence (e.g., a new actor report, a novel technique description) or observed anomalies, going beyond pre-defined TTP hunts. Suitable for Tier 3 Analysts or dedicated Threat Hunters.
+
+## Scope
+
+This runbook outlines a flexible framework for advanced threat hunting, emphasizing iterative investigation and deep analysis using available tools.
+
+## Inputs
+
+*   `${HUNT_HYPOTHESIS}`: A clear statement of the hunt's objective (e.g., "Suspected use of DNS tunneling for C2 based on recent actor TTPs", "Anomalous PowerShell execution patterns on critical servers", "Evidence of living-off-the-land techniques bypassing EDR").
+*   *(Optional) `${RELEVANT_GTI_REPORTS}`: Comma-separated list of GTI Collection IDs or report names providing context.*
+*   *(Optional) `${TARGET_SCOPE_QUERY}`: UDM query fragment to narrow the initial search scope.*
+*   `${TIME_FRAME_HOURS}`: Lookback period in hours for SIEM/log searches (can be adjusted during the hunt, default: 168 = 7 days).
+*   *(Optional) `${HUNT_CASE_ID}`: A SOAR case ID dedicated to tracking this hunt.*
+
+## Tools
+
+*   `gti-mcp`: All tools, especially `get_collection_report`, `get_entities_related_to_a_collection`, `get_collection_timeline_events`, `search_threats`, `get_threat_intel`.
+*   `secops-mcp`: `search_security_events` (Extensive use), `lookup_entity`, `get_ioc_matches`.
+*   `secops-soar`: `post_case_comment`, `list_cases`, `get_case_full_details`.
+*   `bigquery`: `execute-query` (For large-scale or complex data analysis).
+*   *(Potentially EDR, Cloud, Identity tools if integrated via MCP)*.
+
+## Workflow Steps & Diagram
+
+1.  **Define Hypothesis & Scope:** Clearly articulate the `${HUNT_HYPOTHESIS}`. Define the initial `${TARGET_SCOPE_QUERY}` and `${TIME_FRAME_HOURS}`. Identify relevant GTI reports (`${RELEVANT_GTI_REPORTS}`). Create or identify a `${HUNT_CASE_ID}` for documentation.
+2.  **Deep Intelligence Analysis (GTI/External):**
+    *   Thoroughly review relevant GTI reports (`get_collection_report`).
+    *   Explore related entities, TTPs, and timelines (`get_entities_related_to_a_collection`, `get_collection_timeline_events`, `get_collection_mitre_tree`).
+    *   Use `get_threat_intel` for specific technique details.
+    *   *(Manual Step: Consult external TI sources, MITRE ATT&CK, research papers).*
+3.  **Develop Initial Hunt Queries:**
+    *   Based on the hypothesis and intelligence, formulate initial advanced queries for `secops-mcp_search_security_events` or `bigquery.execute-query`. Focus on behavioral indicators, anomalies, or specific TTP artifacts.
+    *   Combine with `${TARGET_SCOPE_QUERY}`.
+4.  **Iterative Search & Analysis:**
+    *   Execute initial queries.
+    *   Analyze results, looking for outliers, suspicious correlations, or patterns matching the hypothesis.
+    *   **Pivot:** Based on initial findings (e.g., suspicious hosts, users, processes, network connections), refine the hypothesis and develop new, more targeted queries. Adjust scope and timeframe as needed.
+    *   Repeat search and analysis iteratively.
+5.  **Advanced Enrichment:**
+    *   For any suspicious entities identified during the iterative search:
+        *   Perform deep enrichment using `secops-mcp_lookup_entity`.
+        *   Perform multi-step pivoting in GTI (`get_entities_related_to_a_...`).
+        *   Check against known IOC matches (`secops-mcp_get_ioc_matches`).
+        *   *(Leverage EDR/Cloud/Identity tools if applicable)*.
+6.  **Synthesize & Document:**
+    *   Continuously document the hunt process, queries used, analysis steps, findings (positive and negative), and enrichment results within the `${HUNT_CASE_ID}` using `soar-mcp_post_case_comment`.
+    *   Structure findings clearly, linking evidence back to the hypothesis.
+7.  **Action / Handover / Conclude:**
+    *   **If a confirmed threat is found:** Escalate immediately. Create a new incident case or link findings to an existing one. Hand over details to the Incident Response team.
+    *   **If suspicious activity requires further monitoring:** Document recommendations and potentially configure specific monitoring alerts.
+    *   **If hunt yields valuable insights but no active threat:** Document findings and propose new detection rules or improvements to Security Engineering.
+    *   **If hunt is inconclusive:** Document the process, negative findings, and any limitations encountered. Conclude the hunt.
+8.  **Completion:** Finalize documentation in the `${HUNT_CASE_ID}` and conclude the runbook execution.
+
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_advanced_hunt_node["1. extract_advanced_hunt_node<br/><i>(Extract Hunt Payload & Scope)</i>"]
+    extract_advanced_hunt_node --> execute_advanced_siem_hunt_node["2. execute_advanced_siem_hunt_node<br/><i>(Iterative SIEM Event Hunt)</i>"]
+    execute_advanced_siem_hunt_node --> advanced_hunt_router{"3. advanced_hunt_router<br/><i>(Event.actions.route)</i>"}
+
+    advanced_hunt_router -- "CONFIRMED_THREAT_PATTERN" --> handle_confirmed_pattern_branch["4a. handle_confirmed_pattern_branch<br/><i>(Escalate Incident to IR)</i>"]
+    advanced_hunt_router -- "CLEAN_HYPOTHESIS" --> handle_clean_hypothesis_branch["4b. handle_clean_hypothesis_branch<br/><i>(Document Clean Outcome)</i>"]
+
+    handle_confirmed_pattern_branch --> document_advanced_hunt_report_node["5. document_advanced_hunt_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_clean_hypothesis_branch --> document_advanced_hunt_report_node
+```
+
+### Sequence Diagram
+
+```{mermaid}
+sequenceDiagram
+    participant Analyst/Hunter
+    participant AutomatedAgent as Automated Agent (MCP Client)
+    participant GTI as gti-mcp
+    participant SIEM as secops-mcp
+    participant SOAR as secops-soar
+    participant BigQuery as bigquery (Optional)
+    participant OtherTools as EDR/Cloud/IDP (Optional)
+    participant IR_Team as Incident Response
+    participant SecEng as Security Engineering
+
+    Analyst/Hunter->>AutomatedAgent: Start Advanced Threat Hunt\nInput: HUNT_HYPOTHESIS, GTI_REPORTS (opt), SCOPE (opt), TIME_FRAME, HUNT_CASE_ID (opt)
+
+    %% Step 1: Define Scope & Case
+    Note over AutomatedAgent: Define Hypothesis, Scope, Timeframe. Create/Identify HUNT_CASE_ID.
+
+    %% Step 2: Deep Intelligence Analysis
+    loop For each GTI Report R
+        AutomatedAgent->>GTI: get_collection_report(id=R)
+        GTI-->>AutomatedAgent: Report Details
+        AutomatedAgent->>GTI: get_entities_related_to_a_collection(id=R, ...)
+        GTI-->>AutomatedAgent: Related Entities/TTPs
+        AutomatedAgent->>GTI: get_collection_timeline_events(id=R)
+        GTI-->>AutomatedAgent: Timeline
+    end
+    AutomatedAgent->>GTI: get_threat_intel(query="Details on relevant TTPs")
+    GTI-->>AutomatedAgent: TTP Context
+
+    %% Step 3: Develop Initial Queries
+    Note over AutomatedAgent: Formulate advanced SIEM/BigQuery queries based on Hypothesis & TI
+
+    %% Step 4: Iterative Search & Analysis
+    loop Until Hunt Concluded
+        AutomatedAgent->>SIEM: search_security_events(text=Query, hours_back=...)
+        SIEM-->>AutomatedAgent: Search Results
+        opt Use BigQuery
+            AutomatedAgent->>BigQuery: execute-query(query=BQ_Query)
+            BigQuery-->>AutomatedAgent: BQ Results
+        end
+        Note over AutomatedAgent: Analyze results, identify leads (Leads L1, L2...)
+        Note over AutomatedAgent: Refine Hypothesis, Develop New Queries based on Leads
+        break If No More Leads or Hunt Time Limit Reached
+    end
+
+    %% Step 5: Advanced Enrichment
+    opt Suspicious Leads Found (L1, L2...)
+        loop For each Lead Li
+            AutomatedAgent->>SIEM: lookup_entity(entity_value=Li)
+            SIEM-->>AutomatedAgent: SIEM Summary
+            AutomatedAgent->>GTI: get_..._report / get_entities_related_to_a_...(ioc=Li)
+            GTI-->>AutomatedAgent: GTI Enrichment & Pivot Results
+            opt Use Other Tools
+                 AutomatedAgent->>OtherTools: Query EDR/Cloud/IDP for Li
+                 OtherTools-->>AutomatedAgent: Additional Context
+            end
+        end
+    end
+
+    %% Step 6: Synthesize & Document
+    Note over AutomatedAgent: Continuously document process, queries, findings in HUNT_CASE_ID
+    AutomatedAgent->>SOAR: post_case_comment(case_id=HUNT_CASE_ID, comment="Hunt Update: Query [...], Findings [...], Enrichment [...]")
+    SOAR-->>AutomatedAgent: Comment Confirmation
+
+    %% Step 7 & 8: Action / Handover / Conclude
+    alt Confirmed Threat Found
+        Note over AutomatedAgent: Escalate to Incident Response
+        AutomatedAgent->>IR_Team: Handover Findings
+        AutomatedAgent->>Analyst/Hunter: attempt_completion(result="Advanced Hunt complete. Confirmed threat found and escalated.")
+    else Suspicious Activity Found
+        Note over AutomatedAgent: Recommend monitoring or new detections
+        AutomatedAgent->>SecEng: Propose New Detection Logic
+        AutomatedAgent->>Analyst/Hunter: attempt_completion(result="Advanced Hunt complete. Suspicious activity documented. Recommendations made.")
+    else Inconclusive / Negative Findings
+        Note over AutomatedAgent: Document negative results and limitations
+        AutomatedAgent->>Analyst/Hunter: attempt_completion(result="Advanced Hunt complete. No significant findings. Hunt documented.")
+    end
+```
+
+## Rubrics
+
+The following rubric is used to evaluate the execution of this **Threat Hunt/Analysis** runbook by an LLM agent.
+
+### Grading Scale (0-100 Points)
+
+| Criteria | Points | Description |
+| :--- | :--- | :--- |
+| **Scope & Query** | 25 | Defined a clear scope and executed effective queries (UDM, search). |
+| **Data Analysis** | 30 | Analyzed results to identify patterns, anomalies, or malicious behavior. |
+| **Findings** | 15 | Accurately identified and filtered findings (True Positives vs. False Positives). |
+| **Documentation** | 15 | Documented the hunt methodology and results clearly. |
+| **Operational Artifacts** | 15 | Produced required artifacts: Sequence diagram, execution metadata (date/cost), and summary. |
+
+### Evaluation Criteria Details
+
+#### 1. Scope & Query (25 Points)
+- **10 pts**: Correctly defined the time range and entities/indicators for the hunt.
+- **15 pts**: Constructed and executed valid, efficient queries to retrieve relevant data.
+
+#### 2. Data Analysis (30 Points)
+- **15 pts**: Effectively analyzed the returned data for the hypothesized threat.
+- **15 pts**: Correlated events or indicators to strengthen the analysis.
+
+#### 3. Findings (15 Points)
+- **15 pts**: Correctly classified the findings and provided evidence for the conclusion.
+
+#### 4. Documentation (15 Points)
+- **15 pts**: Recorded the hunt process, queries used, and findings in the system of record.
+
+#### 5. Operational Artifacts (15 Points)
+- **5 pts**: **Sequence Diagram**: Produced a Mermaid sequence diagram visualizing the steps taken.
+- **5 pts**: **Execution Metadata**: Recorded the date, duration, and estimated token cost.
+- **5 pts**: **Summary Report**: Generated a concise summary of the actions and outcomes.

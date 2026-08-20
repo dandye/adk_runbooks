@@ -64,6 +64,23 @@ This runbook outlines a flexible framework for advanced threat hunting, emphasiz
     *   **If hunt is inconclusive:** Document the process, negative findings, and any limitations encountered. Conclude the hunt.
 8.  **Completion:** Finalize documentation in the `${HUNT_CASE_ID}` and conclude the runbook execution.
 
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_advanced_hunt_node["1. extract_advanced_hunt_node<br/><i>(Extract Hunt Payload & Scope)</i>"]
+    extract_advanced_hunt_node --> execute_advanced_siem_hunt_node["2. execute_advanced_siem_hunt_node<br/><i>(Iterative SIEM Event Hunt)</i>"]
+    execute_advanced_siem_hunt_node --> advanced_hunt_router{"3. advanced_hunt_router<br/><i>(Event.actions.route)</i>"}
+
+    advanced_hunt_router -- "CONFIRMED_THREAT_PATTERN" --> handle_confirmed_pattern_branch["4a. handle_confirmed_pattern_branch<br/><i>(Escalate Incident to IR)</i>"]
+    advanced_hunt_router -- "CLEAN_HYPOTHESIS" --> handle_clean_hypothesis_branch["4b. handle_clean_hypothesis_branch<br/><i>(Document Clean Outcome)</i>"]
+
+    handle_confirmed_pattern_branch --> document_advanced_hunt_report_node["5. document_advanced_hunt_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_clean_hypothesis_branch --> document_advanced_hunt_report_node
+```
+
+### Sequence Diagram
+
 ```{mermaid}
 sequenceDiagram
     participant Analyst/Hunter

@@ -1,0 +1,42 @@
+{
+  "alert_id": "de_4ee5885c-dbce-16c1-96fa-12da21a652d0",
+  "scenario": "Chronicle Security Alert Investigation & Triage",
+  "timestamp": "2026-08-17T23:56:40Z",
+  "paradigms": {
+    "version_a_prompt_only": {
+      "session_id": "627afcb0-30d7-4d1a-ab7e-bde08a5e399a",
+      "wall_clock_seconds": 99.93,
+      "total_events": 22,
+      "total_tool_calls": 10,
+      "prompt_tokens": 3670210,
+      "candidates_tokens": 2065,
+      "total_tokens": 3674957
+    },
+    "version_b_runbook_guided": {
+      "session_id": "6681974c-cea5-4947-a1d4-0925931e6d8d",
+      "wall_clock_seconds": 73.44,
+      "total_events": 14,
+      "total_tool_calls": 6,
+      "prompt_tokens": 2158081,
+      "candidates_tokens": 1921,
+      "total_tokens": 2162187
+    },
+    "version_c_graph_workflow": {
+      "session_id": "c7a41894-6697-415d-a27a-0de7aa47f78e",
+      "wall_clock_seconds": 31.10,
+      "total_events": 6,
+      "total_tool_calls": 2,
+      "prompt_tokens": 870890,
+      "candidates_tokens": 1082,
+      "total_tokens": 872928
+    }
+  },
+  "graph_savings": {
+    "vs_prompt_only_token_percent": 76.2,
+    "vs_runbook_guided_token_percent": 59.6,
+    "vs_prompt_only_latency_percent": 68.9,
+    "vs_runbook_guided_latency_percent": 57.6,
+    "vs_prompt_only_turns_percent": 72.7,
+    "vs_runbook_guided_turns_percent": 57.1
+  }
+}

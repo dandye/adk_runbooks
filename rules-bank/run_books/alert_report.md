@@ -69,6 +69,23 @@ This runbook covers gathering essential details about the alert(s), associated e
     *   Use `soar-mcp_post_case_comment` to add a comment to `${CASE_ID}` stating that the report has been generated and providing the filename, or pasting a concise summary directly.
 9.  **Completion:** Conclude the runbook execution.
 
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_alert_report_payload_node["1. extract_alert_report_payload_node<br/><i>(Extract Alert Payload)</i>"]
+    extract_alert_report_payload_node --> fetch_alert_details_node["2. fetch_alert_details_node<br/><i>(Fetch Alert & Entity Details)</i>"]
+    fetch_alert_details_node --> alert_report_type_router{"3. alert_report_type_router<br/><i>(Event.actions.route)</i>"}
+
+    alert_report_type_router -- "HIGH_SEVERITY_ALERT_REPORT" --> handle_high_severity_report_branch["4a. handle_high_severity_report_branch<br/><i>(Generate High Severity Report)</i>"]
+    alert_report_type_router -- "STANDARD_ALERT_REPORT" --> handle_standard_report_branch["4b. handle_standard_report_branch<br/><i>(Generate Standard Alert Report)</i>"]
+
+    handle_high_severity_report_branch --> document_alert_report_node["5. document_alert_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_standard_report_branch --> document_alert_report_node
+```
+
+### Sequence Diagram
+
 ```{mermaid}
 sequenceDiagram
     participant Analyst/User

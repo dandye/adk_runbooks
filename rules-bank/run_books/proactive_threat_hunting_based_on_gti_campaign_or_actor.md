@@ -27,6 +27,23 @@ Uses Tools:
 *   You may ask follow up question
 *   **Common Steps:** {doc}`common_steps/find_relevant_soar_case </run_books/common_steps/find_relevant_soar_case>`
 
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_proactive_payload_node["1. extract_proactive_payload_node<br/><i>(Extract Campaign/Actor Scope Payload)</i>"]
+    extract_proactive_payload_node --> correlate_gti_campaign_siem_node["2. correlate_gti_campaign_siem_node<br/><i>(Correlate GTI Campaign IOCs against SIEM)</i>"]
+    correlate_gti_campaign_siem_node --> proactive_gti_hunt_router{"3. proactive_gti_hunt_router<br/><i>(Event.actions.route)</i>"}
+
+    proactive_gti_hunt_router -- "CAMPAIGN_SIEM_MATCH_FOUND" --> handle_campaign_match_found_branch["4a. handle_campaign_match_found_branch<br/><i>(Escalate Active Campaign Matches to IR)</i>"]
+    proactive_gti_hunt_router -- "NO_CAMPAIGN_ACTIVITY" --> handle_no_campaign_activity_branch["4b. handle_no_campaign_activity_branch<br/><i>(Document Clean Hunt Outcome)</i>"]
+
+    handle_campaign_match_found_branch --> document_proactive_hunt_report_node["5. document_proactive_hunt_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_no_campaign_activity_branch --> document_proactive_hunt_report_node
+```
+
+### Sequence Diagram
+
 ```{mermaid}
 sequenceDiagram
     participant User

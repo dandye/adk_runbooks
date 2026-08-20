@@ -93,7 +93,22 @@ This runbook explicitly **excludes**:
     *   **If TP/Suspicious:**
         *   *(Optional)* Use `soar-mcp_change_case_priority` if needed.
         *   Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and comment summarizing initial findings and assessment.
-        *   Escalate/assign to the appropriate next tier or trigger a relevant investigation runbook (e.g., `deep_dive_ioc_analysis.md`, `suspicious_login_triage.md`).
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_alerts_payload_node["1. extract_alerts_payload_node<br/><i>(Extract Alert Payload)</i>"]
+    extract_alerts_payload_node --> enrich_and_assess_alerts_node["2. enrich_and_assess_alerts_node<br/><i>(Enrich Entities & Assess Severity)</i>"]
+    enrich_and_assess_alerts_node --> alerts_disposition_router{"3. alerts_disposition_router<br/><i>(Event.actions.route)</i>"}
+
+    alerts_disposition_router -- "ESCALATE_INCIDENT" --> handle_escalate_incident_branch["4a. handle_escalate_incident_branch<br/><i>(Escalate High Risk Incident)</i>"]
+    alerts_disposition_router -- "CLOSE_FALSE_POSITIVE" --> handle_close_fp_alerts_branch["4b. handle_close_fp_alerts_branch<br/><i>(Close False Positive Alert)</i>"]
+
+    handle_escalate_incident_branch --> document_alerts_triage_report_node["5. document_alerts_triage_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_close_fp_alerts_branch --> document_alerts_triage_report_node
+```
+
+### Sequence Diagram
 
 ```{mermaid}
 sequenceDiagram

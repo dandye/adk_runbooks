@@ -1,5 +1,11 @@
 import logging
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from manager/.env and external/mcp-security/.env
+BASE_DIR = Path(__file__).resolve().parent
+load_dotenv(BASE_DIR / ".env")
+load_dotenv((BASE_DIR / "../../external/mcp-security/.env").resolve())
 
 from google.adk.agents import Agent
 
@@ -12,7 +18,18 @@ from .sub_agents.incident_responder import agent as incident_responder_agent_mod
 from .sub_agents.detection_engineer import agent as detection_engineer_agent_module
 from .sub_agents.llm_judge import agent as llm_judge_agent_module
 
-from .tools.tools import get_current_time, write_report, get_agent_tools, load_persona_and_runbooks, read_file_content
+from .tools.tools import (
+    get_current_time,
+    write_report,
+    get_agent_tools,
+    load_persona_with_skills_catalog,
+    read_file_content,
+    load_skill,
+    list_available_skills,
+    search_mcp_tools,
+    get_mcp_tool_schema,
+    execute_mcp_tool,
+)
 
 # Set the root logger to output debug messages
 logging.basicConfig(level=logging.ERROR)
@@ -30,52 +47,37 @@ initialized_incident_responder = incident_responder_agent_module.get_agent(share
 initialized_detection_engineer = detection_engineer_agent_module.get_agent(shared_tools)
 initialized_llm_judge = llm_judge_agent_module.get_agent(shared_tools)
 
-# Load persona and runbooks for the manager
+# Load persona and skills catalog for the manager
 BASE_DIR = Path(__file__).resolve().parent
-persona_file_path = (BASE_DIR / "../../../adk_runbooks/rules-bank/personas/soc_manager.md").resolve()
-runbook_files = [
-    # Guidelines
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/guidelines/report_writing.md").resolve(),
-    # IRPs
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/irps/compromised_user_account_response.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/irps/phishing_response.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/irps/ransomware_response.md").resolve(),
-    # Runbooks
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/triage_alerts.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/prioritize_and_investigate_a_case.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/close_duplicate_or_similar_cases.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/basic_ioc_enrichment.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/suspicious_login_triage.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/investigate_a_case_w_external_tools.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/ioc_containment.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/basic_endpoint_triage_isolation.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/deep_dive_ioc_analysis.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/malware_triage.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/guided_ttp_hunt_credential_access.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/lateral_movement_hunt_psexec_wmi.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/advanced_threat_hunting.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/detection_rule_validation_tuning.md").resolve(),
-    (BASE_DIR / "../../../adk_runbooks/rules-bank/run_books/create_an_investigation_report.md").resolve(),
+persona_file_path = (BASE_DIR / "../../rules-bank/personas/soc_manager.md").resolve()
+manager_skills = [
+    "compromised-user-account-response",
+    "phishing-response",
+    "ransomware-response",
+    "malware-incident-response",
+    "report-writing-guidelines",
+    "create-investigation-report",
 ]
 
-persona_description = load_persona_and_runbooks(
-    persona_file_path,
-    runbook_files,
+persona_description = load_persona_with_skills_catalog(
+    str(persona_file_path),
+    skill_names=manager_skills,
     default_persona_description="SOC Manager: Responsible for delegating to other agents and writing reports."
 )
 
 # Create the root agent directly
 root_agent = Agent(
     name="manager",
-    #model="gemini-2.5-flash",
-    model="gemini-2.5-pro",
+    model="gemini-3.7-flash",
     description=persona_description,
     instruction="""
     You are the SOC Manager agent, responsible for overseeing and orchestrating the work of specialized sub-agents. Your primary goal is to ensure efficient and effective incident response and SOC operations.
 
+    When executing a task, check your Available Skills. Call `load_skill(skill_name)` to retrieve detailed procedural guidance and rubrics when relevant.
+
     **Incident Response Plan (IRP) Execution:**
     When an IRP is invoked (e.g., "Start Malware IRP for CASE_ID 123"):
-    1.  Your **first priority** is to understand the active IRP. The IRP details, including phases, steps, and responsible personas, are part of your contextual description.
+    1.  Your **first priority** is to understand the active IRP. The IRP details, including phases, steps, and responsible personas, are part of your contextual description or loaded via `load_skill`.
     2.  You **MUST** meticulously follow the IRP. For each step, identify the `**Responsible Persona(s):**` as specified in the IRP.
     3.  Delegate tasks **strictly according to these IRP assignments**. For example, if the IRP says "SOC Analyst T1" is responsible for initial triage, you delegate that to the `soc_analyst_tier1` sub-agent.
     4.  Ensure that control returns to you after a sub-agent completes its delegated IRP task. You will then consult the IRP for the next step and delegate to the next responsible persona.
@@ -94,10 +96,15 @@ root_agent = Agent(
     - llm_judge: Evaluating the quality and completeness of runbook executions by other agents.
 
     **Your Tools:**
-    You have direct access to these tools for oversight and reporting:
+    You have direct access to these tools for oversight, skill retrieval, tool discovery, and reporting:
+    - load_skill
+    - list_available_skills
     - get_current_time
     - write_report
     - read_file_content
+    - search_mcp_tools
+    - get_mcp_tool_schema
+    - execute_mcp_tool
 
     Always aim for clear, coordinated, and efficient execution of security operations, leveraging your sub-agents effectively according to their roles and the active IRP.
     """,
@@ -111,9 +118,5 @@ root_agent = Agent(
         initialized_detection_engineer,
         initialized_llm_judge,
     ],
-    tools=[
-        get_current_time,
-        write_report,
-        read_file_content,
-    ],
+    tools=list(shared_tools),
 )

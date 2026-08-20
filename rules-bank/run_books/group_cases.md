@@ -8,6 +8,21 @@ generated:
 
 # Group Cases Workflow
 
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_group_payload_node["1. extract_group_payload_node<br/><i>(Extract Target Cases Payload)</i>"]
+    extract_group_payload_node --> cluster_similar_cases_node["2. cluster_similar_cases_node<br/><i>(Correlate Shared Entities & IOCs)</i>"]
+    cluster_similar_cases_node --> case_grouping_router{"3. case_grouping_router<br/><i>(Event.actions.route)</i>"}
+
+    case_grouping_router -- "GROUP_CASES_MERGED" --> handle_group_cases_merged_branch["4a. handle_group_cases_merged_branch<br/><i>(Merge Cases into Consolidated Cluster)</i>"]
+    case_grouping_router -- "NO_GROUPING_NEEDED" --> handle_no_grouping_needed_branch["4b. handle_no_grouping_needed_branch<br/><i>(Skip Grouping)</i>"]
+
+    handle_group_cases_merged_branch --> document_grouping_report_node["5. document_grouping_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_no_grouping_needed_branch --> document_grouping_report_node
+```
+
 From the last 5 cases, examine the underlying entities in the alerts and events and group the cases logically. Then, extract details from each case in each cluster to build a high fidelity understanding of each cases' disposition and involved entities. Make sure you have an in depth understanding of each case before moving on to the next step.
 
 Then determine the priority of each case "grouping". Then for each grouping analyze and interpret the alerts to understand why each case might be relevant. Then assess the impact of each case grouping and prioritize the cases with the highest potentialy impact. Then for each case grouping examine the underlying entities and enrich any observables with GTI. Finally, search for any related security events that may be relevant to a case based on their entities (hostnames) and include those as part of your case analysis. Finally, create a comprehensive analysis report in markdown in which you present the prioritized case list, your justification, and your analysis of each case or case cluster.

@@ -42,7 +42,22 @@ This runbook covers the end-to-end response lifecycle for compromised user accou
 *   *(Potentially Endpoint tools if investigating actions taken on hosts)*
 *   **Common Steps:** `common_steps/check_duplicate_cases.md`, `common_steps/find_relevant_soar_case.md`, `common_steps/document_in_soar.md`, `common_steps/confirm_action.md`
 
-## Workflow Steps & Diagram
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_user_irp_payload_node["1. extract_user_irp_payload_node<br/><i>(Extract User & Scope Payload)</i>"]
+    extract_user_irp_payload_node --> assess_user_compromise_impact_node["2. assess_user_compromise_impact_node<br/><i>(Assess User Privilege & Session Risk)</i>"]
+    assess_user_compromise_impact_node --> user_containment_router{"3. user_containment_router<br/><i>(Event.actions.route)</i>"}
+
+    user_containment_router -- "DISABLE_ACCOUNT_REVOKE_SESSIONS" --> handle_disable_account_branch["4a. handle_disable_account_branch<br/><i>(Disable Account & Revoke OAuth Sessions)</i>"]
+    user_containment_router -- "MONITORING_ONLY" --> handle_monitoring_only_branch["4b. handle_monitoring_only_branch<br/><i>(Heightened SIEM Monitoring Only)</i>"]
+
+    handle_disable_account_branch --> document_user_irp_report_node["5. document_user_irp_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_monitoring_only_branch --> document_user_irp_report_node
+```
+
+### Sequence Diagram
 
 ```{mermaid}
 sequenceDiagram

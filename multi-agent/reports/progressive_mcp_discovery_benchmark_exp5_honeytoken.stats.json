@@ -1,0 +1,16 @@
+{
+  "paradigm": "Version E: Dual Progressive Disclosure (Skills + MCP Discovery)",
+  "session_id": "dual-prog-disc-20260820-exp5",
+  "total_events": 7,
+  "total_tool_calls": 3,
+  "prompt_tokens": 98350,
+  "candidates_tokens": 350,
+  "total_tokens": 98700,
+  "rubric_score": 95.0,
+  "grade": "A",
+  "tool_calls": [
+    "transfer_to_agent",
+    "load_skill(skill_name='detection-rule-validation-tuning')",
+    "execute_mcp_tool(tool_name='run_detection_rule_validation_workflow', arguments={'rule_id': 'ru_bfc779f0'})"
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "case_id": "33284",
+  "scenario": "Compromised User Account Response IRP (Scattered Spider MFA Bypass)",
+  "comparison_timestamp": "2026-08-17T23:07:00Z",
+  "benchmark_summary": {
+    "graph_session_id": "9817ede2-0dab-4122-99bc-101a40bb6a1e",
+    "nograph_session_id": "8ff7d1c5-26a2-4237-92bb-c1df1d93cc76",
+    "token_reduction_percent": 77.4,
+    "prompt_token_reduction_percent": 77.5,
+    "turns_reduction_percent": 75.0,
+    "tool_calls_reduction_percent": 81.8
+  },
+  "graph_workflow_run": {
+    "session_id": "9817ede2-0dab-4122-99bc-101a40bb6a1e",
+    "total_events": 6,
+    "total_tool_calls": 2,
+    "prompt_tokens": 870201,
+    "candidates_tokens": 275,
+    "total_tokens": 874238,
+    "tool_calls": [
+      "transfer_to_agent",
+      "run_compromised_user_irp_workflow"
+    ]
+  },
+  "nograph_autonomous_run": {
+    "session_id": "8ff7d1c5-26a2-4237-92bb-c1df1d93cc76",
+    "total_events": 24,
+    "total_tool_calls": 11,
+    "prompt_tokens": 3869779,
+    "candidates_tokens": 1224,
+    "total_tokens": 3874553,
+    "tool_calls": [
+      "transfer_to_agent",
+      "soar-mcp_list_cases",
+      "soar-mcp_get_case_full_details",
+      "soar-mcp_list_events_by_alert",
+      "secops-mcp_lookup_entity",
+      "secops-mcp_lookup_entity",
+      "secops-mcp_get_threat_intel",
+      "gti-mcp_get_ip_address_report",
+      "soar-mcp_post_case_comment",
+      "get_current_time",
+      "write_report"
+    ]
+  }
+}

@@ -51,7 +51,22 @@ This runbook covers the end-to-end response lifecycle for phishing incidents. It
 *   *(Potentially Email Gateway tools if integrated via MCP for searching/deleting emails)*
 *   **Common Steps:** `common_steps/check_duplicate_cases.md`, `common_steps/enrich_ioc.md`, `common_steps/find_relevant_soar_case.md`, `common_steps/document_in_soar.md`
 
-## Workflow Steps & Diagram
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_phishing_irp_payload_node["1. extract_phishing_irp_payload_node<br/><i>(Extract Phishing Subject & Sender Payload)</i>"]
+    extract_phishing_irp_payload_node --> assess_phishing_incident_scope_node["2. assess_phishing_incident_scope_node<br/><i>(Assess Recipient Count & Clicked URL Risk)</i>"]
+    assess_phishing_incident_scope_node --> phishing_irp_containment_router{"3. phishing_irp_containment_router<br/><i>(Event.actions.route)</i>"}
+
+    phishing_irp_containment_router -- "PURGE_INBOXES_AND_BLOCK_DOMAINS" --> handle_purge_inboxes_branch["4a. handle_purge_inboxes_branch<br/><i>(Purge Inboxes & Reset User Passwords)</i>"]
+    phishing_irp_containment_router -- "ANALYSIS_ONLY" --> handle_analysis_only_branch["4b. handle_analysis_only_branch<br/><i>(Single Email Analysis & Documentation)</i>"]
+
+    handle_purge_inboxes_branch --> document_phishing_irp_report_node["5. document_phishing_irp_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_analysis_only_branch --> document_phishing_irp_report_node
+```
+
+### Sequence Diagram
 
 ```{mermaid}
 sequenceDiagram

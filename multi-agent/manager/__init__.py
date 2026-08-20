@@ -1,1 +1,4 @@
-from . import agent
+try:
+    from . import agent
+except ImportError:
+    pass

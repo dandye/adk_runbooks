@@ -1,45 +1,42 @@
 from pathlib import Path
 from google.adk.agents import Agent
 
-from ...tools.tools import load_persona_and_runbooks
+from ...tools.tools import load_persona_with_skills_catalog
 
 
 def get_agent(tools):
   """Configures and returns a CTI Researcher Agent instance.
 
-  This function sets up the agent with a specific persona, runbooks,
+  This function sets up the agent with a specific persona, skills catalog,
   and tools necessary for Cyber Threat Intelligence research.
 
   Args:
-      tools (tuple): A tuple containing the pre-initialized MCP toolsets.
+      tools (tuple): A tuple containing the pre-initialized MCP toolsets and meta-tools.
 
   Returns:
       Agent: An initialized instance of the CTI Researcher agent.
   """
   BASE_DIR = Path(__file__).resolve().parent
   persona_file_path = (BASE_DIR / "../../../../rules-bank/personas/cti_researcher.md").resolve()
-  runbook_files = [
-    # Guidelines
-    (BASE_DIR / "../../../../rules-bank/run_books/guidelines/threat_intel_workflows.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/guidelines/report_writing.md").resolve(),
-    # Runbooks
-    (BASE_DIR / "../../../../rules-bank/run_books/investigate_a_gti_collection_id.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/proactive_threat_hunting_based_on_gti_campaign_or_actor.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/compare_gti_collection_to_iocs_and_events.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/ioc_threat_hunt.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/apt_threat_hunt.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/deep_dive_ioc_analysis.md").resolve(),
+  skills = [
+      "report-writing-guidelines",
+      "investigate-gti-collection",
+      "proactive-hunt-gti-campaign",
+      "compare-gti-collection",
+      "ioc-threat-hunt",
+      "apt-threat-hunt",
+      "deep-dive-ioc-analysis",
   ]
-  persona_data = load_persona_and_runbooks(
-      persona_file_path,
-      runbook_files,
+  persona_data = load_persona_with_skills_catalog(
+      str(persona_file_path),
+      skill_names=skills,
       default_persona_description="Default CTI Researcher description: Responsible for threat intelligence."
   )
-  agent_instance = Agent( # Renamed to avoid conflict with module-level var if any
+  agent_instance = Agent(
       name="cti_researcher",
-      model="gemini-2.5-pro",
+      model="gemini-3.7-flash",
       description=persona_data,
-      instruction="You are a CTI Researcher.",
-      tools=tools, # Use passed-in tools
+      instruction="""You are a Cyber Threat Intelligence (CTI) Researcher. When executing a task, check your Available Skills. Call `load_skill(skill_name)` to retrieve detailed procedural guidance and rubrics when relevant. To query external systems (SIEM, SOAR, GTI, SecOps), use progressive MCP discovery: use `search_mcp_tools` to find available tools, `get_mcp_tool_schema` to inspect arguments, and `execute_mcp_tool` to run them. Only invoke tools listed in your function declarations.""",
+      tools=tools,
   )
   return agent_instance
