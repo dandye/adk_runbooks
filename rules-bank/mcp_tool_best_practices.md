@@ -1,14 +1,32 @@
 ---
 type: Guideline
 title: MCP Tool Best Practices & Usage Guide
+description: "Best practices, usage principles, and progressive discovery guidelines for Model Context Protocol (MCP) security tools interacting with Chronicle SIEM, SecOps SOAR, and GTI."
 generated:
   by: human:dandye
-  at: 2025-05-31T00:07:07-04:00
+  at: 2026-08-20T18:00:00-04:00
+related:
+  - ./suggested_mcp_tools.md
+  - ./architecture/progressive_mcp_discovery_overview.md
+  - ./multi_agent_overview.md
 ---
 
 # MCP Tool Best Practices & Usage Guide
 
-This document provides best practices, tips, and important considerations for using Model Context Protocol (MCP) tools, especially those interacting with security platforms like Chronicle SIEM and Google Threat Intelligence (GTI).
+This document provides best practices, tips, and important considerations for using Model Context Protocol (MCP) tools, especially those interacting with security platforms like Chronicle SIEM, SecOps SOAR, and Google Threat Intelligence (GTI).
+
+## Progressive MCP Tool Discovery (Modern Paradigm)
+
+To prevent prompt context bloat and eliminate the overhead of binding dozens of static JSON tool schemas into agent prompts, the ADK Runbooks platform employs **Progressive MCP Tool Discovery**:
+
+1. **Discovery (`search_mcp_tools`)**:
+   - Query available security tools by keyword or server namespace (e.g. `search_mcp_tools(query="alert", server="siem")`).
+   - Returns a compact summary without parameter bloat.
+2. **Schema Inspection (`get_mcp_tool_schema`)**:
+   - Inspect required parameters, types, and descriptions on demand (e.g. `get_mcp_tool_schema(tool_name="siem_search_security_events")`).
+   - Supports both `snake_case` and `kebab-case` tool names.
+3. **Execution (`execute_mcp_tool`)**:
+   - Dispatches the call with validated arguments (e.g. `execute_mcp_tool(tool_name="gti_get_ip_report", arguments={"ip": "1.2.3.4"})`).
 
 ## General MCP Tool Usage Principles
 
