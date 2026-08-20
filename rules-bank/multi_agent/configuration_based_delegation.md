@@ -1,9 +1,14 @@
 ---
 type: Reference
-title: Configuration-Based Delegation System
+title: "Configuration-Based Delegation System"
+description: "Architectural specification for data-driven agent delegation, capability-based routing, and dynamic escalation paths."
 generated:
   by: human:dandye
   at: 2025-06-19T21:04:23-04:00
+related:
+  - ./config_quick_reference.md
+  - ./agent_workflow_references.md
+  - ../multi_agent_overview.md
 ---
 
 # Configuration-Based Delegation System

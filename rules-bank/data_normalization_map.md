@@ -1,9 +1,14 @@
 ---
 type: Guideline
-title: Data Normalization Map
+title: "Data Normalization Map"
+description: "Canonical field normalization map correlating Chronicle UDM schemas, Google Threat Intelligence attributes, and SOAR case entities."
 generated:
   by: human:dandye
   at: 2025-05-31T00:07:07-04:00
+related:
+  - ./indicator_handling_protocols.md
+  - ./analytical_query_patterns.md
+  - ./log_source_overview.md
 ---
 
 # Data Normalization Map

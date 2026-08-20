@@ -1,9 +1,15 @@
 ---
 type: Guideline
 title: Detection Strategy Overview
+description: "High-level strategy for security detection development, threat-informed defense, MITRE ATT&CK coverage, and detection engineering lifecycle integration."
 generated:
   by: human:dandye
-  at: 2025-05-31T19:50:19-04:00
+  at: 2026-08-20T18:00:00-04:00
+related:
+  - ./detection_improvement_process.md
+  - ./data_normalization_map.md
+  - ./analytical_query_patterns.md
+  - ./run_books/detection_as_code_workflows.md
 ---
 
 # Detection Strategy Overview

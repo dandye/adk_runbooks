@@ -1,9 +1,14 @@
 ---
 type: Guideline
 title: "AI Performance Framework: PICERL Index"
+description: "Operational framework measuring AI agent effectiveness across the 6 PICERL incident response phases."
 generated:
   by: human:dandye
   at: 2025-05-31T13:54:55-04:00
+related:
+  - ./ai_performance_logging_requirements.md
+  - ./ai_decision_review_guidelines.md
+  - ../sop_automation_effectiveness_review.md
 ---
 
 # AI Performance Framework: PICERL Index

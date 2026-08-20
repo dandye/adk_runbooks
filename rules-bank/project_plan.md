@@ -1,9 +1,14 @@
 ---
 type: Guideline
 title: "Project Plan: Enhance LLM Agent Context"
+description: "Strategic roadmap, phase milestones, and task tracking for enhancing LLM agent context, atomic runbooks, and multi-agent workflows."
 generated:
   by: human:dandye
   at: 2026-03-30T21:16:55-04:00
+related:
+  - ./multi_agent_overview.md
+  - ./detection_strategy.md
+  - ./indicator_handling_protocols.md
 ---
 
 # Project Plan: Enhance LLM Agent Context

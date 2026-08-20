@@ -1,9 +1,14 @@
 ---
 type: Guideline
-title: Automated Response Playbook Criteria
+title: "Automated Response Playbook Criteria"
+description: "Qualifying criteria, risk gates, and architectural guidelines for implementing automated response playbooks in SecOps SOAR."
 generated:
   by: human:dandye
   at: 2025-05-31T19:50:19-04:00
+related:
+  - ./sop_automation_effectiveness_review.md
+  - ./detection_strategy.md
+  - ./mcp_tool_best_practices.md
 ---
 
 # Automated Response Playbook Criteria

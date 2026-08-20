@@ -1,9 +1,13 @@
 ---
 type: Guideline
-title: AI Performance Logging Requirements
+title: "AI Performance Logging Requirements"
+description: "Technical requirements for capturing agent turn events, token consumption, latency, and tool execution traces."
 generated:
   by: human:dandye
   at: 2025-05-31T13:54:55-04:00
+related:
+  - ./ai_performance_framework_picerl.md
+  - ./ai_explainability_standards.md
 ---
 
 # AI Performance Logging Requirements

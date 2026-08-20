@@ -1,9 +1,14 @@
 ---
 type: Guideline
-title: Log Source Overview
+title: "Log Source Overview"
+description: "Inventory and mapping of operating system, network, cloud, and security telemetry sources to Chronicle UDM ingestion pipelines."
 generated:
   by: human:dandye
   at: 2025-05-31T00:07:07-04:00
+related:
+  - ./data_normalization_map.md
+  - ./analytical_query_patterns.md
+  - ./indicator_handling_protocols.md
 ---
 
 # Log Source Overview

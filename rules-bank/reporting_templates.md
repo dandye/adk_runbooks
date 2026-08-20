@@ -1,9 +1,14 @@
 ---
 type: Guideline
-title: Reporting Templates & Guidelines
+title: "Reporting Templates & Guidelines"
+description: "Standardized templates and structural requirements for Case Investigation Reports, Alert Summaries, and Post-Incident Reviews."
 generated:
   by: human:dandye
   at: 2025-11-10T17:21:35-05:00
+related:
+  - ./run_books/case_report.md
+  - ./run_books/alert_report.md
+  - ./run_books/create_an_investigation_report.md
 ---
 
 # Reporting Templates & Guidelines

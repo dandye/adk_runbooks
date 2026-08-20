@@ -1,9 +1,13 @@
 ---
 type: Guideline
-title: Coding Conventions
+title: "Coding Conventions"
+description: "Style guides, naming standards, and coding conventions for Markdown runbooks, YARA-L rules, and Python automation tools."
 generated:
   by: human:dandye
   at: 2025-05-17T18:46:00-04:00
+related:
+  - ./detection_strategy.md
+  - ./data_normalization_map.md
 ---
 
 # Coding Conventions

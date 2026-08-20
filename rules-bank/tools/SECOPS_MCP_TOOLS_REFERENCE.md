@@ -1,9 +1,14 @@
 ---
 type: Reference
-title: SecOps MCP Tools Reference
+title: "SecOps MCP Tools Reference"
+description: "Complete reference guide and parameter schemas for Google Chronicle SIEM (SecOps) MCP tools."
 generated:
   by: human:dandye
   at: 2025-06-19T21:01:22-04:00
+related:
+  - ./SOAR_MCP_TOOLS_REFERENCE.md
+  - ./SCC_MCP_TOOLS_REFERENCE.md
+  - ../mcp_tool_best_practices.md
 ---
 
 # SecOps MCP Tools Reference

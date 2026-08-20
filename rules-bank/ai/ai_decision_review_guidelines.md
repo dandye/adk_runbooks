@@ -1,9 +1,14 @@
 ---
 type: Guideline
-title: AI Decision Review Guidelines
+title: "AI Decision Review Guidelines"
+description: "Guidelines for human and automated review of AI agent decisions, tool execution outputs, and escalation rationale."
 generated:
   by: human:dandye
   at: 2025-05-31T13:54:55-04:00
+related:
+  - ./ai_explainability_standards.md
+  - ./ai_performance_framework_picerl.md
+  - ./ai_performance_logging_requirements.md
 ---
 
 # AI Decision Review Guidelines

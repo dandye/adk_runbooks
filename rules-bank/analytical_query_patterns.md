@@ -1,9 +1,14 @@
 ---
 type: Guideline
-title: Analytical Query Patterns for AI Agents
+title: "Analytical Query Patterns for AI Agents"
+description: "Standardized analytical query patterns, UDM search templates, and data extraction techniques for security AI agents."
 generated:
   by: human:dandye
   at: 2025-06-02T12:14:04-04:00
+related:
+  - ./detection_strategy.md
+  - ./log_source_overview.md
+  - ./data_normalization_map.md
 ---
 
 # Analytical Query Patterns for AI Agents

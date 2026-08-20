@@ -1,9 +1,14 @@
 ---
 type: Reference
-title: SCC MCP Tools Reference
+title: "SCC MCP Tools Reference"
+description: "Complete reference guide and parameter schemas for Google Security Command Center (SCC) MCP tools."
 generated:
   by: human:dandye
   at: 2025-06-19T21:01:22-04:00
+related:
+  - ./SECOPS_MCP_TOOLS_REFERENCE.md
+  - ./SOAR_MCP_TOOLS_REFERENCE.md
+  - ../suggested_mcp_tools.md
 ---
 
 # SCC MCP Tools Reference
