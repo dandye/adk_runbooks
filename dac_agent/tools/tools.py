@@ -725,15 +725,10 @@ async def get_dac_agent_tools():
     if secops_1p_toolset:
         common_exit_stack.push_async_callback(secops_1p_toolset.close)
 
+    # Return progressive discovery meta-tools and custom tools
+    # All MCP toolsets (soar, siem, gti, secops_1p) are registered in global_mcp_registry
+    # and discovered/executed on-demand via search_mcp_tools and execute_mcp_tool.
     tool_list = [
-        soar_toolset,
-        siem_toolset,
-        gti_toolset,
-    ]
-    if secops_1p_toolset:
-        tool_list.append(secops_1p_toolset)
-
-    tool_list.extend([
         get_current_time,
         write_report,
         git_create_branch,
@@ -747,6 +742,6 @@ async def get_dac_agent_tools():
         search_mcp_tools,
         get_mcp_tool_schema,
         execute_mcp_tool,
-    ])
+    ]
 
     return tuple(tool_list), common_exit_stack
