@@ -5,10 +5,18 @@ from pathlib import Path
 from google.adk.agents import Agent
 
 try:
-    from .tools.tools import get_dac_agent_tools, load_persona_and_runbooks
+    from .tools.tools import (
+        get_dac_agent_tools,
+        load_persona_with_skills_catalog,
+        load_persona_and_runbooks,
+    )
 except ImportError:
     # Handle when run as script
-    from tools.tools import get_dac_agent_tools, load_persona_and_runbooks
+    from tools.tools import (
+        get_dac_agent_tools,
+        load_persona_with_skills_catalog,
+        load_persona_and_runbooks,
+    )
 
 # Set the root logger to output debug messages
 logging.basicConfig(level=logging.ERROR)
@@ -18,34 +26,30 @@ async def initialize_actual_dac_agent():
     """Initializes the Detection-as-Code Agent for autonomous rule tuning operations.
 
     This function sets up the DAC agent with specialized MCP tools for SOAR case monitoring,
-    GitHub operations, and SIEM rule management. The agent runs autonomously to implement
-    the detection_as_code_rule_tuning.md workflow.
+    GitHub operations, SIEM rule management, and progressive disclosure skills. The agent runs
+    autonomously to implement the detection-as-code-rule-tuning workflow.
 
     Returns:
         Agent: The fully configured and initialized DAC Agent instance.
     """
-    # Initialize MCP tools for DAC operations
+    # Initialize MCP tools and skills for DAC operations
     shared_tools, _shared_exit_stack = await get_dac_agent_tools()
 
     BASE_DIR = Path(__file__).resolve().parent
     persona_file_path = (BASE_DIR / "../rules-bank/personas/detection_engineer.md").resolve()
-    runbook_files = [
-        # Primary workflow
-        (BASE_DIR / "../rules-bank/run_books/detection_as_code_rule_tuning.md").resolve(),
-        # Supporting runbooks
-        (BASE_DIR / "../rules-bank/run_books/detection_rule_validation_tuning.md").resolve(),
-        (BASE_DIR / "../rules-bank/run_books/detection_as_code_workflows.md").resolve(),
-        # Guidelines
-        (BASE_DIR / "../rules-bank/run_books/guidelines/report_writing.md").resolve(),
-        # Common steps
-        (BASE_DIR / "../rules-bank/run_books/common_steps/enrich_ioc.md").resolve(),
-        (BASE_DIR / "../rules-bank/run_books/common_steps/document_in_soar.md").resolve(),
-        (BASE_DIR / "../rules-bank/run_books/common_steps/generate_report_file.md").resolve(),
+    dac_skills = [
+        "detection-as-code-rule-tuning",
+        "detection-rule-validation-tuning",
+        "detection-as-code-workflows",
+        "report-writing-guidelines",
+        "enrich-ioc",
+        "document-in-soar",
+        "generate-report-file",
     ]
 
-    persona_description = load_persona_and_runbooks(
-        persona_file_path,
-        runbook_files,
+    persona_description = load_persona_with_skills_catalog(
+        str(persona_file_path),
+        skill_names=dac_skills,
         default_persona_description="Detection-as-Code Agent: Autonomous rule tuning based on SOAR feedback."
     )
 
@@ -56,6 +60,8 @@ async def initialize_actual_dac_agent():
         instruction="""
         You are the Detection-as-Code (DAC) Agent, responsible for autonomous rule tuning based on SOAR case feedback. Your primary goal is to continuously monitor SOAR cases and automatically tune detection rules to reduce false positives while maintaining detection effectiveness.
 
+        When executing tuning tasks, check your Available Skills. Call `load_skill(skill_name)` to retrieve detailed procedural guidance and rubrics on-demand (e.g. `load_skill('detection-as-code-rule-tuning')` or `load_skill('detection-rule-validation-tuning')`).
+
         **Core Responsibilities:**
         1. **Autonomous Monitoring**: Continuously monitor closed SOAR cases for tuning opportunities
         2. **Rule Analysis**: Identify detection rules that need tuning based on analyst feedback
@@ -64,7 +70,7 @@ async def initialize_actual_dac_agent():
         5. **CI/CD Integration**: Ensure proper validation and deployment of rule changes
 
         **Workflow Execution Pattern:**
-        Follow the detection_as_code_rule_tuning.md workflow exactly:
+        Follow the detection-as-code-rule-tuning workflow (retrievable via `load_skill('detection-as-code-rule-tuning')`):
 
         1. **Monitor Phase**: 
            - Search for closed SOAR cases with root causes indicating tuning needs
@@ -101,6 +107,7 @@ async def initialize_actual_dac_agent():
         When you encounter ambiguous situations, apply conservative security-first principles and document your reasoning in commit messages and PR descriptions.
 
         **Key Tools Available:**
+        - Skill loading: load_skill, list_available_skills
         - SOAR MCP Server: List and analyze cases, read analyst comments
         - SIEM MCP Server: Search events, validate rules, estimate impact
         - GitHub operations: Create branches, commits, pull requests

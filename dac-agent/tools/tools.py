@@ -1,14 +1,24 @@
-from datetime import datetime
 import contextlib
 import os
 import re
 import subprocess
+import sys
+from datetime import datetime
 from pathlib import Path
+
+# Ensure project root is in sys.path for skills imports
+_project_root = Path(__file__).resolve().parent.parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
 
 from google.adk.tools.mcp_tool import MCPToolset, StdioConnectionParams
 from google.adk.tools.mcp_tool.mcp_session_manager import StdioServerParameters
+from skills.registry import SkillRegistry
 
 TIMEOUT = 60
+
+# Initialize global skill registry
+global_skill_registry = SkillRegistry()
 
 
 def get_current_time() -> dict:
@@ -295,9 +305,90 @@ def find_rule_files(rule_pattern: str, search_dir: str = None) -> dict:
         }
 
 
-def load_persona_and_runbooks(persona_file_path: str, runbook_files: list, default_persona_description: str = "Default persona description.") -> str:
+def load_skill(skill_name: str) -> str:
+    """Loads the full markdown instructions, procedures, and rubrics for a specified skill.
+
+    Use this tool when you need complete step-by-step procedures, execution guidelines,
+    or validation rubrics to perform detection-as-code rule tuning and engineering tasks.
+
+    Args:
+        skill_name: The name or identifier of the skill to load (e.g. 'detection-as-code-rule-tuning',
+                    'detection-rule-validation-tuning', 'detection-as-code-workflows').
+
+    Returns:
+        str: The complete markdown content of the requested skill, or an error message if not found.
     """
-    Loads persona description from a file and appends contents from runbook files.
+    return global_skill_registry.get_skill_content(skill_name)
+
+
+def list_available_skills(category: str = "") -> str:
+    """Lists available progressive disclosure skills, optionally filtered by category.
+
+    Use this tool to discover available security skills and capabilities that you can load
+    on-demand using `load_skill`.
+
+    Args:
+        category: Optional category name to filter skills (e.g. 'detection', 'irps',
+                  'guidelines', 'investigation', 'atomic'). If empty, all available skills are listed.
+
+    Returns:
+        str: Formatted list of matching skills with their descriptions.
+    """
+    if category:
+        skills = global_skill_registry.list_skills_by_category(category)
+        if not skills:
+            return f"No skills found in category '{category}'."
+        lines = [f"### Available Skills in '{category}' (Progressive Disclosure)\n"]
+        for s in skills:
+            lines.append(f"- **`{s.name}`**: {s.description}")
+        return "\n".join(lines)
+    else:
+        catalog = global_skill_registry.get_skill_catalog()
+        return catalog if catalog else "No skills registered."
+
+
+def load_persona_with_skills_catalog(
+    persona_file_path: str,
+    skill_names: list[str] | None = None,
+    default_persona_description: str = "Default persona description."
+) -> str:
+    """Loads persona description and appends progressive disclosure skill catalog.
+
+    Reads the persona markdown file and appends the catalog of available skills
+    so the agent is aware of what skills it can dynamically load during execution.
+
+    Args:
+        persona_file_path: Path to the persona markdown file.
+        skill_names: Optional list of skill names allowed/relevant for this agent.
+                     If None, includes all registered skills.
+        default_persona_description: Fallback text if persona file is not found.
+
+    Returns:
+        str: The combined persona description with appended skills catalog.
+    """
+    persona_description = ""
+    try:
+        with open(persona_file_path, "r", encoding="utf-8") as f:
+            persona_description = f.read()
+    except FileNotFoundError:
+        persona_description = default_persona_description
+        print(f"Warning: Persona file not found at {persona_file_path}. Using default description.")
+
+    catalog = global_skill_registry.get_skill_catalog(skill_names)
+    if catalog:
+        persona_description += "\n\n" + catalog
+
+    return persona_description
+
+
+def load_persona_and_runbooks(
+    persona_file_path: str,
+    runbook_files: list,
+    default_persona_description: str = "Default persona description."
+) -> str:
+    """[Legacy] Loads persona description from a file and appends contents from runbook files.
+
+    Deprecated: Use load_persona_with_skills_catalog() instead for progressive disclosure.
 
     Args:
         persona_file_path: Path to the persona file.
@@ -309,7 +400,7 @@ def load_persona_and_runbooks(persona_file_path: str, runbook_files: list, defau
     """
     persona_description = ""
     try:
-        with open(persona_file_path, 'r') as f:
+        with open(persona_file_path, 'r', encoding="utf-8") as f:
             persona_description = f.read()
     except FileNotFoundError:
         persona_description = default_persona_description
@@ -317,7 +408,7 @@ def load_persona_and_runbooks(persona_file_path: str, runbook_files: list, defau
 
     for runbook_file in runbook_files:
         try:
-            with open(runbook_file, 'r') as f:
+            with open(runbook_file, 'r', encoding="utf-8") as f:
                 runbook_content = f.read()
             persona_description += "\n\n" + runbook_content
         except FileNotFoundError:
@@ -417,4 +508,6 @@ async def get_dac_agent_tools():
         create_github_pr,
         validate_yaml_file,
         find_rule_files,
+        load_skill,
+        list_available_skills,
     ), common_exit_stack
