@@ -1,0 +1,78 @@
+# promptfooconfig.yaml
+# Evaluation configuration for ADK Security Multi-Agent Personas and Runbooks
+# Documentation: rules-bank/ai/promptfoo_evaluation_manual.md
+
+description: "ADK Security Multi-Agent Procedural Compliance & Rubric Evaluation"
+
+prompts:
+  - "file://../../rules-bank/personas/soc_analyst_tier1.md"
+  - "file://../../rules-bank/personas/threat_hunter.md"
+  - "file://../../rules-bank/personas/incident_responder.md"
+  - "file://../../rules-bank/personas/detection_engineer.md"
+
+providers:
+  - id: "vertex:gemini-3.7-flash"
+    config:
+      temperature: 0.1
+      maxOutputTokens: 8192
+  - id: "vertex:gemini-2.5-flash"
+    config:
+      temperature: 0.1
+      maxOutputTokens: 8192
+  - id: "vertex:gemini-2.5-flash-lite"
+    config:
+      temperature: 0.1
+      maxOutputTokens: 8192
+
+defaultTest:
+  options:
+    transform: "output.trim()"
+
+tests:
+  - description: "Case 33279: Lokibot C2 Triage & IOC Containment"
+    vars:
+      case_id: "CASE-33279"
+      alert_type: "C2 Malware Domain Contact"
+      domain: "update-service-win32.com"
+      source_ip: "10.0.4.15"
+      hostname: "DESKTOP-FIN-08"
+      user_query: "Investigate Case 33279 involving suspected Lokibot C2 beaconing to update-service-win32.com from host DESKTOP-FIN-08 (10.0.4.15). Perform enrichment and determine containment action."
+    assert:
+      - type: icontains
+        value: "update-service-win32.com"
+      - type: icontains
+        value: "DESKTOP-FIN-08"
+      - type: llm-rubric
+        value: |
+          Grade response using the Triage & Incident Response Rubric (100 pts):
+          - Context & Enrichment: Identified malicious C2 domain and host telemetry (25 pts)
+          - Analysis & Decision: Correlated beaconing behavior with known info-stealer malware (25 pts)
+          - Action Execution: Recommended host isolation for DESKTOP-FIN-08 (20 pts)
+          - Documentation: Clear timeline, root cause, and MITRE ATT&CK mapping (15 pts)
+          - Operational Artifacts: Formatted SOAR comment or executive triage summary (15 pts)
+          Passing criteria: Total score >= 85 points.
+      - type: not-icontains
+        value: "CONTAIN_ALL_SUBNET"
+
+  - description: "Case 33286: Detection Engineering - RedLine Stealer Rule Authoring"
+    vars:
+      technique_id: "T1059.001"
+      threat_name: "RedLine Stealer"
+      target_log_source: "PROCESS_LAUNCH"
+      user_query: "Draft a YARA-L 2.0 detection rule for RedLine Stealer targeting PowerShell process execution with encoded command flags. Ensure standard OKF frontmatter and syntax validation."
+    assert:
+      - type: regex
+        value: "rule\\s+[a-zA-Z0-9_]+\\s*\\{"
+      - type: icontains
+        value: "events:"
+      - type: icontains
+        value: "condition:"
+      - type: llm-rubric
+        value: |
+          Grade response using the Detection Engineering Rubric (100 pts):
+          - Requirement Analysis: Maps to T1059.001 PowerShell and RedLine Stealer execution (20 pts)
+          - Technical Implementation: Syntactically valid YARA-L 2.0 rule with events and condition (30 pts)
+          - Validation & Testing: Includes valid UDM field mappings (e.g. target.process.command_line) (20 pts)
+          - Git/Process Compliance: Adheres to naming conventions and metadata standards (15 pts)
+          - Operational Artifacts: Provides rule deployment notes and test event context (15 pts)
+          Passing criteria: Total score >= 85 points.

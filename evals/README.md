@@ -29,6 +29,10 @@ evals/
 ├── __init__.py                        # Top-level exports
 ├── runner.py                          # CLI runner: python -m evals.runner
 ├── registry.py                        # Workflow registry for all 36 ADK graph workflows
+├── promptfoo/                         # Promptfoo LLM evaluation suite & custom provider
+│   ├── promptfooconfig.yaml           # Declarative test scenarios & LLM-as-a-judge rubrics
+│   ├── adk_agent_provider.py          # ADK 2.x agent execution provider wrapper
+│   └── README.md                      # Promptfoo quick start and execution guide
 ├── datasets/                          # Declarative test datasets
 │   ├── all_36_workflows.json          # Regression suite across all 36 workflows
 │   ├── core_workflows.json            # Focused benchmark suite (10 scenarios)
@@ -116,3 +120,20 @@ To add a new evaluation test case, add an entry to `evals/datasets/core_workflow
   "min_passing_score": 85.0
 }
 ```
+
+---
+
+## 5. Promptfoo Multi-Turn LLM Agent Evaluation
+
+For evaluating multi-turn agent procedural compliance, ASD-STE100 runbook adherence, and LLM-as-a-judge rubric scoring across Gemini models (3.7 Flash, 2.5 Flash, 2.5 Flash-Lite):
+
+```bash
+# Execute Promptfoo evaluation suite
+npx promptfoo@latest eval -c evals/promptfoo/promptfooconfig.yaml
+
+# View interactive scorecard UI
+npx promptfoo@latest view
+```
+
+Full manual: [`rules-bank/ai/promptfoo_evaluation_manual.md`](../rules-bank/ai/promptfoo_evaluation_manual.md)
+
