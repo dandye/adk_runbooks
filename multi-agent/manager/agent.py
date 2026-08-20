@@ -68,7 +68,7 @@ persona_description = load_persona_with_skills_catalog(
 # Create the root agent directly
 root_agent = Agent(
     name="manager",
-    model="gemini-2.5-flash",
+    model="gemini-3.7-flash",
     description=persona_description,
     instruction="""
     You are the SOC Manager agent, responsible for overseeing and orchestrating the work of specialized sub-agents. Your primary goal is to ensure efficient and effective incident response and SOC operations.

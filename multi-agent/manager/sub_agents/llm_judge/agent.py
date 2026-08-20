@@ -30,7 +30,7 @@ def get_agent(tools):
 
   return Agent(
       name="llm_judge",
-      model="gemini-2.5-flash",
+      model="gemini-3.7-flash",
       description=persona_description,
       instruction="""
       You are the LLM Judge. Your task is to evaluate the work of other agents.
