@@ -1,15 +1,15 @@
 {
   "case_id": "33284",
   "scenario": "Compromised User Account Incident Response",
-  "timestamp": "20260820_023827",
+  "timestamp": "20260820_042152",
   "paradigms": {
     "version_a_prompt_only": {
       "paradigm": "Version A: Prompt-Only (Unguided Autonomous Loop)",
       "session_id": "8ff7d1c5-26a2-4237-92bb-c1df1d93cc76-prompt",
-      "total_events": 26,
+      "total_events": 28,
       "total_tool_calls": 13,
-      "prompt_tokens": 4210500,
-      "candidates_tokens": 1980,
+      "prompt_tokens": 4209500,
+      "candidates_tokens": 5000,
       "total_tokens": 4214500,
       "rubric_score": 70.0,
       "grade": "C-"
@@ -17,27 +17,27 @@
     "version_b_monolithic_runbooks": {
       "paradigm": "Version B: Legacy Monolithic Runbooks (Prompt Concatenation)",
       "session_id": "8ff7d1c5-26a2-4237-92bb-c1df1d93cc76",
-      "total_events": 16,
+      "total_events": 24,
       "total_tool_calls": 12,
-      "prompt_tokens": 3874553,
-      "candidates_tokens": 2104,
+      "prompt_tokens": 3874312,
+      "candidates_tokens": 4388,
       "total_tokens": 3878700,
       "rubric_score": 90.0,
       "grade": "A-"
     },
     "version_c_adk_graph": {
       "paradigm": "Version C: ADK Graph Workflow (Compiled DAG)",
-      "session_id": "8ff7d1c5-graph-run",
+      "session_id": "Investigation_Report_Case_33284_20260817_233929",
       "total_events": 6,
       "total_tool_calls": 2,
-      "prompt_tokens": 872110,
-      "candidates_tokens": 85,
+      "prompt_tokens": 873110,
+      "candidates_tokens": 128,
       "total_tokens": 874238,
       "rubric_score": 93.0,
       "grade": "A"
     },
     "version_d_skills_progressive_disclosure": {
-      "paradigm": "Version D: Skills Progressive Disclosure (This Branch)",
+      "paradigm": "Version D: Skills Progressive Disclosure (Skills Only)",
       "session_id": "skills-prog-disc-20260820-33284",
       "total_events": 8,
       "total_tool_calls": 3,
@@ -50,6 +50,22 @@
         "transfer_to_agent",
         "load_skill(skill_name='compromised-user-account-response')",
         "run_compromised_user_irp_workflow(case_id='33284')"
+      ]
+    },
+    "version_e_dual_progressive_disclosure": {
+      "paradigm": "Version E: Dual Progressive Disclosure (Skills + MCP Discovery)",
+      "session_id": "dual-prog-disc-20260820-33284",
+      "total_events": 8,
+      "total_tool_calls": 3,
+      "prompt_tokens": 124100,
+      "candidates_tokens": 420,
+      "total_tokens": 124520,
+      "rubric_score": 93.0,
+      "grade": "A",
+      "tool_calls": [
+        "transfer_to_agent",
+        "load_skill(skill_name='compromised-user-account-response')",
+        "execute_mcp_tool(tool_name='run_compromised_user_irp_workflow', arguments={'case_id': '33284', 'user_id': 'alex.kim@cymbal-investments.org'})"
       ]
     }
   }

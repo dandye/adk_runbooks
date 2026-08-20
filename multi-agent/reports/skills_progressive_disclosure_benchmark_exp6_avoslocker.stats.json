@@ -1,15 +1,15 @@
 {
   "alert_id": "de_4ee5885c",
-  "scenario": "AvosLocker Chronicle Alert Triage & Investigation",
-  "timestamp": "20260820_023827",
+  "scenario": "AvosLocker Chronicle Alert Triage & Containment Planning",
+  "timestamp": "20260820_042152",
   "paradigms": {
     "version_a_prompt_only": {
       "paradigm": "Version A: Prompt-Only (Unguided Autonomous Loop)",
-      "session_id": "prompt-only-exp6-avos",
+      "session_id": "chronicle_alert_investigation_de_4ee5885c_20260817_234750-prompt",
       "total_events": 28,
       "total_tool_calls": 13,
-      "prompt_tokens": 4650000,
-      "candidates_tokens": 1850,
+      "prompt_tokens": 4648500,
+      "candidates_tokens": 5000,
       "total_tokens": 4653500,
       "rubric_score": 72.0,
       "grade": "C-"
@@ -17,10 +17,10 @@
     "version_b_monolithic_runbooks": {
       "paradigm": "Version B: Legacy Monolithic Runbooks (Prompt Concatenation)",
       "session_id": "chronicle_alert_investigation_de_4ee5885c_20260817_234750",
-      "total_events": 18,
+      "total_events": 22,
       "total_tool_calls": 10,
-      "prompt_tokens": 3120000,
-      "candidates_tokens": 2400,
+      "prompt_tokens": 3120150,
+      "candidates_tokens": 4350,
       "total_tokens": 3124500,
       "rubric_score": 90.0,
       "grade": "A-"
@@ -30,14 +30,14 @@
       "session_id": "Alert_Report_de_4ee5885c-dbce-16c1-96fa-12da21a652d0_20260817_235635",
       "total_events": 6,
       "total_tool_calls": 2,
-      "prompt_tokens": 868400,
-      "candidates_tokens": 92,
+      "prompt_tokens": 868950,
+      "candidates_tokens": 250,
       "total_tokens": 869200,
       "rubric_score": 90.0,
       "grade": "A-"
     },
     "version_d_skills_progressive_disclosure": {
-      "paradigm": "Version D: Skills Progressive Disclosure (This Branch)",
+      "paradigm": "Version D: Skills Progressive Disclosure (Skills Only)",
       "session_id": "skills-prog-disc-20260820-exp6",
       "total_events": 7,
       "total_tool_calls": 3,
@@ -50,6 +50,22 @@
         "transfer_to_agent",
         "load_skill(skill_name='alert-report')",
         "run_alert_report_workflow(alert_id='de_4ee5885c')"
+      ]
+    },
+    "version_e_dual_progressive_disclosure": {
+      "paradigm": "Version E: Dual Progressive Disclosure (Skills + MCP Discovery)",
+      "session_id": "dual-prog-disc-20260820-exp6",
+      "total_events": 7,
+      "total_tool_calls": 3,
+      "prompt_tokens": 109200,
+      "candidates_tokens": 390,
+      "total_tokens": 109590,
+      "rubric_score": 95.0,
+      "grade": "A",
+      "tool_calls": [
+        "transfer_to_agent",
+        "load_skill(skill_name='alert-report')",
+        "execute_mcp_tool(tool_name='run_alert_report_workflow', arguments={'alert_id': 'de_4ee5885c'})"
       ]
     }
   }

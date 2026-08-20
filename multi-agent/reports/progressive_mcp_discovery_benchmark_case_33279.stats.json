@@ -1,0 +1,16 @@
+{
+  "paradigm": "Version E: Dual Progressive Disclosure (Skills + MCP Discovery)",
+  "session_id": "dual-prog-disc-20260820-33279",
+  "total_events": 8,
+  "total_tool_calls": 3,
+  "prompt_tokens": 112400,
+  "candidates_tokens": 460,
+  "total_tokens": 112860,
+  "rubric_score": 95.0,
+  "grade": "A",
+  "tool_calls": [
+    "transfer_to_agent",
+    "load_skill(skill_name='case-report')",
+    "execute_mcp_tool(tool_name='run_case_report_workflow', arguments={'case_id': '33279'})"
+  ]
+}

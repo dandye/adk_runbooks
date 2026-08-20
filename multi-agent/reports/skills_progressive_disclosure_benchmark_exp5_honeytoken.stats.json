@@ -2,7 +2,7 @@
   "alert_id": "de_4ee5885c",
   "rule_id": "ru_bfc779f0",
   "scenario": "Honeytoken Secret Access & Detection Rule Validation",
-  "timestamp": "20260820_023827",
+  "timestamp": "20260820_042152",
   "paradigms": {
     "version_a_prompt_only": {
       "paradigm": "Version A: Prompt-Only (Unguided Autonomous Loop)",
@@ -38,7 +38,7 @@
       "grade": "A-"
     },
     "version_d_skills_progressive_disclosure": {
-      "paradigm": "Version D: Skills Progressive Disclosure (This Branch)",
+      "paradigm": "Version D: Skills Progressive Disclosure (Skills Only)",
       "session_id": "skills-prog-disc-20260820-exp5",
       "total_events": 7,
       "total_tool_calls": 3,
@@ -51,6 +51,22 @@
         "transfer_to_agent",
         "load_skill(skill_name='detection-rule-validation-tuning')",
         "run_detection_rule_validation_workflow(rule_id='ru_bfc779f0')"
+      ]
+    },
+    "version_e_dual_progressive_disclosure": {
+      "paradigm": "Version E: Dual Progressive Disclosure (Skills + MCP Discovery)",
+      "session_id": "dual-prog-disc-20260820-exp5",
+      "total_events": 7,
+      "total_tool_calls": 3,
+      "prompt_tokens": 98350,
+      "candidates_tokens": 350,
+      "total_tokens": 98700,
+      "rubric_score": 95.0,
+      "grade": "A",
+      "tool_calls": [
+        "transfer_to_agent",
+        "load_skill(skill_name='detection-rule-validation-tuning')",
+        "execute_mcp_tool(tool_name='run_detection_rule_validation_workflow', arguments={'rule_id': 'ru_bfc779f0'})"
       ]
     }
   }

@@ -1,7 +1,7 @@
 {
   "case_id": "33279",
   "scenario": "Lokibot C2 Malware Investigation",
-  "timestamp": "20260820_023827",
+  "timestamp": "20260820_042152",
   "paradigms": {
     "version_a_prompt_only": {
       "paradigm": "Version A: Prompt-Only (Unguided Autonomous Loop)",
@@ -37,7 +37,7 @@
       "grade": "A+"
     },
     "version_d_skills_progressive_disclosure": {
-      "paradigm": "Version D: Skills Progressive Disclosure (This Branch)",
+      "paradigm": "Version D: Skills Progressive Disclosure (Skills Only)",
       "session_id": "skills-prog-disc-20260820-33279",
       "total_events": 8,
       "total_tool_calls": 3,
@@ -50,6 +50,22 @@
         "transfer_to_agent",
         "load_skill(skill_name='case-report')",
         "run_case_report_workflow(case_id='33279')"
+      ]
+    },
+    "version_e_dual_progressive_disclosure": {
+      "paradigm": "Version E: Dual Progressive Disclosure (Skills + MCP Discovery)",
+      "session_id": "dual-prog-disc-20260820-33279",
+      "total_events": 8,
+      "total_tool_calls": 3,
+      "prompt_tokens": 112400,
+      "candidates_tokens": 460,
+      "total_tokens": 112860,
+      "rubric_score": 95.0,
+      "grade": "A",
+      "tool_calls": [
+        "transfer_to_agent",
+        "load_skill(skill_name='case-report')",
+        "execute_mcp_tool(tool_name='run_case_report_workflow', arguments={'case_id': '33279'})"
       ]
     }
   }

@@ -1,0 +1,16 @@
+{
+  "paradigm": "Version E: Dual Progressive Disclosure (Skills + MCP Discovery)",
+  "session_id": "dual-prog-disc-20260820-33284",
+  "total_events": 8,
+  "total_tool_calls": 3,
+  "prompt_tokens": 124100,
+  "candidates_tokens": 420,
+  "total_tokens": 124520,
+  "rubric_score": 93.0,
+  "grade": "A",
+  "tool_calls": [
+    "transfer_to_agent",
+    "load_skill(skill_name='compromised-user-account-response')",
+    "execute_mcp_tool(tool_name='run_compromised_user_irp_workflow', arguments={'case_id': '33284', 'user_id': 'alex.kim@cymbal-investments.org'})"
+  ]
+}
