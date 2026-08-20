@@ -1,8 +1,13 @@
+import asyncio
+import inspect
+import json
+import logging
 import os
 import re
 import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 # Ensure project root is in sys.path for skills imports
 _project_root = Path(__file__).resolve().parent.parent.parent.parent
@@ -14,11 +19,15 @@ from google.adk.tools.mcp_tool.mcp_session_manager import StdioServerParameters
 
 from ..utils.instrumentation import instrument_tool, get_run_metrics
 from skills.registry import SkillRegistry
+from .mcp_registry import MCPToolRegistry
+
+logger = logging.getLogger(__name__)
 
 TIMEOUT = 60_000
 
-# Initialize global skill registry
+# Initialize global registries
 global_skill_registry = SkillRegistry()
+global_mcp_registry = MCPToolRegistry()
 
 
 def ask_follow_up_question(*args, **kwargs):
@@ -142,6 +151,100 @@ def list_available_skills(category: str = "") -> str:
         return catalog if catalog else "No skills registered."
 
 
+def search_mcp_tools(query: str = "", server: str = "") -> str:
+    """Discovers available MCP security tools by keyword or server without loading full schemas.
+
+    Use this tool to find relevant MCP tools for SIEM (Chronicle), SOAR (SecOps SOAR),
+    or GTI (VirusTotal) before requesting their schema or executing them.
+
+    Args:
+        query: Optional search keyword to filter tool names, descriptions, or servers.
+        server: Optional server filter ('siem', 'soar', 'gti', etc.).
+
+    Returns:
+        str: Formatted list of matching tools with concise descriptions.
+    """
+    tools = global_mcp_registry.search_tools(query=query, server=server)
+    if not tools:
+        msg = "No MCP tools found"
+        if query and server:
+            msg += f" matching query '{query}' and server '{server}'."
+        elif query:
+            msg += f" matching query '{query}'."
+        elif server:
+            msg += f" for server '{server}'."
+        else:
+            msg += " in registry."
+        return msg
+
+    lines = ["### Discovered MCP Security Tools\n"]
+    for t in tools:
+        lines.append(f"- **`{t['name']}`** (`{t['server']}`): {t['description']}")
+    return "\n".join(lines)
+
+
+def get_mcp_tool_schema(tool_name: str) -> str:
+    """Retrieves the full JSON Schema, parameter definitions, and descriptions for an MCP tool.
+
+    Use this tool to inspect required parameters, types, and schema details before executing
+    an MCP tool via `execute_mcp_tool`.
+
+    Args:
+        tool_name: The name of the MCP tool (e.g. 'secops_get_alert', 'soar_close_case').
+
+    Returns:
+        str: Formatted JSON schema description of the tool's parameters.
+    """
+    schema_info = global_mcp_registry.get_tool_schema(tool_name)
+    if not schema_info:
+        return f"Error: MCP tool '{tool_name}' not found in registry. Use `search_mcp_tools` to discover available tools."
+
+    return json.dumps(schema_info, indent=2)
+
+
+def execute_mcp_tool(tool_name: str, arguments: dict[str, Any] | str | None = None) -> str:
+    """Executes an MCP security tool dynamically with the supplied arguments.
+
+    Args:
+        tool_name: The name of the MCP tool to execute.
+        arguments: Dictionary of arguments matching the tool's input schema (or JSON string).
+
+    Returns:
+        str: JSON-formatted result of the tool execution, or an error message.
+    """
+    if arguments is None:
+        arguments = {}
+    elif isinstance(arguments, str):
+        try:
+            arguments = json.loads(arguments)
+        except Exception as e:
+            return f"Error parsing arguments JSON: {e}"
+
+    if not isinstance(arguments, dict):
+        return f"Error: arguments must be a dictionary or valid JSON object, got {type(arguments).__name__}."
+
+    try:
+        result = global_mcp_registry.execute_tool(tool_name, arguments)
+        if inspect.iscoroutine(result):
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+
+            if loop and loop.is_running():
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    result = pool.submit(asyncio.run, result).result()
+            else:
+                result = asyncio.run(result)
+
+        if isinstance(result, str):
+            return result
+        return json.dumps(result, indent=2, default=str)
+    except Exception as e:
+        return f"Error executing tool '{tool_name}': {e}"
+
+
 def load_persona_with_skills_catalog(
     persona_file_path: str,
     skill_names: list[str] | None = None,
@@ -210,18 +313,12 @@ def load_persona_and_runbooks(
             print(f"Warning: Runbook file not found at {runbook_file}. Skipping.")
     return persona_description
 
-def get_agent_tools():
-  """Initializes and returns MCP toolsets for SIEM, SOAR, and GTI functionalities.
 
-  This function sets up connections to locally running MCP servers specified by
-  their command-line arguments.
-
-  Assumes that the necessary MCP servers (SecOps, SecOps-SOAR, GTI) can be
-  started using the `uv run` commands with paths and environment files
-  as defined within this function.
+def init_shared_mcp_tools():
+  """Initializes and registers MCP toolsets for SIEM, SOAR, and GTI into global_mcp_registry.
 
   Returns:
-      tuple: A combined tuple of all initialized MCP toolsets and built-in tools.
+      tuple: (siem_toolset, soar_toolset, gti_toolset)
   """
   # Get the base path of the project (adk_runbooks directory)
   base_path = Path(__file__).resolve().parent.parent.parent.parent
@@ -243,7 +340,7 @@ def get_agent_tools():
         ),
       timeout=TIMEOUT,
     ),
-  tool_name_prefix="secops-mcp",
+    tool_name_prefix="secops-mcp",
   )
 
   soar_toolset = MCPToolset(
@@ -261,9 +358,9 @@ def get_agent_tools():
             "CSV,GoogleChronicle,Siemplify,SiemplifyUtilities"
           ],
         ),
-    timeout=TIMEOUT,
+      timeout=TIMEOUT,
     ),
-  tool_name_prefix="soar-mcp",
+    tool_name_prefix="soar-mcp",
   )
 
   gti_toolset = MCPToolset(
@@ -280,10 +377,29 @@ def get_agent_tools():
             "server.py"
           ],
         ),
-    timeout=TIMEOUT,
+      timeout=TIMEOUT,
     ),
-  tool_name_prefix="gti-mcp",
+    tool_name_prefix="gti-mcp",
   )
+
+  # Register toolsets into global_mcp_registry
+  global_mcp_registry.register_mcp_toolset(siem_toolset, server_name="siem")
+  global_mcp_registry.register_mcp_toolset(soar_toolset, server_name="soar")
+  global_mcp_registry.register_mcp_toolset(gti_toolset, server_name="gti")
+
+  return (siem_toolset, soar_toolset, gti_toolset)
+
+
+def get_agent_tools():
+  """Initializes and returns MCP toolsets and progressive discovery tools.
+
+  This function sets up connections to locally running MCP servers and provides
+  meta-tools for on-demand MCP discovery and execution.
+
+  Returns:
+      tuple: A combined tuple of all initialized MCP toolsets, progressive meta-tools, and built-in tools.
+  """
+  siem_toolset, soar_toolset, gti_toolset = init_shared_mcp_tools()
 
   # Wrap built-in tools
   wrapped_write_report = instrument_tool(write_report)
@@ -291,19 +407,12 @@ def get_agent_tools():
   wrapped_read_file_content = instrument_tool(read_file_content)
   wrapped_load_skill = instrument_tool(load_skill)
   wrapped_list_available_skills = instrument_tool(list_available_skills)
-  # Note: get_execution_metrics is NOT wrapped to avoid recursive metrics collection
-  # (calling get_execution_metrics would add a metric entry for that call, which would
-  # then show up in the returned metrics, creating a circular situation).
 
-  # Note: MCPToolset handling is complex because Agent might iterate or introspect.
-  # If Agent calls toolset.tools(), we can't wrap them here easily unless we proxy MCPToolset.
-  # However, for now, we wrap the native tools which are critical for reporting and I/O.
-  # If we need to wrap MCP tools, we would need to inspect how MCPToolset exposes them.
-  # Assuming MCPToolset behaves like a list or exposes methods directly:
-  # If MCPToolset is passed directly to Agent, Agent calls methods on it?
-  # Or does Agent expect a list of callables?
-  # The Agent logic handles MCPToolset objects specifically.
-  # So we cannot easily wrap individual MCP tools without wrapping the MCPToolset class itself.
+  # Wrap progressive MCP discovery meta-tools
+  wrapped_search_mcp_tools = instrument_tool(search_mcp_tools)
+  wrapped_get_mcp_tool_schema = instrument_tool(get_mcp_tool_schema)
+  wrapped_execute_mcp_tool = instrument_tool(execute_mcp_tool)
+
   # Import executable ADK Graph Workflow tools
   from .workflow_tools import get_all_workflow_tools
   workflow_tools = [instrument_tool(t) for t in get_all_workflow_tools()]
@@ -317,6 +426,9 @@ def get_agent_tools():
       wrapped_read_file_content,
       wrapped_load_skill,
       wrapped_list_available_skills,
+      wrapped_search_mcp_tools,
+      wrapped_get_mcp_tool_schema,
+      wrapped_execute_mcp_tool,
       get_execution_metrics,  # Not wrapped to avoid recursive metrics
       *workflow_tools,
   )

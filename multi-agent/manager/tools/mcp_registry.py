@@ -46,12 +46,18 @@ class MCPToolRegistry:
         extracted_tools: list[Any] = []
 
         if hasattr(toolset, "get_tools") and callable(getattr(toolset, "get_tools")):
-            try:
-                tools_list = toolset.get_tools()
-                if isinstance(tools_list, (list, tuple)):
-                    extracted_tools.extend(tools_list)
-            except Exception as e:
-                logger.warning("Error calling get_tools() on %s toolset: %s", server_name, e)
+            if inspect.iscoroutinefunction(toolset.get_tools):
+                # Async get_tools requires active runtime connection
+                pass
+            else:
+                try:
+                    tools_list = toolset.get_tools()
+                    if inspect.iscoroutine(tools_list):
+                        tools_list.close()
+                    elif isinstance(tools_list, (list, tuple)):
+                        extracted_tools.extend(tools_list)
+                except Exception as e:
+                    logger.warning("Error calling get_tools() on %s toolset: %s", server_name, e)
         elif hasattr(toolset, "tools") and isinstance(toolset.tools, (list, tuple)):
             extracted_tools.extend(toolset.tools)
         elif isinstance(toolset, (list, tuple)):
