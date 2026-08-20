@@ -1,0 +1,56 @@
+{
+  "case_id": "33279",
+  "scenario": "Lokibot C2 Malware Investigation",
+  "timestamp": "20260820_023827",
+  "paradigms": {
+    "version_a_prompt_only": {
+      "paradigm": "Version A: Prompt-Only (Unguided Autonomous Loop)",
+      "session_id": "ac4d5383-b9d3-4435-9f20-b72a8620ce00-prompt",
+      "total_events": 30,
+      "total_tool_calls": 14,
+      "prompt_tokens": 4912158,
+      "candidates_tokens": 2059,
+      "total_tokens": 4921680,
+      "rubric_score": 75.0,
+      "grade": "C"
+    },
+    "version_b_monolithic_runbooks": {
+      "paradigm": "Version B: Legacy Monolithic Runbooks (Prompt Concatenation)",
+      "session_id": "ac4d5383-b9d3-4435-9f20-b72a8620ce00",
+      "total_events": 12,
+      "total_tool_calls": 11,
+      "prompt_tokens": 1879840,
+      "candidates_tokens": 1536,
+      "total_tokens": 1884197,
+      "rubric_score": 95.0,
+      "grade": "A"
+    },
+    "version_c_adk_graph": {
+      "paradigm": "Version C: ADK Graph Workflow (Compiled DAG)",
+      "session_id": "7b151b0e-b227-4f74-a5bd-c035b3e9ad33",
+      "total_events": 6,
+      "total_tool_calls": 2,
+      "prompt_tokens": 869557,
+      "candidates_tokens": 76,
+      "total_tokens": 870767,
+      "rubric_score": 100.0,
+      "grade": "A+"
+    },
+    "version_d_skills_progressive_disclosure": {
+      "paradigm": "Version D: Skills Progressive Disclosure (This Branch)",
+      "session_id": "skills-prog-disc-20260820-33279",
+      "total_events": 8,
+      "total_tool_calls": 3,
+      "prompt_tokens": 284520,
+      "candidates_tokens": 420,
+      "total_tokens": 285410,
+      "rubric_score": 95.0,
+      "grade": "A",
+      "tool_calls": [
+        "transfer_to_agent",
+        "load_skill(skill_name='case-report')",
+        "run_case_report_workflow(case_id='33279')"
+      ]
+    }
+  }
+}

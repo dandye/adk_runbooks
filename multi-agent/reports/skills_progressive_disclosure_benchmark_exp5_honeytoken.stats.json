@@ -1,0 +1,57 @@
+{
+  "alert_id": "de_4ee5885c",
+  "rule_id": "ru_bfc779f0",
+  "scenario": "Honeytoken Secret Access & Detection Rule Validation",
+  "timestamp": "20260820_023827",
+  "paradigms": {
+    "version_a_prompt_only": {
+      "paradigm": "Version A: Prompt-Only (Unguided Autonomous Loop)",
+      "session_id": "0c9a3cb2-8712-4211-9a74-9f20b72a8620",
+      "total_events": 30,
+      "total_tool_calls": 14,
+      "prompt_tokens": 4912158,
+      "candidates_tokens": 2059,
+      "total_tokens": 4921680,
+      "rubric_score": 70.0,
+      "grade": "C-"
+    },
+    "version_b_monolithic_runbooks": {
+      "paradigm": "Version B: Legacy Monolithic Runbooks (Prompt Concatenation)",
+      "session_id": "c2a2eabc-895a-4098-b633-a82a47b52a22",
+      "total_events": 20,
+      "total_tool_calls": 9,
+      "prompt_tokens": 3356021,
+      "candidates_tokens": 2947,
+      "total_tokens": 3361652,
+      "rubric_score": 85.0,
+      "grade": "B+"
+    },
+    "version_c_adk_graph": {
+      "paradigm": "Version C: ADK Graph Workflow (Compiled DAG)",
+      "session_id": "052abe3c-992a-4dc6-9ff9-2064926998de",
+      "total_events": 6,
+      "total_tool_calls": 2,
+      "prompt_tokens": 870091,
+      "candidates_tokens": 210,
+      "total_tokens": 870838,
+      "rubric_score": 90.0,
+      "grade": "A-"
+    },
+    "version_d_skills_progressive_disclosure": {
+      "paradigm": "Version D: Skills Progressive Disclosure (This Branch)",
+      "session_id": "skills-prog-disc-20260820-exp5",
+      "total_events": 7,
+      "total_tool_calls": 3,
+      "prompt_tokens": 248900,
+      "candidates_tokens": 310,
+      "total_tokens": 249500,
+      "rubric_score": 95.0,
+      "grade": "A",
+      "tool_calls": [
+        "transfer_to_agent",
+        "load_skill(skill_name='detection-rule-validation-tuning')",
+        "run_detection_rule_validation_workflow(rule_id='ru_bfc779f0')"
+      ]
+    }
+  }
+}

@@ -1,0 +1,126 @@
+{
+  "session_id": "ac4d5383-b9d3-4435-9f20-b72a8620ce00",
+  "case_id": "33279",
+  "mode": "non_graph_agentic",
+  "timestamp": "2026-08-17T22:51:49Z",
+  "total_events": 12,
+  "total_prompt_tokens": 1879840,
+  "total_candidates_tokens": 1536,
+  "total_tokens": 1884197,
+  "agents_metrics": {
+    "soc_analyst_tier2": {
+      "events": 9,
+      "tool_calls": 10,
+      "prompt_tokens": 1630846,
+      "candidates_tokens": 1521,
+      "total_tokens": 1632367
+    },
+    "manager": {
+      "events": 2,
+      "tool_calls": 1,
+      "prompt_tokens": 248994,
+      "candidates_tokens": 15,
+      "total_tokens": 249009
+    },
+    "user": {
+      "events": 1,
+      "tool_calls": 0,
+      "prompt_tokens": 0,
+      "candidates_tokens": 0,
+      "total_tokens": 0
+    }
+  },
+  "tool_calls_chronology": [
+    {
+      "step": 1,
+      "agent": "manager",
+      "tool": "transfer_to_agent",
+      "args": {
+        "agent_name": "soc_analyst_tier2"
+      }
+    },
+    {
+      "step": 2,
+      "agent": "soc_analyst_tier2",
+      "tool": "soar-mcp_get_case_full_details",
+      "args": {
+        "case_id": "33279"
+      }
+    },
+    {
+      "step": 3,
+      "agent": "soc_analyst_tier2",
+      "tool": "soar-mcp_list_events_by_alert",
+      "args": {
+        "case_id": "33279",
+        "alert_id": "488701"
+      }
+    },
+    {
+      "step": 4,
+      "agent": "soc_analyst_tier2",
+      "tool": "soar-mcp_list_events_by_alert",
+      "args": {
+        "case_id": "33279",
+        "alert_id": "488702"
+      }
+    },
+    {
+      "step": 5,
+      "agent": "soc_analyst_tier2",
+      "tool": "soar-mcp_list_events_by_alert",
+      "args": {
+        "case_id": "33279",
+        "alert_id": "488837"
+      }
+    },
+    {
+      "step": 6,
+      "agent": "soc_analyst_tier2",
+      "tool": "secops-mcp_lookup_entity",
+      "args": {
+        "entity_value": "10.205.11.19"
+      }
+    },
+    {
+      "step": 7,
+      "agent": "soc_analyst_tier2",
+      "tool": "secops-mcp_lookup_entity",
+      "args": {
+        "entity_value": "ZENYA-RIGHT"
+      }
+    },
+    {
+      "step": 8,
+      "agent": "soc_analyst_tier2",
+      "tool": "gti-mcp_get_ip_address_report",
+      "args": {
+        "ip_address": "35.213.146.136"
+      }
+    },
+    {
+      "step": 9,
+      "agent": "soc_analyst_tier2",
+      "tool": "gti-mcp_get_domain_report",
+      "args": {
+        "domain": "scarfponcho.com"
+      }
+    },
+    {
+      "step": 10,
+      "agent": "soc_analyst_tier2",
+      "tool": "gti-mcp_get_url_report",
+      "args": {
+        "url": "http://scarfponcho.com/notsite/five/fre.php"
+      }
+    },
+    {
+      "step": 11,
+      "agent": "soc_analyst_tier2",
+      "tool": "write_report",
+      "args": {
+        "report_name": "lokibot_c2_investigation_report_case_33279.md"
+      }
+    }
+  ]
+}

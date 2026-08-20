@@ -1,0 +1,133 @@
+{
+  "session_id": "083bb475-bc09-413e-9221-d81b8b5729d1",
+  "case_id": "33279",
+  "timestamp": "2026-08-17T22:08:09Z",
+  "total_events": 30,
+  "total_prompt_tokens": 4847667,
+  "total_candidates_tokens": 3449,
+  "total_tokens": 4856684,
+  "agents_metrics": {
+    "soc_analyst_tier2": {
+      "events": 25,
+      "tool_calls": 11,
+      "prompt_tokens": 4598849,
+      "candidates_tokens": 3434,
+      "total_tokens": 4602283
+    },
+    "manager": {
+      "events": 2,
+      "tool_calls": 1,
+      "prompt_tokens": 248818,
+      "candidates_tokens": 15,
+      "total_tokens": 248833
+    },
+    "user": {
+      "events": 3,
+      "tool_calls": 0,
+      "prompt_tokens": 0,
+      "candidates_tokens": 0,
+      "total_tokens": 0
+    }
+  },
+  "tool_calls_chronology": [
+    {
+      "step": 1,
+      "agent": "soc_analyst_tier2",
+      "tool": "secops-mcp_lookup_entity",
+      "args": {
+        "entity_value": "35.213.146.136"
+      }
+    },
+    {
+      "step": 2,
+      "agent": "soc_analyst_tier2",
+      "tool": "secops-mcp_lookup_entity",
+      "args": {
+        "entity_value": "scarfponcho.com"
+      }
+    },
+    {
+      "step": 3,
+      "agent": "soc_analyst_tier2",
+      "tool": "gti-mcp_get_ip_address_report",
+      "args": {
+        "ip_address": "35.213.146.136"
+      }
+    },
+    {
+      "step": 4,
+      "agent": "soc_analyst_tier2",
+      "tool": "read_file_content",
+      "args": {
+        "filepath": "case_33279_report.md"
+      }
+    },
+    {
+      "step": 5,
+      "agent": "soc_analyst_tier2",
+      "tool": "soar-mcp_get_case_full_details",
+      "args": {
+        "case_id": "33279"
+      }
+    },
+    {
+      "step": 6,
+      "agent": "soc_analyst_tier2",
+      "tool": "run_case_report_workflow",
+      "args": {
+        "case_id": "33279"
+      }
+    },
+    {
+      "step": 7,
+      "agent": "manager",
+      "tool": "transfer_to_agent",
+      "args": {
+        "agent_name": "soc_analyst_tier2"
+      }
+    },
+    {
+      "step": 8,
+      "agent": "soc_analyst_tier2",
+      "tool": "gti-mcp_get_domain_report",
+      "args": {
+        "domain": "scarfponcho.com"
+      }
+    },
+    {
+      "step": 9,
+      "agent": "soc_analyst_tier2",
+      "tool": "read_file_content",
+      "args": {
+        "filepath": "reports/case_33279_report.md"
+      }
+    },
+    {
+      "step": 10,
+      "agent": "soc_analyst_tier2",
+      "tool": "write_report",
+      "args": {
+        "report_name": "case_33279_report"
+      }
+    },
+    {
+      "step": 11,
+      "agent": "soc_analyst_tier2",
+      "tool": "soar-mcp_get_entities_by_alert_group_identifiers",
+      "args": {
+        "case_id": "33279",
+        "alert_group_identifiers": [
+          "malware_win_lokibot_c26AEft"
+        ]
+      }
+    },
+    {
+      "step": 12,
+      "agent": "soc_analyst_tier2",
+      "tool": "secops-mcp_lookup_entity",
+      "args": {
+        "entity_value": "zenya-right"
+      }
+    }
+  ]
+}
