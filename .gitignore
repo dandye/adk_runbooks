@@ -1,11 +1,12 @@
 .env
 **/.env
 **/__pycache__
+venv
+.venv
 multi-agent/venv/
 
 # Sphinx documentation
 build/
-.venv/
 rules-bank/_build/
 rules-bank/.jupyter_cache/
 *.doctree
@@ -13,12 +14,16 @@ rules-bank/.jupyter_cache/
 build/doctrees/
 build/**
 
-
 hello-a2a/
 multi-agent/manager/sub_agents/*/*.log
 .DS_Store
 
-
 # Local ADK databases
 **/.adk/
 
+# Test output artifacts
+.superpowers/
+multi-agent/reports/Alert_Report_*.md
+multi-agent/reports/Case_Report_*.md
+multi-agent/reports/Detection_Rule_Validation_*.md
+multi-agent/reports/Investigation_Report_*.md
