@@ -51,7 +51,7 @@ This runbook covers the end-to-end response lifecycle for ransomware incidents, 
 *   **Compromised User Account Response Runbook:** `../compromised_user_account_response.md` (If initial access vector involves user).
 *   You may ask follow up question (To confirm actions, especially isolation).
 *   *(External Resources: Ransomware identification sites, known decryptor databases - manual step)*.
-*   **Common Steps:** `common_steps/check_duplicate_cases.md`, `common_steps/find_relevant_soar_case.md`, `common_steps/document_in_soar.md`
+*   **Common Steps:** `skills/common/check-duplicate-cases/SKILL.md`, `skills/common/find-relevant-soar-case/SKILL.md`, `skills/common/document-in-soar/SKILL.md`
 
 ### ADK Graph-Based Workflow Diagram
 
@@ -122,7 +122,7 @@ sequenceDiagram
 
 *   **Objective:** Detect the incident, identify the ransomware strain, determine initial scope, and investigate initial access/lateral movement.
 *   **Sub-Runbooks/Steps:**
-    1.  **Receive Input & Context:** Obtain initial indicators, `${CASE_ID}`, `${ALERT_GROUP_IDENTIFIERS}`. Get case details via `soar-mcp_get_case_full_details`. Check for duplicates (`../common_steps/check_duplicate_cases.md`).
+    1.  **Receive Input & Context:** Obtain initial indicators, `${CASE_ID}`, `${ALERT_GROUP_IDENTIFIERS}`. Get case details via `soar-mcp_get_case_full_details`. Check for duplicates (`skills/common/check-duplicate-cases/SKILL.md`).
     2.  **Identify Ransomware Strain:**
         *   If a file hash (`${FILE_HASH}`) is available, use `gti-mcp_get_file_report` to identify the malware family/ransomware name.
         *   If EDR alert name or ransom note details provide a name, use `gti-mcp_search_threats` (e.g., `query="LockBit ransomware" collection_type:"malware-family"`) or `get_collection_report` if a specific GTI ID is known.
@@ -139,10 +139,10 @@ sequenceDiagram
         *   Combine initial indicators with findings from step 3 to create a list of initially identified affected endpoints (`AFFECTED_ENDPOINTS`) and potentially malicious network IOCs (`MALICIOUS_IOCs`).
     5.  **Check Related SOAR Cases:**
         *   Prepare list of key entities: `SEARCH_TERMS = AFFECTED_ENDPOINTS + MALICIOUS_IOCs`.
-        *   Execute `../common_steps/find_relevant_soar_case.md` with `SEARCH_TERMS` and `CASE_STATUS_FILTER="Opened"`.
+        *   Execute `skills/common/find-relevant-soar-case/SKILL.md` with `SEARCH_TERMS` and `CASE_STATUS_FILTER="Opened"`.
         *   Obtain `${RELATED_SOAR_CASES}` (list of potentially relevant open case summaries/IDs).
     6.  **Document Identification Phase:**
-        *   Document findings (`IDENTIFIED_STRAIN`, `INITIAL_ACCESS_VECTOR`, `AFFECTED_ENDPOINTS`, `MALICIOUS_IOCs`, `${RELATED_SOAR_CASES}`) using `../common_steps/document_in_soar.md`.
+        *   Document findings (`IDENTIFIED_STRAIN`, `INITIAL_ACCESS_VECTOR`, `AFFECTED_ENDPOINTS`, `MALICIOUS_IOCs`, `${RELATED_SOAR_CASES}`) using `skills/common/document-in-soar/SKILL.md`.
 
 ---
 
@@ -160,7 +160,7 @@ sequenceDiagram
         *   If `INITIAL_ACCESS_VECTOR` involved a compromised user, ensure containment actions were taken via `../compromised_user_account_response.md`.
     4.  **Verify Containment:**
         *   Monitor SIEM (`secops-mcp_search_security_events`) for further encryption activity, C2 communication, or lateral movement attempts from contained systems/IOCs.
-        *   Document containment status using `../common_steps/document_in_soar.md`.
+        *   Document containment status using `skills/common/document-in-soar/SKILL.md`.
 
 ---
 
@@ -178,7 +178,7 @@ sequenceDiagram
         *   *(Requires EDR/AV tools)*
         *   Perform thorough scans on affected systems post-eradication attempts (if cleaning was attempted).
     4.  **Document Eradication:**
-        *   Document actions taken and scan results using `../common_steps/document_in_soar.md`.
+        *   Document actions taken and scan results using `skills/common/document-in-soar/SKILL.md`.
 
 ---
 
@@ -193,7 +193,7 @@ sequenceDiagram
     5.  **Restore Data:** Restore data from clean backups. Validate data integrity.
     6.  **Monitor Systems:** Closely monitor recovered systems for any signs of residual infection or abnormal behavior using SIEM/EDR.
     7.  **Lift Containment:** Gradually remove isolation measures once confidence in recovery is high.
-    8.  **Document Recovery:** Document steps taken using `../common_steps/document_in_soar.md`.
+    8.  **Document Recovery:** Document steps taken using `skills/common/document-in-soar/SKILL.md`.
 
 ---
 
@@ -208,7 +208,7 @@ sequenceDiagram
     5.  **Update Documentation:** Update runbooks, policies, etc.
     6.  **Track Recommendations:** Assign and track implementation.
     7.  **Final Report:** Generate using guidelines from `rules-bank/reporting_templates.md` and `../report_writing.md`.
-    8.  **Document Review:** Document outcomes using `../common_steps/document_in_soar.md`.
+    8.  **Document Review:** Document outcomes using `skills/common/document-in-soar/SKILL.md`.
 
 ---
 
@@ -229,7 +229,7 @@ sequenceDiagram
         *   Specific recommendations for updating this runbook.
         *   Suggestions for new detection rules or tuning existing ones.
         *   Recommendations for tool configuration changes or new tool requirements.
-    5.  **Documentation:** Record this feedback within the SOAR case (`${CASE_ID}`) using `common_steps/document_in_soar.md` or a dedicated lessons learned repository.
+    5.  **Documentation:** Record this feedback within the SOAR case (`${CASE_ID}`) using `skills/common/document-in-soar/SKILL.md` or a dedicated lessons learned repository.
 
 ## Rubrics
 

@@ -56,7 +56,7 @@ sequenceDiagram
     participant GTI as gti-mcp
     participant SIEM as secops-mcp
     participant SOAR as secops-soar
-    participant FindCase as common_steps/find_relevant_soar_case.md
+    participant FindCase as skills/common/find-relevant-soar-case/SKILL.md
 
     User->>AutomatedAgent: Hunt for Campaign/Actor: `${GTI_COLLECTION_ID}`
     AutomatedAgent->>GTI: get_collection_report(id=`${GTI_COLLECTION_ID}`)

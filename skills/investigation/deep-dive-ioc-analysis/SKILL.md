@@ -36,7 +36,7 @@ This runbook covers in-depth analysis of a single IOC (IP, Domain, Hash, URL) us
 *   `secops-mcp`: `lookup_entity`, `search_security_events`, `get_security_alerts`.
 *   `secops-soar`: `post_case_comment`, `get_case_full_details`, `list_cases`.
 *   `write_report` (for local report generation if skipping SOAR).
-*   **Common Steps:** `common_steps/pivot_on_ioc_gti.md`, `common_steps/enrich_ioc.md`, `common_steps/correlate_ioc_with_alerts_cases.md`, `common_steps/find_relevant_soar_case.md`, `common_steps/document_in_soar.md`, `common_steps/generate_report_file.md`.
+*   **Common Steps:** `skills/common/pivot-on-ioc-gti/SKILL.md`, `skills/common/enrich-ioc/SKILL.md`, `skills/common/correlate-ioc-with-alerts-cases/SKILL.md`, `skills/common/find-relevant-soar-case/SKILL.md`, `skills/common/document-in-soar/SKILL.md`, `skills/common/generate-report-file/SKILL.md`.
 
 ## Workflow Steps & Diagram
 
@@ -45,7 +45,7 @@ This runbook covers in-depth analysis of a single IOC (IP, Domain, Hash, URL) us
     *   Use the appropriate `gti-mcp_get_..._report` tool based on `${IOC_TYPE}` to retrieve the full GTI analysis report (`${GTI_REPORT_DETAILS}`) for `${IOC_VALUE}`.
     *   Record key details: reputation, classifications, first/last seen dates, associated threats (malware families, actors - `${ASSOCIATED_THREAT_IDS}`), key behaviors (if file hash).
 3.  **GTI Pivoting:**
-    *   Execute `common_steps/pivot_on_ioc_gti.md` with `${IOC_VALUE}`, `${IOC_TYPE}`, and relevant `${RELATIONSHIP_NAMES}` (determined based on IOC type and report details). Obtain `${RELATED_ENTITIES}`.
+    *   Execute `skills/common/pivot-on-ioc-gti/SKILL.md` with `${IOC_VALUE}`, `${IOC_TYPE}`, and relevant `${RELATIONSHIP_NAMES}` (determined based on IOC type and report details). Obtain `${RELATED_ENTITIES}`.
     *   *(Optional: If IOC is File Hash, use `gti-mcp_get_file_behavior_summary`)*.
 4.  **Deep SIEM Search:**
     *   Use `secops-mcp_search_security_events` with detailed UDM queries covering `${TIME_FRAME_HOURS}` (default 168). Search for:
@@ -56,10 +56,10 @@ This runbook covers in-depth analysis of a single IOC (IP, Domain, Hash, URL) us
 5.  **SIEM Context & Correlation:**
     *   Initialize `SIEM_ENRICHMENT_RESULTS`.
     *   **Prioritize observed IOCs:** For each key IOC `Ki` (including `${IOC_VALUE}` and IOCs in `${OBSERVED_RELATED_IOCS}`):
-        *   Execute `common_steps/enrich_ioc.md` with `IOC_VALUE=Ki` and appropriate `IOC_TYPE`. Store results in `SIEM_ENRICHMENT_RESULTS[Ki]`.
+        *   Execute `skills/common/enrich-ioc/SKILL.md` with `IOC_VALUE=Ki` and appropriate `IOC_TYPE`. Store results in `SIEM_ENRICHMENT_RESULTS[Ki]`.
     *   *(Note: For related IOCs from GTI not observed in SIEM searches, enrichment can be skipped or performed with lower priority if analyst deems necessary).*
-    *   Execute `common_steps/correlate_ioc_with_alerts_cases.md` with `IOC_LIST` containing `${IOC_VALUE}` and `${OBSERVED_RELATED_IOCS}`. Obtain `${RELATED_SIEM_ALERTS}` and `${RELATED_SOAR_CASES_CORRELATION}`.
-    *   **Broader Case Search:** Execute `common_steps/find_relevant_soar_case.md` with `SEARCH_TERMS` = list of `${IOC_VALUE}` + `${OBSERVED_RELATED_IOCS}` + key entities from `${SIEM_SEARCH_RESULTS}` (e.g., involved hosts/users) and `CASE_STATUS_FILTER="Opened"`. Obtain `${RELATED_SOAR_CASES_BROAD}`.
+    *   Execute `skills/common/correlate-ioc-with-alerts-cases/SKILL.md` with `IOC_LIST` containing `${IOC_VALUE}` and `${OBSERVED_RELATED_IOCS}`. Obtain `${RELATED_SIEM_ALERTS}` and `${RELATED_SOAR_CASES_CORRELATION}`.
+    *   **Broader Case Search:** Execute `skills/common/find-relevant-soar-case/SKILL.md` with `SEARCH_TERMS` = list of `${IOC_VALUE}` + `${OBSERVED_RELATED_IOCS}` + key entities from `${SIEM_SEARCH_RESULTS}` (e.g., involved hosts/users) and `CASE_STATUS_FILTER="Opened"`. Obtain `${RELATED_SOAR_CASES_BROAD}`.
 6.  **(Optional) Enrich Associated Threats:**
     *   If `${ASSOCIATED_THREAT_IDS}` were identified in Step 2:
         *   For each Threat ID `Ti` in `${ASSOCIATED_THREAT_IDS}`:
@@ -69,11 +69,11 @@ This runbook covers in-depth analysis of a single IOC (IP, Domain, Hash, URL) us
     *   Assess the overall impact and scope. Identify potentially compromised assets or users. Formulate `ASSESSMENT` and `RECOMMENDATION`.
     *   **If `${CASE_ID}` provided and `${SKIP_SOAR}` is not true:**
         *   Prepare `COMMENT_TEXT` summarizing the deep dive: "Deep Dive Analysis for `${IOC_VALUE}` (`${IOC_TYPE}`): GTI Details: [...]. GTI Pivots found: [...]. SIEM Search revealed: [...]. SIEM Enrichment (Observed): [...]. Related Alerts: [...]. Related Cases (Correlation): [...]. Related Cases (Broad Search): [...]. Associated Threats: [...]. Assessment: `${ASSESSMENT}`. Recommendation: `${RECOMMENDATION}`".
-        *   Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and `${COMMENT_TEXT}`. Obtain `${COMMENT_POST_STATUS}`.
+        *   Execute `skills/common/document-in-soar/SKILL.md` with `${CASE_ID}` and `${COMMENT_TEXT}`. Obtain `${COMMENT_POST_STATUS}`.
     *   **Else (No CASE_ID or SKIP_SOAR is true):**
         *   Prepare `REPORT_CONTENTS_VAR` similar to `COMMENT_TEXT` but formatted for a standalone Markdown report, including a Mermaid diagram of the workflow performed.
         *   Construct `REPORT_NAME_VAR` (e.g., `deep_dive_ioc_${IOC_VALUE_Sanitized}_${timestamp}.md`).
-        *   Execute `common_steps/generate_report_file.md` with `REPORT_CONTENTS=${REPORT_CONTENTS_VAR}` and `REPORT_NAME=${REPORT_NAME_VAR}`. Obtain `${REPORT_FILE_PATH}` and `${WRITE_STATUS}`.
+        *   Execute `skills/common/generate-report-file/SKILL.md` with `REPORT_CONTENTS=${REPORT_CONTENTS_VAR}` and `REPORT_NAME=${REPORT_NAME_VAR}`. Obtain `${REPORT_FILE_PATH}` and `${WRITE_STATUS}`.
 8.  **Completion:** Conclude the runbook execution. Inform analyst of completion status and report location (SOAR comment or local file path).
 
 ### ADK Graph-Based Workflow Diagram
@@ -100,13 +100,13 @@ sequenceDiagram
     participant Analyst
     participant AutomatedAgent as Automated Agent (MCP Client)
     participant GTI as gti-mcp
-    participant PivotOnIOC as common_steps/pivot_on_ioc_gti.md
+    participant PivotOnIOC as skills/common/pivot-on-ioc-gti/SKILL.md
     participant SIEM as secops-mcp
-    participant EnrichIOC as common_steps/enrich_ioc.md
-    participant CorrelateIOC as common_steps/correlate_ioc_with_alerts_cases.md
-    participant FindCase as common_steps/find_relevant_soar_case.md
-    participant DocumentInSOAR as common_steps/document_in_soar.md
-    participant GenerateReport as common_steps/generate_report_file.md
+    participant EnrichIOC as skills/common/enrich-ioc/SKILL.md
+    participant CorrelateIOC as skills/common/correlate-ioc-with-alerts-cases/SKILL.md
+    participant FindCase as skills/common/find-relevant-soar-case/SKILL.md
+    participant DocumentInSOAR as skills/common/document-in-soar/SKILL.md
+    participant GenerateReport as skills/common/generate-report-file/SKILL.md
     participant SOAR as secops-soar %% Underlying tool for documentation & context
 
     Analyst->>AutomatedAgent: Start Deep Dive IOC Analysis\nInput: IOC_VALUE, IOC_TYPE, CASE_ID (opt), SKIP_SOAR (opt), ...

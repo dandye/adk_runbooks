@@ -59,16 +59,16 @@ Consolidate findings from a completed or ongoing investigation involving various
 4.  **Generate Mermaid Diagram:** Create a Mermaid sequence diagram summarizing the *actual investigation workflow* performed for this case, including any alternative steps taken or tool failures encountered. The diagram should reflect reality, not just the ideal path.
 5.  **Manual Review & Redaction:** **CRITICAL STEP:** Prompt the analyst to review the drafted report content for accuracy and to **manually redact or defang any sensitive data** (e.g., PII, internal hostnames if required, specific credentials) before proceeding. You may ask follow up question to get confirmation that redaction is complete.
 6.  **Format Final Report:** Compile the reviewed/redacted information and the Mermaid diagram into the final Markdown report content (let this be `${FINAL_REPORT_CONTENT}`).
-7.  **Write Report File:** Construct `${REPORT_NAME}` (e.g., `investigation_report_${CASE_ID}.md` or `investigation_report_${REPORT_FILENAME_SUFFIX}.md` if provided, ensuring a `.md` extension). Execute `common_steps/generate_report_file.md` with `REPORT_CONTENTS=${FINAL_REPORT_CONTENT}` and `REPORT_NAME=${REPORT_NAME}`. Obtain `${REPORT_FILE_PATH}` and `${WRITE_STATUS}`.
+7.  **Write Report File:** Construct `${REPORT_NAME}` (e.g., `investigation_report_${CASE_ID}.md` or `investigation_report_${REPORT_FILENAME_SUFFIX}.md` if provided, ensuring a `.md` extension). Execute `skills/common/generate-report-file/SKILL.md` with `REPORT_CONTENTS=${FINAL_REPORT_CONTENT}` and `REPORT_NAME=${REPORT_NAME}`. Obtain `${REPORT_FILE_PATH}` and `${WRITE_STATUS}`.
 8.  **Attempt SOAR Attachment:**
     *   *(If `siemplify_add_attachment_to_case` or similar tool exists)* Attempt to attach the generated file (`${REPORT_FILE_PATH}`) to the SOAR case `${CASE_ID}`.
-    *   **If Attachment Fails or Tool Unavailable:** Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and `COMMENT_TEXT="Investigation report generated: `${REPORT_FILE_PATH}`. Attachment failed or not available. Summary: [Include brief summary here]."`. Obtain `${COMMENT_POST_STATUS}`.
-    *   **If Attachment Succeeds:** Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and `COMMENT_TEXT="Investigation report attached successfully: `${REPORT_FILE_PATH}`."`. Obtain `${COMMENT_POST_STATUS}`.
+    *   **If Attachment Fails or Tool Unavailable:** Execute `skills/common/document-in-soar/SKILL.md` with `${CASE_ID}` and `COMMENT_TEXT="Investigation report generated: `${REPORT_FILE_PATH}`. Attachment failed or not available. Summary: [Include brief summary here]."`. Obtain `${COMMENT_POST_STATUS}`.
+    *   **If Attachment Succeeds:** Execute `skills/common/document-in-soar/SKILL.md` with `${CASE_ID}` and `COMMENT_TEXT="Investigation report attached successfully: `${REPORT_FILE_PATH}`."`. Obtain `${COMMENT_POST_STATUS}`.
 9.  **Confirm Optional External Upload:** You may ask follow up question to ask the user: "Upload the redacted report file (`${REPORT_FILE_PATH}`) to Google Drive or GCS?". Options: ["Yes, Drive", "Yes, GCS", "No"]. Obtain `${UPLOAD_CHOICE}`.
 10. **Execute External Upload (Optional):**
     *   If `${UPLOAD_CHOICE}` is "Yes, Drive" *(and Drive tool exists)*: Execute `google-drive-mcp.upload_to_drive` with `${REPORT_FILE_PATH}`.
     *   If `${UPLOAD_CHOICE}` is "Yes, GCS" *(and GCS tool exists)*: Execute `gcs-mcp.upload_to_gcs` with `${REPORT_FILE_PATH}`.
-    *   Document upload status/location via `common_steps/document_in_soar.md`.
+    *   Document upload status/location via `skills/common/document-in-soar/SKILL.md`.
 11. **Completion:** Conclude the runbook execution.
 
 ### ADK Graph-Based Workflow Diagram
@@ -118,7 +118,7 @@ sequenceDiagram
     end
     Note over AutomatedAgent: Synthesize findings, redact/defang sensitive data (FINAL_REPORT_CONTENT)
     Note over AutomatedAgent: Construct REPORT_NAME (e.g., investigation_report_case_X.md)
-    AutomatedAgent->>GenerateReportFile: common_steps/generate_report_file.md(REPORT_CONTENTS=FINAL_REPORT_CONTENT, REPORT_NAME=REPORT_NAME)
+    AutomatedAgent->>GenerateReportFile: skills/common/generate-report-file/SKILL.md(REPORT_CONTENTS=FINAL_REPORT_CONTENT, REPORT_NAME=REPORT_NAME)
     GenerateReportFile-->>AutomatedAgent: REPORT_FILE_PATH, WRITE_STATUS
     Note over AutomatedAgent: Report created locally at REPORT_FILE_PATH
     AutomatedAgent->>SOAR: siemplify_add_attachment_to_case(case_id=X, file_path=REPORT_FILE_PATH)

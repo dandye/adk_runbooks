@@ -33,7 +33,7 @@ This runbook provides a template for hunting specific lateral movement TTPs, foc
 *   `secops-soar`: `post_case_comment` (for documenting hunt/findings), `list_cases` (optional, check related cases).
 *   `gti-mcp`: (Used for enriching findings if IOCs are discovered).
 *   *(Optional: Identity Provider tools like `okta-mcp.lookup_okta_user`)*
-*   **Common Steps:** `common_steps/find_relevant_soar_case.md`
+*   **Common Steps:** `skills/common/find-relevant-soar-case/SKILL.md`
 
 ## Workflow Steps & Diagram
 
@@ -64,7 +64,7 @@ This runbook provides a template for hunting specific lateral movement TTPs, foc
             *   Use `gti-mcp` tools to enrich any associated IPs, domains, or hashes if applicable. Let combined enrichment be `ENRICHMENT_RESULTS`.
 8.  **Check Related SOAR Cases:**
     *   If `SUSPICIOUS_ENTITIES` were identified:
-        *   Execute `common_steps/find_relevant_soar_case.md` with `SEARCH_TERMS=SUSPICIOUS_ENTITIES` and `CASE_STATUS_FILTER="Opened"`.
+        *   Execute `skills/common/find-relevant-soar-case/SKILL.md` with `SEARCH_TERMS=SUSPICIOUS_ENTITIES` and `CASE_STATUS_FILTER="Opened"`.
         *   Obtain `${RELATED_SOAR_CASES}` (list of potentially relevant open case summaries/IDs).
 9.  **Document Hunt & Findings:**
     *   Use `soar-mcp_post_case_comment` in a dedicated hunting case or relevant existing case.
@@ -101,7 +101,7 @@ sequenceDiagram
     participant MITRE as MITRE ATT&CK (External)
     participant IDP as Identity Provider (Optional)
     participant GTI as gti-mcp
-    participant FindCase as common_steps/find_relevant_soar_case.md
+    participant FindCase as skills/common/find-relevant-soar-case/SKILL.md
 
     Analyst->>AutomatedAgent: Start Lateral Movement Hunt (PsExec/WMI)\nInput: TIME_FRAME_HOURS, TARGET_SCOPE_QUERY (opt), HUNT_HYPOTHESIS (opt)
 

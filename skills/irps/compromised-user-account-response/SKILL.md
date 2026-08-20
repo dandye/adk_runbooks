@@ -45,7 +45,7 @@ This runbook covers the end-to-end response lifecycle for compromised user accou
 *   You may ask follow up question (To confirm actions)
 *   *(Potentially Email platform tools for checking rules/delegation)*
 *   *(Potentially Endpoint tools if investigating actions taken on hosts)*
-*   **Common Steps:** `common_steps/check_duplicate_cases.md`, `common_steps/find_relevant_soar_case.md`, `common_steps/document_in_soar.md`, `common_steps/confirm_action.md`
+*   **Common Steps:** `skills/common/check-duplicate-cases/SKILL.md`, `skills/common/find-relevant-soar-case/SKILL.md`, `skills/common/document-in-soar/SKILL.md`, `skills/common/confirm-action/SKILL.md`
 
 ### ADK Graph-Based Workflow Diagram
 
@@ -115,7 +115,7 @@ sequenceDiagram
 
 *   **Objective:** Detect the potential compromise, perform initial triage, analyze user activity, and assess likelihood.
 *   **Sub-Runbooks/Steps:**
-    1.  **Receive Input & Context:** Obtain `${USER_ID}`, `${CASE_ID}`, `${ALERT_GROUP_IDENTIFIERS}`, and optionally `${INITIAL_ALERT_DETAILS}`. Get case details via `soar-mcp_get_case_full_details`. Check for duplicates (`../common_steps/check_duplicate_cases.md`).
+    1.  **Receive Input & Context:** Obtain `${USER_ID}`, `${CASE_ID}`, `${ALERT_GROUP_IDENTIFIERS}`, and optionally `${INITIAL_ALERT_DETAILS}`. Get case details via `soar-mcp_get_case_full_details`. Check for duplicates (`skills/common/check-duplicate-cases/SKILL.md`).
     2.  **Gather Initial Context:**
         *   Use `secops-mcp_lookup_entity` for `${USER_ID}` to get a quick summary of recent activity in SIEM.
         *   *(Optional: Use `okta-mcp.lookup_okta_user` or similar identity tool for `${USER_ID}` to get account status, recent logins, MFA details etc.)*
@@ -130,10 +130,10 @@ sequenceDiagram
             *   Changes to account settings (MFA, recovery email/phone, forwarding rules).
             *   Creation/modification of OAuth application grants.
     4.  **Check Related SOAR Cases:**
-        *   Execute `../common_steps/find_relevant_soar_case.md` with `SEARCH_TERMS=["${USER_ID}"]` and `CASE_STATUS_FILTER="Opened"`.
+        *   Execute `skills/common/find-relevant-soar-case/SKILL.md` with `SEARCH_TERMS=["${USER_ID}"]` and `CASE_STATUS_FILTER="Opened"`.
         *   Obtain `${RELATED_SOAR_CASES}` (list of potentially relevant open case summaries/IDs).
     5.  **Assess Compromise Likelihood:** Based on the initial alert, context, activity analysis, and `${RELATED_SOAR_CASES}`, determine the likelihood of compromise (Low, Medium, High, Confirmed).
-    6.  **Document Identification Phase:** Document findings (including `${RELATED_SOAR_CASES}`) using `../common_steps/document_in_soar.md`.
+    6.  **Document Identification Phase:** Document findings (including `${RELATED_SOAR_CASES}`) using `skills/common/document-in-soar/SKILL.md`.
 
 ---
 
@@ -141,7 +141,7 @@ sequenceDiagram
 
 *   **Objective:** Limit the impact of the compromise by restricting the attacker's access.
 *   **Sub-Runbooks/Steps:**
-    1.  **Confirm Containment Actions:** Use `../common_steps/confirm_action.md` to confirm with the analyst which containment actions (e.g., disable account, reset password, terminate sessions) should be taken based on the likelihood assessment. **Prioritize based on risk.**
+    1.  **Confirm Containment Actions:** Use `skills/common/confirm-action/SKILL.md` to confirm with the analyst which containment actions (e.g., disable account, reset password, terminate sessions) should be taken based on the likelihood assessment. **Prioritize based on risk.**
     2.  **Execute Containment:**
         *   *(Requires specific Identity Provider integration tools)*
         *   If confirmed, execute actions like:
@@ -149,7 +149,7 @@ sequenceDiagram
             *   Reset user password (force change on next login) (e.g., `okta-mcp.reset_okta_user_password`).
             *   Terminate active sessions (e.g., `okta-mcp.terminate_sessions`).
     3.  **Verify Containment:** Monitor SIEM/IDP logs for further activity from the account or associated sessions.
-    4.  **Document Containment:** Document actions taken and verification status using `../common_steps/document_in_soar.md`.
+    4.  **Document Containment:** Document actions taken and verification status using `skills/common/document-in-soar/SKILL.md`.
 
 ---
 
@@ -164,7 +164,7 @@ sequenceDiagram
         *   *(Requires Endpoint tools)* If the account was used to access specific endpoints, trigger endpoint investigation (e.g., `../basic_endpoint_triage_isolation.md` or deeper forensics) to look for malware or persistence.
     2.  **Remove Persistence:**
         *   Remove any identified persistence mechanisms (e.g., delete forwarding rules, revoke malicious OAuth apps).
-    3.  **Document Eradication:** Document investigation findings and eradication steps using `../common_steps/document_in_soar.md`.
+    3.  **Document Eradication:** Document investigation findings and eradication steps using `skills/common/document-in-soar/SKILL.md`.
 
 ---
 
@@ -177,7 +177,7 @@ sequenceDiagram
     3.  **Re-enable Account (If Disabled):** *(Requires IDP tools)* Re-enable the account if it was disabled during containment.
     4.  **Communicate with User:** Inform the user about the incident (as appropriate), the actions taken, and any necessary steps they need to take.
     5.  **Monitor Account:** Closely monitor the account's activity for a period post-recovery using SIEM/IDP logs.
-    6.  **Document Recovery:** Document steps taken using `../common_steps/document_in_soar.md`.
+    6.  **Document Recovery:** Document steps taken using `skills/common/document-in-soar/SKILL.md`.
 
 ---
 
@@ -192,7 +192,7 @@ sequenceDiagram
     5.  **Update Documentation:** Update runbooks, policies, etc.
     6.  **Track Recommendations:** Assign and track implementation.
     7.  **Final Report:** Generate using guidelines from `rules-bank/reporting_templates.md` and `../report_writing.md`.
-    8.  **Document Review:** Document outcomes using `../common_steps/document_in_soar.md`.
+    8.  **Document Review:** Document outcomes using `skills/common/document-in-soar/SKILL.md`.
 
 ---
 
@@ -213,7 +213,7 @@ sequenceDiagram
         *   Specific recommendations for updating this runbook.
         *   Suggestions for new detection rules or tuning existing ones.
         *   Recommendations for tool configuration changes or new tool requirements.
-    5.  **Documentation:** Record this feedback within the SOAR case (`${CASE_ID}`) using `common_steps/document_in_soar.md` or a dedicated lessons learned repository.
+    5.  **Documentation:** Record this feedback within the SOAR case (`${CASE_ID}`) using `skills/common/document-in-soar/SKILL.md` or a dedicated lessons learned repository.
 
 ## Rubrics
 

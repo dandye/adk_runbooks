@@ -49,7 +49,7 @@ This runbook covers the initial investigation steps to gather context about a su
     *   Use `secops-mcp_lookup_entity` with `entity_value=${USER_ID}`.
     *   Record summary of user's recent activity, first/last seen, related alerts (`USER_SIEM_SUMMARY`).
 4.  **Source IP Enrichment:**
-    *   Execute `common_steps/enrich_ioc.md` with `IOC_VALUE=${SOURCE_IP}` and `IOC_TYPE="IP Address"`.
+    *   Execute `skills/common/enrich-ioc/SKILL.md` with `IOC_VALUE=${SOURCE_IP}` and `IOC_TYPE="IP Address"`.
     *   Obtain `${GTI_FINDINGS}`, `${SIEM_ENTITY_SUMMARY}` (for IP), `${SIEM_IOC_MATCH_STATUS}`. Let's call these `IP_GTI_FINDINGS`, `IP_SIEM_SUMMARY`, `IP_SIEM_MATCH`.
 5.  **Hostname Context (SIEM):**
     *   If `${HOSTNAME}` was extracted:
@@ -66,7 +66,7 @@ This runbook covers the initial investigation steps to gather context about a su
         ```
     *   Look for patterns: logins from other unusual IPs, successful logins after failures, frequency of logins from `${SOURCE_IP}` vs. others (`LOGIN_ACTIVITY_SUMMARY`).
 7.  **Check Related SOAR Cases:**
-    *   Execute `common_steps/find_relevant_soar_case.md` with `SEARCH_TERMS=["${USER_ID}", "${SOURCE_IP}", "${HOSTNAME}"]` (include hostname if available) and `CASE_STATUS_FILTER="Opened"`.
+    *   Execute `skills/common/find-relevant-soar-case/SKILL.md` with `SEARCH_TERMS=["${USER_ID}", "${SOURCE_IP}", "${HOSTNAME}"]` (include hostname if available) and `CASE_STATUS_FILTER="Opened"`.
     *   Obtain `${RELATED_SOAR_CASES}` (list of potentially relevant open case summaries/IDs).
     *   *Note: `list_cases` filtering by entity is limited; review results carefully.*
 8.  **(Optional) Identity Provider Check:**
@@ -79,12 +79,12 @@ This runbook covers the initial investigation steps to gather context about a su
     If account lockdown is considered as part of the recommendation, ensure proper authorization and communication protocols are followed before locking a user account to avoid disrupting legitimate business operations.
     ```
 
-    *   Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and `${COMMENT_TEXT}`. Obtain `${COMMENT_POST_STATUS}`.
+    *   Execute `skills/common/document-in-soar/SKILL.md` with `${CASE_ID}` and `${COMMENT_TEXT}`. Obtain `${COMMENT_POST_STATUS}`.
 10. **(Optional) Generate Report:**
     *   You may ask follow up question to ask the user: "Generate a markdown report file for this triage?". Obtain `${REPORT_CHOICE}`.
     *   **If `${REPORT_CHOICE}` is "Yes":**
         *   Prepare `REPORT_CONTENT` summarizing findings (similar to `${COMMENT_TEXT}` but formatted for a report, including the Mermaid diagram below).
-        *   Execute `common_steps/generate_report_file.md` with `REPORT_CONTENT`, `REPORT_TYPE="suspicious_login_triage"`, `REPORT_NAME_SUFFIX=${CASE_ID}`. Obtain `${REPORT_GENERATION_STATUS}`.
+        *   Execute `skills/common/generate-report-file/SKILL.md` with `REPORT_CONTENT`, `REPORT_TYPE="suspicious_login_triage"`, `REPORT_NAME_SUFFIX=${CASE_ID}`. Obtain `${REPORT_GENERATION_STATUS}`.
     *   **Else:** Set `${REPORT_GENERATION_STATUS}` = "Skipped".
 11. **Completion:** Conclude the runbook execution. Tier 1 analyst acts on the recommendation in the comment. Report generation status provided if applicable.
 
@@ -113,10 +113,10 @@ sequenceDiagram
     participant AutomatedAgent as Automated Agent (MCP Client)
     participant SOAR as secops-soar
     participant SIEM as secops-mcp
-    participant EnrichIOC as common_steps/enrich_ioc.md
-    participant FindCase as common_steps/find_relevant_soar_case.md
-    participant DocumentInSOAR as common_steps/document_in_soar.md
-    participant GenerateReport as common_steps/generate_report_file.md
+    participant EnrichIOC as skills/common/enrich-ioc/SKILL.md
+    participant FindCase as skills/common/find-relevant-soar-case/SKILL.md
+    participant DocumentInSOAR as skills/common/document-in-soar/SKILL.md
+    participant GenerateReport as skills/common/generate-report-file/SKILL.md
     participant IDP as Identity Provider (Optional)
 
     Analyst->>AutomatedAgent: Start Suspicious Login Triage\nInput: CASE_ID, ALERT_GROUP_IDS/ALERT_ID

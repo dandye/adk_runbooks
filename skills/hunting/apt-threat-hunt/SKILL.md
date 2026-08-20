@@ -36,7 +36,7 @@ Focuses on SIEM log analysis and GTI correlation for specific TTPs and IOCs rela
 *   `secops-mcp`: `search_security_events`, `lookup_entity`, `get_ioc_matches`
 *   `secops-soar`: `post_case_comment`, `list_cases`
 *   `write_report`
-*   **Common Steps:** `common_steps/find_relevant_soar_case.md`, `common_steps/generate_report_file.md`
+*   **Common Steps:** `skills/common/find-relevant-soar-case/SKILL.md`, `skills/common/generate-report-file/SKILL.md`
 
 ## Workflow Steps & Diagram
 
@@ -67,7 +67,7 @@ Focuses on SIEM log analysis and GTI correlation for specific TTPs and IOCs rela
         *   Let combined enrichment results be `ENRICHMENT_RESULTS`.
 6.  **Check Related SOAR Cases:**
     *   If `FOUND_IOCS` or `FOUND_ENTITIES` are identified:
-        *   Execute `common_steps/find_relevant_soar_case.md` with `SEARCH_TERMS` = list of `FOUND_IOCS` + `FOUND_ENTITIES` and `CASE_STATUS_FILTER="Opened"`.
+        *   Execute `skills/common/find-relevant-soar-case/SKILL.md` with `SEARCH_TERMS` = list of `FOUND_IOCS` + `FOUND_ENTITIES` and `CASE_STATUS_FILTER="Opened"`.
         *   Obtain `${RELATED_SOAR_CASES}` (list of potentially relevant open case summaries/IDs).
 7.  **Synthesize & Document:**
     *   Combine all findings: GTI intelligence, IOC match results, IOC search findings (positive and negative), TTP search findings (positive and negative), enrichment results (`ENRICHMENT_RESULTS`), and related SOAR cases (`${RELATED_SOAR_CASES}`).
@@ -85,7 +85,7 @@ Focuses on SIEM log analysis and GTI correlation for specific TTPs and IOCs rela
         *   Analysis & Conclusion.
         *   Recommendations/Escalation (if applicable).
         *   Workflow Diagram (Mermaid).
-    *   **Execute Report Generation:** Call `common_steps/generate_report_file.md` with the synthesized report content, `REPORT_TYPE="apt_hunt_report"`, and `REPORT_NAME_SUFFIX=${THREAT_ACTOR_ID}`.
+    *   **Execute Report Generation:** Call `skills/common/generate-report-file/SKILL.md` with the synthesized report content, `REPORT_TYPE="apt_hunt_report"`, and `REPORT_NAME_SUFFIX=${THREAT_ACTOR_ID}`.
 9.  **Escalation/Conclusion:** Escalate confirmed threats or conclude the hunt based on findings. Update `${HUNT_CASE_ID}` status if applicable.
 
 ### ADK Graph-Based Workflow Diagram
@@ -113,8 +113,8 @@ sequenceDiagram
     participant GTI as gti-mcp
     participant SIEM as secops-mcp
     participant SOAR as secops-soar
-    participant FindCase as common_steps/find_relevant_soar_case.md
-    participant GenerateReport as common_steps/generate_report_file.md
+    participant FindCase as skills/common/find-relevant-soar-case/SKILL.md
+    participant GenerateReport as skills/common/generate-report-file/SKILL.md
 
     Analyst/Hunter->>AutomatedAgent: Start APT Hunt\nInput: THREAT_ACTOR_ID, HUNT_TIMEFRAME_HOURS, ...
 

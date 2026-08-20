@@ -54,7 +54,7 @@ This runbook covers the end-to-end response lifecycle for phishing incidents. It
 *   **Basic Endpoint Triage & Isolation Runbook:** `../basic_endpoint_triage_isolation.md`
 *   You may ask follow up question (To confirm actions).
 *   *(Potentially Email Gateway tools if integrated via MCP for searching/deleting emails)*
-*   **Common Steps:** `common_steps/check_duplicate_cases.md`, `common_steps/enrich_ioc.md`, `common_steps/find_relevant_soar_case.md`, `common_steps/document_in_soar.md`
+*   **Common Steps:** `skills/common/check-duplicate-cases/SKILL.md`, `skills/common/enrich-ioc/SKILL.md`, `skills/common/find-relevant-soar-case/SKILL.md`, `skills/common/document-in-soar/SKILL.md`
 
 ### ADK Graph-Based Workflow Diagram
 
@@ -133,14 +133,14 @@ sequenceDiagram
 
 *   **Objective:** Analyze the reported email, identify malicious indicators, and determine the initial scope of impact.
 *   **Sub-Runbooks/Steps:**
-    1.  **Receive Input & Context:** Obtain email artifacts, `${CASE_ID}`, `${ALERT_GROUP_IDENTIFIERS}`. Get case details via `soar-mcp_get_case_full_details`. Check for duplicates (`../common_steps/check_duplicate_cases.md`).
+    1.  **Receive Input & Context:** Obtain email artifacts, `${CASE_ID}`, `${ALERT_GROUP_IDENTIFIERS}`. Get case details via `soar-mcp_get_case_full_details`. Check for duplicates (`skills/common/check-duplicate-cases/SKILL.md`).
     2.  **Analyze Email Artifacts:**
         *   *(Conceptual/Manual Step or External Tool)* Parse headers to identify true sender, path, etc.
         *   Extract all URLs, sender domains/IPs, and attachment hashes (`EXTRACTED_IOCs`) from the email body and headers.
         *   *(Conceptual/Manual Step: If attachments are present, submit hashes to GTI/sandbox. If safe detonation is possible, analyze behavior).*
     3.  **Enrich Extracted IOCs:**
         *   Initialize `ENRICHMENT_RESULTS`. For each IOC `Ii` in `EXTRACTED_IOCs`:
-            *   Execute `../common_steps/enrich_ioc.md` with `IOC_VALUE=Ii` and appropriate `IOC_TYPE`.
+            *   Execute `skills/common/enrich-ioc/SKILL.md` with `IOC_VALUE=Ii` and appropriate `IOC_TYPE`.
             *   Store results in `ENRICHMENT_RESULTS[Ii]`.
         *   Identify IOCs confirmed or strongly suspected to be malicious (`MALICIOUS_IOCs`).
     4.  **Categorize Phishing Type:**
@@ -169,10 +169,10 @@ sequenceDiagram
             *   Endpoints exhibiting suspicious activity related to the phish (`SUSPICIOUS_ENDPOINTS`).
     8.  **Check Related SOAR Cases:**
         *   Prepare list of key entities: `SEARCH_TERMS = POTENTIAL_COMPROMISED_USERS + SUSPICIOUS_ENDPOINTS + MALICIOUS_IOCs`.
-        *   Execute `../common_steps/find_relevant_soar_case.md` with `SEARCH_TERMS` and `CASE_STATUS_FILTER="Opened"`.
+        *   Execute `skills/common/find-relevant-soar-case/SKILL.md` with `SEARCH_TERMS` and `CASE_STATUS_FILTER="Opened"`.
         *   Obtain `${RELATED_SOAR_CASES}` (list of potentially relevant open case summaries/IDs).
     9.  **Document Identification Phase:**
-        *   Document findings (including `PHISHING_CATEGORY` and `${RELATED_SOAR_CASES}`) using `../common_steps/document_in_soar.md`.
+        *   Document findings (including `PHISHING_CATEGORY` and `${RELATED_SOAR_CASES}`) using `skills/common/document-in-soar/SKILL.md`.
 
 ---
 
@@ -192,7 +192,7 @@ sequenceDiagram
             *   Execute `../basic_endpoint_triage_isolation.md` for `ENDPOINT_ID=Ei`. **Confirm action with analyst.** Record status (`ENDPOINT_TRIAGE_STATUS[Ei]`).
     4.  **Verify Containment:**
         *   Monitor SIEM (`secops-mcp_search_security_events`) for continued activity related to `MALICIOUS_IOCs` or contained users/endpoints.
-        *   Document containment status using `../common_steps/document_in_soar.md`.
+        *   Document containment status using `skills/common/document-in-soar/SKILL.md`.
 
 ---
 
@@ -208,7 +208,7 @@ sequenceDiagram
     2.  **Address Malware (If Applicable):**
         *   If the phishing email led to malware execution (identified in Phase 2/3), follow the Eradication steps outlined in the `malware_incident_response.md` runbook for the affected endpoints.
     3.  **Document Eradication:**
-        *   Document actions taken (e.g., email deletion counts) using `../common_steps/document_in_soar.md`.
+        *   Document actions taken (e.g., email deletion counts) using `skills/common/document-in-soar/SKILL.md`.
 
 ---
 
@@ -225,7 +225,7 @@ sequenceDiagram
     4.  **Validate Countermeasures:**
         *   After lifting containment or adjusting filters/blocks, verify that legitimate emails or network traffic are not inadvertently blocked by the measures implemented during the incident. Adjust rules/filters as necessary.
     5.  **Document Recovery:**
-        *   Document steps taken (including validation) using `../common_steps/document_in_soar.md`.
+        *   Document steps taken (including validation) using `skills/common/document-in-soar/SKILL.md`.
 
 ---
 
@@ -250,7 +250,7 @@ sequenceDiagram
         *   Ensure affected users receive appropriate follow-up and potentially targeted phishing awareness training.
     6.  **Track Recommendations:** Assign owners and deadlines for implementing recommendations and track them to completion.
     7.  **Final Report:** Generate a comprehensive post-incident report using guidelines from `rules-bank/reporting_templates.md` and `../report_writing.md`.
-    8.  **Document Review:** Document the review meeting, findings, and recommendations using `../common_steps/document_in_soar.md` or a dedicated reporting system.
+    8.  **Document Review:** Document the review meeting, findings, and recommendations using `skills/common/document-in-soar/SKILL.md` or a dedicated reporting system.
 
 ---
 
@@ -271,7 +271,7 @@ sequenceDiagram
         *   Specific recommendations for updating this runbook.
         *   Suggestions for new detection rules or tuning existing ones.
         *   Recommendations for tool configuration changes or new tool requirements.
-    5.  **Documentation:** Record this feedback within the SOAR case (`${CASE_ID}`) using `common_steps/document_in_soar.md` or a dedicated lessons learned repository.
+    5.  **Documentation:** Record this feedback within the SOAR case (`${CASE_ID}`) using `skills/common/document-in-soar/SKILL.md` or a dedicated lessons learned repository.
 
 
 ## References

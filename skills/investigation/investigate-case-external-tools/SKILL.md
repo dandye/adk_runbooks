@@ -52,7 +52,7 @@ sequenceDiagram
     participant SIEM as secops-mcp
     participant GTI as gti-mcp
     participant Okta as okta-mcp
-    participant FindCase as common_steps/find_relevant_soar_case.md
+    participant FindCase as skills/common/find-relevant-soar-case/SKILL.md
 
     User->>AutomatedAgent: Investigate Case Y (Anomalous Login)
     AutomatedAgent->>SOAR: list_alerts_by_case(case_id=Y)

@@ -44,28 +44,28 @@ This runbook explicitly **excludes**:
 
 *   `${ASSESSMENT}`: The outcome of the triage (e.g., "False Positive", "Benign True Positive", "True Positive/Suspicious").
 *   `${ACTION_TAKEN}`: The action performed based on the assessment (e.g., "Closed", "Escalated", "Priority Changed").
-*   `${SIMILAR_CASE_IDS}`: List of case IDs identified as potentially similar or duplicate by `common_steps/check_duplicate_cases.md`.
-*   `${ENTITY_RELATED_CASES}`: List of case IDs related to key entities involved in the current alert/case, found by `common_steps/find_relevant_soar_case.md`.
+*   `${SIMILAR_CASE_IDS}`: List of case IDs identified as potentially similar or duplicate by `skills/common/check-duplicate-cases/SKILL.md`.
+*   `${ENTITY_RELATED_CASES}`: List of case IDs related to key entities involved in the current alert/case, found by `skills/common/find-relevant-soar-case/SKILL.md`.
 *   `${INITIAL_SIEM_CONTEXT}`: Summary of findings from the alert-specific SIEM search performed in Step 6.
-*   `${ENRICHMENT_RESULTS}`: A structured collection of enrichment data for key entities, gathered by `common_steps/enrich_ioc.md`.
-*   `${DOCUMENTATION_STATUS}`: Status of the attempt to document findings in the SOAR case via `common_steps/document_in_soar.md`.
-*   `${CLOSURE_STATUS}`: Status of the attempt to close the SOAR artifact (case or alert) via `common_steps/close_soar_artifact.md`, if applicable.
+*   `${ENRICHMENT_RESULTS}`: A structured collection of enrichment data for key entities, gathered by `skills/common/enrich-ioc/SKILL.md`.
+*   `${DOCUMENTATION_STATUS}`: Status of the attempt to document findings in the SOAR case via `skills/common/document-in-soar/SKILL.md`.
+*   `${CLOSURE_STATUS}`: Status of the attempt to close the SOAR artifact (case or alert) via `skills/common/close-soar-artifact/SKILL.md`, if applicable.
 
 ## Tools
 
 *   `secops-soar`: `get_case_full_details`, `list_alerts_by_case`, `list_events_by_alert`, `post_case_comment`, `change_case_priority`, `siemplify_get_similar_cases`, `siemplify_close_case`, `siemplify_close_alert`
 *   `secops-mcp`: `lookup_entity`, `get_ioc_matches`
 *   `gti-mcp`: `get_file_report`, `get_domain_report`, `get_ip_address_report`, `get_url_report`
-*   **Common Steps:** `common_steps/check_duplicate_cases.md`, `common_steps/enrich_ioc.md`, `common_steps/find_relevant_soar_case.md`, `common_steps/document_in_soar.md`, `common_steps/close_soar_artifact.md`
+*   **Common Steps:** `skills/common/check-duplicate-cases/SKILL.md`, `skills/common/enrich-ioc/SKILL.md`, `skills/common/find-relevant-soar-case/SKILL.md`, `skills/common/document-in-soar/SKILL.md`, `skills/common/close-soar-artifact/SKILL.md`
 
 ## Workflow Steps & Diagram
 
 1.  **Receive Alert/Case:** Obtain the `${ALERT_ID}` or `${CASE_ID}`.
 2.  **Gather Initial Context:** Use `soar-mcp_get_case_full_details` or `list_alerts_by_case` / `list_events_by_alert` to understand the alert type, severity, involved entities (`KEY_ENTITIES`), and triggering events.
-3.  **Check for Duplicates:** Execute `common_steps/check_duplicate_cases.md` with `${CASE_ID}`. Obtain `${SIMILAR_CASE_IDS}`.
+3.  **Check for Duplicates:** Execute `skills/common/check-duplicate-cases/SKILL.md` with `${CASE_ID}`. Obtain `${SIMILAR_CASE_IDS}`.
 4.  **Handle Duplicates:** If `${SIMILAR_CASE_IDS}` is not empty and duplication is confirmed by analyst:
-    *   Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and comment "Closing as duplicate of [Similar Case ID]".
-    *   Execute `common_steps/close_soar_artifact.md` with:
+    *   Execute `skills/common/document-in-soar/SKILL.md` with `${CASE_ID}` and comment "Closing as duplicate of [Similar Case ID]".
+    *   Execute `skills/common/close-soar-artifact/SKILL.md` with:
         *   `${ARTIFACT_ID}` = `${CASE_ID}` (or `${ALERT_ID}`)
         *   `${ARTIFACT_TYPE}` = "Case" (or "Alert")
         *   `${CLOSURE_REASON}` = `"NOT_MALICIOUS"`
@@ -73,7 +73,7 @@ This runbook explicitly **excludes**:
         *   `${CLOSURE_COMMENT}` = "Closing as duplicate of [Similar Case ID]"
     *   End runbook execution.
 5.  **Find Entity-Related Cases:**
-    *   Execute `common_steps/find_relevant_soar_case.md` with `SEARCH_TERMS=KEY_ENTITIES` (list of entities from Step 2) and `CASE_STATUS_FILTER="Opened"`.
+    *   Execute `skills/common/find-relevant-soar-case/SKILL.md` with `SEARCH_TERMS=KEY_ENTITIES` (list of entities from Step 2) and `CASE_STATUS_FILTER="Opened"`.
     *   Obtain `${ENTITY_RELATED_CASES}` (list of potentially relevant open case summaries/IDs).
 6.  **(New) Alert-Specific SIEM Search:**
     *   Based on the alert type identified in Step 2, perform an initial targeted search using `secops-mcp_search_security_events` to gather immediate context. Examples:
@@ -82,7 +82,7 @@ This runbook explicitly **excludes**:
         *   **Network Alert:** Search for related network flows or DNS lookups involving the source/destination IPs/domains.
     *   Store a summary of findings in `${INITIAL_SIEM_CONTEXT}`. This helps provide more specific context before broader enrichment.
 7.  **Basic Enrichment:** Initialize `ENRICHMENT_RESULTS` structure. For each entity `Ei` in `KEY_ENTITIES`:
-    *   Execute `common_steps/enrich_ioc.md` with `IOC_VALUE=Ei` and appropriate `IOC_TYPE`.
+    *   Execute `skills/common/enrich-ioc/SKILL.md` with `IOC_VALUE=Ei` and appropriate `IOC_TYPE`.
     *   Store results (`GTI_FINDINGS`, `SIEM_ENTITY_SUMMARY`, `SIEM_IOC_MATCH_STATUS`) in `ENRICHMENT_RESULTS[Ei]`.
 8.  **Initial Assessment:** Based on alert type, `ENRICHMENT_RESULTS`, `${ENTITY_RELATED_CASES}`, `${INITIAL_SIEM_CONTEXT}`, and potential known benign patterns (referencing `.agentrules/common_benign_alerts.md` if available), make an initial assessment:
     *   False Positive (FP)
@@ -90,14 +90,14 @@ This runbook explicitly **excludes**:
     *   Requires Further Investigation (True Positive - TP or Suspicious)
 9.  **Action Based on Assessment:**
     *   **If FP/BTP:**
-        *   Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and comment explaining FP/BTP reason.
+        *   Execute `skills/common/document-in-soar/SKILL.md` with `${CASE_ID}` and comment explaining FP/BTP reason.
         *   **Guidance for Closure:**
             *   Choose an appropriate `${CLOSURE_REASON}` (likely `NOT_MALICIOUS`).
             *   Choose a valid `${ROOT_CAUSE}` from the SOAR platform's predefined list (e.g., `"Legit action"`, `"Normal behavior"`, `"Other"`). Use `soar-mcp_get_case_settings_root_causes` to list valid options if unsure.
-        *   Execute `common_steps/close_soar_artifact.md` with `${ARTIFACT_ID}` = `${CASE_ID}` (or `${ALERT_ID}`), `${ARTIFACT_TYPE}` = "Case" (or "Alert"), the chosen `${CLOSURE_REASON}`/`${ROOT_CAUSE}`, and `${CLOSURE_COMMENT}` = "Closed as FP/BTP during triage.".
+        *   Execute `skills/common/close-soar-artifact/SKILL.md` with `${ARTIFACT_ID}` = `${CASE_ID}` (or `${ALERT_ID}`), `${ARTIFACT_TYPE}` = "Case" (or "Alert"), the chosen `${CLOSURE_REASON}`/`${ROOT_CAUSE}`, and `${CLOSURE_COMMENT}` = "Closed as FP/BTP during triage.".
     *   **If TP/Suspicious:**
         *   *(Optional)* Use `soar-mcp_change_case_priority` if needed.
-        *   Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and comment summarizing initial findings and assessment.
+        *   Execute `skills/common/document-in-soar/SKILL.md` with `${CASE_ID}` and comment summarizing initial findings and assessment.
 ### ADK Graph-Based Workflow Diagram
 
 ```{mermaid}
@@ -120,11 +120,11 @@ sequenceDiagram
     participant Analyst
     participant AutomatedAgent as Automated Agent (MCP Client)
     participant SOAR as secops-soar
-    participant CheckDuplicates as common_steps/check_duplicate_cases.md
-    participant FindCase as common_steps/find_relevant_soar_case.md
-    participant EnrichIOC as common_steps/enrich_ioc.md
-    participant DocumentInSOAR as common_steps/document_in_soar.md
-    participant CloseArtifact as common_steps/close_soar_artifact.md
+    participant CheckDuplicates as skills/common/check-duplicate-cases/SKILL.md
+    participant FindCase as skills/common/find-relevant-soar-case/SKILL.md
+    participant EnrichIOC as skills/common/enrich-ioc/SKILL.md
+    participant DocumentInSOAR as skills/common/document-in-soar/SKILL.md
+    participant CloseArtifact as skills/common/close-soar-artifact/SKILL.md
 
     Analyst->>AutomatedAgent: Start Alert Triage\nInput: ALERT_ID/CASE_ID
 
