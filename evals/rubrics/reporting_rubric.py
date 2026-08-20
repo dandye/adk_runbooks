@@ -1,7 +1,7 @@
 """
 Reporting Runbook Rubric (100 Points Total).
 Applied to Case Reports, Alert Reports, Detection Reports, and UEBA/Investigation Reports.
-Derived from rules-bank/run_books/case_report.md and rules-bank/run_books/alert_report.md.
+Derived from skills/reporting/case-report/SKILL.md and skills/reporting/alert-report/SKILL.md.
 """
 
 from typing import Any, Dict, List

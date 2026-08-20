@@ -12,7 +12,7 @@ This evaluation harness allows you to:
 1. **Declaratively Test Workflows**: Execute test cases defined in JSON manifests without writing repetitive test harnesses.
 2. **Verify Trajectories & Routing Paths**: Assert that graph executions follow deterministic branching decisions (e.g. `LOW_RISK_BENIGN`, `HIGH_RISK_SUSPICIOUS`, `MALICIOUS_THREAT`, `EXECUTE_ISOLATION`).
 3. **Validate Output Schema & Artifacts**: Verify that required attributes, entity extractions, and SOAR comment summaries are present and non-empty.
-4. **Programmatically Score Runbook Rubrics (0–100 Points)**: Apply official runbook evaluation criteria from [`rules-bank/run_books/`](../rules-bank/run_books/):
+4. **Programmatically Score Runbook Rubrics (0–100 Points)**: Apply official runbook evaluation criteria from [`skills/`](../skills/):
    - **Reporting Rubric (100 pts)**: Data Collection (25), Report Gen (30), Quality/Clarity (15), Delivery (15), Operational Artifacts (15).
    - **Triage & Incident Response Rubric (100 pts)**: Context & Enrichment (25), Analysis & Decision (25), Action Execution (20), Documentation (15), Operational Artifacts (15).
    - **Threat Hunting & Deep Analysis Rubric (100 pts)**: Scope & Query (25), Data Analysis & Correlation (30), Findings Classification (15), Hunt Documentation (15), Operational Artifacts (15).
@@ -100,7 +100,7 @@ To add a new evaluation test case, add an entry to `evals/datasets/core_workflow
   "test_id": "TEST-CUSTOM-001",
   "workflow_name": "suspicious_login_workflow",
   "description": "Custom high-risk triage case.",
-  "runbook_reference": "rules-bank/run_books/suspicious_login_triage.md",
+  "skill_reference": "skills/triage/suspicious-login-triage/SKILL.md",
   "rubric_type": "TRIAGE_IRP",
   "input": {
     "case_id": "CASE-9999",

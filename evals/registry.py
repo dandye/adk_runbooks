@@ -1,6 +1,6 @@
 """
 Workflow registry mapping all 36 ADK graph workflows to their input models,
-builder functions, runbook references, and rubric profiles.
+builder functions, skill references, and rubric profiles.
 """
 
 import inspect
@@ -17,6 +17,7 @@ if str(MULTI_AGENT_DIR) not in sys.path:
     sys.path.insert(0, str(MULTI_AGENT_DIR))
 
 from evals.evaluators.base import WorkflowTrace
+from skills.registry import SkillRegistry
 
 
 @dataclass
@@ -25,8 +26,15 @@ class WorkflowDefinition:
     name: str
     builder_func: Callable[..., Any]
     rubric_type: str
-    runbook_path: str
-    description: str
+    runbook_path: str = ""
+    description: str = ""
+    skill_path: str = ""
+
+    def __post_init__(self):
+        if not self.skill_path and self.runbook_path:
+            self.skill_path = self.runbook_path
+        elif not self.runbook_path and self.skill_path:
+            self.runbook_path = self.skill_path
 
 
 # Dynamic import of workflow builders
@@ -75,255 +83,310 @@ WORKFLOW_REGISTRY: Dict[str, WorkflowDefinition] = {
         name="suspicious_login_workflow",
         builder_func=build_suspicious_login_workflow,
         rubric_type="TRIAGE_IRP",
-        runbook_path="rules-bank/run_books/suspicious_login_triage.md",
+        skill_path="skills/triage/suspicious-login-triage/SKILL.md",
+        runbook_path="skills/triage/suspicious-login-triage/SKILL.md",
         description="Triage anomalous user authentications and determine risk disposition."
     ),
     "malware_triage_workflow": WorkflowDefinition(
         name="malware_triage_workflow",
         builder_func=build_malware_triage_workflow,
         rubric_type="TRIAGE_IRP",
-        runbook_path="rules-bank/run_books/malware_triage.md",
+        skill_path="skills/triage/malware-triage/SKILL.md",
+        runbook_path="skills/triage/malware-triage/SKILL.md",
         description="Analyze file hashes, correlate SIEM process launches, and isolate hosts."
     ),
     "basic_ioc_enrichment_workflow": WorkflowDefinition(
         name="basic_ioc_enrichment_workflow",
         builder_func=build_basic_ioc_enrichment_workflow,
         rubric_type="TRIAGE_IRP",
-        runbook_path="rules-bank/run_books/basic_ioc_enrichment.md",
+        skill_path="skills/investigation/basic-ioc-enrichment/SKILL.md",
+        runbook_path="skills/investigation/basic-ioc-enrichment/SKILL.md",
         description="Enrich network and file IOCs against GTI and search historical SIEM telemetry."
     ),
     "endpoint_triage_workflow": WorkflowDefinition(
         name="endpoint_triage_workflow",
         builder_func=build_endpoint_triage_workflow,
         rubric_type="TRIAGE_IRP",
-        runbook_path="rules-bank/run_books/basic_endpoint_triage_isolation.md",
+        skill_path="skills/triage/basic-endpoint-triage-isolation/SKILL.md",
+        runbook_path="skills/triage/basic-endpoint-triage-isolation/SKILL.md",
         description="Inspect endpoint risk posture and execute host network containment."
     ),
     "ioc_containment_workflow": WorkflowDefinition(
         name="ioc_containment_workflow",
         builder_func=build_ioc_containment_workflow,
         rubric_type="TRIAGE_IRP",
-        runbook_path="rules-bank/run_books/ioc_containment.md",
+        skill_path="skills/investigation/ioc-containment/SKILL.md",
+        runbook_path="skills/investigation/ioc-containment/SKILL.md",
         description="Validate IOC severity and execute perimeter network block actions."
     ),
     "close_duplicate_cases_workflow": WorkflowDefinition(
         name="close_duplicate_cases_workflow",
         builder_func=build_close_duplicate_cases_workflow,
         rubric_type="TRIAGE_IRP",
-        runbook_path="rules-bank/run_books/close_duplicate_or_similar_cases.md",
+        skill_path="skills/investigation/close-duplicate-cases/SKILL.md",
+        runbook_path="skills/investigation/close-duplicate-cases/SKILL.md",
         description="Group and resolve redundant security incidents."
     ),
     "cloud_vulnerability_triage_workflow": WorkflowDefinition(
         name="cloud_vulnerability_triage_workflow",
         builder_func=build_cloud_vulnerability_triage_workflow,
         rubric_type="TRIAGE_IRP",
-        runbook_path="rules-bank/run_books/cloud_vulnerability_triage_and_contextualization.md",
+        skill_path="skills/triage/cloud-vulnerability-triage/SKILL.md",
+        runbook_path="skills/triage/cloud-vulnerability-triage/SKILL.md",
         description="Evaluate cloud CVE exposure against asset criticality."
     ),
     "compare_gti_collection_workflow": WorkflowDefinition(
         name="compare_gti_collection_workflow",
         builder_func=build_compare_gti_collection_workflow,
         rubric_type="TRIAGE_IRP",
-        runbook_path="rules-bank/run_books/compare_gti_collection_to_iocs_and_events.md",
+        skill_path="skills/investigation/compare-gti-collection/SKILL.md",
+        runbook_path="skills/investigation/compare-gti-collection/SKILL.md",
         description="Correlate threat intelligence collections with active cases."
     ),
     "create_investigation_report_workflow": WorkflowDefinition(
         name="create_investigation_report_workflow",
         builder_func=build_create_investigation_report_workflow,
         rubric_type="REPORTING",
-        runbook_path="rules-bank/run_books/create_an_investigation_report.md",
+        skill_path="skills/reporting/create-investigation-report/SKILL.md",
+        runbook_path="skills/reporting/create-investigation-report/SKILL.md",
         description="Compile comprehensive technical investigation report."
     ),
     "deep_dive_ioc_analysis_workflow": WorkflowDefinition(
         name="deep_dive_ioc_analysis_workflow",
         builder_func=build_deep_dive_ioc_analysis_workflow,
         rubric_type="THREAT_HUNTING",
-        runbook_path="rules-bank/run_books/deep_dive_ioc_analysis.md",
+        skill_path="skills/investigation/deep-dive-ioc-analysis/SKILL.md",
+        runbook_path="skills/investigation/deep-dive-ioc-analysis/SKILL.md",
         description="Perform deep contextual IOC enrichment and association mapping."
     ),
     "detection_rule_validation_workflow": WorkflowDefinition(
         name="detection_rule_validation_workflow",
         builder_func=build_detection_rule_validation_workflow,
         rubric_type="DETECTION_ENGINEERING",
-        runbook_path="rules-bank/run_books/detection_rule_validation_tuning.md",
+        skill_path="skills/detection/detection-rule-validation-tuning/SKILL.md",
+        runbook_path="skills/detection/detection-rule-validation-tuning/SKILL.md",
         description="Validate YARA-L rule syntax, historical telemetry volume, and FP ratios."
     ),
     "credential_access_hunt_workflow": WorkflowDefinition(
         name="credential_access_hunt_workflow",
         builder_func=build_credential_access_hunt_workflow,
         rubric_type="THREAT_HUNTING",
-        runbook_path="rules-bank/run_books/guided_ttp_hunt_credential_access.md",
+        skill_path="skills/hunting/guided-ttp-hunt-credential-access/SKILL.md",
+        runbook_path="skills/hunting/guided-ttp-hunt-credential-access/SKILL.md",
         description="Threat hunt for LSASS dumping and credential harvesting behaviors."
     ),
     "investigate_case_external_tools_workflow": WorkflowDefinition(
         name="investigate_case_external_tools_workflow",
         builder_func=build_investigate_case_external_tools_workflow,
         rubric_type="TRIAGE_IRP",
-        runbook_path="rules-bank/run_books/investigate_a_case_w_external_tools.md",
+        skill_path="skills/investigation/investigate-case-external-tools/SKILL.md",
+        runbook_path="skills/investigation/investigate-case-external-tools/SKILL.md",
         description="Investigate incidents using integrated external intelligence APIs."
     ),
     "lateral_movement_hunt_workflow": WorkflowDefinition(
         name="lateral_movement_hunt_workflow",
         builder_func=build_lateral_movement_hunt_workflow,
         rubric_type="THREAT_HUNTING",
-        runbook_path="rules-bank/run_books/lateral_movement_hunt_psexec_wmi.md",
+        skill_path="skills/hunting/lateral-movement-hunt-psexec-wmi/SKILL.md",
+        runbook_path="skills/hunting/lateral-movement-hunt-psexec-wmi/SKILL.md",
         description="Detect WMI, PsExec, and WinRM lateral movement across endpoints."
     ),
     "triage_alerts_workflow": WorkflowDefinition(
         name="triage_alerts_workflow",
         builder_func=build_triage_alerts_workflow,
         rubric_type="TRIAGE_IRP",
-        runbook_path="rules-bank/run_books/triage_alerts.md",
+        skill_path="skills/triage/triage-alerts/SKILL.md",
+        runbook_path="skills/triage/triage-alerts/SKILL.md",
         description="Perform initial alert triage, entity grouping, and severity scoring."
     ),
     "advanced_threat_hunting_workflow": WorkflowDefinition(
         name="advanced_threat_hunting_workflow",
         builder_func=build_advanced_threat_hunting_workflow,
         rubric_type="THREAT_HUNTING",
-        runbook_path="rules-bank/run_books/advanced_threat_hunting.md",
+        skill_path="skills/hunting/advanced-threat-hunting/SKILL.md",
+        runbook_path="skills/hunting/advanced-threat-hunting/SKILL.md",
         description="Hypothesis-driven multi-stage threat hunting across enterprise logs."
     ),
     "alert_report_workflow": WorkflowDefinition(
         name="alert_report_workflow",
         builder_func=build_alert_report_workflow,
         rubric_type="REPORTING",
-        runbook_path="rules-bank/run_books/alert_report.md",
+        skill_path="skills/reporting/alert-report/SKILL.md",
+        runbook_path="skills/reporting/alert-report/SKILL.md",
         description="Generate executive and technical alert investigation reports."
     ),
     "apt_threat_hunt_workflow": WorkflowDefinition(
         name="apt_threat_hunt_workflow",
         builder_func=build_apt_threat_hunt_workflow,
         rubric_type="THREAT_HUNTING",
-        runbook_path="rules-bank/run_books/apt_threat_hunt.md",
+        skill_path="skills/hunting/apt-threat-hunt/SKILL.md",
+        runbook_path="skills/hunting/apt-threat-hunt/SKILL.md",
         description="Hunt for advanced persistent threat campaign signatures and TTPs."
     ),
     "timeline_process_analysis_workflow": WorkflowDefinition(
         name="timeline_process_analysis_workflow",
         builder_func=build_timeline_process_analysis_workflow,
         rubric_type="REPORTING",
-        runbook_path="rules-bank/run_books/case_event_timeline_and_process_analysis.md",
+        skill_path="skills/investigation/case-event-timeline-analysis/SKILL.md",
+        runbook_path="skills/investigation/case-event-timeline-analysis/SKILL.md",
         description="Reconstruct event chronology and process ancestry trees."
     ),
     "case_report_workflow": WorkflowDefinition(
         name="case_report_workflow",
         builder_func=build_case_report_workflow,
         rubric_type="REPORTING",
-        runbook_path="rules-bank/run_books/case_report.md",
+        skill_path="skills/reporting/case-report/SKILL.md",
+        runbook_path="skills/reporting/case-report/SKILL.md",
         description="Generate standardized SOAR case incident report."
     ),
     "detection_as_code_tuning_workflow": WorkflowDefinition(
         name="detection_as_code_tuning_workflow",
         builder_func=build_detection_as_code_tuning_workflow,
         rubric_type="DETECTION_ENGINEERING",
-        runbook_path="rules-bank/run_books/detection_as_code_rule_tuning.md",
+        skill_path="skills/detection/detection-as-code-rule-tuning/SKILL.md",
+        runbook_path="skills/detection/detection-as-code-rule-tuning/SKILL.md",
         description="Refine and tune YARA-L rules in Git-driven CI/CD workflow."
     ),
     "detection_report_workflow": WorkflowDefinition(
         name="detection_report_workflow",
         builder_func=build_detection_report_workflow,
         rubric_type="REPORTING",
-        runbook_path="rules-bank/run_books/detection_report.md",
+        skill_path="skills/reporting/detection-report/SKILL.md",
+        runbook_path="skills/reporting/detection-report/SKILL.md",
         description="Produce metrics and efficacy summary for deployed detection rules."
     ),
     "group_cases_workflow": WorkflowDefinition(
         name="group_cases_workflow",
         builder_func=build_group_cases_workflow,
         rubric_type="TRIAGE_IRP",
-        runbook_path="rules-bank/run_books/group_cases.md",
+        skill_path="skills/investigation/group-cases/SKILL.md",
+        runbook_path="skills/investigation/group-cases/SKILL.md",
         description="Correlate related alerts and merge similar security cases."
     ),
     "investigate_gti_collection_workflow": WorkflowDefinition(
         name="investigate_gti_collection_workflow",
         builder_func=build_investigate_gti_collection_workflow,
         rubric_type="THREAT_HUNTING",
-        runbook_path="rules-bank/run_books/investigate_a_gti_collection_id.md",
+        skill_path="skills/investigation/investigate-gti-collection/SKILL.md",
+        runbook_path="skills/investigation/investigate-gti-collection/SKILL.md",
         description="Extract and evaluate IOCs from threat intelligence collection IDs."
     ),
     "ioc_threat_hunt_workflow": WorkflowDefinition(
         name="ioc_threat_hunt_workflow",
         builder_func=build_ioc_threat_hunt_workflow,
         rubric_type="THREAT_HUNTING",
-        runbook_path="rules-bank/run_books/ioc_threat_hunt.md",
+        skill_path="skills/hunting/ioc-threat-hunt/SKILL.md",
+        runbook_path="skills/hunting/ioc-threat-hunt/SKILL.md",
         description="Proactively search for IOC sightings across enterprise data lake."
     ),
     "post_incident_review_workflow": WorkflowDefinition(
         name="post_incident_review_workflow",
         builder_func=build_post_incident_review_workflow,
         rubric_type="THREAT_HUNTING",
-        runbook_path="rules-bank/run_books/post_incident_review.md",
+        skill_path="skills/reporting/report-writing-guidelines/SKILL.md",
+        runbook_path="skills/reporting/report-writing-guidelines/SKILL.md",
         description="Synthesize post-incident review lessons learned and improvement actions."
     ),
     "prioritize_investigate_case_workflow": WorkflowDefinition(
         name="prioritize_investigate_case_workflow",
         builder_func=build_prioritize_investigate_case_workflow,
         rubric_type="TRIAGE_IRP",
-        runbook_path="rules-bank/run_books/prioritize_and_investigate_a_case.md",
+        skill_path="skills/investigation/prioritize-and-investigate-case/SKILL.md",
+        runbook_path="skills/investigation/prioritize-and-investigate-case/SKILL.md",
         description="Prioritize incoming queue and orchestrate initial triage."
     ),
     "proactive_gti_threat_hunt_workflow": WorkflowDefinition(
         name="proactive_gti_threat_hunt_workflow",
         builder_func=build_proactive_gti_threat_hunt_workflow,
         rubric_type="THREAT_HUNTING",
-        runbook_path="rules-bank/run_books/proactive_threat_hunting_based_on_gti_campaign_or_actor.md",
+        skill_path="skills/hunting/proactive-hunt-gti-campaign/SKILL.md",
+        runbook_path="skills/hunting/proactive-hunt-gti-campaign/SKILL.md",
         description="Trigger proactive hunts based on newly disclosed GTI actor campaigns."
     ),
     "ueba_report_workflow": WorkflowDefinition(
         name="ueba_report_workflow",
         builder_func=build_ueba_report_workflow,
         rubric_type="REPORTING",
-        runbook_path="rules-bank/run_books/ueba_report.md",
+        skill_path="skills/reporting/report-writing-guidelines/SKILL.md",
+        runbook_path="skills/reporting/report-writing-guidelines/SKILL.md",
         description="Generate User & Entity Behavior Analytics anomaly report."
     ),
     "compromised_user_irp_workflow": WorkflowDefinition(
         name="compromised_user_irp_workflow",
         builder_func=build_compromised_user_irp_workflow,
         rubric_type="TRIAGE_IRP",
-        runbook_path="rules-bank/run_books/irps/compromised_user_account_response.md",
+        skill_path="skills/irps/compromised-user-account-response/SKILL.md",
+        runbook_path="skills/irps/compromised-user-account-response/SKILL.md",
         description="Execute credential invalidation and session termination IRP."
     ),
     "malware_irp_workflow": WorkflowDefinition(
         name="malware_irp_workflow",
         builder_func=build_malware_irp_workflow,
         rubric_type="TRIAGE_IRP",
-        runbook_path="rules-bank/run_books/irps/malware_incident_response.md",
+        skill_path="skills/irps/malware-incident-response/SKILL.md",
+        runbook_path="skills/irps/malware-incident-response/SKILL.md",
         description="Contain malware outbreak, kill malicious processes, and isolate host."
     ),
     "phishing_irp_workflow": WorkflowDefinition(
         name="phishing_irp_workflow",
         builder_func=build_phishing_irp_workflow,
         rubric_type="TRIAGE_IRP",
-        runbook_path="rules-bank/run_books/irps/phishing_response.md",
+        skill_path="skills/irps/phishing-response/SKILL.md",
+        runbook_path="skills/irps/phishing-response/SKILL.md",
         description="Purge malicious email messages, block sender, and reset recipient credentials."
     ),
     "ransomware_irp_workflow": WorkflowDefinition(
         name="ransomware_irp_workflow",
         builder_func=build_ransomware_irp_workflow,
         rubric_type="TRIAGE_IRP",
-        runbook_path="rules-bank/run_books/irps/ransomware_response.md",
+        skill_path="skills/irps/ransomware-response/SKILL.md",
+        runbook_path="skills/irps/ransomware-response/SKILL.md",
         description="Emergency ransomware containment, network segmentation, and backup audit."
     ),
     "demo_soc_t2_workflow": WorkflowDefinition(
         name="demo_soc_t2_workflow",
         builder_func=build_demo_soc_t2_workflow,
         rubric_type="TRIAGE_IRP",
-        runbook_path="rules-bank/run_books/demo_soc_t2_soar_runbook.md",
+        skill_path="skills/triage/triage-alerts/SKILL.md",
+        runbook_path="skills/triage/triage-alerts/SKILL.md",
         description="Demonstration tier 2 triage and enrichment sequence."
     ),
     "group_cases_v2_workflow": WorkflowDefinition(
         name="group_cases_v2_workflow",
         builder_func=build_group_cases_v2_workflow,
         rubric_type="TRIAGE_IRP",
-        runbook_path="rules-bank/run_books/group_cases_v2.md",
+        skill_path="skills/investigation/group-cases-v2/SKILL.md",
+        runbook_path="skills/investigation/group-cases-v2/SKILL.md",
         description="Advanced entity clustering and case de-duplication v2."
     ),
     "metaanalysis_workflow": WorkflowDefinition(
         name="metaanalysis_workflow",
         builder_func=build_metaanalysis_workflow,
         rubric_type="THREAT_HUNTING",
-        runbook_path="rules-bank/run_books/metaanalysis.md",
+        skill_path="skills/hunting/advanced-threat-hunting/SKILL.md",
+        runbook_path="skills/hunting/advanced-threat-hunting/SKILL.md",
         description="Perform meta-analysis on recurring security trends and systemic gaps."
     ),
 }
+
+_SKILL_REGISTRY: Optional[SkillRegistry] = None
+
+
+def get_skill_registry() -> SkillRegistry:
+    """Get or initialize the global SkillRegistry instance."""
+    global _SKILL_REGISTRY
+    if _SKILL_REGISTRY is None:
+        skills_dir = REPO_ROOT / "skills"
+        _SKILL_REGISTRY = SkillRegistry(skills_dir=skills_dir)
+    return _SKILL_REGISTRY
+
+
+def load_skill(skill_name: str) -> str:
+    """
+    Retrieve skill markdown instructions by name or path for evaluation inspection.
+    """
+    registry = get_skill_registry()
+    return registry.get_skill_content(skill_name)
 
 
 def get_workflow_definition(name: str) -> Optional[WorkflowDefinition]:
@@ -467,9 +530,6 @@ def _execute_workflow_dag(
         return inp_obj
 
     # Build transitions lookup
-    # linear_steps: list of node lists from multi-node tuples
-    # router_map: Dict[node_func, Dict[route_name, branch_func]]
-    # fanin_map: Dict[src_node, target_node]
     router_map: Dict[Any, Dict[str, Any]] = {}
     fanin_map: Dict[Any, Any] = {}
     linear_chains: List[List[Any]] = []

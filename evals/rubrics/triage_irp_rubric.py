@@ -1,7 +1,7 @@
 """
 Triage & Incident Response Plan (IRP) Runbook Rubric (100 Points Total).
 Applied to Compromised User Account, Malware, Ransomware, Phishing, Endpoint Triage, and Alert Triage workflows.
-Derived from rules-bank/run_books/irps/compromised_user_account_response.md and rules-bank/run_books/triage_alerts.md.
+Derived from skills/irps/compromised-user-account-response/SKILL.md and skills/triage/triage-alerts/SKILL.md.
 """
 
 from typing import Any, Dict, List

@@ -2,7 +2,7 @@
 Threat Hunting & Deep Analysis Runbook Rubric (100 Points Total).
 Applied to Advanced Threat Hunting, APT Threat Hunt, IOC Threat Hunt,
 Credential Access Hunt, Lateral Movement Hunt, and Proactive GTI Threat Hunts.
-Derived from rules-bank/run_books/ioc_threat_hunt.md and rules-bank/run_books/advanced_threat_hunting.md.
+Derived from skills/hunting/ioc-threat-hunt/SKILL.md and skills/hunting/advanced-threat-hunting/SKILL.md.
 """
 
 from typing import Any, Dict, List

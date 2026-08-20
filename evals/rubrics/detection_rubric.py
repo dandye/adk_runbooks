@@ -1,7 +1,7 @@
 """
 Detection Engineering Runbook Rubric (100 Points Total).
 Applied to Detection Rule Validation & Tuning, Detection As Code Workflows, and Rule Development.
-Derived from rules-bank/run_books/detection_rule_validation_tuning.md.
+Derived from skills/detection/detection-rule-validation-tuning/SKILL.md.
 """
 
 from typing import Any, Dict, List

@@ -2,8 +2,11 @@
 Unit tests for workflow registry and execution adapter.
 """
 
+from pathlib import Path
 import unittest
-from evals.registry import WORKFLOW_REGISTRY, get_workflow_definition, execute_workflow_sync
+from evals.registry import WORKFLOW_REGISTRY, get_workflow_definition, execute_workflow_sync, load_skill
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class TestRegistry(unittest.TestCase):
@@ -15,6 +18,20 @@ class TestRegistry(unittest.TestCase):
         self.assertIn("alert_report_workflow", WORKFLOW_REGISTRY)
         self.assertIn("compromised_user_irp_workflow", WORKFLOW_REGISTRY)
         self.assertIn("detection_rule_validation_workflow", WORKFLOW_REGISTRY)
+
+        # Verify each workflow definition has valid skill_path and runbook_path
+        for name, wf_def in WORKFLOW_REGISTRY.items():
+            self.assertTrue(wf_def.skill_path, f"Workflow {name} missing skill_path")
+            self.assertTrue(wf_def.runbook_path, f"Workflow {name} missing runbook_path")
+            self.assertTrue(wf_def.skill_path.startswith("skills/"))
+            self.assertTrue((REPO_ROOT / wf_def.skill_path).exists(), f"Skill file {wf_def.skill_path} does not exist")
+            self.assertNotIn("rules-bank/run_books", wf_def.skill_path)
+
+    def test_registry_load_skill(self):
+        content = load_skill("suspicious-login-triage")
+        self.assertIsNotNone(content)
+        self.assertNotIn("Error:", content)
+        self.assertIn("suspicious-login-triage", content)
 
     def test_execute_suspicious_login_sync(self):
         wf_def = get_workflow_definition("suspicious_login_workflow")

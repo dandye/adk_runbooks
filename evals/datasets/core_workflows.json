@@ -3,7 +3,7 @@
     "test_id": "TEST-CORE-SUSP-LOGIN-001",
     "workflow_name": "suspicious_login_workflow",
     "description": "Evaluate low-risk internal IP authentication triage.",
-    "runbook_reference": "rules-bank/run_books/suspicious_login_triage.md",
+    "runbook_reference": "skills/triage/suspicious-login-triage/SKILL.md",
     "rubric_type": "TRIAGE_IRP",
     "input": {
       "case_id": "CASE-1001",
@@ -30,13 +30,14 @@
         "Benign"
       ]
     },
-    "min_passing_score": 80.0
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/triage/suspicious-login-triage/SKILL.md"
   },
   {
     "test_id": "TEST-CORE-SUSP-LOGIN-002",
     "workflow_name": "suspicious_login_workflow",
     "description": "Evaluate high-risk external IP authentication triage.",
-    "runbook_reference": "rules-bank/run_books/suspicious_login_triage.md",
+    "runbook_reference": "skills/triage/suspicious-login-triage/SKILL.md",
     "rubric_type": "TRIAGE_IRP",
     "input": {
       "case_id": "CASE-9002",
@@ -63,13 +64,14 @@
         "Escalate"
       ]
     },
-    "min_passing_score": 80.0
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/triage/suspicious-login-triage/SKILL.md"
   },
   {
     "test_id": "TEST-CORE-MALWARE-001",
     "workflow_name": "malware_triage_workflow",
     "description": "Evaluate malicious file hash detection and host containment.",
-    "runbook_reference": "rules-bank/run_books/malware_triage.md",
+    "runbook_reference": "skills/triage/malware-triage/SKILL.md",
     "rubric_type": "TRIAGE_IRP",
     "input": {
       "case_id": "CASE-MAL-404",
@@ -95,13 +97,14 @@
         "Isolate"
       ]
     },
-    "min_passing_score": 80.0
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/triage/malware-triage/SKILL.md"
   },
   {
     "test_id": "TEST-CORE-IOC-ENRICH-001",
     "workflow_name": "basic_ioc_enrichment_workflow",
     "description": "Evaluate threat intelligence domain enrichment and risk routing.",
-    "runbook_reference": "rules-bank/run_books/basic_ioc_enrichment.md",
+    "runbook_reference": "skills/investigation/basic-ioc-enrichment/SKILL.md",
     "rubric_type": "TRIAGE_IRP",
     "input": {
       "case_id": "CASE-IOC-777",
@@ -128,13 +131,14 @@
         "Phishing"
       ]
     },
-    "min_passing_score": 80.0
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/investigation/basic-ioc-enrichment/SKILL.md"
   },
   {
     "test_id": "TEST-CORE-ENDPOINT-001",
     "workflow_name": "endpoint_triage_workflow",
     "description": "Evaluate host compromise likelihood assessment and network isolation.",
-    "runbook_reference": "rules-bank/run_books/basic_endpoint_triage_isolation.md",
+    "runbook_reference": "skills/triage/basic-endpoint-triage-isolation/SKILL.md",
     "rubric_type": "TRIAGE_IRP",
     "input": {
       "case_id": "CASE-END-505",
@@ -161,13 +165,14 @@
         "Endpoint"
       ]
     },
-    "min_passing_score": 80.0
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/triage/basic-endpoint-triage-isolation/SKILL.md"
   },
   {
     "test_id": "TEST-CORE-CONTAINMENT-001",
     "workflow_name": "ioc_containment_workflow",
     "description": "Evaluate IP reputation verification and perimeter firewall block.",
-    "runbook_reference": "rules-bank/run_books/ioc_containment.md",
+    "runbook_reference": "skills/investigation/ioc-containment/SKILL.md",
     "rubric_type": "TRIAGE_IRP",
     "input": {
       "case_id": "CASE-CNT-303",
@@ -193,13 +198,14 @@
         "Containment"
       ]
     },
-    "min_passing_score": 80.0
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/investigation/ioc-containment/SKILL.md"
   },
   {
     "test_id": "TEST-CORE-CASE-REPORT-001",
     "workflow_name": "case_report_workflow",
     "description": "Evaluate comprehensive case report generation and synthesis.",
-    "runbook_reference": "rules-bank/run_books/case_report.md",
+    "runbook_reference": "skills/reporting/case-report/SKILL.md",
     "rubric_type": "REPORTING",
     "input": {
       "case_id": "33279",
@@ -223,13 +229,14 @@
         "Case Report"
       ]
     },
-    "min_passing_score": 80.0
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/reporting/case-report/SKILL.md"
   },
   {
     "test_id": "TEST-CORE-ALERT-REPORT-001",
     "workflow_name": "alert_report_workflow",
     "description": "Evaluate critical severity alert investigation reporting.",
-    "runbook_reference": "rules-bank/run_books/alert_report.md",
+    "runbook_reference": "skills/reporting/alert-report/SKILL.md",
     "rubric_type": "REPORTING",
     "input": {
       "alert_id": "de_4ee5885c",
@@ -254,13 +261,14 @@
         "AvosLocker"
       ]
     },
-    "min_passing_score": 80.0
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/reporting/alert-report/SKILL.md"
   },
   {
     "test_id": "TEST-CORE-COMPROMISED-USER-001",
     "workflow_name": "compromised_user_irp_workflow",
     "description": "Evaluate privileged user account compromise response IRP.",
-    "runbook_reference": "rules-bank/run_books/irps/compromised_user_account_response.md",
+    "runbook_reference": "skills/irps/compromised-user-account-response/SKILL.md",
     "rubric_type": "TRIAGE_IRP",
     "input": {
       "case_id": "33284",
@@ -285,13 +293,14 @@
         "Revoked"
       ]
     },
-    "min_passing_score": 80.0
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/irps/compromised-user-account-response/SKILL.md"
   },
   {
     "test_id": "TEST-CORE-DETECTION-RULE-001",
     "workflow_name": "detection_rule_validation_workflow",
     "description": "Evaluate YARA-L rule syntax, historical telemetry, and FP rate validation.",
-    "runbook_reference": "rules-bank/run_books/detection_rule_validation_tuning.md",
+    "runbook_reference": "skills/detection/detection-rule-validation-tuning/SKILL.md",
     "rubric_type": "DETECTION_ENGINEERING",
     "input": {
       "rule_id": "ru_bfc779f0",
@@ -316,6 +325,7 @@
         "DEPLOY_PRODUCTION"
       ]
     },
-    "min_passing_score": 80.0
+    "min_passing_score": 80.0,
+    "skill_reference": "skills/detection/detection-rule-validation-tuning/SKILL.md"
   }
 ]
