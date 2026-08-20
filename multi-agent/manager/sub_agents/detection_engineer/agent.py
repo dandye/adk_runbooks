@@ -20,6 +20,7 @@ def get_agent(tools):
   BASE_DIR = Path(__file__).resolve().parent
   persona_file_path = (BASE_DIR / "../../../../rules-bank/personas/detection_engineer.md").resolve()
   skills = [
+      "detection-engineering-coverage-evaluation",
       "detection-rule-validation-tuning",
       "detection-as-code-workflows",
       "detection-report",

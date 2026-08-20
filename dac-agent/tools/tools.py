@@ -619,6 +619,8 @@ async def get_dac_agent_tools():
                     "--directory",
                     str(mcp_security_path / "server" / "secops-soar" / "secops_soar_mcp"),
                     "run",
+                    "--with",
+                    "mcp<2.0.0",
                     "--env-file",
                     str(mcp_security_path / ".env"),
                     "server.py",
@@ -627,7 +629,8 @@ async def get_dac_agent_tools():
                 ],
             ),
             timeout=TIMEOUT,
-        )
+        ),
+        tool_name_prefix="soar-mcp",
     )
 
     # SIEM MCP Server for rule validation and event analysis
@@ -639,13 +642,16 @@ async def get_dac_agent_tools():
                     "--directory",
                     str(mcp_security_path / "server" / "secops" / "secops_mcp"),
                     "run",
+                    "--with",
+                    "mcp<2.0.0",
                     "--env-file",
                     str(mcp_security_path / ".env"),
                     "server.py"
                 ],
             ),
             timeout=TIMEOUT,
-        )
+        ),
+        tool_name_prefix="secops-mcp",
     )
 
     # GTI MCP Server for threat intelligence context
@@ -657,6 +663,8 @@ async def get_dac_agent_tools():
                     "--directory",
                     str(mcp_security_path / "server" / "gti" / "gti_mcp"),
                     "run",
+                    "--with",
+                    "mcp<2.0.0",
                     "--refresh",
                     "--env-file",
                     str(mcp_security_path / ".env"),
@@ -664,23 +672,68 @@ async def get_dac_agent_tools():
                 ],
             ),
             timeout=TIMEOUT,
-        )
+        ),
+        tool_name_prefix="gti-mcp",
     )
+
+    # 1P Google SecOps MCP Server for Agentic Detection Engineering
+    # (TDO generation, synthetic events, rule coverage, rule generation)
+    secops_1p_toolset = None
+    try:
+        import google.auth
+        from google.auth.transport.requests import Request
+        from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnectionParams
+
+        creds, _ = google.auth.default(scopes=[
+            "https://www.googleapis.com/auth/cloud-platform",
+            "https://www.googleapis.com/auth/chronicle",
+        ])
+        creds.refresh(Request())
+        region = os.environ.get("CHRONICLE_REGION", "us")
+        endpoint_url = os.environ.get(
+            "CHRONICLE_MCP_ENDPOINT",
+            f"https://chronicle.{region}.rep.googleapis.com/mcp",
+        )
+        project_id = os.environ.get("CHRONICLE_PROJECT_ID", os.environ.get("GOOGLE_CLOUD_PROJECT", ""))
+        headers = {
+            "Authorization": f"Bearer {creds.token}",
+            "x-goog-user-project": project_id,
+            "Content-Type": "application/json",
+        }
+        secops_1p_toolset = MCPToolset(
+            connection_params=StreamableHTTPConnectionParams(
+                url=endpoint_url,
+                headers=headers,
+                timeout=TIMEOUT,
+            ),
+            tool_name_prefix="secops-1p",
+        )
+    except Exception as e:
+        print(f"Warning: Could not initialize 1P Google SecOps MCP toolset: {e}")
 
     # Register toolsets into global_mcp_registry
     global_mcp_registry.register_mcp_toolset(soar_toolset, server_name="soar")
     global_mcp_registry.register_mcp_toolset(siem_toolset, server_name="siem")
     global_mcp_registry.register_mcp_toolset(gti_toolset, server_name="gti")
+    if secops_1p_toolset:
+        global_mcp_registry.register_mcp_toolset(secops_1p_toolset, server_name="secops_1p")
 
     # Register toolsets for cleanup
     common_exit_stack.push_async_callback(soar_toolset.close)
     common_exit_stack.push_async_callback(siem_toolset.close)
     common_exit_stack.push_async_callback(gti_toolset.close)
+    if secops_1p_toolset:
+        common_exit_stack.push_async_callback(secops_1p_toolset.close)
 
-    return (
+    tool_list = [
         soar_toolset,
         siem_toolset,
         gti_toolset,
+    ]
+    if secops_1p_toolset:
+        tool_list.append(secops_1p_toolset)
+
+    tool_list.extend([
         get_current_time,
         write_report,
         git_create_branch,
@@ -694,4 +747,6 @@ async def get_dac_agent_tools():
         search_mcp_tools,
         get_mcp_tool_schema,
         execute_mcp_tool,
-    ), common_exit_stack
+    ])
+
+    return tuple(tool_list), common_exit_stack
