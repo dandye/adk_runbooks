@@ -1,0 +1,186 @@
+---
+name: detection-rule-validation-tuning
+description: Use when validating detection rule performance, reducing false positives, and tuning logic.
+category: detection
+version: 1.0.0
+---
+
+# Detection Rule Validation & Tuning Runbook
+
+## Objective
+
+Analyze the performance and effectiveness of an existing SIEM detection rule, identify potential false positives/negatives, and propose tuning recommendations. Suitable for Tier 3 Analysts or Detection Engineers.
+
+## Scope
+
+This runbook covers the analysis of a single detection rule's historical performance and logic to suggest improvements. It does not cover the implementation of the tuning changes, which would typically be handled by Security Engineering.
+
+## Inputs
+
+*   `${RULE_ID}`: The unique identifier or name of the SIEM detection rule to analyze.
+*   *(Optional) `${ANALYSIS_TIMEFRAME_DAYS}`: How many days of historical alert data to analyze (default: 90).*
+*   *(Optional) `${REASON_FOR_REVIEW}`: Why this rule is being reviewed (e.g., high alert volume, missed detection in incident, periodic review).*
+*   *(Optional) `${REVIEW_CASE_ID}`: A SOAR case ID dedicated to tracking this review.*
+
+## Tools
+
+*   `secops-mcp`: `list_security_rules`, `search_security_events`, `get_security_alerts`, `lookup_entity`.
+*   `secops-soar`: `get_case_full_details`, `list_alerts_by_case`, `list_events_by_alert`, `post_case_comment`.
+*   `gti-mcp`: Various tools (`get_file_report`, `get_ip_address_report`, etc.) for enriching entities involved in true/false positive alerts.
+*   *(External Resources: MITRE ATT&CK, threat intelligence reports relevant to the rule's intent).*
+
+## Workflow Steps & Diagram
+
+1.  **Define Scope & Context:** Obtain `${RULE_ID}`, `${ANALYSIS_TIMEFRAME_DAYS}`, `${REASON_FOR_REVIEW}`, and `${REVIEW_CASE_ID}`. Document the rule's intended purpose and the TTPs/threats it aims to detect.
+2.  **Retrieve Rule Logic:**
+    *   Use `secops-mcp_list_security_rules` filtering by `${RULE_ID}` (or similar mechanism) to get the current rule definition (e.g., YARA-L code).
+    *   *(Alternatively, use `soar-mcp_google_chronicle_get_rule_details` if applicable and provides more detailed logic).*
+    *   Analyze the logic: understand the event fields, conditions, thresholds, and exceptions.
+3.  **Analyze Historical Alerts:**
+    *   Use `secops-mcp_get_security_alerts` or `secops-mcp_search_security_events` (querying for `metadata.rule_id = "${RULE_ID}"` or similar) covering the `${ANALYSIS_TIMEFRAME_DAYS}`.
+    *   Gather statistics: total alert count, alert severity distribution, associated SOAR case statuses (True Positive, False Positive, Benign Positive, etc. - requires analyzing linked cases).
+4.  **Analyze Underlying Events (Sampling):**
+    *   **False Positives:** Select a representative sample of alerts closed as False Positive (FP). For each, retrieve associated events (`soar-mcp_list_events_by_alert` or `secops-mcp_search_security_events`). Analyze why the rule triggered incorrectly. Look for common patterns in FPs (specific applications, user groups, network segments).
+    *   **True Positives:** Select a sample of confirmed True Positive (TP) alerts. Retrieve associated events. Verify the rule logic correctly identified the malicious activity.
+    *   **Benign Positives (Optional):** Analyze alerts closed as Benign Positive (e.g., authorized vulnerability scan triggering a rule). Determine if exceptions are needed.
+5.  **Enrich Key Entities:**
+    *   For entities (users, hosts, IPs, files) involved in both TP and FP sample events, use `secops-mcp_lookup_entity` and `gti-mcp` tools to gather context and reputation information.
+6.  **Identify Potential False Negatives (Hypothesis-Based):**
+    *   Based on the rule's intent, threat intelligence, and knowledge of related incidents:
+        *   Formulate hypotheses about variations of the targeted activity the current rule logic might miss.
+        *   Develop specific `secops-mcp_search_security_events` queries to search for evidence of these variations within the analysis timeframe.
+    *   Analyze search results. If evidence of missed detections is found, document the specific event characteristics.
+7.  **Synthesize Findings & Propose Tuning:**
+    *   Summarize the rule's performance (alert volume, TP/FP ratio).
+    *   Detail the root causes of common false positives.
+    *   Document any identified false negative scenarios.
+    *   Propose specific changes to the rule logic:
+        *   Adding/refining exceptions (e.g., specific process paths, usernames, IP ranges).
+        *   Adjusting thresholds or time windows.
+        *   Changing or adding event fields/conditions.
+        *   Splitting the rule into multiple, more specific rules.
+8.  **Document Recommendations:**
+    *   Record the complete analysis, findings, and specific tuning recommendations in the `${REVIEW_CASE_ID}` using `soar-mcp_post_case_comment` or in a dedicated report. Clearly state the expected impact of the proposed changes.
+9.  **Handover:** Assign the case/report to the Security Engineering team for implementation and testing of the proposed tuning changes.
+10. **Completion:** Conclude the runbook execution.
+
+### ADK Graph-Based Workflow Diagram
+
+```{mermaid}
+graph TD
+    START(["START"]) --> extract_rule_payload_node["1. extract_rule_payload_node<br/><i>(Extract YARA-L Rule Payload)</i>"]
+    extract_rule_payload_node --> validate_yara_l_rule_node["2. validate_yara_l_rule_node<br/><i>(Historical Validation & Syntax Check)</i>"]
+    validate_yara_l_rule_node --> rule_tuning_router{"3. rule_tuning_router<br/><i>(Event.actions.route)</i>"}
+
+    rule_tuning_router -- "REJECT_COMPILATION_ERROR" --> handle_reject_syntax_branch["4a. handle_reject_syntax_branch<br/><i>(Reject Syntax / Compilation Error)</i>"]
+    rule_tuning_router -- "TUNE_FILTER_FP" --> handle_tune_fp_branch["4b. handle_tune_fp_branch<br/><i>(Apply Noise & FP Exclusions)</i>"]
+    rule_tuning_router -- "DEPLOY_PRODUCTION" --> handle_deploy_prod_branch["4c. handle_deploy_prod_branch<br/><i>(Deploy to Production)</i>"]
+
+    handle_reject_syntax_branch --> document_rule_report_node["5. document_rule_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
+    handle_tune_fp_branch --> document_rule_report_node
+    handle_deploy_prod_branch --> document_rule_report_node
+```
+
+### Sequence Diagram
+
+```{mermaid}
+sequenceDiagram
+    participant Analyst/Engineer
+    participant AutomatedAgent as Automated Agent (MCP Client)
+    participant SIEM as secops-mcp
+    participant SOAR as secops-soar
+    participant GTI as gti-mcp
+    participant SecEng as Security Engineering
+
+    Analyst/Engineer->>AutomatedAgent: Start Rule Validation & Tuning\nInput: RULE_ID, TIMEFRAME_DAYS, REASON, REVIEW_CASE_ID (opt)
+
+    %% Step 1: Define Scope
+    Note over AutomatedAgent: Document Rule Intent, TTPs, Case ID.
+
+    %% Step 2: Retrieve Rule Logic
+    AutomatedAgent->>SIEM: list_security_rules(filter=RULE_ID)
+    SIEM-->>AutomatedAgent: Rule Definition/Logic
+    Note over AutomatedAgent: Analyze rule logic
+
+    %% Step 3: Analyze Historical Alerts
+    AutomatedAgent->>SIEM: get_security_alerts(rule_id=RULE_ID, hours_back=TIMEFRAME_DAYS*24)
+    SIEM-->>AutomatedAgent: Historical Alerts List
+    Note over AutomatedAgent: Analyze alert volume, severity, associated case statuses (TP/FP)
+
+    %% Step 4: Analyze Underlying Events (Sampling)
+    Note over AutomatedAgent: Select sample FP alerts
+    loop For each Sample FP Alert FPi
+        AutomatedAgent->>SOAR: list_events_by_alert(case_id=..., alert_id=FPi) %% Or SIEM search
+        SOAR-->>AutomatedAgent: Events for FPi
+        Note over AutomatedAgent: Analyze why rule triggered incorrectly
+    end
+    Note over AutomatedAgent: Select sample TP alerts
+    loop For each Sample TP Alert TPi
+        AutomatedAgent->>SOAR: list_events_by_alert(case_id=..., alert_id=TPi) %% Or SIEM search
+        SOAR-->>AutomatedAgent: Events for TPi
+        Note over AutomatedAgent: Verify rule logic worked correctly
+    end
+
+    %% Step 5: Enrich Key Entities
+    Note over AutomatedAgent: Identify key entities from sample events
+    loop For each Key Entity Ei
+        AutomatedAgent->>SIEM: lookup_entity(entity_value=Ei)
+        SIEM-->>AutomatedAgent: SIEM Summary for Ei
+        AutomatedAgent->>GTI: get_..._report(ioc=Ei)
+        GTI-->>AutomatedAgent: GTI Report for Ei
+    end
+
+    %% Step 6: Identify Potential False Negatives
+    Note over AutomatedAgent: Formulate FN hypotheses based on rule intent & TI
+    loop For each FN Hypothesis Hi
+        Note over AutomatedAgent: Develop SIEM query Qi for Hi
+        AutomatedAgent->>SIEM: search_security_events(text=Qi, hours_back=...)
+        SIEM-->>AutomatedAgent: Search Results for Qi
+        Note over AutomatedAgent: Analyze if rule should have triggered but didn't
+    end
+
+    %% Step 7: Synthesize Findings & Propose Tuning
+    Note over AutomatedAgent: Summarize performance, FP causes, FN scenarios
+    Note over AutomatedAgent: Formulate specific tuning recommendations (logic changes)
+
+    %% Step 8 & 9: Document & Handover
+    AutomatedAgent->>SOAR: post_case_comment(case_id=REVIEW_CASE_ID, comment="Rule Review Summary (RULE_ID): Performance [...], FP Analysis [...], FN Analysis [...], Tuning Recommendations: [...]")
+    SOAR-->>AutomatedAgent: Comment Confirmation
+    Note over AutomatedAgent: Assign case/report to Security Engineering
+
+    %% Step 10: Completion
+    AutomatedAgent->>Analyst/Engineer: attempt_completion(result="Detection Rule Validation & Tuning complete for RULE_ID. Recommendations documented and handed over.")
+
+## Rubrics
+
+The following rubric is used to evaluate the execution of this **Detection Engineering** runbook by an LLM agent.
+
+### Grading Scale (0-100 Points)
+
+| Criteria | Points | Description |
+| :--- | :--- | :--- |
+| **Requirement Analysis** | 20 | Correctly understood the detection requirement or validation goal. |
+| **Technical Implementation** | 30 | Correctly implemented/validated the rule logic or workflow. |
+| **Validation & Testing** | 20 | Performed adequate testing to ensure effectiveness and minimize FPs. |
+| **Git/Process Compliance** | 15 | Followed proper Git workflows and version control practices. |
+| **Operational Artifacts** | 15 | Produced required artifacts: Sequence diagram, execution metadata (date/cost), and summary. |
+
+### Evaluation Criteria Details
+
+#### 1. Requirement Analysis (20 Points)
+- **20 pts**: Accurately identified the scope of the detection change or validation task.
+
+#### 2. Technical Implementation (30 Points)
+- **15 pts**: Generated or modified the code/YAML with correct syntax.
+- **15 pts**: Logic accurately addresses the requirement.
+
+#### 3. Validation & Testing (20 Points)
+- **20 pts**: Executed validation tools or test cases to verify the change.
+
+#### 4. Git/Process Compliance (15 Points)
+- **15 pts**: Created branches, commits, and PRs according to standards.
+
+#### 5. Operational Artifacts (15 Points)
+- **5 pts**: **Sequence Diagram**: Produced a Mermaid sequence diagram visualizing the steps taken.
+- **5 pts**: **Execution Metadata**: Recorded the date, duration, and estimated token cost.
+- **5 pts**: **Summary Report**: Generated a concise summary of the actions and outcomes.
