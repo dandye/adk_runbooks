@@ -1,8 +1,14 @@
 ---
 name: user-search-process-activity-chronicle
-description: Use when searching Chronicle endpoint logs for process launches initiated by a specific user.
+description: Use when searching Chronicle endpoint logs for process launches initiated
+  by a specific user.
 category: atomic
 version: 1.0.0
+type: Skill
+title: 'Skill: Atomic Runbook: Search User Process Activity in Chronicle'
+generated:
+  by: process:google-labs-jules
+  at: '2026-08-20T02:00:00Z'
 ---
 
 # Atomic Runbook: Search User Process Activity in Chronicle

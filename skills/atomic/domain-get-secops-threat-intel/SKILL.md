@@ -1,8 +1,14 @@
 ---
 name: domain-get-secops-threat-intel
-description: Use when retrieving Chronicle SecOps threat intelligence and IOC matches for a domain.
+description: Use when retrieving Chronicle SecOps threat intelligence and IOC matches
+  for a domain.
 category: atomic
 version: 1.0.0
+type: Skill
+title: 'Skill: Atomic Runbook: Get Domain Threat Intel via SecOps MCP'
+generated:
+  by: process:google-labs-jules
+  at: '2026-08-20T02:00:00Z'
 ---
 
 # Atomic Runbook: Get Domain Threat Intel via SecOps MCP

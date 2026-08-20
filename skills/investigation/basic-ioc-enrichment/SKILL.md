@@ -1,8 +1,14 @@
 ---
 name: basic-ioc-enrichment
-description: Use when conducting initial reputation and threat intelligence lookups on suspicious observables.
+description: Use when conducting initial reputation and threat intelligence lookups
+  on suspicious observables.
 category: investigation
 version: 1.0.0
+type: Skill
+title: 'Skill: Basic IOC Enrichment Runbook'
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20 22:04:42-05:00
 ---
 
 # Basic IOC Enrichment Runbook

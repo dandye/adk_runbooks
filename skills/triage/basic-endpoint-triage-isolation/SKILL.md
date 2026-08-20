@@ -1,8 +1,14 @@
 ---
 name: basic-endpoint-triage-isolation
-description: Use when performing initial host-level triage and executing endpoint isolation procedures.
+description: Use when performing initial host-level triage and executing endpoint
+  isolation procedures.
 category: triage
 version: 1.0.0
+type: Skill
+title: 'Skill: Basic Endpoint Triage & Isolation Runbook'
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20 22:04:42-05:00
 ---
 
 # Basic Endpoint Triage & Isolation Runbook

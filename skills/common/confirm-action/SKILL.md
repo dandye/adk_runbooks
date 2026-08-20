@@ -1,8 +1,14 @@
 ---
 name: confirm-action
-description: Use when requesting human operator confirmation before disruptive remediation actions.
+description: Use when requesting human operator confirmation before disruptive remediation
+  actions.
 category: common
 version: 1.0.0
+type: Skill
+title: 'Skill: Common Step: Confirm Action with User'
+generated:
+  by: human:dandye
+  at: 2025-05-19 16:11:00-04:00
 ---
 
 # Common Step: Confirm Action with User

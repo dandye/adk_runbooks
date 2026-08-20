@@ -1,8 +1,14 @@
 ---
 name: lateral-movement-hunt-psexec-wmi
-description: Use when hunting for lateral movement via PsExec, WMI, remote scheduled tasks, or WinRM.
+description: Use when hunting for lateral movement via PsExec, WMI, remote scheduled
+  tasks, or WinRM.
 category: hunting
 version: 1.0.0
+type: Skill
+title: 'Skill: Lateral Movement Detection Hunt (Example: PsExec/WMI)'
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20 22:04:42-05:00
 ---
 
 # Lateral Movement Detection Hunt (Example: PsExec/WMI)

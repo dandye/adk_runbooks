@@ -3,6 +3,11 @@ name: url-get-gti-report
 description: Use when retrieving GTI threat classification and URL category intelligence.
 category: atomic
 version: 1.0.0
+type: Skill
+title: 'Skill: Atomic Runbook: Get URL Reputation from GTI'
+generated:
+  by: process:google-labs-jules
+  at: '2026-08-20T02:00:00Z'
 ---
 
 # Atomic Runbook: Get URL Reputation from GTI

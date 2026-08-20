@@ -1,8 +1,14 @@
 ---
 name: group-cases
-description: Use when clustering related security cases by common entities, campaigns, or alert types.
+description: Use when clustering related security cases by common entities, campaigns,
+  or alert types.
 category: investigation
 version: 1.0.0
+type: Skill
+title: 'Skill: Group Cases Workflow'
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20 22:04:42-05:00
 ---
 
 # Group Cases Workflow

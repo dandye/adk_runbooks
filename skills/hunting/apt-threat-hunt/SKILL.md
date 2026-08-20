@@ -1,8 +1,14 @@
 ---
 name: apt-threat-hunt
-description: Use when hunting for advanced persistent threat (APT) actor activity, tools, and infrastructure.
+description: Use when hunting for advanced persistent threat (APT) actor activity,
+  tools, and infrastructure.
 category: hunting
 version: 1.0.0
+type: Skill
+title: 'Skill: APT Threat Hunt'
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20 22:04:42-05:00
 ---
 
 # Runbook: APT Threat Hunt

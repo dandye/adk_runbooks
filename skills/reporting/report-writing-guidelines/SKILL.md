@@ -1,8 +1,14 @@
 ---
 name: report-writing-guidelines
-description: Use when structuring, formatting, and refining professional cybersecurity incident reports.
+description: Use when structuring, formatting, and refining professional cybersecurity
+  incident reports.
 category: reporting
 version: 1.0.0
+type: Skill
+title: 'Skill: Report Writing Guidelines & Template'
+generated:
+  by: process:google-labs-jules
+  at: '2026-08-20T02:00:00Z'
 ---
 
 # Runbook: Report Writing Guidelines & Template

@@ -137,8 +137,20 @@ def test_every_skill_metadata_and_content_validity():
         assert meta.description.startswith("Use when"), f"Skill {skill_name} description must start with 'Use when', got: '{meta.description}'"
         assert len(meta.description) <= 250, f"Skill {skill_name} description must be concise (< 250 chars), got {len(meta.description)}"
 
+        # Validate OKF Frontmatter attributes directly from the file
+        import yaml, re
+        raw_text = meta.path.read_text(encoding="utf-8")
+        match = re.match(r"^---\s*\n(.*?)\n---\s*\n(.*)$", raw_text, re.DOTALL)
+        assert match, f"Skill {skill_name} missing frontmatter fence"
+        parsed_yaml = yaml.safe_load(match.group(1))
+        assert parsed_yaml.get("type") == "Skill", f"Skill {skill_name} type must be 'Skill', got '{parsed_yaml.get('type')}'"
+        assert parsed_yaml.get("title", "").startswith("Skill:"), f"Skill {skill_name} title must start with 'Skill:', got '{parsed_yaml.get('title')}'"
+        assert "generated" in parsed_yaml and isinstance(parsed_yaml["generated"], dict), f"Skill {skill_name} missing OKF generated metadata"
+        assert "by" in parsed_yaml["generated"] and "at" in parsed_yaml["generated"], f"Skill {skill_name} invalid generated block"
+
         # Content must be non-empty and contain markdown headers
         content = registry.get_skill_content(skill_name)
         assert content, f"Skill {skill_name} has empty content"
         assert not content.startswith("Error:"), f"Skill {skill_name} content error: {content}"
         assert "#" in content, f"Skill {skill_name} content missing markdown headings"
+

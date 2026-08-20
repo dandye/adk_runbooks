@@ -1,8 +1,14 @@
 ---
 name: detection-as-code-workflows
-description: Use when authoring, testing, and managing detection rules using Git-based CI/CD workflows.
+description: Use when authoring, testing, and managing detection rules using Git-based
+  CI/CD workflows.
 category: detection
 version: 1.0.0
+type: Skill
+title: 'Skill: Detection-as-Code Workflow (Placeholder)'
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20 22:04:42-05:00
 ---
 
 # Runbook: Detection-as-Code Workflow (Placeholder)

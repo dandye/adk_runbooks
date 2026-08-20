@@ -1,8 +1,14 @@
 ---
 name: guided-ttp-hunt-credential-access
-description: Use when hunting for credential dumping, LSASS access, and Kerberoasting behaviors.
+description: Use when hunting for credential dumping, LSASS access, and Kerberoasting
+  behaviors.
 category: hunting
 version: 1.0.0
+type: Skill
+title: 'Skill: Guided TTP Hunt Runbook (Example: Credential Access)'
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20 22:04:42-05:00
 ---
 
 # Guided TTP Hunt Runbook (Example: Credential Access)

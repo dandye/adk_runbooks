@@ -1,8 +1,14 @@
 ---
 name: hash-search-process-events-chronicle
-description: Use when searching Chronicle for process execution events matching a file hash.
+description: Use when searching Chronicle for process execution events matching a
+  file hash.
 category: atomic
 version: 1.0.0
+type: Skill
+title: 'Skill: Atomic Runbook: Search File Hash Process Events in Chronicle'
+generated:
+  by: process:google-labs-jules
+  at: '2026-08-20T02:00:00Z'
 ---
 
 # Atomic Runbook: Search File Hash Process Events in Chronicle

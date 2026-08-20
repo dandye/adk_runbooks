@@ -1,8 +1,14 @@
 ---
 name: user-lookup-entity-chronicle
-description: Use when querying Chronicle user entity details, department, manager, and role context.
+description: Use when querying Chronicle user entity details, department, manager,
+  and role context.
 category: atomic
 version: 1.0.0
+type: Skill
+title: 'Skill: Atomic Runbook: Lookup User Entity Activity in Chronicle'
+generated:
+  by: process:google-labs-jules
+  at: '2026-08-20T02:00:00Z'
 ---
 
 # Atomic Runbook: Lookup User Entity Activity in Chronicle

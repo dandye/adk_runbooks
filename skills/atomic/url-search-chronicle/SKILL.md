@@ -1,8 +1,14 @@
 ---
 name: url-search-chronicle
-description: Use when searching Chronicle proxy and web access logs for HTTP/HTTPS requests to a URL.
+description: Use when searching Chronicle proxy and web access logs for HTTP/HTTPS
+  requests to a URL.
 category: atomic
 version: 1.0.0
+type: Skill
+title: 'Skill: Atomic Runbook: Search URL Activity in Chronicle'
+generated:
+  by: process:google-labs-jules
+  at: '2026-08-20T02:00:00Z'
 ---
 
 # Atomic Runbook: Search URL Activity in Chronicle

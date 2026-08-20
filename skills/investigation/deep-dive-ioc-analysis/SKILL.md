@@ -1,8 +1,14 @@
 ---
 name: deep-dive-ioc-analysis
-description: Use when performing exhaustive forensic and intelligence analysis on complex indicators of compromise.
+description: Use when performing exhaustive forensic and intelligence analysis on
+  complex indicators of compromise.
 category: investigation
 version: 1.0.0
+type: Skill
+title: 'Skill: Deep Dive IOC Analysis Runbook'
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20 22:04:42-05:00
 ---
 
 # Deep Dive IOC Analysis Runbook

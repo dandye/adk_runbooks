@@ -1,8 +1,14 @@
 ---
 name: pivot-on-ioc-gti
-description: Use when pivoting on GTI campaign identifiers, threat actors, and related infrastructure.
+description: Use when pivoting on GTI campaign identifiers, threat actors, and related
+  infrastructure.
 category: common
 version: 1.0.0
+type: Skill
+title: 'Skill: Common Step: Pivot on IOC using GTI Relationships'
+generated:
+  by: human:dandye
+  at: 2025-11-10 17:21:35-05:00
 ---
 
 # Common Step: Pivot on IOC using GTI Relationships

@@ -1,8 +1,14 @@
 ---
 name: domain-get-gti-report
-description: Use when fetching GTI threat reputation and WHOIS intelligence for a specific domain name.
+description: Use when fetching GTI threat reputation and WHOIS intelligence for a
+  specific domain name.
 category: atomic
 version: 1.0.0
+type: Skill
+title: 'Skill: Atomic Runbook: Get Domain Reputation from GTI'
+generated:
+  by: process:google-labs-jules
+  at: '2026-08-20T02:00:00Z'
 ---
 
 # Atomic Runbook: Get Domain Reputation from GTI

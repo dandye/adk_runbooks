@@ -1,8 +1,14 @@
 ---
 name: case-event-timeline-analysis
-description: Use when reconstructing sequential chronological timelines and process execution trees.
+description: Use when reconstructing sequential chronological timelines and process
+  execution trees.
 category: investigation
 version: 1.0.0
+type: Skill
+title: 'Skill: Case Event Timeline & Process Analysis Workflow'
+generated:
+  by: process:google-labs-jules
+  at: '2026-08-20T02:00:00Z'
 ---
 
 # Case Event Timeline & Process Analysis Workflow

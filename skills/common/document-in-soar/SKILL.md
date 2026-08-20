@@ -1,8 +1,14 @@
 ---
 name: document-in-soar
-description: Use when adding case comments, tags, or status updates to document actions in SOAR.
+description: Use when adding case comments, tags, or status updates to document actions
+  in SOAR.
 category: common
 version: 1.0.0
+type: Skill
+title: 'Skill: Common Step: Document Findings/Actions in SOAR Case'
+generated:
+  by: human:dandye
+  at: 2025-11-10 17:21:35-05:00
 ---
 
 # Common Step: Document Findings/Actions in SOAR Case

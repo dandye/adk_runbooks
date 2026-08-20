@@ -1,8 +1,14 @@
 ---
 name: triage-alerts
-description: Use when evaluating and categorizing incoming security alerts to determine severity and initial response actions.
+description: Use when evaluating and categorizing incoming security alerts to determine
+  severity and initial response actions.
 category: triage
 version: 1.0.0
+type: Skill
+title: 'Skill: Alert Triage'
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20 22:04:42-05:00
 ---
 
 # Runbook: Alert Triage

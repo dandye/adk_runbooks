@@ -1,8 +1,14 @@
 ---
 name: hash-get-gti-report
-description: Use when querying GTI and VirusTotal reputation and sandbox verdicts for a file hash.
+description: Use when querying GTI and VirusTotal reputation and sandbox verdicts
+  for a file hash.
 category: atomic
 version: 1.0.0
+type: Skill
+title: 'Skill: Atomic Runbook: Get File Hash Reputation from GTI'
+generated:
+  by: process:google-labs-jules
+  at: '2026-08-20T02:00:00Z'
 ---
 
 # Atomic Runbook: Get File Hash Reputation from GTI

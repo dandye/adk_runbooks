@@ -1,8 +1,14 @@
 ---
 name: group-cases-v2
-description: Use when executing advanced multi-factor case grouping and relationship clustering.
+description: Use when executing advanced multi-factor case grouping and relationship
+  clustering.
 category: investigation
 version: 1.0.0
+type: Skill
+title: 'Skill: Group Cases v2'
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20 22:04:42-05:00
 ---
 
 # Runbook: Group Cases v2

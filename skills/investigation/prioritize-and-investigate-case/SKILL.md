@@ -1,8 +1,14 @@
 ---
 name: prioritize-and-investigate-case
-description: Use when scoring case urgency, prioritizing the queue, and running core investigations.
+description: Use when scoring case urgency, prioritizing the queue, and running core
+  investigations.
 category: investigation
 version: 1.0.0
+type: Skill
+title: 'Skill: Prioritize and Investigate a Case'
+generated:
+  by: process:google-labs-jules
+  at: '2026-08-20T02:00:00Z'
 ---
 
 # Prioritize and Investigate a Case

@@ -1,8 +1,14 @@
 ---
 name: proactive-hunt-gti-campaign
-description: Use when initiating threat hunting operations driven by GTI threat campaign intelligence.
+description: Use when initiating threat hunting operations driven by GTI threat campaign
+  intelligence.
 category: hunting
 version: 1.0.0
+type: Skill
+title: 'Skill: Proactive Threat Hunting based on GTI Campaign/Actor'
+generated:
+  by: process:google-labs-jules
+  at: '2026-08-20T02:00:00Z'
 ---
 
 # Proactive Threat Hunting based on GTI Campaign/Actor

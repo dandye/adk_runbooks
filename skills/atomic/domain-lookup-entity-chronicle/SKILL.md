@@ -1,8 +1,14 @@
 ---
 name: domain-lookup-entity-chronicle
-description: Use when looking up domain entity graph associations and historical context in Chronicle.
+description: Use when looking up domain entity graph associations and historical context
+  in Chronicle.
 category: atomic
 version: 1.0.0
+type: Skill
+title: 'Skill: Atomic Runbook: Lookup Domain Entity Activity in Chronicle'
+generated:
+  by: process:google-labs-jules
+  at: '2026-08-20T02:00:00Z'
 ---
 
 # Atomic Runbook: Lookup Domain Entity Activity in Chronicle

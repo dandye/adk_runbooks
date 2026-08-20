@@ -1,8 +1,14 @@
 ---
 name: correlate-ioc-with-alerts-cases
-description: Use when cross-referencing extracted IOCs against recent SIEM alerts and SOAR cases.
+description: Use when cross-referencing extracted IOCs against recent SIEM alerts
+  and SOAR cases.
 category: common
 version: 1.0.0
+type: Skill
+title: 'Skill: Common Step: Correlate IOC with SIEM Alerts & SOAR Cases'
+generated:
+  by: human:dandye
+  at: 2025-11-10 17:21:35-05:00
 ---
 
 # Common Step: Correlate IOC with SIEM Alerts & SOAR Cases

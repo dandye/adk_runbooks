@@ -1,8 +1,14 @@
 ---
 name: ip-get-secops-threat-intel
-description: Use when querying Chronicle SecOps threat intelligence feeds for an IP address.
+description: Use when querying Chronicle SecOps threat intelligence feeds for an IP
+  address.
 category: atomic
 version: 1.0.0
+type: Skill
+title: 'Skill: Atomic Runbook: Get IP Address Threat Intel via SecOps MCP'
+generated:
+  by: process:google-labs-jules
+  at: '2026-08-20T02:00:00Z'
 ---
 
 # Atomic Runbook: Get IP Address Threat Intel via SecOps MCP

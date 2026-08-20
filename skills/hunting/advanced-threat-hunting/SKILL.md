@@ -1,8 +1,14 @@
 ---
 name: advanced-threat-hunting
-description: Use when formulating hypotheses and executing deep-dive proactive threat hunting missions.
+description: Use when formulating hypotheses and executing deep-dive proactive threat
+  hunting missions.
 category: hunting
 version: 1.0.0
+type: Skill
+title: 'Skill: Advanced Threat Hunting (Hypothesis-Driven) Runbook'
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20 22:04:42-05:00
 ---
 
 # Advanced Threat Hunting (Hypothesis-Driven) Runbook

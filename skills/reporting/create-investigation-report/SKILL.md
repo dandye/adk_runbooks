@@ -1,8 +1,14 @@
 ---
 name: create-investigation-report
-description: Use when compiling comprehensive incident investigation findings and executive summaries.
+description: Use when compiling comprehensive incident investigation findings and
+  executive summaries.
 category: reporting
 version: 1.0.0
+type: Skill
+title: 'Skill: Create Investigation Report'
+generated:
+  by: process:google-labs-jules
+  at: '2026-08-20T02:00:00Z'
 ---
 
 # Runbook: Create Investigation Report

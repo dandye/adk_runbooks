@@ -1,8 +1,14 @@
 ---
 name: url-get-secops-threat-intel
-description: Use when querying SecOps threat intelligence indicators for a specific URL.
+description: Use when querying SecOps threat intelligence indicators for a specific
+  URL.
 category: atomic
 version: 1.0.0
+type: Skill
+title: 'Skill: Atomic Runbook: Get URL Threat Intel via SecOps MCP'
+generated:
+  by: process:google-labs-jules
+  at: '2026-08-20T02:00:00Z'
 ---
 
 # Atomic Runbook: Get URL Threat Intel via SecOps MCP

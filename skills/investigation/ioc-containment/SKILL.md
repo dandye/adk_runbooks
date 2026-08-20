@@ -1,8 +1,14 @@
 ---
 name: ioc-containment
-description: Use when executing network, host, or credential containment actions for validated malicious IOCs.
+description: Use when executing network, host, or credential containment actions for
+  validated malicious IOCs.
 category: investigation
 version: 1.0.0
+type: Skill
+title: 'Skill: IOC Containment Runbook'
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20 22:04:42-05:00
 ---
 
 # IOC Containment Runbook

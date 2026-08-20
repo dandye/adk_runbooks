@@ -1,8 +1,14 @@
 ---
 name: investigate-case-external-tools
-description: Use when enriching and verifying case artifacts with external threat intelligence platforms.
+description: Use when enriching and verifying case artifacts with external threat
+  intelligence platforms.
 category: investigation
 version: 1.0.0
+type: Skill
+title: 'Skill: Investigate a Case + external tools'
+generated:
+  by: process:google-labs-jules
+  at: '2026-08-20T02:00:00Z'
 ---
 
 # Investigate a Case + external tools

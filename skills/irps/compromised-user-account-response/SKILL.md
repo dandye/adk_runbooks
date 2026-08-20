@@ -1,8 +1,14 @@
 ---
 name: compromised-user-account-response
-description: Use when executing containment, eradication, and recovery for confirmed compromised user credentials.
+description: Use when executing containment, eradication, and recovery for confirmed
+  compromised user credentials.
 category: irps
 version: 1.0.0
+type: Skill
+title: 'Skill: Compromised User Account Incident Response Plan (IRP) / Runbook'
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20 22:04:42-05:00
 ---
 
 # Compromised User Account Incident Response Plan (IRP) / Runbook

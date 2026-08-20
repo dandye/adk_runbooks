@@ -1,8 +1,14 @@
 ---
 name: domain-search-dns-chronicle
-description: Use when searching UDM DNS query and resolution logs for a domain in Chronicle.
+description: Use when searching UDM DNS query and resolution logs for a domain in
+  Chronicle.
 category: atomic
 version: 1.0.0
+type: Skill
+title: 'Skill: Atomic Runbook: Search Domain DNS Queries in Chronicle'
+generated:
+  by: process:google-labs-jules
+  at: '2026-08-20T02:00:00Z'
 ---
 
 # Atomic Runbook: Search Domain DNS Queries in Chronicle

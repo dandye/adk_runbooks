@@ -1,8 +1,14 @@
 ---
 name: phishing-response
-description: Use when responding to reported phishing emails, malicious links, or credential harvesting campaigns.
+description: Use when responding to reported phishing emails, malicious links, or
+  credential harvesting campaigns.
 category: irps
 version: 1.0.0
+type: Skill
+title: 'Skill: Phishing Incident Response Plan (IRP) / Runbook'
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20 22:04:42-05:00
 ---
 
 # Phishing Incident Response Plan (IRP) / Runbook

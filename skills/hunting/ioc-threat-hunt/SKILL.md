@@ -1,8 +1,14 @@
 ---
 name: ioc-threat-hunt
-description: Use when sweeping organizational logs and telemetry for specific indicators of compromise.
+description: Use when sweeping organizational logs and telemetry for specific indicators
+  of compromise.
 category: hunting
 version: 1.0.0
+type: Skill
+title: 'Skill: IOC Threat Hunt'
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20 22:04:42-05:00
 ---
 
 # Runbook: IOC Threat Hunt

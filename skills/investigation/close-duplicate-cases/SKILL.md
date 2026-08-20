@@ -1,8 +1,14 @@
 ---
 name: close-duplicate-cases
-description: Use when identifying redundant or duplicate SOAR cases and linking or closing them.
+description: Use when identifying redundant or duplicate SOAR cases and linking or
+  closing them.
 category: investigation
 version: 1.0.0
+type: Skill
+title: 'Skill: Close Duplicate Cases'
+generated:
+  by: process:google-labs-jules
+  at: '2026-08-20T02:00:00Z'
 ---
 
 ### ADK Graph-Based Workflow Diagram

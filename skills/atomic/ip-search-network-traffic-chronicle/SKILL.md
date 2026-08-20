@@ -1,8 +1,14 @@
 ---
 name: ip-search-network-traffic-chronicle
-description: Use when querying UDM network connection events in Chronicle involving a target IP address.
+description: Use when querying UDM network connection events in Chronicle involving
+  a target IP address.
 category: atomic
 version: 1.0.0
+type: Skill
+title: 'Skill: Atomic Runbook: Search IP Network Traffic in Chronicle'
+generated:
+  by: process:google-labs-jules
+  at: '2026-08-20T02:00:00Z'
 ---
 
 # Atomic Runbook: Search IP Network Traffic in Chronicle

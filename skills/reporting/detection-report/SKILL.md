@@ -1,8 +1,14 @@
 ---
 name: detection-report
-description: Use when documenting detection coverage assessments, test results, and tuning outcomes.
+description: Use when documenting detection coverage assessments, test results, and
+  tuning outcomes.
 category: reporting
 version: 1.0.0
+type: Skill
+title: 'Skill: Generate Detection Report'
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20 22:04:42-05:00
 ---
 
 # Runbook: Generate Detection Report

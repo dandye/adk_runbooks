@@ -1,8 +1,14 @@
 ---
 name: alert-report
-description: Use when summarizing alert triage decisions, key indicators, and immediate actions taken.
+description: Use when summarizing alert triage decisions, key indicators, and immediate
+  actions taken.
 category: reporting
 version: 1.0.0
+type: Skill
+title: 'Skill: Alert Investigation Summary Report Runbook'
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20 22:04:42-05:00
 ---
 
 # Alert Investigation Summary Report Runbook

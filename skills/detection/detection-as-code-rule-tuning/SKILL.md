@@ -1,8 +1,14 @@
 ---
 name: detection-as-code-rule-tuning
-description: Use when submitting and verifying rule tuning pull requests in detection-as-code repositories.
+description: Use when submitting and verifying rule tuning pull requests in detection-as-code
+  repositories.
 category: detection
 version: 1.0.0
+type: Skill
+title: 'Skill: Detection-as-Code Rule Tuning Workflow'
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20 22:04:42-05:00
 ---
 
 # Detection-as-Code Rule Tuning Workflow

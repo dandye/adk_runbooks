@@ -1,8 +1,14 @@
 ---
 name: enrich-ioc
-description: Use when standardizing multi-source threat intelligence enrichment for indicators.
+description: Use when standardizing multi-source threat intelligence enrichment for
+  indicators.
 category: common
 version: 1.0.0
+type: Skill
+title: 'Skill: Common Step: Enrich IOC (GTI + SIEM)'
+generated:
+  by: human:dandye
+  at: 2025-11-10 17:21:35-05:00
 ---
 
 # Common Step: Enrich IOC (GTI + SIEM)

@@ -1,8 +1,14 @@
 ---
 name: hash-lookup-entity-chronicle
-description: Use when inspecting Chronicle entity records for known malicious or suspicious file hashes.
+description: Use when inspecting Chronicle entity records for known malicious or suspicious
+  file hashes.
 category: atomic
 version: 1.0.0
+type: Skill
+title: 'Skill: Atomic Runbook: Lookup File Hash Entity Activity in Chronicle'
+generated:
+  by: process:google-labs-jules
+  at: '2026-08-20T02:00:00Z'
 ---
 
 # Atomic Runbook: Lookup File Hash Entity Activity in Chronicle

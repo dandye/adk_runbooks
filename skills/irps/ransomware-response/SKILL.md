@@ -1,8 +1,14 @@
 ---
 name: ransomware-response
-description: Use when responding to active ransomware deployment, host encryption, or extortion threats.
+description: Use when responding to active ransomware deployment, host encryption,
+  or extortion threats.
 category: irps
 version: 1.0.0
+type: Skill
+title: 'Skill: Ransomware Incident Response Plan (IRP) / Runbook'
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20 22:04:42-05:00
 ---
 
 # Ransomware Incident Response Plan (IRP) / Runbook

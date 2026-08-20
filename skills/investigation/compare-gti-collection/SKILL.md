@@ -1,8 +1,14 @@
 ---
 name: compare-gti-collection
-description: Use when correlating GTI collection indicators against local telemetry and event logs.
+description: Use when correlating GTI collection indicators against local telemetry
+  and event logs.
 category: investigation
 version: 1.0.0
+type: Skill
+title: 'Skill: Compare GTI Collection to IoCs, Events in SecOps'
+generated:
+  by: process:google-labs-jules
+  at: '2026-08-20T02:00:00Z'
 ---
 
 # Compare GTI Collection to IoCs, Events in SecOps

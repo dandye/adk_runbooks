@@ -1,8 +1,14 @@
 ---
 name: find-relevant-soar-case
-description: Use when searching SOAR for active or historical cases relevant to an alert or investigation.
+description: Use when searching SOAR for active or historical cases relevant to an
+  alert or investigation.
 category: common
 version: 1.0.0
+type: Skill
+title: 'Skill: Common Step: Find Relevant SOAR Case'
+generated:
+  by: human:dandye
+  at: 2025-11-10 17:21:35-05:00
 ---
 
 # Common Step: Find Relevant SOAR Case

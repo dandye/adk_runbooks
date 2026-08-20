@@ -1,8 +1,14 @@
 ---
 name: case-report
-description: Use when drafting detailed case closure reports, root cause analysis, and impact summaries.
+description: Use when drafting detailed case closure reports, root cause analysis,
+  and impact summaries.
 category: reporting
 version: 1.0.0
+type: Skill
+title: 'Skill: Generate Case Investigation Report'
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20 22:04:42-05:00
 ---
 
 # Runbook: Generate Case Investigation Report

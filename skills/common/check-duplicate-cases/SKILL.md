@@ -1,8 +1,14 @@
 ---
 name: check-duplicate-cases
-description: Use when checking SOAR cases for overlapping entities to detect duplicate incidents.
+description: Use when checking SOAR cases for overlapping entities to detect duplicate
+  incidents.
 category: common
 version: 1.0.0
+type: Skill
+title: 'Skill: Common Step: Check for Duplicate/Similar SOAR Cases'
+generated:
+  by: human:dandye
+  at: 2025-11-10 17:21:35-05:00
 ---
 
 # Common Step: Check for Duplicate/Similar SOAR Cases

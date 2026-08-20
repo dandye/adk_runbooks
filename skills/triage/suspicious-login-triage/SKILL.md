@@ -1,8 +1,14 @@
 ---
 name: suspicious-login-triage
-description: Use when triaging anomalous or suspicious user authentication events, impossible travel, and credential anomalies.
+description: Use when triaging anomalous or suspicious user authentication events,
+  impossible travel, and credential anomalies.
 category: triage
 version: 1.0.0
+type: Skill
+title: 'Skill: Suspicious Login Alert Triage Runbook'
+generated:
+  by: process:google-labs-jules
+  at: 2025-12-20 22:04:42-05:00
 ---
 
 # Suspicious Login Alert Triage Runbook

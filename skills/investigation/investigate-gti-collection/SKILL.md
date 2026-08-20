@@ -1,8 +1,14 @@
 ---
 name: investigate-gti-collection
-description: Use when investigating a Google Threat Intelligence (GTI) Collection ID for threat context.
+description: Use when investigating a Google Threat Intelligence (GTI) Collection
+  ID for threat context.
 category: investigation
 version: 1.0.0
+type: Skill
+title: 'Skill: Investigate Google Threat Intelligence Collection ID (Enhanced)'
+generated:
+  by: process:google-labs-jules
+  at: '2026-08-20T02:00:00Z'
 ---
 
 # Investigate Google Threat Intelligence Collection ID (Enhanced)

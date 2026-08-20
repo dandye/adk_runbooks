@@ -1,8 +1,14 @@
 ---
 name: domain-search-network-traffic-chronicle
-description: Use when querying Chronicle for network connections, HTTP requests, or TLS traffic to a domain.
+description: Use when querying Chronicle for network connections, HTTP requests, or
+  TLS traffic to a domain.
 category: atomic
 version: 1.0.0
+type: Skill
+title: 'Skill: Atomic Runbook: Search Domain-Related Network Traffic in Chronicle'
+generated:
+  by: process:google-labs-jules
+  at: '2026-08-20T02:00:00Z'
 ---
 
 # Atomic Runbook: Search Domain-Related Network Traffic in Chronicle
