@@ -1,0 +1,807 @@
+{
+  "timestamp": "2026-08-20T21:31:38.928622+00:00",
+  "summary": {
+    "total_tests": 36,
+    "passed_tests": 36,
+    "failed_tests": 0,
+    "pass_rate": 100.0,
+    "average_score": 89.72,
+    "average_duration_seconds": 0.0033,
+    "total_estimated_tokens": 37048,
+    "average_tokens_per_test": 1029.1
+  },
+  "results": [
+    {
+      "test_id": "TEST-01-SUSPICIOUS-LOGIN",
+      "workflow_name": "suspicious_login_workflow",
+      "passed": true,
+      "total_score": 93.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0203,
+      "tokens": {
+        "estimated_input": 991,
+        "estimated_output": 261,
+        "total": 1252
+      },
+      "rubric_profile": "TRIAGE_IRP_RUBRIC",
+      "category_scores": {
+        "Context & Enrichment": 18.0,
+        "Analysis & Decision": 25.0,
+        "Action Execution": 20.0,
+        "Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-02-MALWARE-TRIAGE",
+      "workflow_name": "malware_triage_workflow",
+      "passed": true,
+      "total_score": 100.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0033,
+      "tokens": {
+        "estimated_input": 867,
+        "estimated_output": 416,
+        "total": 1283
+      },
+      "rubric_profile": "TRIAGE_IRP_RUBRIC",
+      "category_scores": {
+        "Context & Enrichment": 25.0,
+        "Analysis & Decision": 25.0,
+        "Action Execution": 20.0,
+        "Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-03-BASIC-IOC-ENRICHMENT",
+      "workflow_name": "basic_ioc_enrichment_workflow",
+      "passed": true,
+      "total_score": 95.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0049,
+      "tokens": {
+        "estimated_input": 982,
+        "estimated_output": 286,
+        "total": 1268
+      },
+      "rubric_profile": "TRIAGE_IRP_RUBRIC",
+      "category_scores": {
+        "Context & Enrichment": 25.0,
+        "Analysis & Decision": 25.0,
+        "Action Execution": 20.0,
+        "Documentation": 10.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-04-ENDPOINT-TRIAGE",
+      "workflow_name": "endpoint_triage_workflow",
+      "passed": true,
+      "total_score": 93.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0026,
+      "tokens": {
+        "estimated_input": 871,
+        "estimated_output": 328,
+        "total": 1199
+      },
+      "rubric_profile": "TRIAGE_IRP_RUBRIC",
+      "category_scores": {
+        "Context & Enrichment": 18.0,
+        "Analysis & Decision": 25.0,
+        "Action Execution": 20.0,
+        "Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-05-IOC-CONTAINMENT",
+      "workflow_name": "ioc_containment_workflow",
+      "passed": true,
+      "total_score": 93.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0035,
+      "tokens": {
+        "estimated_input": 746,
+        "estimated_output": 284,
+        "total": 1030
+      },
+      "rubric_profile": "TRIAGE_IRP_RUBRIC",
+      "category_scores": {
+        "Context & Enrichment": 18.0,
+        "Analysis & Decision": 25.0,
+        "Action Execution": 20.0,
+        "Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-06-CLOSE-DUPLICATES",
+      "workflow_name": "close_duplicate_cases_workflow",
+      "passed": true,
+      "total_score": 88.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0024,
+      "tokens": {
+        "estimated_input": 741,
+        "estimated_output": 134,
+        "total": 875
+      },
+      "rubric_profile": "TRIAGE_IRP_RUBRIC",
+      "category_scores": {
+        "Context & Enrichment": 13.0,
+        "Analysis & Decision": 25.0,
+        "Action Execution": 20.0,
+        "Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-07-CLOUD-VULN-TRIAGE",
+      "workflow_name": "cloud_vulnerability_triage_workflow",
+      "passed": true,
+      "total_score": 88.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0024,
+      "tokens": {
+        "estimated_input": 761,
+        "estimated_output": 176,
+        "total": 937
+      },
+      "rubric_profile": "TRIAGE_IRP_RUBRIC",
+      "category_scores": {
+        "Context & Enrichment": 13.0,
+        "Analysis & Decision": 25.0,
+        "Action Execution": 20.0,
+        "Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-08-COMPARE-GTI-COLLECTION",
+      "workflow_name": "compare_gti_collection_workflow",
+      "passed": true,
+      "total_score": 93.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.003,
+      "tokens": {
+        "estimated_input": 855,
+        "estimated_output": 135,
+        "total": 990
+      },
+      "rubric_profile": "TRIAGE_IRP_RUBRIC",
+      "category_scores": {
+        "Context & Enrichment": 18.0,
+        "Analysis & Decision": 25.0,
+        "Action Execution": 20.0,
+        "Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-09-CREATE-INVESTIGATION-REPORT",
+      "workflow_name": "create_investigation_report_workflow",
+      "passed": true,
+      "total_score": 95.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0033,
+      "tokens": {
+        "estimated_input": 734,
+        "estimated_output": 518,
+        "total": 1252
+      },
+      "rubric_profile": "REPORTING_RUBRIC",
+      "category_scores": {
+        "Data Collection": 25.0,
+        "Report Generation": 25.0,
+        "Quality & Clarity": 15.0,
+        "Delivery": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-10-DEEP-DIVE-IOC-ANALYSIS",
+      "workflow_name": "deep_dive_ioc_analysis_workflow",
+      "passed": true,
+      "total_score": 88.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.003,
+      "tokens": {
+        "estimated_input": 740,
+        "estimated_output": 101,
+        "total": 841
+      },
+      "rubric_profile": "THREAT_HUNTING_RUBRIC",
+      "category_scores": {
+        "Scope & Query": 18.0,
+        "Data Analysis & Correlation": 25.0,
+        "Findings Classification": 15.0,
+        "Hunt Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-11-DETECTION-RULE-VALIDATION",
+      "workflow_name": "detection_rule_validation_workflow",
+      "passed": true,
+      "total_score": 100.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0025,
+      "tokens": {
+        "estimated_input": 745,
+        "estimated_output": 786,
+        "total": 1531
+      },
+      "rubric_profile": "DETECTION_ENGINEERING_RUBRIC",
+      "category_scores": {
+        "Requirement Analysis": 20.0,
+        "Technical Implementation": 30.0,
+        "Validation & Testing": 20.0,
+        "Git/Process Compliance": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-12-CREDENTIAL-ACCESS-HUNT",
+      "workflow_name": "credential_access_hunt_workflow",
+      "passed": true,
+      "total_score": 83.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0028,
+      "tokens": {
+        "estimated_input": 735,
+        "estimated_output": 98,
+        "total": 833
+      },
+      "rubric_profile": "THREAT_HUNTING_RUBRIC",
+      "category_scores": {
+        "Scope & Query": 13.0,
+        "Data Analysis & Correlation": 25.0,
+        "Findings Classification": 15.0,
+        "Hunt Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-13-INVESTIGATE-EXTERNAL-TOOLS",
+      "workflow_name": "investigate_case_external_tools_workflow",
+      "passed": true,
+      "total_score": 93.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0029,
+      "tokens": {
+        "estimated_input": 746,
+        "estimated_output": 108,
+        "total": 854
+      },
+      "rubric_profile": "TRIAGE_IRP_RUBRIC",
+      "category_scores": {
+        "Context & Enrichment": 18.0,
+        "Analysis & Decision": 25.0,
+        "Action Execution": 20.0,
+        "Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-14-LATERAL-MOVEMENT-HUNT",
+      "workflow_name": "lateral_movement_hunt_workflow",
+      "passed": true,
+      "total_score": 83.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0027,
+      "tokens": {
+        "estimated_input": 732,
+        "estimated_output": 94,
+        "total": 826
+      },
+      "rubric_profile": "THREAT_HUNTING_RUBRIC",
+      "category_scores": {
+        "Scope & Query": 13.0,
+        "Data Analysis & Correlation": 25.0,
+        "Findings Classification": 15.0,
+        "Hunt Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-15-TRIAGE-ALERTS",
+      "workflow_name": "triage_alerts_workflow",
+      "passed": true,
+      "total_score": 88.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0027,
+      "tokens": {
+        "estimated_input": 729,
+        "estimated_output": 123,
+        "total": 852
+      },
+      "rubric_profile": "TRIAGE_IRP_RUBRIC",
+      "category_scores": {
+        "Context & Enrichment": 13.0,
+        "Analysis & Decision": 25.0,
+        "Action Execution": 20.0,
+        "Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-16-ADVANCED-THREAT-HUNTING",
+      "workflow_name": "advanced_threat_hunting_workflow",
+      "passed": true,
+      "total_score": 88.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0027,
+      "tokens": {
+        "estimated_input": 745,
+        "estimated_output": 165,
+        "total": 910
+      },
+      "rubric_profile": "THREAT_HUNTING_RUBRIC",
+      "category_scores": {
+        "Scope & Query": 13.0,
+        "Data Analysis & Correlation": 30.0,
+        "Findings Classification": 15.0,
+        "Hunt Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-17-ALERT-REPORT",
+      "workflow_name": "alert_report_workflow",
+      "passed": true,
+      "total_score": 100.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0038,
+      "tokens": {
+        "estimated_input": 851,
+        "estimated_output": 2246,
+        "total": 3097
+      },
+      "rubric_profile": "REPORTING_RUBRIC",
+      "category_scores": {
+        "Data Collection": 25.0,
+        "Report Generation": 30.0,
+        "Quality & Clarity": 15.0,
+        "Delivery": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-18-APT-THREAT-HUNT",
+      "workflow_name": "apt_threat_hunt_workflow",
+      "passed": true,
+      "total_score": 83.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0031,
+      "tokens": {
+        "estimated_input": 855,
+        "estimated_output": 142,
+        "total": 997
+      },
+      "rubric_profile": "THREAT_HUNTING_RUBRIC",
+      "category_scores": {
+        "Scope & Query": 13.0,
+        "Data Analysis & Correlation": 25.0,
+        "Findings Classification": 15.0,
+        "Hunt Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-19-TIMELINE-PROCESS-ANALYSIS",
+      "workflow_name": "timeline_process_analysis_workflow",
+      "passed": true,
+      "total_score": 85.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0051,
+      "tokens": {
+        "estimated_input": 732,
+        "estimated_output": 102,
+        "total": 834
+      },
+      "rubric_profile": "REPORTING_RUBRIC",
+      "category_scores": {
+        "Data Collection": 25.0,
+        "Report Generation": 20.0,
+        "Quality & Clarity": 10.0,
+        "Delivery": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-20-CASE-REPORT",
+      "workflow_name": "case_report_workflow",
+      "passed": true,
+      "total_score": 95.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0027,
+      "tokens": {
+        "estimated_input": 738,
+        "estimated_output": 412,
+        "total": 1150
+      },
+      "rubric_profile": "REPORTING_RUBRIC",
+      "category_scores": {
+        "Data Collection": 25.0,
+        "Report Generation": 25.0,
+        "Quality & Clarity": 15.0,
+        "Delivery": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-21-DETECTION-AS-CODE-TUNING",
+      "workflow_name": "detection_as_code_tuning_workflow",
+      "passed": true,
+      "total_score": 80.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0025,
+      "tokens": {
+        "estimated_input": 749,
+        "estimated_output": 139,
+        "total": 888
+      },
+      "rubric_profile": "DETECTION_ENGINEERING_RUBRIC",
+      "category_scores": {
+        "Requirement Analysis": 20.0,
+        "Technical Implementation": 20.0,
+        "Validation & Testing": 10.0,
+        "Git/Process Compliance": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-22-DETECTION-REPORT",
+      "workflow_name": "detection_report_workflow",
+      "passed": true,
+      "total_score": 80.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0023,
+      "tokens": {
+        "estimated_input": 733,
+        "estimated_output": 137,
+        "total": 870
+      },
+      "rubric_profile": "REPORTING_RUBRIC",
+      "category_scores": {
+        "Data Collection": 20.0,
+        "Report Generation": 20.0,
+        "Quality & Clarity": 10.0,
+        "Delivery": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-23-GROUP-CASES",
+      "workflow_name": "group_cases_workflow",
+      "passed": true,
+      "total_score": 88.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0027,
+      "tokens": {
+        "estimated_input": 734,
+        "estimated_output": 133,
+        "total": 867
+      },
+      "rubric_profile": "TRIAGE_IRP_RUBRIC",
+      "category_scores": {
+        "Context & Enrichment": 13.0,
+        "Analysis & Decision": 25.0,
+        "Action Execution": 20.0,
+        "Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-24-INVESTIGATE-GTI-COLLECTION",
+      "workflow_name": "investigate_gti_collection_workflow",
+      "passed": true,
+      "total_score": 83.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0022,
+      "tokens": {
+        "estimated_input": 731,
+        "estimated_output": 140,
+        "total": 871
+      },
+      "rubric_profile": "THREAT_HUNTING_RUBRIC",
+      "category_scores": {
+        "Scope & Query": 13.0,
+        "Data Analysis & Correlation": 25.0,
+        "Findings Classification": 15.0,
+        "Hunt Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-25-IOC-THREAT-HUNT",
+      "workflow_name": "ioc_threat_hunt_workflow",
+      "passed": true,
+      "total_score": 90.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0025,
+      "tokens": {
+        "estimated_input": 731,
+        "estimated_output": 163,
+        "total": 894
+      },
+      "rubric_profile": "THREAT_HUNTING_RUBRIC",
+      "category_scores": {
+        "Scope & Query": 20.0,
+        "Data Analysis & Correlation": 25.0,
+        "Findings Classification": 15.0,
+        "Hunt Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-26-POST-INCIDENT-REVIEW",
+      "workflow_name": "post_incident_review_workflow",
+      "passed": true,
+      "total_score": 83.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0025,
+      "tokens": {
+        "estimated_input": 736,
+        "estimated_output": 123,
+        "total": 859
+      },
+      "rubric_profile": "THREAT_HUNTING_RUBRIC",
+      "category_scores": {
+        "Scope & Query": 13.0,
+        "Data Analysis & Correlation": 25.0,
+        "Findings Classification": 15.0,
+        "Hunt Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-27-PRIORITIZE-INVESTIGATE-CASE",
+      "workflow_name": "prioritize_investigate_case_workflow",
+      "passed": true,
+      "total_score": 93.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0023,
+      "tokens": {
+        "estimated_input": 727,
+        "estimated_output": 117,
+        "total": 844
+      },
+      "rubric_profile": "TRIAGE_IRP_RUBRIC",
+      "category_scores": {
+        "Context & Enrichment": 18.0,
+        "Analysis & Decision": 25.0,
+        "Action Execution": 20.0,
+        "Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-28-PROACTIVE-GTI-THREAT-HUNT",
+      "workflow_name": "proactive_gti_threat_hunt_workflow",
+      "passed": true,
+      "total_score": 83.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0024,
+      "tokens": {
+        "estimated_input": 731,
+        "estimated_output": 131,
+        "total": 862
+      },
+      "rubric_profile": "THREAT_HUNTING_RUBRIC",
+      "category_scores": {
+        "Scope & Query": 13.0,
+        "Data Analysis & Correlation": 25.0,
+        "Findings Classification": 15.0,
+        "Hunt Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-29-UEBA-REPORT",
+      "workflow_name": "ueba_report_workflow",
+      "passed": true,
+      "total_score": 90.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0022,
+      "tokens": {
+        "estimated_input": 734,
+        "estimated_output": 147,
+        "total": 881
+      },
+      "rubric_profile": "REPORTING_RUBRIC",
+      "category_scores": {
+        "Data Collection": 25.0,
+        "Report Generation": 20.0,
+        "Quality & Clarity": 15.0,
+        "Delivery": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-30-COMPROMISED-USER-IRP",
+      "workflow_name": "compromised_user_irp_workflow",
+      "passed": true,
+      "total_score": 93.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0023,
+      "tokens": {
+        "estimated_input": 743,
+        "estimated_output": 204,
+        "total": 947
+      },
+      "rubric_profile": "TRIAGE_IRP_RUBRIC",
+      "category_scores": {
+        "Context & Enrichment": 18.0,
+        "Analysis & Decision": 25.0,
+        "Action Execution": 20.0,
+        "Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-31-MALWARE-IRP",
+      "workflow_name": "malware_irp_workflow",
+      "passed": true,
+      "total_score": 93.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0023,
+      "tokens": {
+        "estimated_input": 742,
+        "estimated_output": 188,
+        "total": 930
+      },
+      "rubric_profile": "TRIAGE_IRP_RUBRIC",
+      "category_scores": {
+        "Context & Enrichment": 18.0,
+        "Analysis & Decision": 25.0,
+        "Action Execution": 20.0,
+        "Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-32-PHISHING-IRP",
+      "workflow_name": "phishing_irp_workflow",
+      "passed": true,
+      "total_score": 93.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0026,
+      "tokens": {
+        "estimated_input": 758,
+        "estimated_output": 233,
+        "total": 991
+      },
+      "rubric_profile": "TRIAGE_IRP_RUBRIC",
+      "category_scores": {
+        "Context & Enrichment": 18.0,
+        "Analysis & Decision": 25.0,
+        "Action Execution": 20.0,
+        "Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-33-RANSOMWARE-IRP",
+      "workflow_name": "ransomware_irp_workflow",
+      "passed": true,
+      "total_score": 93.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0028,
+      "tokens": {
+        "estimated_input": 737,
+        "estimated_output": 202,
+        "total": 939
+      },
+      "rubric_profile": "TRIAGE_IRP_RUBRIC",
+      "category_scores": {
+        "Context & Enrichment": 18.0,
+        "Analysis & Decision": 25.0,
+        "Action Execution": 20.0,
+        "Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-34-DEMO-SOC-T2",
+      "workflow_name": "demo_soc_t2_workflow",
+      "passed": true,
+      "total_score": 93.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0021,
+      "tokens": {
+        "estimated_input": 726,
+        "estimated_output": 121,
+        "total": 847
+      },
+      "rubric_profile": "TRIAGE_IRP_RUBRIC",
+      "category_scores": {
+        "Context & Enrichment": 18.0,
+        "Analysis & Decision": 25.0,
+        "Action Execution": 20.0,
+        "Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-35-GROUP-CASES-V2",
+      "workflow_name": "group_cases_v2_workflow",
+      "passed": true,
+      "total_score": 88.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0024,
+      "tokens": {
+        "estimated_input": 730,
+        "estimated_output": 144,
+        "total": 874
+      },
+      "rubric_profile": "TRIAGE_IRP_RUBRIC",
+      "category_scores": {
+        "Context & Enrichment": 13.0,
+        "Analysis & Decision": 25.0,
+        "Action Execution": 20.0,
+        "Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    },
+    {
+      "test_id": "TEST-36-METAANALYSIS",
+      "workflow_name": "metaanalysis_workflow",
+      "passed": true,
+      "total_score": 83.0,
+      "max_score": 100.0,
+      "duration_seconds": 0.0025,
+      "tokens": {
+        "estimated_input": 732,
+        "estimated_output": 141,
+        "total": 873
+      },
+      "rubric_profile": "THREAT_HUNTING_RUBRIC",
+      "category_scores": {
+        "Scope & Query": 13.0,
+        "Data Analysis & Correlation": 25.0,
+        "Findings Classification": 15.0,
+        "Hunt Documentation": 15.0,
+        "Operational Artifacts": 15.0
+      },
+      "error": null
+    }
+  ]
+}

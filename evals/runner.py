@@ -155,7 +155,8 @@ def main() -> int:
         results.append(res)
 
         badge = "✅ PASS" if res.passed else "❌ FAIL"
-        print(f"[{badge}] {res.test_id} ({res.workflow_name}): {res.total_score:.1f}/100.0 in {res.duration_seconds:.4f}s")
+        tokens_str = f"~{res.trace.total_tokens} tokens" if res.trace and res.trace.total_tokens else "N/A tokens"
+        print(f"[{badge}] {res.test_id} ({res.workflow_name}): {res.total_score:.1f}/100.0 | {res.duration_seconds:.4f}s | {tokens_str}")
         if args.verbose and res.scorecard:
             for cat, score in res.scorecard.category_scores.items():
                 print(f"      - {cat}: {score:.1f} pts")
@@ -166,8 +167,11 @@ def main() -> int:
     total = len(results)
     passed = sum(1 for r in results if r.passed)
     avg_score = sum(r.total_score for r in results) / total if total > 0 else 0.0
+    total_tokens = sum((r.trace.total_tokens if r.trace else 0) for r in results)
+    avg_tokens = total_tokens / total if total > 0 else 0.0
+    total_duration = sum(r.duration_seconds for r in results)
     print("\n=======================================================")
-    print(f"SUMMARY: {passed}/{total} Passed ({(passed/total*100):.1f}%) | Average Rubric Score: {avg_score:.1f}/100.0")
+    print(f"SUMMARY: {passed}/{total} Passed ({(passed/total*100):.1f}%) | Average Rubric Score: {avg_score:.1f}/100.0 | Total Tokens: ~{total_tokens:,} (Avg ~{avg_tokens:.0f}/test) | Total Run Time: {total_duration:.4f}s")
     print("=======================================================\n")
 
     if args.report:

@@ -425,6 +425,18 @@ def execute_workflow_sync(
 
         # Normalize output to standardized dictionary
         output_dict = _normalize_output(raw_output, input_data, workflow_name, trace)
+
+        # Estimate tokens based on input/output payload size and execution nodes
+        import json
+        inp_bytes = len(json.dumps(input_data, default=str))
+        out_bytes = len(json.dumps(output_dict, default=str))
+        # Base input payload + context/prompts per node
+        tokens_in = max(1, inp_bytes // 4 + (len(trace.executed_nodes) * 120))
+        tokens_out = max(1, out_bytes // 4)
+        trace.estimated_tokens_in = tokens_in
+        trace.estimated_tokens_out = tokens_out
+        trace.total_tokens = tokens_in + tokens_out
+
         return output_dict, trace
 
     except Exception as e:
