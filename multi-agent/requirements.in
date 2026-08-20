@@ -1,4 +1,4 @@
-# google-adk is now loaded from the submodule at adk-python/src
-google-adk~=1.28.1
+# google-adk includes ADK Graph Workflows support in >=2.7.1
+google-adk>=2.7.1
 google-genai>=1.64.0
 python-dotenv~=1.2.0

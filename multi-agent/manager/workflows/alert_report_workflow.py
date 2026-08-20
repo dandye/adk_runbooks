@@ -202,14 +202,19 @@ On review of Chronicle SIEM alert `{t.payload.alert_id}`, the automated analysis
     for ip, rep in res.ip_reputations.items():
         md += f"| `{ip}` | **{rep}** | Outbound C2 / Exfiltration |\n"
 
+    admin_entity = t.impacted_entities[-1] if t.impacted_entities else 'CYMBAL\\administrator'
+    primary_entity = t.impacted_entities[0] if t.impacted_entities else 'CYM-WKS-24'
+    secondary_entity = t.impacted_entities[1] if len(t.impacted_entities) > 1 else 'CYM-FS01'
+    ips_str = ', '.join([f'`{ip}`' for ip in res.ip_reputations.keys()])
+
     md += f"""
 ---
 
 ## 5. Containment & Remediation Action Plan
-1. **Immediate Host Isolation:** Issue EDR network isolation for primary host `{t.impacted_entities[0] if t.impacted_entities else 'CYM-WKS-24'}` to block lateral propagation.
-2. **Account Revocation:** Force credential reset and revoke active Kerberos/OAuth tokens for `{t.impacted_entities[-1] if t.impacted_entities else 'CYMBAL\\\\administrator'}`.
-3. **Perimeter Firewall Blocking:** Null-route and block external IP(s): {', '.join([f'`{ip}`' for ip in res.ip_reputations.keys()])}.
-4. **Forensic Acquisition:** Initiate memory capture and artifact collection on secondary target `{t.impacted_entities[1] if len(t.impacted_entities) > 1 else 'CYM-FS01'}`.
+1. **Immediate Host Isolation:** Issue EDR network isolation for primary host `{primary_entity}` to block lateral propagation.
+2. **Account Revocation:** Force credential reset and revoke active Kerberos/OAuth tokens for `{admin_entity}`.
+3. **Perimeter Firewall Blocking:** Null-route and block external IP(s): {ips_str}.
+4. **Forensic Acquisition:** Initiate memory capture and artifact collection on secondary target `{secondary_entity}`.
 """
     return AlertReportOutcome(enrichment=res, report_markdown=md)
 
