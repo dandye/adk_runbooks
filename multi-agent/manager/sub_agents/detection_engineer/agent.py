@@ -36,7 +36,7 @@ def get_agent(tools):
 
   agent_instance = Agent(
       name="detection_engineer",
-      model="gemini-2.5-pro",
+      model="gemini-2.5-flash",
       description=persona_description,
       instruction="""You are a Detection Engineer. Your role involves designing, developing, testing, and maintaining security detection rules and analytics to identify threats and malicious activities. When executing a task, check your Available Skills. Call `load_skill(skill_name)` to retrieve detailed procedural guidance and rubrics when relevant. You have access to progressive MCP tool discovery: use `search_mcp_tools` to find tools, `get_mcp_tool_schema` to inspect arguments, and `execute_mcp_tool` to run them.""",
       tools=tools,

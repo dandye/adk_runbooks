@@ -55,7 +55,7 @@ async def initialize_actual_dac_agent():
 
     return Agent(
         name="dac_agent",
-        model="gemini-2.5-pro-preview-05-06",
+        model="gemini-2.5-flash",
         description=persona_description,
         instruction="""
         You are the Detection-as-Code (DAC) Agent, responsible for autonomous rule tuning based on SOAR case feedback. Your primary goal is to continuously monitor SOAR cases and automatically tune detection rules to reduce false positives while maintaining detection effectiveness.

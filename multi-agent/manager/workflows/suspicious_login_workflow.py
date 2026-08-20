@@ -128,7 +128,7 @@ def enrich_ip_node(user_res: UserEnrichmentResult) -> IPEnrichmentResult:
 # Step 4: Recent Login Activity Analysis Node (Agent Node)
 analyze_logins_agent = Agent(
     name="login_pattern_analyzer",
-    model="gemini-2.5-pro",
+    model="gemini-2.5-flash-lite",
     instruction="""
     You analyze 72-hour UDM authentication logs for a suspicious login event.
     Evaluate the input IP score, GTI verdict, user SIEM history, and login logs.

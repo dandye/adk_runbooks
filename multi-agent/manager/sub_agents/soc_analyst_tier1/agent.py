@@ -37,7 +37,7 @@ def get_agent(tools):
 
   agent_instance = Agent(
       name="soc_analyst_tier1",
-      model="gemini-2.5-pro",
+      model="gemini-2.5-flash-lite",
       description=persona_description,
       instruction="""You are a Tier 1 SOC Analyst. When executing a task, check your Available Skills. Call `load_skill(skill_name)` to retrieve detailed procedural guidance and rubrics when relevant. You have access to progressive MCP tool discovery: use `search_mcp_tools` to find tools, `get_mcp_tool_schema` to inspect arguments, and `execute_mcp_tool` to run them.""",
       tools=tools,
