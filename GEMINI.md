@@ -91,12 +91,17 @@ make html  # From project root
   - `load_skill(skill_name)`: Tool enabling agents to retrieve full step-by-step instructions, execution guidelines, and rubrics on demand when executing a task.
   - `list_available_skills(category=...)`: Tool for runtime skill discovery filtered optionally by category.
 
+### Progressive MCP Tool Discovery
+- **Centralized MCP Registry** (`multi-agent/manager/tools/mcp_registry.py` and `dac_agent/tools/mcp_registry.py`): Replaces 30+ static JSON parameter schemas with dynamic runtime reflection across Chronicle SIEM, Chronicle SOAR, VirusTotal/GTI, and Google SecOps 1P Detection Engineering.
+- **Client Meta-Tools** (`search_mcp_tools`, `get_mcp_tool_schema`, `execute_mcp_tool`): Injected into agent toolsets to enable on-demand tool discovery, parameter schema inspection, and sync/async execution with zero context bloat.
+- **Google SecOps 1P MCP Integration**: Connects `dac_agent` and Detection Engineer to Google Cloud SecOps 1P Agentic Detection Engineering MCP Server (`https://chronicle.{region}.rep.googleapis.com/mcp`) via dynamic Google Auth ADC bearer tokens.
+
 ### Deferred Initialization Pattern
 The manager agent uses `DeferredInitializationAgent` to handle async initialization of sub-agents and MCP tools. This allows synchronous registration while deferring expensive setup operations.
 
 ### Tool Integration
 - **MCP Security Tools**: Configured in `multi-agent/manager/tools/tools.py`
-  - Tools now use relative paths from the `external/mcp-security` git submodule
+  - Tools use relative paths from the `external/mcp-security` git submodule
 - **Shared tools** are initialized once and passed to all sub-agents to avoid redundant connections
 
 ### Configuration Requirements
@@ -124,12 +129,13 @@ The manager agent uses `DeferredInitializationAgent` to handle async initializat
 
 ### Evaluation and Benchmarks (`evals/`)
 - `evals/datasets/`: Test dataset manifests (`core_workflows.json`, `all_36_workflows.json`, `expanded_cases_alerts.json`).
-- `evals/registry.py`: Central registry mapping workflows to agents and skills.
+- `evals/registry.py`: Central registry mapping workflows to agents, skills, and token estimators.
 - `evals/rubrics/`: 4-rubric procedural evaluation modules (triage/IRP, threat hunting, detection, reporting).
-- `evals/runner.py`: CLI evaluation runner.
+- `evals/runner.py`: CLI evaluation runner with `--report` support for Markdown and JSON benchmark scorecards.
 
-### Agent Loading Pattern
-Agents use `load_persona_with_skills_catalog(persona_path, skill_names=[...])` to construct their system instructions with a compact catalog of relevant skills. During execution, agents dynamically invoke `load_skill(skill_name)` to pull full procedures into context on demand. The legacy `load_persona_and_runbooks()` remains available for backward compatibility with a deprecation warning.
+### Model Distribution Strategy
+- **Critical Thinking & Orchestration (`gemini-3.7-flash`)**: Root Manager, CTI Researcher, Threat Hunter, SOC Analyst Tier 3, Incident Responder, Detection Engineer, LLM Judge, DAC Agent, Graph Workflows.
+- **High-Speed Procedural Operations (`gemini-2.5-flash-lite`)**: SOC Analyst Tier 1 and SOC Analyst Tier 2.
 
 ## Critical Implementation Details
 
@@ -137,7 +143,7 @@ Agents use `load_persona_with_skills_catalog(persona_path, skill_names=[...])` t
 2. **Async Operations**: All tool initialization and agent setup uses async/await patterns
 3. **Path Resolution**: Uses `pathlib` for robust cross-platform path handling
 4. **Resource Management**: Uses `contextlib.ExitStack` to manage tool lifecycles
-5. **Model Selection**: Currently configured for Gemini 2.5 Pro Preview models
+5. **Model Selection**: Standardized on Gemini 3.7 Flash for reasoning/orchestration and Gemini 2.5 Flash Lite for procedural triage
 
 ## Common Development Tasks
 
@@ -153,7 +159,7 @@ Agents use `load_persona_with_skills_catalog(persona_path, skill_names=[...])` t
    ---
    ```
 3. Write detailed markdown instructions, inputs, prerequisites, tool calls, and output formats.
-4. Assign the skill to appropriate agent(s) in `multi-agent/manager/sub_agents/<agent>/agent.py` or `dac-agent/agent.py`.
+4. Assign the skill to appropriate agent(s) in `multi-agent/manager/sub_agents/<agent>/agent.py` or `dac_agent/agent.py`.
 5. (Optional) If covered by benchmarks, register the workflow in `evals/registry.py` and update datasets in `evals/datasets/`.
 
 ### Adding a New Sub-Agent
@@ -172,7 +178,7 @@ Edit `multi-agent/manager/tools/tools.py` to add new tools or modify tool initia
    ```
 2. Run workflow evaluation benchmarks:
    ```bash
-   ./venv/bin/python -m evals.runner --dataset core_workflows
+   ./venv/bin/python -m evals.runner --dataset all_36_workflows --report -v
    ```
 3. Run individual agents interactively:
    ```bash

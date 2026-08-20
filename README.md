@@ -14,16 +14,38 @@ ADK Runbooks implements a manager-orchestrated multi-agent system where speciali
 ### Key Features
 
 - **Multi-Agent Architecture**: A root Manager agent coordinates specialized sub-agents with domain expertise and shared toolsets.
-- **Progressive Disclosure Skills Framework**: 62+ battle-tested security skills organized into standard taxonomy packages (`SKILL.md`) indexed by `SkillRegistry`. Agents dynamically fetch step-by-step instructions via `load_skill()`.
-- **Detection-as-Code (DAC)**: Dedicated `dac-agent` for rule lifecycle management, validation, and automated tuning.
-- **Model Context Protocol (MCP) Integration**: Seamless integration with security tools including Chronicle SIEM, Chronicle SOAR, and VirusTotal / Google Threat Intelligence (GTI).
-- **Rigorous Evaluation & Benchmarking**: 4-rubric graph workflow evaluation framework covering 36+ end-to-end security operations workflows with automated scoring and markdown report generation.
+- **Dual-Tier Progressive Disclosure Framework**:
+  - **Tier 1 (Skills)**: 62+ battle-tested security skills organized into standard taxonomy packages (`SKILL.md`) indexed by `SkillRegistry`. Agents dynamically fetch step-by-step instructions via `load_skill()`.
+  - **Tier 2 (MCP Discovery)**: Client-side progressive tool discovery (`MCPToolRegistry`) replaces 30+ upfront static JSON parameter schemas with dynamic meta-tools (`search_mcp_tools`, `get_mcp_tool_schema`, `execute_mcp_tool`), achieving **60.5% token reduction beyond skills alone and 94.0% reduction vs monolithic prompts**.
+- **Detection-as-Code (DAC) & Google SecOps 1P MCP Integration**: Dedicated `dac-agent` and Detection Engineer sub-agent integrated with Google Cloud SecOps 1P Agentic Detection Engineering MCP Server (70+ tools for TDO extraction, synthetic UDM events, coverage evaluation, and YARA-L rule generation).
+- **Enterprise Security MCP Tooling**: Unified integration across Chronicle SIEM, Chronicle SOAR, VirusTotal / Google Threat Intelligence (GTI), and SecOps Detection Engineering.
+- **Rigorous Evaluation & Benchmarking**: 4-rubric graph workflow evaluation framework covering 36+ end-to-end security operations workflows with automated scoring, latency measurement, token usage tracking, and Markdown/JSON report generation.
 
 ---
 
-## Skills & Progressive Disclosure Architecture
+## Dual Progressive Disclosure Architecture
 
-Operational playbooks, incident response plans (IRPs), and atomic procedures are structured as self-contained skills under `skills/`.
+Operational procedures and external MCP tools are loaded strictly on-demand to prevent prompt bloat and context degradation:
+
+```
+┌────────────────────────────────────────────────────────────────────────────┐
+│ DUAL PROGRESSIVE DISCLOSURE ARCHITECTURE                                   │
+│                                                                            │
+│ ┌────────────────────────────────────────────────────────────────────────┐ │
+│ │ TIER 1: Procedural Skills Progressive Disclosure (`SkillRegistry`)     │ │
+│ │  - Lean catalog of available skills injected into agent prompt.        │ │
+│ │  - Full procedural runbook loaded on demand via `load_skill()`.        │ │
+│ └────────────────────────────────────────────────────────────────────────┘ │
+│                                                                            │
+│ ┌────────────────────────────────────────────────────────────────────────┐ │
+│ │ TIER 2: Progressive MCP Tool Discovery (`MCPToolRegistry`)             │ │
+│ │  - Replaces 30+ static tool schemas with 3 lightweight meta-tools:     │ │
+│ │      1. search_mcp_tools(query, server) -> Search available tools      │ │
+│ │      2. get_mcp_tool_schema(tool_name)  -> Retrieve JSON schema        │ │
+│ │      3. execute_mcp_tool(tool_name, args) -> Dynamic tool execution    │ │
+│ └────────────────────────────────────────────────────────────────────────┘ │
+└────────────────────────────────────────────────────────────────────────────┘
+```
 
 ### Skill Taxonomy Categories
 
@@ -33,50 +55,27 @@ Operational playbooks, incident response plans (IRPs), and atomic procedures are
 | **`skills/irps/`** | Incident Response Plans for specific incident classes | `malware-incident-response`, `phishing-response`, `ransomware-response`, `compromised-user-account-response` |
 | **`skills/investigation/`** | Case investigation, grouping, timelines, and IOC analysis | `deep-dive-ioc-analysis`, `prioritize-and-investigate-case`, `case-event-timeline-analysis`, `ioc-containment` |
 | **`skills/hunting/`** | Proactive threat hunting playbooks | `advanced-threat-hunting`, `apt-threat-hunt`, `ioc-threat-hunt`, `lateral-movement-hunt-psexec-wmi` |
-| **`skills/detection/`** | Detection-as-Code workflows and rule validation | `detection-rule-validation-tuning`, `detection-as-code-workflows`, `detection-as-code-rule-tuning` |
+| **`skills/detection/`** | Detection-as-Code workflows, coverage evaluation, and rule validation | `detection-engineering-coverage-evaluation`, `detection-rule-validation-tuning`, `detection-as-code-workflows` |
 | **`skills/reporting/`** | Standardized reporting guidelines and templates | `report-writing-guidelines`, `create-investigation-report`, `alert-report`, `case-report`, `detection-report` |
 | **`skills/atomic/`** | Atomic IOC lookups and enrichment steps | `lookup-ip-chronicle`, `lookup-domain-gti`, `search-chronicle-udm-hash`, `lookup-user-chronicle` |
 | **`skills/common/`** | Reusable operational procedures | `document-in-soar`, `close-soar-artifact`, `find-relevant-soar-case`, `enrich-ioc`, `generate-report-file` |
 
-### How Progressive Disclosure Works
-
-```
-┌────────────────────────────────────────────────────────┐
-│ Agent System Prompt                                    │
-│ - Persona / Role Definition                            │
-│ - Available Skills Catalog (Names & Brief Descriptions)│
-└───────────────────────┬────────────────────────────────┘
-                        │
-                        ▼ (Agent identifies needed procedure)
-┌────────────────────────────────────────────────────────┐
-│ Dynamic Tool Call: load_skill("<skill-name>")          │
-└───────────────────────┬────────────────────────────────┘
-                        │
-                        ▼ (SkillRegistry returns full markdown)
-┌────────────────────────────────────────────────────────┐
-│ Execution Context                                      │
-│ - Step-by-step instructions & decision trees           │
-│ - Prerequisites, tool call sequences, and rubrics      │
-│ - Markdown operational report writing in reports/      │
-└────────────────────────────────────────────────────────┘
-```
-
 ---
 
-## Security Agents
+## Security Agents & Model Distribution
 
-| Agent | Module | Role & Core Responsibilities |
-|---|---|---|
-| **Manager Agent** | `multi-agent/manager/agent.py` | Orchestrator; triages incoming requests, delegates to specialists, tracks IRP lifecycle. |
-| **SOC Analyst Tier 1** | `multi-agent/manager/sub_agents/soc_analyst_tier1/` | Initial alert triage, basic investigation, IOC enrichment, duplicate case handling. |
-| **SOC Analyst Tier 2** | `multi-agent/manager/sub_agents/soc_analyst_tier2/` | Deep-dive case investigation, event timeline analysis, GTI campaign correlation. |
-| **SOC Analyst Tier 3** | `multi-agent/manager/sub_agents/soc_analyst_tier3/` | Advanced forensics, complex incident escalation, detection rule tuning. |
-| **Threat Hunter** | `multi-agent/manager/sub_agents/threat_hunter/` | Proactive hypothesis-driven hunting, APT campaigns, TTP credential access & lateral movement hunts. |
-| **CTI Researcher** | `multi-agent/manager/sub_agents/cti_researcher/` | Cyber threat intelligence research, GTI collections, actor profiling. |
-| **Incident Responder** | `multi-agent/manager/sub_agents/incident_responder/` | Containment, eradication, recovery, endpoint isolation, and full IRP execution. |
-| **Detection Engineer** | `multi-agent/manager/sub_agents/detection_engineer/` | Rule authoring, YARA-L validation, Detection-as-Code workflows, false positive tuning. |
-| **LLM Judge** | `multi-agent/manager/sub_agents/llm_judge/` | Procedural compliance assessment and rubric-based report evaluation. |
-| **DAC Agent** | `dac-agent/agent.py` | Standalone Detection-as-Code agent for rule management and CI/CD validation. |
+| Agent | Module | Default Model | Role & Core Responsibilities |
+|---|---|:---:|---|
+| **Manager Agent** | `multi-agent/manager/agent.py` | `gemini-3.7-flash` | Root orchestrator; triages requests, delegates to specialists, tracks IRP lifecycle. |
+| **SOC Analyst Tier 1** | `multi-agent/manager/sub_agents/soc_analyst_tier1/` | `gemini-2.5-flash-lite` | High-speed initial alert triage, basic IOC enrichment, duplicate case handling. |
+| **SOC Analyst Tier 2** | `multi-agent/manager/sub_agents/soc_analyst_tier2/` | `gemini-2.5-flash-lite` | Case investigation, event timeline analysis, GTI campaign correlation. |
+| **SOC Analyst Tier 3** | `multi-agent/manager/sub_agents/soc_analyst_tier3/` | `gemini-3.7-flash` | Advanced forensics, complex incident escalation, detection rule tuning. |
+| **Threat Hunter** | `multi-agent/manager/sub_agents/threat_hunter/` | `gemini-3.7-flash` | Proactive hypothesis-driven hunting, APT campaigns, TTP credential access & lateral movement hunts. |
+| **CTI Researcher** | `multi-agent/manager/sub_agents/cti_researcher/` | `gemini-3.7-flash` | Cyber threat intelligence research, GTI collections, actor profiling, malware communication analysis. |
+| **Incident Responder** | `multi-agent/manager/sub_agents/incident_responder/` | `gemini-3.7-flash` | Containment, eradication, recovery, endpoint isolation, and full IRP execution. |
+| **Detection Engineer** | `multi-agent/manager/sub_agents/detection_engineer/` | `gemini-3.7-flash` | Rule authoring, YARA-L 2.0 validation, Detection-as-Code workflows, false positive tuning. |
+| **LLM Judge** | `multi-agent/manager/sub_agents/llm_judge/` | `gemini-3.7-flash` | Procedural compliance assessment and rubric-based report evaluation. |
+| **DAC Agent** | `dac-agent/agent.py` | `gemini-3.7-flash` | Standalone Detection-as-Code agent with Google SecOps 1P Agentic Detection Engineering MCP Server integration. |
 
 ---
 
