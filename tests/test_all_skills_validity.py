@@ -1,5 +1,7 @@
 import pytest
+import re
 from pathlib import Path
+import yaml
 from skills.registry import SkillRegistry
 
 
@@ -138,7 +140,6 @@ def test_every_skill_metadata_and_content_validity():
         assert len(meta.description) <= 250, f"Skill {skill_name} description must be concise (< 250 chars), got {len(meta.description)}"
 
         # Validate OKF Frontmatter attributes directly from the file
-        import yaml, re
         raw_text = meta.path.read_text(encoding="utf-8")
         match = re.match(r"^---\s*\n(.*?)\n---\s*\n(.*)$", raw_text, re.DOTALL)
         assert match, f"Skill {skill_name} missing frontmatter fence"

@@ -1,9 +1,12 @@
 """Centralized Skill Registry and Parsing Engine."""
 
 from dataclasses import dataclass
+import logging
 from pathlib import Path
 import re
 import yaml
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -28,6 +31,10 @@ class SkillRegistry:
         self.skills: dict[str, SkillMetadata] = {}
         self.scan_skills()
 
+    def reload(self) -> dict[str, SkillMetadata]:
+        """Alias to re-scan and reload all skills dynamically from disk."""
+        return self.scan_skills()
+
     def scan_skills(self) -> dict[str, SkillMetadata]:
         """Recursively scan skills directory for SKILL.md files and index metadata."""
         self.skills.clear()
@@ -48,7 +55,7 @@ class SkillRegistry:
                     if alt_underscore != metadata.name:
                         self.skills[alt_underscore] = metadata
             except Exception as e:
-                print(f"Warning: Failed to parse skill at {skill_path}: {e}")
+                logger.warning("Failed to parse skill at %s: %s", skill_path, e)
         return self.skills
 
     def _parse_frontmatter(self, content: str, path: Path) -> SkillMetadata | None:
