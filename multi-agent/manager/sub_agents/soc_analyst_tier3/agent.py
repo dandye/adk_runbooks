@@ -1,14 +1,13 @@
 from pathlib import Path
 from google.adk.agents import Agent
 
-from ...tools.tools import load_persona_and_runbooks
+from ...tools.tools import load_persona_with_skills_catalog
 
 
-# Changed to a synchronous function that accepts tools and exit_stack
 def get_agent(tools):
   """Configures and returns a SOC Analyst Tier 3 Agent instance.
 
-  This function sets up the agent with a specific persona, runbooks,
+  This function sets up the agent with a specific persona, skills catalog,
   and tools necessary for advanced Tier 3 SOC operations, including
   complex incident response, deep-dive analysis, and potentially
   leading response efforts.
@@ -21,27 +20,27 @@ def get_agent(tools):
   """
   BASE_DIR = Path(__file__).resolve().parent
   persona_file_path = (BASE_DIR / "../../../../rules-bank/personas/soc_analyst_tier_3.md").resolve()
-  runbook_files = [
-    (BASE_DIR / "../../../../rules-bank/run_books/deep_dive_ioc_analysis.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/malware_triage.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/irps/compromised_user_account_response.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/irps/ransomware_response.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/detection_rule_validation_tuning.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/create_an_investigation_report.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/guidelines/report_writing.md").resolve(),
+  skills = [
+      "deep-dive-ioc-analysis",
+      "malware-triage",
+      "compromised-user-account-response",
+      "ransomware-response",
+      "detection-rule-validation-tuning",
+      "create-investigation-report",
+      "report-writing-guidelines",
   ]
 
-  persona_description = load_persona_and_runbooks(
-      persona_file_path,
-      runbook_files,
+  persona_description = load_persona_with_skills_catalog(
+      str(persona_file_path),
+      skill_names=skills,
       default_persona_description="Default SOC Analyst Tier 3 description: Responsible for advanced incident response and analysis."
   )
 
-  agent_instance = Agent( # Renamed to avoid conflict
+  agent_instance = Agent(
       name="soc_analyst_tier3",
       model="gemini-2.5-pro",
       description=persona_description,
-      instruction="""You are a Tier 3 SOC Analyst. You handle escalated incidents, perform deep-dive analysis, and lead response efforts.""",
-      tools=tools, # Use passed-in tools
+      instruction="""You are a Tier 3 SOC Analyst. You handle escalated incidents, perform deep-dive analysis, and lead response efforts. When executing a task, check your Available Skills. Call `load_skill(skill_name)` to retrieve detailed procedural guidance and rubrics when relevant.""",
+      tools=tools,
   )
-  return agent_instance # Only return the agent instance
+  return agent_instance

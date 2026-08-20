@@ -1,13 +1,13 @@
 from pathlib import Path
 from google.adk.agents import Agent
 
-from ...tools.tools import load_persona_and_runbooks
+from ...tools.tools import load_persona_with_skills_catalog
 
 
 def get_agent(tools):
   """Configures and returns a Threat Hunter Agent instance.
 
-  This function sets up the agent with a specific persona, runbooks,
+  This function sets up the agent with a specific persona, skills catalog,
   and tools tailored for proactive threat hunting activities.
 
   Args:
@@ -18,19 +18,19 @@ def get_agent(tools):
   """
   BASE_DIR = Path(__file__).resolve().parent
   persona_file_path = (BASE_DIR / "../../../../rules-bank/personas/threat_hunter.md").resolve()
-  runbook_files = [
-    (BASE_DIR / "../../../../rules-bank/run_books/advanced_threat_hunting.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/apt_threat_hunt.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/ioc_threat_hunt.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/guided_ttp_hunt_credential_access.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/lateral_movement_hunt_psexec_wmi.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/proactive_threat_hunting_based_on_gti_campaign_or_actor.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/guidelines/report_writing.md").resolve(),
+  skills = [
+      "advanced-threat-hunting",
+      "apt-threat-hunt",
+      "ioc-threat-hunt",
+      "guided-ttp-hunt-credential-access",
+      "lateral-movement-hunt-psexec-wmi",
+      "proactive-hunt-gti-campaign",
+      "report-writing-guidelines",
   ]
 
-  persona_description = load_persona_and_runbooks(
-      persona_file_path,
-      runbook_files,
+  persona_description = load_persona_with_skills_catalog(
+      str(persona_file_path),
+      skill_names=skills,
       default_persona_description="Default Threat Hunter description: Responsible for proactive threat hunting."
   )
 
@@ -38,7 +38,7 @@ def get_agent(tools):
       name="threat_hunter",
       model="gemini-2.5-pro",
       description=persona_description,
-      instruction="""You are a Threat Hunter agent.""",
+      instruction="""You are a Threat Hunter agent. When executing a task, check your Available Skills. Call `load_skill(skill_name)` to retrieve detailed procedural guidance and rubrics when relevant.""",
       tools=tools,
   )
   return agent_instance

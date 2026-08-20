@@ -1,13 +1,13 @@
 from pathlib import Path
 from google.adk.agents import Agent
 
-from ...tools.tools import load_persona_and_runbooks
+from ...tools.tools import load_persona_with_skills_catalog
 
 
 def get_agent(tools):
   """Configures and returns a SOC Analyst Tier 1 Agent instance.
 
-  This function sets up the agent with a specific persona, runbooks,
+  This function sets up the agent with a specific persona, skills catalog,
   and tools necessary for Tier 1 SOC operations.
 
   Args:
@@ -18,20 +18,20 @@ def get_agent(tools):
   """
   BASE_DIR = Path(__file__).resolve().parent
   persona_file_path = (BASE_DIR / "../../../../rules-bank/personas/soc_analyst_tier_1.md").resolve()
-  runbook_files = [
-    (BASE_DIR / "../../../../rules-bank/run_books/triage_alerts.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/close_duplicate_or_similar_cases.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/investigate_a_case_w_external_tools.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/group_cases.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/group_cases_v2.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/basic_ioc_enrichment.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/suspicious_login_triage.md").resolve(),
-    (BASE_DIR / "../../../../rules-bank/run_books/guidelines/report_writing.md").resolve(),
+  skills = [
+      "triage-alerts",
+      "close-duplicate-cases",
+      "investigate-case-external-tools",
+      "group-cases",
+      "group-cases-v2",
+      "basic-ioc-enrichment",
+      "suspicious-login-triage",
+      "report-writing-guidelines",
   ]
 
-  persona_description = load_persona_and_runbooks(
-      persona_file_path,
-      runbook_files,
+  persona_description = load_persona_with_skills_catalog(
+      str(persona_file_path),
+      skill_names=skills,
       default_persona_description="Default SOC Analyst Tier 1 description: Responsible for initial alert triage and basic IOC enrichment."
   )
 
@@ -39,7 +39,7 @@ def get_agent(tools):
       name="soc_analyst_tier1",
       model="gemini-2.5-pro",
       description=persona_description,
-      instruction="""You are a Tier 1 SOC Analyst.""",
+      instruction="""You are a Tier 1 SOC Analyst. When executing a task, check your Available Skills. Call `load_skill(skill_name)` to retrieve detailed procedural guidance and rubrics when relevant.""",
       tools=tools,
   )
   return agent_instance
