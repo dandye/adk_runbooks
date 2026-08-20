@@ -1,9 +1,14 @@
 ---
 type: Runbook
 title: "Runbook: UEBA Report Analysis"
+description: "Use when analyzing User and Entity Behavior Analytics (UEBA) telemetry to investigate abnormal data access or anomalous exfiltration."
 generated:
   by: process:google-labs-jules
   at: 2025-12-20T22:04:42-05:00
+related:
+  - ./index.md
+  - ./basic_ioc_enrichment.md
+  - ../indicator_handling_protocols.md
 ---
 
 # Runbook: UEBA Report Analysis

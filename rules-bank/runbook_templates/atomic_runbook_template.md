@@ -1,9 +1,14 @@
 ---
 type: Template
 title: "Atomic Runbook: [Clear, Verb-Oriented Title - e.g., Get_IP_Reputation_From_GTI]"
+description: "Standardized authoring template for creating focused, reusable atomic runbooks for specific entity indicators."
 generated:
   by: human:dandye
   at: 2025-05-31T00:07:07-04:00
+related:
+  - ../atomic_runbooks/index.md
+  - ../detection_use_cases/duc_template_package.md
+  - ../coding_conventions.md
 ---
 
 # Atomic Runbook: [Clear, Verb-Oriented Title - e.g., Get_IP_Reputation_From_GTI]

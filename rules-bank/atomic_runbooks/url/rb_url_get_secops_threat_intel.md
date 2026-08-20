@@ -1,9 +1,14 @@
 ---
 type: Runbook
 title: "Atomic Runbook: Get URL Threat Intel via SecOps MCP"
+description: "Use when querying SecOps threat intelligence indicators for a specific URL."
 generated:
   by: human:dandye
   at: 2025-05-31T00:07:07-04:00
+related:
+  - ../index.md
+  - ../../indicator_handling_protocols.md
+  - ../../mcp_tool_best_practices.md
 ---
 
 # Atomic Runbook: Get URL Threat Intel via SecOps MCP

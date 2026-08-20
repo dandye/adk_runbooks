@@ -1,9 +1,14 @@
 ---
 type: Runbook
 title: "Lateral Movement Detection Hunt (Example: PsExec/WMI)"
+description: "Use when hunting for lateral movement via PsExec, WMI, remote scheduled tasks, or WinRM."
 generated:
   by: process:google-labs-jules
   at: 2025-12-20T22:04:42-05:00
+related:
+  - ./index.md
+  - ./basic_ioc_enrichment.md
+  - ../indicator_handling_protocols.md
 ---
 
 # Lateral Movement Detection Hunt (Example: PsExec/WMI)
@@ -166,6 +171,7 @@ sequenceDiagram
     else No Significant Findings
         AutomatedAgent->>Analyst: attempt_completion(result="Lateral Movement Hunt complete. No significant findings. Hunt documented.")
     end
+```
 
 ## Rubrics
 

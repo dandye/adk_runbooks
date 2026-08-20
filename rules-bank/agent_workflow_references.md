@@ -1,9 +1,14 @@
 ---
 type: Guideline
-title: Agent Workflow References
+title: "Agent Workflow References"
+description: "Comprehensive catalog of 15+ multi-agent design patterns, state machines, consensus loops, and workflow architectures with Mermaid diagrams."
 generated:
   by: human:dandye
   at: 2025-07-30T22:29:48-04:00
+related:
+  - ./multi_agent_overview.md
+  - ./architecture/adk_graph_workflows_overview.md
+  - ./multi_agent/configuration_based_delegation.md
 ---
 
 # Agent Workflow References
@@ -15,24 +20,16 @@ We use the document as a reference when thinking about building agentic workflow
 ## References
 
 * [Agent Patterns with ADK (1 Agent, 5 Ways!)](https://medium.com/google-cloud/agent-patterns-with-adk-1-agent-5-ways-58bff801c2d6)
-* [Multi-Agent Systems in ADK¶
-](https://google.github.io/adk-docs/agents/multi-agents/)
+* [Multi-Agent Systems in ADK](https://google.github.io/adk-docs/agents/multi-agents/)
 * [Workflow Agents](https://google.github.io/adk-docs/agents/workflow-agents/)
-* [Custom agents](https://google.github.io/adk-docs/agents/custom-agents/)
-* [Accelerate ADK development with Claude Code + GitHub MCP Server](https://medium.com/google-cloud/accelerate-adk-development-with-claude-code-github-mcp-server-7a5052d481bc)
-* [Expanding ADK AI agent capabilities with tools](https://medium.com/google-cloud/expanding-adk-ai-agent-capabilities-with-tools-008a929d1ffb)
-
-
-# ToDo
-  *  [ ] [Build a RAG Agent using Google ADK and Vertex AI RAG Engine](https://medium.com/google-cloud/build-a-rag-agent-using-google-adk-and-vertex-ai-rag-engine-bb1e6b1ee09d)
-  *  [ ] [A practical guide to building Multi-Agents AI Systems with A2A](https://medium.com/google-cloud/a-practical-guide-to-building-multi-agents-ai-systems-with-a2a-2c0e3d77af24)
-  *  [ ] [](https://medium.com/google-cloud/the-agent-as-tool-antipattern-analyzing-protocol-mismatches-in-peer-to-peer-multi-agent-36a44a5f724b)
-  *  [ ] [Using HTTP endpoints as tools with MCP Toolbox for Databases
-Using HTTP endpoints as tools with MCP Toolbox for Databases](https://medium.com/google-cloud/using-http-endpoints-as-tools-with-mcp-toolbox-for-databases-e93ab75b60cd)
-  *  [ ] [Guide to Google Agent Development Kit (ADK)
-](https://www.aalpha.net/blog/google-agent-development-kit-adk-for-multi-agent-applications/)
-  *  [ ] []()
-  *  [ ] []()
+* [Custom Agents](https://google.github.io/adk-docs/agents/custom-agents/)
+* [Accelerate ADK Development with Claude Code + GitHub MCP Server](https://medium.com/google-cloud/accelerate-adk-development-with-claude-code-github-mcp-server-7a5052d481bc)
+* [Expanding ADK AI Agent Capabilities with Tools](https://medium.com/google-cloud/expanding-adk-ai-agent-capabilities-with-tools-008a929d1ffb)
+* [Build a RAG Agent Using Google ADK and Vertex AI RAG Engine](https://medium.com/google-cloud/build-a-rag-agent-using-google-adk-and-vertex-ai-rag-engine-bb1e6b1ee09d)
+* [A Practical Guide to Building Multi-Agent AI Systems with A2A](https://medium.com/google-cloud/a-practical-guide-to-building-multi-agents-ai-systems-with-a2a-2c0e3d77af24)
+* [The Agent-as-Tool Antipattern: Analyzing Protocol Mismatches in Peer-to-Peer Multi-Agent Systems](https://medium.com/google-cloud/the-agent-as-tool-antipattern-analyzing-protocol-mismatches-in-peer-to-peer-multi-agent-36a44a5f724b)
+* [Using HTTP Endpoints as Tools with MCP Toolbox for Databases](https://medium.com/google-cloud/using-http-endpoints-as-tools-with-mcp-toolbox-for-databases-e93ab75b60cd)
+* [Guide to Google Agent Development Kit (ADK) for Multi-Agent Applications](https://www.aalpha.net/blog/google-agent-development-kit-adk-for-multi-agent-applications/)
 
 ## Agent Design Patterns
 

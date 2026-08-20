@@ -1,9 +1,14 @@
 ---
 type: Runbook
 title: "Runbook: Generate Case Investigation Report"
+description: "Use when drafting detailed case closure reports, root cause analysis, and impact summaries."
 generated:
   by: process:google-labs-jules
   at: 2025-12-20T22:04:42-05:00
+related:
+  - ./index.md
+  - ./basic_ioc_enrichment.md
+  - ../indicator_handling_protocols.md
 ---
 
 # Runbook: Generate Case Investigation Report

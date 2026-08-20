@@ -1,9 +1,14 @@
 ---
 type: Runbook
 title: "Common Step: Correlate IOC with SIEM Alerts & SOAR Cases"
+description: "Use when querying Chronicle and SOAR to correlate indicators with active alerts and cases."
 generated:
   by: human:dandye
   at: 2025-11-10T17:21:35-05:00
+related:
+  - ./index.md
+  - ../basic_ioc_enrichment.md
+  - ../../mcp_tool_best_practices.md
 ---
 
 # Common Step: Correlate IOC with SIEM Alerts & SOAR Cases

@@ -1,9 +1,14 @@
 ---
 type: Runbook
-title: Detection Rule Validation & Tuning Runbook
+title: "Detection Rule Validation & Tuning Runbook"
+description: "Use when validating detection rule performance, reducing false positives, and tuning logic."
 generated:
   by: process:google-labs-jules
   at: 2025-12-20T22:04:42-05:00
+related:
+  - ./index.md
+  - ./basic_ioc_enrichment.md
+  - ../indicator_handling_protocols.md
 ---
 
 # Detection Rule Validation & Tuning Runbook
@@ -151,6 +156,7 @@ sequenceDiagram
 
     %% Step 10: Completion
     AutomatedAgent->>Analyst/Engineer: attempt_completion(result="Detection Rule Validation & Tuning complete for RULE_ID. Recommendations documented and handed over.")
+```
 
 ## Rubrics
 

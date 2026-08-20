@@ -1,9 +1,14 @@
 ---
 type: Guideline
 title: Suggested New MCP Tools
+description: "Proposed extensions and tool enhancements for SecOps SIEM, SOAR, GTI, and SCC MCP servers to support automated agent workflows."
 generated:
   by: human:dandye
-  at: 2025-05-17T18:46:00-04:00
+  at: 2026-08-20T18:00:00-04:00
+related:
+  - ./mcp_tool_best_practices.md
+  - ./architecture/progressive_mcp_discovery_overview.md
+  - ./multi_agent_overview.md
 ---
 
 # Suggested New MCP Tools

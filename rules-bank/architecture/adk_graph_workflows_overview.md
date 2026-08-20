@@ -8,7 +8,7 @@ generated:
 related:
   - ./skills_progressive_disclosure_overview.md
   - ./progressive_mcp_discovery_overview.md
-  - ../rules-bank/multi_agent_overview.md
+  - ../multi_agent_overview.md
 ---
 
 # ADK Graph Workflows for SecOps Runbooks & Incident Response Plans

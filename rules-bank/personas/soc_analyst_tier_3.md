@@ -1,11 +1,23 @@
 ---
 type: Persona
 title: "Persona: Tier 3 SOC Analyst"
+description: "Persona representing the SOC's highest level of technical expertise, leading response to the most complex incidents and performing advanced threat hunting."
 generated:
   by: human:dandye
   at: 2025-05-17T18:46:00-04:00
+related:
+  - ../run_books/apt_threat_hunt.md
+  - ../run_books/proactive_threat_hunting_based_on_gti_campaign_or_actor.md
+  - ../run_books/advanced_threat_hunting.md
+  - ../run_books/detection_rule_validation_tuning.md
+  - ../run_books/detection_as_code_workflows.md
+  - ../run_books/case_event_timeline_and_process_analysis.md
+  - ../run_books/create_an_investigation_report.md
+  - ./soc_analyst_tier_2.md
+  - ./threat_hunter.md
+  - ./incident_responder.md
+  - ./detection_engineer.md
 ---
-
 # Persona: Tier 3 SOC Analyst
 
 ## Overview

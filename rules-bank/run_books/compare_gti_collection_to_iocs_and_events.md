@@ -1,9 +1,14 @@
 ---
 type: Runbook
-title: Compare GTI Collection to IoCs, Events in SecOps
+title: "Compare GTI Collection to IoCs, Events in SecOps"
+description: "Use when correlating emerging Google Threat Intelligence collections against enterprise IOCs and historical events."
 generated:
   by: process:google-labs-jules
   at: 2025-12-20T22:04:42-05:00
+related:
+  - ./index.md
+  - ./basic_ioc_enrichment.md
+  - ../indicator_handling_protocols.md
 ---
 
 # Compare GTI Collection to IoCs, Events in SecOps
@@ -109,6 +114,7 @@ sequenceDiagram
         AutomatedAgent->>AutomatedAgent: write_report(report_name="gti_comparison_report_GTI-XYZ_${timestamp}.md", report_contents=ReportMarkdown)
         AutomatedAgent->>AutomatedAgent: attempt_completion(result="Environment sweep based on GTI Collection 'GTI-XYZ' complete. Report generated. Recommend manual case creation if needed.")
     end
+```
 
 ## Rubrics
 

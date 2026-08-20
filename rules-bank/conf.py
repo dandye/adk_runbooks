@@ -23,10 +23,10 @@ json.dumps = _custom_dumps
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = 'Rules Bank'
-copyright = '2025, Your Name/Organization'  # Please update this
-author = 'Your Name/Organization'  # Please update this
-# release = '0.1' # Update as needed
-# version = '0.1.0' # Update as needed
+copyright = '2026, Dan Dye'
+author = 'Dan Dye'
+release = '1.0.0'
+version = '1.0'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

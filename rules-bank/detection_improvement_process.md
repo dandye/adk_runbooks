@@ -1,9 +1,14 @@
 ---
 type: Guideline
-title: Detection Improvement Process for AI Agents
+title: "Detection Improvement Process for AI Agents"
+description: "Continuous tuning and feedback lifecycle for identifying detection gaps, refining false positive rates, and updating YARA-L rules."
 generated:
   by: human:dandye
   at: 2025-05-31T00:07:07-04:00
+related:
+  - ./detection_strategy.md
+  - ./sop_automation_effectiveness_review.md
+  - ./run_books/detection_as_code_workflows.md
 ---
 
 # Detection Improvement Process for AI Agents

@@ -1,9 +1,14 @@
 ---
 type: Runbook
-title: SOC Analyst Tier 2 Demo Runbook (SOAR Focus)
+title: "SOC Analyst Tier 2 Demo Runbook (SOAR Focus)"
+description: "Use when executing Tier 2 SOC escalation runbooks in Google SecOps SOAR."
 generated:
   by: process:google-labs-jules
   at: 2025-12-20T22:04:42-05:00
+related:
+  - ./index.md
+  - ./basic_ioc_enrichment.md
+  - ../indicator_handling_protocols.md
 ---
 
 # SOC Analyst Tier 2 Demo Runbook (SOAR Focus)

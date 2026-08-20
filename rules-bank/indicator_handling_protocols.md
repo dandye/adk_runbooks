@@ -1,9 +1,14 @@
 ---
 type: Guideline
 title: Indicator Handling Protocols
+description: "Standardized initial investigation procedures, atomic runbook orchestration flows, and correlation protocols for IP, Domain, Hash, URL, and User indicators."
 generated:
   by: human:dandye
-  at: 2025-05-31T19:50:19-04:00
+  at: 2026-08-20T18:00:00-04:00
+related:
+  - ./atomic_runbooks/index.md
+  - ./mcp_tool_best_practices.md
+  - ./data_normalization_map.md
 ---
 
 # Indicator Handling Protocols
@@ -35,20 +40,20 @@ When dealing with dynamic IP addresses, focus on associated domains or ASNs for 
 -   **Standard Initial Investigation Flow (Orchestrating Atomic Runbooks):**
 
     1.  **External Reputation and Ownership Assessment:**
-        -   Execute Atomic Runbook: `../../Projects/adk_runbooks_debugging/rules-bank/atomic_runbooks/ip_address/rb_ip_get_gti_report.md`
+        -   Execute Atomic Runbook: `atomic_runbooks/ip_address/rb_ip_get_gti_report.md`
             -   Input: `ip_address`
             -   Outputs: `gti_ip_report`, `malicious_score`, `categories`, `output_status`, etc.
         -   IF `output_status` is "Failure" OR (`output_status` is "Success" AND `malicious_score` is low/inconclusive AND further context needed) THEN
-            -   Execute Atomic Runbook: `../../Projects/adk_runbooks_debugging/rules-bank/atomic_runbooks/ip_address/rb_ip_get_secops_threat_intel.md`
+            -   Execute Atomic Runbook: `atomic_runbooks/ip_address/rb_ip_get_secops_threat_intel.md`
                 -   Input: `ip_address`, `gti_confidence` (from previous step)
                 -   Outputs: `secops_ti_summary`, `output_status`, etc.
 
     2.  **Internal Activity Assessment (Chronicle SIEM):**
-        -   Execute Atomic Runbook: `../../Projects/adk_runbooks_debugging/rules-bank/atomic_runbooks/ip_address/rb_ip_lookup_entity_chronicle.md`
+        -   Execute Atomic Runbook: `atomic_runbooks/ip_address/rb_ip_lookup_entity_chronicle.md`
             -   Input: `ip_address`, `hours_back` (e.g., 72)
             -   Outputs: `chronicle_entity_summary`, `related_alerts_count`, `output_status`, etc.
         -   IF `output_status` is "Success" AND (`related_alerts_count` > 0 OR summary indicates significant activity) THEN
-            -   Execute Atomic Runbook: `../../Projects/adk_runbooks_debugging/rules-bank/atomic_runbooks/ip_address/rb_ip_search_network_traffic_chronicle.md`
+            -   Execute Atomic Runbook: `atomic_runbooks/ip_address/rb_ip_search_network_traffic_chronicle.md`
                 -   Input: `ip_address`, `hours_back` (e.g., 24-48), `additional_query_terms` (if specific ports/protocols are of interest)
                 -   Outputs: `udm_events`, `total_events_matched`, etc.
         -   ELSE IF `output_status` is "NoInfoFound" AND external reputation was medium/high THEN
@@ -79,23 +84,23 @@ When dealing with dynamic IP addresses, focus on associated domains or ASNs for 
 -   **Standard Initial Investigation Flow (Orchestrating Atomic Runbooks):**
 
     1.  **External Reputation and Resolution History:**
-        -   Execute Atomic Runbook: `../../Projects/adk_runbooks_debugging/rules-bank/atomic_runbooks/domain/rb_domain_get_gti_report.md`
+        -   Execute Atomic Runbook: `atomic_runbooks/domain/rb_domain_get_gti_report.md`
             -   Input: `domain_name`
             -   Outputs: `gti_domain_report`, `malicious_score`, `categories`, `resolutions`, `output_status`, etc.
         -   IF `output_status` is "Failure" OR (`output_status` is "Success" AND `malicious_score` is low/inconclusive AND further context needed) THEN
-            -   Execute Atomic Runbook: `../../Projects/adk_runbooks_debugging/rules-bank/atomic_runbooks/domain/rb_domain_get_secops_threat_intel.md`
+            -   Execute Atomic Runbook: `atomic_runbooks/domain/rb_domain_get_secops_threat_intel.md`
                 -   Input: `domain_name`, `gti_confidence`
                 -   Outputs: `secops_ti_summary`, `output_status`, etc.
 
     2.  **Internal Activity Assessment (Chronicle SIEM):**
-        -   Execute Atomic Runbook: `../../Projects/adk_runbooks_debugging/rules-bank/atomic_runbooks/domain/rb_domain_lookup_entity_chronicle.md`
+        -   Execute Atomic Runbook: `atomic_runbooks/domain/rb_domain_lookup_entity_chronicle.md`
             -   Input: `domain_name`, `hours_back`
             -   Outputs: `chronicle_entity_summary`, `resolved_ips_in_summary`, etc.
-        -   Execute Atomic Runbook: `../../Projects/adk_runbooks_debugging/rules-bank/atomic_runbooks/domain/rb_domain_search_dns_chronicle.md`
+        -   Execute Atomic Runbook: `atomic_runbooks/domain/rb_domain_search_dns_chronicle.md`
             -   Input: `domain_name`, `hours_back`
             -   Outputs: `dns_query_events`, `clients_resolving_domain`, `resolved_ips_from_dns`, etc.
         -   IF `resolved_ips_from_dns` is not empty OR `resolved_ips_in_summary` is not empty THEN
-            -   Execute Atomic Runbook: `../../Projects/adk_runbooks_debugging/rules-bank/atomic_runbooks/domain/rb_domain_search_network_traffic_chronicle.md`
+            -   Execute Atomic Runbook: `atomic_runbooks/domain/rb_domain_search_network_traffic_chronicle.md`
                 -   Input: `domain_name`, `resolved_ips` (combine lists from previous steps), `hours_back`
                 -   Outputs: `network_traffic_events`, etc.
             -   For each unique IP in `resolved_ips_from_dns` and `resolved_ips_in_summary`:
@@ -125,20 +130,20 @@ When dealing with dynamic IP addresses, focus on associated domains or ASNs for 
 -   **Standard Initial Investigation Flow (Orchestrating Atomic Runbooks):**
 
     1.  **External Reputation Assessment:**
-        -   Execute Atomic Runbook: `../../Projects/adk_runbooks_debugging/rules-bank/atomic_runbooks/hash/rb_hash_get_gti_report.md`
+        -   Execute Atomic Runbook: `atomic_runbooks/hash/rb_hash_get_gti_report.md`
             -   Input: `file_hash`
             -   Outputs: `gti_file_report`, `malicious_score`, `threat_classification`, `output_status`, etc.
         -   IF `output_status` is "Failure" OR `output_status` is "NotFound" OR (`output_status` is "Success" AND `malicious_score` is low/inconclusive AND further context needed) THEN
-            -   Execute Atomic Runbook: `../../Projects/adk_runbooks_debugging/rules-bank/atomic_runbooks/hash/rb_hash_get_secops_threat_intel.md`
+            -   Execute Atomic Runbook: `atomic_runbooks/hash/rb_hash_get_secops_threat_intel.md`
                 -   Input: `file_hash`, `gti_confidence`
                 -   Outputs: `secops_ti_summary`, `output_status`, etc.
 
     2.  **Internal Activity Assessment (Chronicle SIEM):**
-        -   Execute Atomic Runbook: `../../Projects/adk_runbooks_debugging/rules-bank/atomic_runbooks/hash/rb_hash_lookup_entity_chronicle.md`
+        -   Execute Atomic Runbook: `atomic_runbooks/hash/rb_hash_lookup_entity_chronicle.md`
             -   Input: `file_hash`, `hours_back`
             -   Outputs: `chronicle_entity_summary`, `hosts_observed_count`, etc.
         -   IF `hosts_observed_count` > 0 OR summary indicates sightings THEN
-            -   Execute Atomic Runbook: `../../Projects/adk_runbooks_debugging/rules-bank/atomic_runbooks/hash/rb_hash_search_process_events_chronicle.md`
+            -   Execute Atomic Runbook: `atomic_runbooks/hash/rb_hash_search_process_events_chronicle.md`
                 -   Input: `file_hash`, `hash_type_udm_field` (e.g., `principal.process.file.sha256`), `hours_back`
                 -   Outputs: `process_events`, `affected_hosts`, `executed_commands`, etc.
 
@@ -166,18 +171,18 @@ When dealing with dynamic IP addresses, focus on associated domains or ASNs for 
 -   **Standard Initial Investigation Flow (Orchestrating Atomic Runbooks):**
 
     1.  **External Reputation Assessment:**
-        -   Execute Atomic Runbook: `../../Projects/adk_runbooks_debugging/rules-bank/atomic_runbooks/url/rb_url_get_gti_report.md`
+        -   Execute Atomic Runbook: `atomic_runbooks/url/rb_url_get_gti_report.md`
             -   Input: `url`
             -   Outputs: `gti_url_report`, `malicious_score`, `categories`, `final_url`, `output_status`, etc.
         -   IF `output_status` is "Failure" OR (`output_status` is "Success" AND `malicious_score` is low/inconclusive AND further context needed) THEN
-            -   Execute Atomic Runbook: `../../Projects/adk_runbooks_debugging/rules-bank/atomic_runbooks/url/rb_url_get_secops_threat_intel.md`
+            -   Execute Atomic Runbook: `atomic_runbooks/url/rb_url_get_secops_threat_intel.md`
                 -   Input: `url`, `gti_confidence`
                 -   Outputs: `secops_ti_summary`, `output_status`, etc.
         -   *AI/Analyst Note:* If `final_url` is different from input `url`, consider running reputation checks on `final_url` as well.
         -   Extract domain from `url` (and `final_url` if different) and initiate domain reputation checks (e.g., `RB-ATOM-DOMAIN-001`).
 
     2.  **Internal Activity Assessment (Chronicle SIEM):**
-        -   Execute Atomic Runbook: `../../Projects/adk_runbooks_debugging/rules-bank/atomic_runbooks/url/rb_url_search_chronicle.md`
+        -   Execute Atomic Runbook: `atomic_runbooks/url/rb_url_search_chronicle.md`
             -   Input: `url`, `hours_back`, `search_strategy` (e.g., "ExactURL" or "DomainAndPath"), `resolved_ips_for_url_domain` (if known from domain checks).
             -   Outputs: `url_related_events`, `source_hosts_accessing_url`, etc.
 
@@ -205,18 +210,18 @@ When dealing with dynamic IP addresses, focus on associated domains or ASNs for 
 -   **Standard Initial Investigation Flow (Orchestrating Atomic Runbooks):**
 
     1.  **Initial Activity Summary (Chronicle SIEM):**
-        -   Execute Atomic Runbook: `../../Projects/adk_runbooks_debugging/rules-bank/atomic_runbooks/user/rb_user_lookup_entity_chronicle.md`
+        -   Execute Atomic Runbook: `atomic_runbooks/user/rb_user_lookup_entity_chronicle.md`
             -   Input: `username`, `hours_back`
             -   Outputs: `chronicle_entity_summary`, `related_alerts_count`, `accessed_hosts_count`, etc.
 
     2.  **Detailed Login Activity Search (Chronicle SIEM):**
-        -   Execute Atomic Runbook: `../../Projects/adk_runbooks_debugging/rules-bank/atomic_runbooks/user/rb_user_search_login_activity_chronicle.md`
+        -   Execute Atomic Runbook: `atomic_runbooks/user/rb_user_search_login_activity_chronicle.md`
             -   Input: `username`, `hours_back`, `login_outcome_filter` (e.g., "Any" or "Failed" initially)
             -   Outputs: `login_events`, `source_ips_logins`, `target_systems_logins`, etc.
         -   *AI/Analyst Note:* Correlate `source_ips_logins` with IP reputation checks (`RB-ATOM-IP-001`).
 
     3.  **Detailed Process Activity Search (Chronicle SIEM):**
-        -   Execute Atomic Runbook: `../../Projects/adk_runbooks_debugging/rules-bank/atomic_runbooks/user/rb_user_search_process_activity_chronicle.md`
+        -   Execute Atomic Runbook: `atomic_runbooks/user/rb_user_search_process_activity_chronicle.md`
             -   Input: `username`, `hours_back`, `target_hostname` (if focusing on a specific system from login analysis), `process_name_filter` (if looking for specific malware/tools).
             -   Outputs: `process_events`, `executed_commands`, `involved_hosts`, etc.
         -   *AI/Analyst Note:* Analyze `executed_commands` for known suspicious patterns (reference `analytical_query_patterns.md`).

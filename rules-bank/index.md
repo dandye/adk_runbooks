@@ -19,6 +19,18 @@ multi_agent/config_quick_reference
 multi_agent/agent_workflow_references
 ```
 
+### Architecture & Performance Benchmarks
+Detailed design specifications, architectural overviews, and empirical benchmarks for ADK Graph Workflows, Skills Progressive Disclosure, and Progressive MCP Discovery.
+```{toctree}
+:maxdepth: 2
+:caption: Architecture & Benchmarks:
+
+architecture/adk_graph_workflows_overview
+architecture/skills_progressive_disclosure_overview
+architecture/skills_progressive_disclosure_comparison_report
+architecture/progressive_mcp_discovery_overview
+```
+
 ### Setup & Configuration
 Instructions for setting up the project environment and configuring necessary components.
 ```{note}

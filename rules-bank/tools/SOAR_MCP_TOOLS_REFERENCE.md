@@ -1,9 +1,14 @@
 ---
 type: Reference
-title: SOAR MCP Tools Reference
+title: "SOAR MCP Tools Reference"
+description: "Complete reference guide and parameter schemas for Google Chronicle SecOps SOAR MCP tools."
 generated:
   by: human:dandye
   at: 2025-06-19T21:01:22-04:00
+related:
+  - ./SECOPS_MCP_TOOLS_REFERENCE.md
+  - ./SCC_MCP_TOOLS_REFERENCE.md
+  - ../mcp_tool_best_practices.md
 ---
 
 # SOAR MCP Tools Reference

@@ -1,3 +1,15 @@
+---
+type: Guideline
+title: "Implementation Plan: Progressive MCP Tool Discovery & Dispatcher"
+description: "Task-by-task implementation plan for developing the MCPToolRegistry and progressive discovery meta-tools."
+generated:
+  by: process:google-labs-jules
+  at: 2026-08-20T14:30:00-04:00
+related:
+  - ../specs/2026-08-20-progressive-discovery-mcp-design.md
+  - ../../progressive_mcp_discovery_overview.md
+---
+
 # Progressive MCP Tool Discovery & Dispatcher Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.

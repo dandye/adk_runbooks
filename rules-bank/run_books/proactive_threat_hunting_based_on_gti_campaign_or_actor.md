@@ -1,9 +1,14 @@
 ---
 type: Runbook
-title: Proactive Threat Hunting based on GTI Campaign/Actor
+title: "Proactive Threat Hunting based on GTI Campaign/Actor"
+description: "Use when executing proactive threat hunts across enterprise logs based on GTI threat actor campaigns and indicators."
 generated:
   by: process:google-labs-jules
   at: 2025-12-20T22:04:42-05:00
+related:
+  - ./index.md
+  - ./basic_ioc_enrichment.md
+  - ../indicator_handling_protocols.md
 ---
 
 # Proactive Threat Hunting based on GTI Campaign/Actor
@@ -138,6 +143,7 @@ sequenceDiagram
              AutomatedAgent->>AutomatedAgent: attempt_completion(result="Proactive threat hunt for `${GTI_COLLECTION_ID}` complete. Findings summarized. No output action taken.")
         end
     end
+```
 
 ## Rubrics
 

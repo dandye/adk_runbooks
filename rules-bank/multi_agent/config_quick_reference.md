@@ -1,9 +1,14 @@
 ---
 type: Reference
-title: Configuration System Quick Reference
+title: "Configuration System Quick Reference"
+description: "Quick reference guide for YAML configuration syntax, agent capability mapping, and tool assignment schemas."
 generated:
   by: human:dandye
   at: 2025-06-19T21:04:23-04:00
+related:
+  - ./configuration_based_delegation.md
+  - ./README.md
+  - ../multi_agent_overview.md
 ---
 
 # Configuration System Quick Reference

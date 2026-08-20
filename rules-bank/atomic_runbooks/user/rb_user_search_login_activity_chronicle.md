@@ -1,9 +1,14 @@
 ---
 type: Runbook
 title: "Atomic Runbook: Search User Login Activity in Chronicle"
+description: "Use when searching Chronicle authentication events for a user's recent login activity."
 generated:
   by: human:dandye
   at: 2025-05-31T00:07:07-04:00
+related:
+  - ../index.md
+  - ../../indicator_handling_protocols.md
+  - ../../mcp_tool_best_practices.md
 ---
 
 # Atomic Runbook: Search User Login Activity in Chronicle

@@ -9,3 +9,4 @@ URLs are common in alerts related to web-based threats, phishing campaigns, and 
 rb_url_get_gti_report
 rb_url_get_secops_threat_intel
 rb_url_search_chronicle
+```

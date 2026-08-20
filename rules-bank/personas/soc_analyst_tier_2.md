@@ -1,11 +1,29 @@
 ---
 type: Persona
 title: "Persona: Tier 2 SOC Analyst"
+description: "Persona who investigates incidents escalated from Tier 1, performing deeper threat analysis, advanced enrichment, and proactive hunting based on intelligence."
 generated:
   by: human:dandye
   at: 2025-05-18T15:35:55-04:00
+related:
+  - ../run_books/case_event_timeline_and_process_analysis.md
+  - ../run_books/cloud_vulnerability_triage_and_contextualization.md
+  - ../run_books/compare_gti_collection_to_iocs_and_events.md
+  - ../run_books/create_an_investigation_report.md
+  - ../run_books/investigate_a_gti_collection_id.md
+  - ../run_books/proactive_threat_hunting_based_on_gti_campaign_or_actor.md
+  - ../run_books/prioritize_and_investigate_a_case.md
+  - ../run_books/investigate_a_case_w_external_tools.md
+  - ../run_books/deep_dive_ioc_analysis.md
+  - ../run_books/guided_ttp_hunt_credential_access.md
+  - ../run_books/malware_triage.md
+  - ../run_books/lateral_movement_hunt_psexec_wmi.md
+  - ../run_books/ioc_threat_hunt.md
+  - ../run_books/apt_threat_hunt.md
+  - ./soc_analyst_tier_1.md
+  - ./soc_analyst_tier_3.md
+  - ./incident_responder.md
 ---
-
 # Persona: Tier 2 SOC Analyst
 
 ## Overview

@@ -1,9 +1,13 @@
 ---
 type: Guideline
-title: AI Explainability Standards
+title: "AI Explainability Standards"
+description: "Standards for ensuring AI agent security decisions provide transparent, auditable, and human-interpretable reasoning chains."
 generated:
   by: human:dandye
   at: 2025-05-31T13:54:55-04:00
+related:
+  - ./ai_decision_review_guidelines.md
+  - ./ai_performance_logging_requirements.md
 ---
 
 # AI Explainability Standards

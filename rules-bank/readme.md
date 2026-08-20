@@ -1,9 +1,14 @@
 ---
 type: Guideline
-title: Rules Bank Directory Overview
+title: "Rules Bank Directory Overview"
+description: "Overview of the Rules Bank documentation repository, Sphinx static site structure, and cybersecurity runbook catalog."
 generated:
   by: human:dandye
   at: 2025-05-18T18:48:26-04:00
+related:
+  - ./index.md
+  - ./multi_agent_overview.md
+  - ./project_plan.md
 ---
 
 # Rules Bank Directory Overview

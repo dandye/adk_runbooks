@@ -1,9 +1,14 @@
 ---
 type: Runbook
-title: Alert Investigation Summary Report Runbook
+title: "Alert Investigation Summary Report Runbook"
+description: "Use when summarizing alert triage decisions, key indicators, and immediate actions taken."
 generated:
   by: process:google-labs-jules
   at: 2025-12-20T22:04:42-05:00
+related:
+  - ./index.md
+  - ./basic_ioc_enrichment.md
+  - ../indicator_handling_protocols.md
 ---
 
 # Alert Investigation Summary Report Runbook
@@ -152,6 +157,7 @@ sequenceDiagram
 
     %% Step 9: Completion
     AutomatedAgent->>Analyst/User: attempt_completion(result="Alert investigation summary report generated for Case CASE_ID.")
+```
 
 ## Rubrics
 

@@ -1,9 +1,14 @@
 ---
 type: Runbook
 title: "Atomic Runbook: Search User Process Activity in Chronicle"
+description: "Use when searching Chronicle endpoint logs for process launches initiated by a specific user."
 generated:
   by: human:dandye
   at: 2025-05-31T00:07:07-04:00
+related:
+  - ../index.md
+  - ../../indicator_handling_protocols.md
+  - ../../mcp_tool_best_practices.md
 ---
 
 # Atomic Runbook: Search User Process Activity in Chronicle

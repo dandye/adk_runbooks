@@ -1,9 +1,14 @@
 ---
 type: Runbook
 title: "Atomic Runbook: Lookup Domain Entity Activity in Chronicle"
+description: "Use when looking up domain entity graph associations and historical context in Chronicle."
 generated:
   by: human:dandye
   at: 2025-05-31T00:07:07-04:00
+related:
+  - ../index.md
+  - ../../indicator_handling_protocols.md
+  - ../../mcp_tool_best_practices.md
 ---
 
 # Atomic Runbook: Lookup Domain Entity Activity in Chronicle

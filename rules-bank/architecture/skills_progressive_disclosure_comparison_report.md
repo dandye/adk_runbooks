@@ -6,8 +6,10 @@ generated:
   by: human:dandye
   at: 2026-08-20T04:00:00-04:00
 related:
-  - ./skills_progressive_disclosure_overview.md
   - ./adk_graph_workflows_overview.md
+  - ./skills_progressive_disclosure_overview.md
+  - ./progressive_mcp_discovery_overview.md
+  - ../multi_agent_overview.md
 ---
 
 # Skills Progressive Disclosure Architecture: Comparative Analysis & Benchmark Report

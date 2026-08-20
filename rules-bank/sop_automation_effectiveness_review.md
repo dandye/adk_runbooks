@@ -1,9 +1,14 @@
 ---
 type: Guideline
-title: SOP & Automation Effectiveness Review Process
+title: "SOP & Automation Effectiveness Review Process"
+description: "Review methodology for assessing standard operating procedure (SOP) automation effectiveness and human override patterns."
 generated:
   by: human:dandye
   at: 2025-05-31T00:07:07-04:00
+related:
+  - ./automated_response_playbook_criteria.md
+  - ./detection_improvement_process.md
+  - ./ai/ai_performance_framework_picerl.md
 ---
 
 # SOP & Automation Effectiveness Review Process

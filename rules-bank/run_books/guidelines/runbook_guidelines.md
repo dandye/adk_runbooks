@@ -1,9 +1,13 @@
 ---
 type: Guideline
-title: Runbook Guidelines
+title: "Runbook Guidelines"
+description: "Use when designing, standardizing, and reviewing operational security runbooks."
 generated:
   by: human:dandye
   at: 2025-05-17T18:46:00-04:00
+related:
+  - ./index.md
+  - ../../coding_conventions.md
 ---
 
 # Runbook Guidelines

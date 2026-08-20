@@ -47,3 +47,4 @@ soc_analyst_tier_2
 soc_analyst_tier_3
 soc_manager
 threat_hunter
+```

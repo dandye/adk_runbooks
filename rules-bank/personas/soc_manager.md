@@ -1,11 +1,24 @@
 ---
 type: Persona
 title: "Persona: SOC Manager"
+description: "Persona who leads the SOC team and its operations, managing personnel, processes, and technology to bridge technical operations with business objectives."
 generated:
   by: human:dandye
   at: 2025-05-19T13:39:50-04:00
+related:
+  - ../run_books/triage_alerts.md
+  - ../run_books/prioritize_and_investigate_a_case.md
+  - ../run_books/close_duplicate_or_similar_cases.md
+  - ../run_books/basic_ioc_enrichment.md
+  - ../run_books/suspicious_login_triage.md
+  - ../run_books/create_an_investigation_report.md
+  - ../sop_automation_effectiveness_review.md
+  - ./ciso.md
+  - ./soc_analyst_tier_1.md
+  - ./soc_analyst_tier_2.md
+  - ./soc_analyst_tier_3.md
+  - ./compliance_manager.md
 ---
-
 # Persona: SOC Manager
 
 ## Overview

@@ -6,10 +6,9 @@ generated:
   by: human:dandye
   at: 2026-08-20T04:00:00-04:00
 related:
-  - ./skills_progressive_disclosure_comparison_report.md
-  - ./progressive_mcp_discovery_overview.md
   - ./adk_graph_workflows_overview.md
-  - ./superpowers/specs/2026-08-20-convert-runbooks-to-skills-progressive-disclosure-design.md
+  - ./progressive_mcp_discovery_overview.md
+  - ../multi_agent_overview.md
 ---
 
 # Skills & Progressive Disclosure Framework

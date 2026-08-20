@@ -1,9 +1,14 @@
 ---
 type: Runbook
-title: Deep Dive IOC Analysis Runbook
+title: "Deep Dive IOC Analysis Runbook"
+description: "Use when performing exhaustive forensic and intelligence analysis on complex indicators of compromise."
 generated:
   by: process:google-labs-jules
   at: 2025-12-20T22:04:42-05:00
+related:
+  - ./index.md
+  - ./basic_ioc_enrichment.md
+  - ../indicator_handling_protocols.md
 ---
 
 # Deep Dive IOC Analysis Runbook
@@ -167,6 +172,7 @@ sequenceDiagram
         GenerateReport-->>AutomatedAgent: Results: REPORT_FILE_PATH, WRITE_STATUS
         AutomatedAgent->>Analyst: attempt_completion(result="Deep Dive IOC Analysis complete for IOC_VALUE. Report generated at REPORT_FILE_PATH.")
     end
+```
 
 ## Rubrics
 

@@ -1,9 +1,13 @@
 ---
 type: Guideline
 title: "Runbook: SOC Analyst Standard Workflow Guide"
+description: "Use when establishing operational workflows and escalation pathways for SOC analyst tiers."
 generated:
   by: human:dandye
   at: 2025-11-10T17:21:35-05:00
+related:
+  - ./index.md
+  - ../../coding_conventions.md
 ---
 
 # Runbook: SOC Analyst Standard Workflow Guide

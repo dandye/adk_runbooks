@@ -1,9 +1,15 @@
 ---
 type: Incident Response Plan
-title: Ransomware Incident Response Plan (IRP) / Runbook
+title: "Ransomware Incident Response Plan (IRP) / Runbook"
+description: "Use when responding to active ransomware deployment, host encryption, or extortion threats."
 generated:
   by: process:google-labs-jules
   at: 2025-12-20T22:04:42-05:00
+related:
+  - ./index.md
+  - ../ioc_containment.md
+  - ../case_report.md
+  - ../../personas/incident_responder.md
 ---
 
 # Ransomware Incident Response Plan (IRP) / Runbook

@@ -1,9 +1,14 @@
 ---
 type: Runbook
 title: "Atomic Runbook: Search IP Network Traffic in Chronicle"
+description: "Use when querying UDM network connection events in Chronicle involving a target IP address."
 generated:
   by: human:dandye
   at: 2025-05-31T00:07:07-04:00
+related:
+  - ../index.md
+  - ../../indicator_handling_protocols.md
+  - ../../mcp_tool_best_practices.md
 ---
 
 # Atomic Runbook: Search IP Network Traffic in Chronicle

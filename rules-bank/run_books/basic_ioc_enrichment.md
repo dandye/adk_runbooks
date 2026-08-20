@@ -1,9 +1,13 @@
 ---
 type: Runbook
-title: Basic IOC Enrichment Runbook
+title: "Basic IOC Enrichment Runbook"
+description: "Use when conducting initial reputation and threat intelligence lookups on suspicious observables."
 generated:
   by: process:google-labs-jules
   at: 2025-12-20T22:04:42-05:00
+related:
+  - ./index.md
+  - ../indicator_handling_protocols.md
 ---
 
 # Basic IOC Enrichment Runbook
@@ -162,6 +166,7 @@ sequenceDiagram
 
     %% Step 9: Completion
     AutomatedAgent->>Analyst: attempt_completion(result="Basic IOC enrichment v2 complete for IOC_VALUE. Assessment: ASSESSMENT. Recommendation: RECOMMENDATION. Documentation: DOCUMENTATION_STATUS. Report: REPORT_GENERATION_STATUS.")
+```
 
 ## Rubrics
 

@@ -1,11 +1,19 @@
 ---
 type: Persona
 title: "Persona: Detection Engineer"
+description: "Persona responsible for the full lifecycle of SIEM/EDR detection logic, from development and testing through tuning, to improve detection coverage and alert fidelity."
 generated:
   by: human:dandye
   at: 2025-05-17T18:46:00-04:00
+related:
+  - ../run_books/detection_rule_validation_tuning.md
+  - ../run_books/detection_as_code_workflows.md
+  - ../run_books/detection_report.md
+  - ../run_books/detection_as_code_rule_tuning.md
+  - ./security_engineer.md
+  - ./threat_hunter.md
+  - ./soc_analyst_tier_2.md
 ---
-
 # Persona: Detection Engineer
 
 ## Overview

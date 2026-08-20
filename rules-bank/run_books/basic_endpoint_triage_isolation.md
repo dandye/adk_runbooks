@@ -1,9 +1,14 @@
 ---
 type: Runbook
-title: Basic Endpoint Triage & Isolation Runbook
+title: "Basic Endpoint Triage & Isolation Runbook"
+description: "Use when performing initial host-level triage and executing endpoint isolation procedures."
 generated:
   by: process:google-labs-jules
   at: 2025-12-20T22:04:42-05:00
+related:
+  - ./index.md
+  - ./basic_ioc_enrichment.md
+  - ../indicator_handling_protocols.md
 ---
 
 # Basic Endpoint Triage & Isolation Runbook
@@ -138,6 +143,7 @@ sequenceDiagram
 
     %% Step 9: Completion
     AutomatedAgent->>Analyst: attempt_completion(result="Basic Endpoint Triage & Isolation runbook complete for ENDPOINT_ID.")
+```
 
 ## Rubrics
 

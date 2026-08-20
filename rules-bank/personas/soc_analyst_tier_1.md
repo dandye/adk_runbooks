@@ -1,11 +1,23 @@
 ---
 type: Persona
 title: "Persona: Tier 1 SOC Analyst"
+description: "Persona who performs first-line alert monitoring and initial triage, closing false positives/duplicates or escalating real threats to Tier 2/3 analysts."
 generated:
   by: human:dandye
   at: 2025-05-18T15:35:55-04:00
+related:
+  - ../run_books/triage_alerts.md
+  - ../run_books/close_duplicate_or_similar_cases.md
+  - ../run_books/prioritize_and_investigate_a_case.md
+  - ../run_books/investigate_a_case_w_external_tools.md
+  - ../run_books/group_cases.md
+  - ../run_books/group_cases_v2.md
+  - ../run_books/basic_ioc_enrichment.md
+  - ../run_books/suspicious_login_triage.md
+  - ../reporting_templates.md
+  - ./soc_analyst_tier_2.md
+  - ./soc_manager.md
 ---
-
 # Persona: Tier 1 SOC Analyst
 
 ## Overview

@@ -1,9 +1,14 @@
 ---
 type: Runbook
-title: Detection-as-Code Rule Tuning Workflow
+title: "Detection-as-Code Rule Tuning Workflow"
+description: "Use when submitting and verifying rule tuning pull requests in detection-as-code repositories."
 generated:
   by: process:google-labs-jules
   at: 2025-12-20T22:04:42-05:00
+related:
+  - ./index.md
+  - ./basic_ioc_enrichment.md
+  - ../indicator_handling_protocols.md
 ---
 
 # Detection-as-Code Rule Tuning Workflow
@@ -24,9 +29,11 @@ graph LR
     F -->|Pull Request| G[GitHub]
     G -->|CI/CD Pipeline| H[SIEM Platform]
     H -->|Deploy| I[Production Rules]
+```
+
 ### ADK Graph-Based Workflow Diagram
 
-```{mermaid}
+```mermaid
 graph TD
     START(["START"]) --> extract_dac_payload_node["1. extract_dac_payload_node<br/><i>(Extract DAC Rule & Commit Payload)</i>"]
     extract_dac_payload_node --> run_dac_ci_pipeline_node["2. run_dac_ci_pipeline_node<br/><i>(Execute Lint & Syntax Validation)</i>"]
@@ -58,7 +65,7 @@ graph TD
 SIEM_API_ENDPOINT=https://your-siem.example.com
 SOAR_API_ENDPOINT=https://your-soar.example.com
 GITHUB_TOKEN=your_github_token
-AI_MODEL=gemini-2.5-pro-preview
+AI_MODEL=gemini-3.7-flash
 ```
 
 ## Automated Workflow

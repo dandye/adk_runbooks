@@ -1,9 +1,14 @@
 ---
 type: Runbook
 title: "Runbook: Meta-Analysis (Placeholder)"
+description: "Use when performing aggregate meta-analysis across multiple detection rules, alerts, and false positive patterns."
 generated:
   by: process:google-labs-jules
   at: 2025-12-20T22:04:42-05:00
+related:
+  - ./index.md
+  - ./basic_ioc_enrichment.md
+  - ../indicator_handling_protocols.md
 ---
 
 # Runbook: Meta-Analysis (Placeholder)

@@ -1,9 +1,13 @@
 ---
 type: Guideline
 title: "Runbook: Report Writing Guidelines & Template"
+description: "Use when formatting, structuring, and authoring professional cybersecurity investigation reports."
 generated:
   by: human:dandye
   at: 2025-11-10T17:21:35-05:00
+related:
+  - ./index.md
+  - ../../coding_conventions.md
 ---
 
 # Runbook: Report Writing Guidelines & Template
@@ -65,3 +69,4 @@ sequenceDiagram
 ## Completion Criteria
 
 Report is written, reviewed, and saved in the standard format and location.
+```

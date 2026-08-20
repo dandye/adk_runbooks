@@ -1,9 +1,14 @@
 ---
 type: Runbook
 title: "Atomic Runbook: Get Domain Threat Intel via SecOps MCP"
+description: "Use when retrieving Chronicle SecOps threat intelligence and IOC matches for a domain."
 generated:
   by: human:dandye
   at: 2025-05-31T00:07:07-04:00
+related:
+  - ../index.md
+  - ../../indicator_handling_protocols.md
+  - ../../mcp_tool_best_practices.md
 ---
 
 # Atomic Runbook: Get Domain Threat Intel via SecOps MCP

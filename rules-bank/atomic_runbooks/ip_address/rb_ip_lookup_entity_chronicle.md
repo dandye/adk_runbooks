@@ -1,9 +1,14 @@
 ---
 type: Runbook
 title: "Atomic Runbook: Lookup IP Entity Activity in Chronicle"
+description: "Use when examining Chronicle entity graph and asset context for an internal or external IP."
 generated:
   by: human:dandye
   at: 2025-05-31T00:07:07-04:00
+related:
+  - ../index.md
+  - ../../indicator_handling_protocols.md
+  - ../../mcp_tool_best_practices.md
 ---
 
 # Atomic Runbook: Lookup IP Entity Activity in Chronicle

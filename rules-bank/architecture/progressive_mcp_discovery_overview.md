@@ -6,9 +6,9 @@ generated:
   by: human:dandye
   at: 2026-08-20T16:00:00-04:00
 related:
-  - ./skills_progressive_disclosure_overview.md
   - ./adk_graph_workflows_overview.md
-  - ./superpowers/specs/2026-08-20-progressive-discovery-mcp-design.md
+  - ./skills_progressive_disclosure_overview.md
+  - ../multi_agent_overview.md
 ---
 
 # Progressive MCP Tool Discovery & Dynamic Schema Expansion

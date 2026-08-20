@@ -1,9 +1,14 @@
 ---
 type: Runbook
 title: "Runbook: Detection-as-Code Workflow (Placeholder)"
+description: "Use when authoring, testing, and managing detection rules using Git-based CI/CD workflows."
 generated:
   by: process:google-labs-jules
   at: 2025-12-20T22:04:42-05:00
+related:
+  - ./index.md
+  - ./basic_ioc_enrichment.md
+  - ../indicator_handling_protocols.md
 ---
 
 # Runbook: Detection-as-Code Workflow (Placeholder)

@@ -1,9 +1,14 @@
 ---
 type: Runbook
-title: Case Event Timeline & Process Analysis Workflow
+title: "Case Event Timeline & Process Analysis Workflow"
+description: "Use when reconstructing chronological event timelines and process execution trees for incident investigation."
 generated:
   by: process:google-labs-jules
   at: 2025-12-20T22:04:42-05:00
+related:
+  - ./index.md
+  - ./basic_ioc_enrichment.md
+  - ../indicator_handling_protocols.md
 ---
 
 # Case Event Timeline & Process Analysis Workflow

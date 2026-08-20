@@ -1,9 +1,14 @@
 ---
 type: Runbook
 title: "Atomic Runbook: Search URL Activity in Chronicle"
+description: "Use when searching Chronicle proxy and web access logs for HTTP/HTTPS requests to a URL."
 generated:
   by: human:dandye
   at: 2025-05-31T00:07:07-04:00
+related:
+  - ../index.md
+  - ../../indicator_handling_protocols.md
+  - ../../mcp_tool_best_practices.md
 ---
 
 # Atomic Runbook: Search URL Activity in Chronicle

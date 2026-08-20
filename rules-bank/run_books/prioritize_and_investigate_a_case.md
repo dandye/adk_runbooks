@@ -1,9 +1,14 @@
 ---
 type: Runbook
-title: Prioritize and Investigate a Case
+title: "Prioritize and Investigate a Case"
+description: "Use when assessing case severity, assigning risk priority scores, and conducting initial investigation."
 generated:
   by: process:google-labs-jules
   at: 2025-12-20T22:04:42-05:00
+related:
+  - ./index.md
+  - ./basic_ioc_enrichment.md
+  - ../indicator_handling_protocols.md
 ---
 
 # Prioritize and Investigate a Case

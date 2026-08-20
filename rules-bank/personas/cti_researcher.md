@@ -1,11 +1,20 @@
 ---
 type: Persona
 title: "Persona: Cyber Threat Intelligence (CTI) Researcher"
+description: "Persona who researches threat actors, malware families, and campaigns to produce actionable cyber threat intelligence that informs detection, hunting, and incident response."
 generated:
   by: human:dandye
   at: 2025-06-02T12:14:04-04:00
+related:
+  - ../run_books/proactive_threat_hunting_based_on_gti_campaign_or_actor.md
+  - ../run_books/compare_gti_collection_to_iocs_and_events.md
+  - ../run_books/investigate_a_gti_collection_id.md
+  - ../run_books/deep_dive_ioc_analysis.md
+  - ../run_books/apt_threat_hunt.md
+  - ./threat_hunter.md
+  - ./detection_engineer.md
+  - ./soc_analyst_tier_3.md
 ---
-
 # Persona: Cyber Threat Intelligence (CTI) Researcher
 
 ## Overview

@@ -1,9 +1,14 @@
 ---
 type: Runbook
 title: "Atomic Runbook: Search Domain-Related Network Traffic in Chronicle"
+description: "Use when querying Chronicle for network connections, HTTP requests, or TLS traffic to a domain."
 generated:
   by: human:dandye
   at: 2025-05-31T00:07:07-04:00
+related:
+  - ../index.md
+  - ../../indicator_handling_protocols.md
+  - ../../mcp_tool_best_practices.md
 ---
 
 # Atomic Runbook: Search Domain-Related Network Traffic in Chronicle

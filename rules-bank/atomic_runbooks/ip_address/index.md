@@ -10,3 +10,4 @@ rb_ip_get_gti_report
 rb_ip_get_secops_threat_intel
 rb_ip_lookup_entity_chronicle
 rb_ip_search_network_traffic_chronicle
+```

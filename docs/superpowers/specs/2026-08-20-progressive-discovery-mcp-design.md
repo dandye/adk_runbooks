@@ -1,3 +1,15 @@
+---
+type: Reference
+title: "Design Specification: Progressive MCP Tool Discovery & Dispatcher"
+description: "Design specification for centralized MCPToolRegistry, progressive meta-tools, and dynamic schema expansion for security tools."
+generated:
+  by: process:google-labs-jules
+  at: 2026-08-20T14:00:00-04:00
+related:
+  - ../plans/2026-08-20-progressive-discovery-mcp.md
+  - ../../progressive_mcp_discovery_overview.md
+---
+
 # Design Specification: Progressive MCP Tool Discovery & Dispatcher
 
 **Date:** 2026-08-20  

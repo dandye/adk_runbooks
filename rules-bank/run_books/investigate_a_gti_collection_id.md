@@ -1,9 +1,14 @@
 ---
 type: Runbook
-title: Investigate Google Threat Intelligence Collection ID (Enhanced)
+title: "Investigate Google Threat Intelligence Collection ID (Enhanced)"
+description: "Operational security procedure and guidance for investigate a gti collection id."
 generated:
   by: process:google-labs-jules
   at: 2025-12-20T22:04:42-05:00
+related:
+  - ./index.md
+  - ./basic_ioc_enrichment.md
+  - ../indicator_handling_protocols.md
 ---
 
 # Investigate Google Threat Intelligence Collection ID (Enhanced)
@@ -140,6 +145,7 @@ sequenceDiagram
     Note over AutomatedAgent: Report file created
 
     AutomatedAgent->>User: attempt_completion(result="Enhanced investigation complete. Report generated.")
+```
 
 ## Rubrics
 

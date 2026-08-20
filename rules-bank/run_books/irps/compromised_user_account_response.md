@@ -1,9 +1,15 @@
 ---
 type: Incident Response Plan
-title: Compromised User Account Incident Response Plan (IRP) / Runbook
+title: "Compromised User Account Incident Response Plan (IRP) / Runbook"
+description: "Use when executing containment, eradication, and recovery for confirmed compromised user credentials."
 generated:
   by: process:google-labs-jules
   at: 2025-12-20T22:04:42-05:00
+related:
+  - ./index.md
+  - ../ioc_containment.md
+  - ../case_report.md
+  - ../../personas/incident_responder.md
 ---
 
 # Compromised User Account Incident Response Plan (IRP) / Runbook

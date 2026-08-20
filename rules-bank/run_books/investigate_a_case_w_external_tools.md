@@ -1,9 +1,14 @@
 ---
 type: Runbook
-title: Investigate a Case + external tools
+title: "Investigate a Case + external tools"
+description: "Operational security procedure and guidance for investigate a case w external tools."
 generated:
   by: process:google-labs-jules
   at: 2025-12-20T22:04:42-05:00
+related:
+  - ./index.md
+  - ./basic_ioc_enrichment.md
+  - ../indicator_handling_protocols.md
 ---
 
 # Investigate a Case + external tools
