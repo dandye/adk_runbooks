@@ -1,0 +1,116 @@
+{
+  "eval_set_id": "investigate_a_gti_collection_id",
+  "name": "Investigate a GTI Collection ID",
+  "description": "Evaluation based on the IOC Search Report campaign--3ac8d482-a08f-549a-9b5d-7b6435471a94",
+  "eval_cases": [
+    {
+      "eval_id": "eval_case_campaign_3ac8d482",
+      "conversation": [
+        {
+          "invocation_id": "inv_1",
+          "user_content": {
+            "parts": [
+              {
+                "text": "Ask Tier 1 Analyst to search for campaign ID campaign--3ac8d482-a08f-549a-9b5d-7b6435471a94 and related IOCs in SIEM, and then write a report."
+              }
+            ],
+            "role": "user"
+          },
+          "final_response": {
+            "parts": [
+              {
+                "text": "Report Generated"
+              }
+            ],
+            "role": "model"
+          },
+          "intermediate_data": {
+            "tool_uses": [
+              {
+                "name": "get_collection_report",
+                "args": {
+                  "id": "campaign--3ac8d482-a08f-549a-9b5d-7b6435471a94"
+                }
+              },
+              {
+                "name": "get_entities_related_to_a_collection",
+                "args": {
+                  "id": "campaign--3ac8d482-a08f-549a-9b5d-7b6435471a94",
+                  "relationship_name": "files"
+                }
+              },
+              {
+                "name": "get_entities_related_to_a_collection",
+                "args": {
+                  "id": "campaign--3ac8d482-a08f-549a-9b5d-7b6435471a94",
+                  "relationship_name": "domains"
+                }
+              },
+              {
+                "name": "get_entities_related_to_a_collection",
+                "args": {
+                  "id": "campaign--3ac8d482-a08f-549a-9b5d-7b6435471a94",
+                  "relationship_name": "ip_addresses"
+                }
+              },
+              {
+                "name": "get_entities_related_to_a_collection",
+                "args": {
+                  "id": "campaign--3ac8d482-a08f-549a-9b5d-7b6435471a94",
+                  "relationship_name": "urls"
+                }
+              },
+              {
+                "name": "get_ioc_matches",
+                "args": {
+                  "hours_back": 72
+                }
+              },
+              {
+                "name": "search_security_events",
+                "args": {
+                  "text": "file hash <hash1> OR <hash2>...",
+                  "hours_back": 72
+                }
+              },
+              {
+                "name": "search_security_events",
+                "args": {
+                  "text": "domain <domain1> OR <domain2>...",
+                  "hours_back": 72
+                }
+              },
+              {
+                "name": "search_security_events",
+                "args": {
+                  "text": "IP <ip1> OR <ip2>...",
+                  "hours_back": 72
+                }
+              },
+              {
+                "name": "search_security_events",
+                "args": {
+                  "text": "URL <url1> OR <url2>...",
+                  "hours_back": 72
+                }
+              },
+              {
+                "name": "write_report",
+                "args": {
+                  "title": "IOC Search Report: campaign--3ac8d482-a08f-549a-9b5d-7b6435471a94",
+                  "content": "Report Generated"
+                }
+              }
+            ],
+            "intermediate_responses": []
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "manager",
+        "user_id": "test_user",
+        "state": {}
+      }
+    }
+  ]
+}
