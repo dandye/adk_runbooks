@@ -19,14 +19,24 @@ from google.adk.tools.mcp_tool.mcp_session_manager import StdioServerParameters
 
 from ..utils.instrumentation import instrument_tool, get_run_metrics
 from skills.registry import SkillRegistry
+from skills.drive_registry import DriveMcpError, DriveRegistryConfigError
 from .mcp_registry import MCPToolRegistry
+from .drive_tools import (
+    build_skill_registry,
+    drive_toolset_configured,
+    init_drive_toolset,
+    publish_report_to_drive,
+    reports_folder_id,
+)
 
 logger = logging.getLogger(__name__)
 
 TIMEOUT = 60_000
 
-# Initialize global registries
-global_skill_registry = SkillRegistry()
+# Initialize global registries.
+# Runbooks come from Google Drive when RUNBOOK_SOURCE=drive (the default on this
+# branch) and DRIVE_RUNBOOKS_FOLDER_ID is set; otherwise the local skills/ tree.
+global_skill_registry: SkillRegistry = build_skill_registry()
 global_mcp_registry = MCPToolRegistry()
 
 
@@ -45,21 +55,30 @@ def get_current_time() -> dict:
       "current_time": datetime.now().strftime("%Y%m%d_%H%M%S"),
   }
 
-def write_report(report_name: str, report_contents: str):
-  """Writes a report to a file in the designated reports directory.
+def write_report(report_name: str, report_contents: str) -> dict:
+  """Writes a report to the reports directory and, when configured, to Google Drive.
 
   This function saves the given report content to a markdown file.
   It ensures that the filename is unique by appending a timestamp if one
   is not already present in the format _YYYYMMDD_HHMMSS. The file will be
-  saved in the `multi-agent/reports/` directory.
+  saved in the `multi-agent/reports/` directory. When the environment variable
+  DRIVE_REPORTS_FOLDER_ID is set, the same Markdown is also published to that
+  Google Drive folder through the Drive MCP server so analysts can read and
+  share it from Drive.
 
   Args:
       report_name (str): The base name for the report file. The .md extension
                          will be added if not present.
       report_contents (str): The markdown content to write to the report.
+
+  Returns:
+      dict: {"local_path": str, "drive": {"id", "title", "viewUrl", "parentId"}
+            or None, "drive_error": str or None}. A Drive failure never loses
+            the local copy; it is reported in "drive_error".
   """
-  # Determine the reports directory relative to this file's location.
-  reports_dir = os.path.abspath(
+  # Determine the reports directory: REPORTS_DIR overrides the default location
+  # relative to this file (multi-agent/reports/).
+  reports_dir = os.environ.get("REPORTS_DIR", "").strip() or os.path.abspath(
       os.path.join(os.path.dirname(__file__), "..", "..", "reports")
   )
 
@@ -76,10 +95,21 @@ def write_report(report_name: str, report_contents: str):
       timestamp = get_current_time()["current_time"]
       file_name = f"{base_name}_{timestamp}{ext}"
 
+  os.makedirs(reports_dir, exist_ok=True)
   file_path = os.path.join(reports_dir, file_name)
 
-  with open(file_path, "w") as f:
+  with open(file_path, "w", encoding="utf-8") as f:
       f.write(report_contents)
+
+  result: dict[str, Any] = {"local_path": file_path, "drive": None, "drive_error": None}
+  if reports_folder_id():
+      try:
+          result["drive"] = publish_report_to_drive(file_name, report_contents)
+          logger.info("Published report %s to Drive: %s", file_name, result["drive"].get("viewUrl"))
+      except (DriveMcpError, DriveRegistryConfigError) as e:
+          result["drive_error"] = str(e)
+          logger.warning("Report %s saved locally but Drive publish failed: %s", file_name, e)
+  return result
 
 def read_file_content(filepath: str) -> str:
   """Reads the content of a file.
@@ -396,6 +426,24 @@ def init_shared_mcp_tools():
   return (siem_toolset, soar_toolset, gti_toolset)
 
 
+def init_drive_mcp_tools():
+  """Builds and registers the Google Drive MCP toolset when Drive is configured.
+
+  Returns:
+      MCPToolset | None: the Drive toolset (tools prefixed ``drive_``), or None
+      when no Drive folder is configured or the toolset cannot be built.
+  """
+  if not drive_toolset_configured():
+    return None
+  try:
+    drive_toolset = init_drive_toolset()
+  except (DriveRegistryConfigError, DriveMcpError, ImportError) as e:
+    logger.warning("Drive MCP toolset unavailable: %s", e)
+    return None
+  global_mcp_registry.register_mcp_toolset(drive_toolset, server_name="drive")
+  return drive_toolset
+
+
 def get_agent_tools():
   """Initializes and returns MCP toolsets and progressive discovery tools.
 
@@ -406,6 +454,8 @@ def get_agent_tools():
       tuple: A combined tuple of all initialized MCP toolsets, progressive meta-tools, and built-in tools.
   """
   siem_toolset, soar_toolset, gti_toolset = init_shared_mcp_tools()
+  drive_toolset = init_drive_mcp_tools()
+  drive_toolsets = (drive_toolset,) if drive_toolset is not None else ()
 
   # Wrap built-in tools
   wrapped_write_report = instrument_tool(write_report)
@@ -427,6 +477,7 @@ def get_agent_tools():
       siem_toolset,
       soar_toolset,
       gti_toolset,
+      *drive_toolsets,
       wrapped_write_report,
       wrapped_get_current_time,
       wrapped_read_file_content,
