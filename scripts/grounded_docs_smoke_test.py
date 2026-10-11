@@ -87,6 +87,22 @@ async def probe_developer_knowledge_mcp(query: str) -> str:
             print(f"[devknowledge] search_documents isError={res.get('isError', False)}")
             payload_str = json.dumps(res, indent=2)[:800]
             print(f"[devknowledge] Response preview:\n{payload_str}")
+            for block in res.get("content", []):
+                if isinstance(block, dict) and block.get("type") == "text":
+                    try:
+                        parsed = json.loads(block.get("text", "{}"))
+                        results = parsed.get("results", [])
+                        if results and isinstance(results[0], dict):
+                            first = results[0]
+                            if first.get("url"):
+                                citation_url = str(first["url"])
+                                break
+                            parent = str(first.get("parent", ""))
+                            if parent.startswith("documents/"):
+                                citation_url = "https://" + parent[len("documents/"):]
+                                break
+                    except json.JSONDecodeError:
+                        pass
     finally:
         await toolset.close()
     return citation_url

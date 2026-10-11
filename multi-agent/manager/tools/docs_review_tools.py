@@ -458,9 +458,11 @@ def insert_doc_comments(
 
     data = resp.json()
     comment_ids = [
-        reply.get("insertComment", {}).get("commentId")
+        cid
         for reply in data.get("replies", [])
-        if isinstance(reply, dict) and "insertComment" in reply
+        if isinstance(reply, dict)
+        and "insertComment" in reply
+        and (cid := reply.get("insertComment", {}).get("commentId"))
     ]
     result: dict[str, Any] = {
         "status": "success",
