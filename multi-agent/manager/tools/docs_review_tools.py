@@ -440,37 +440,464 @@ def _short_sha256(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()[:12]
 
 
-def sanitize_telemetry_text(text: str) -> str:
-    """Redacts raw Base64 stagers and sensitive memory-dump arguments at the tool boundary.
+_EXISTING_REDACTED_TOKEN_RE = re.compile(r"<REDACTED_[A-Z0-9_]+:[^>]+>")
 
-    Replaces verbatim encoded payloads and credential-dump argument sequences with
-    deterministic forensic tokens (length + 12-char SHA-256 fingerprint) so LLMs
-    can reason over and edit incident reports without echoing weaponized strings
-    that trigger model output safety classifiers.
+_PATH_LIKE_SEGMENTS: frozenset[str] = frozenset(
+    {
+        "projects",
+        "organizations",
+        "folders",
+        "billingaccounts",
+        "locations",
+        "zones",
+        "regions",
+        "instances",
+        "clusters",
+        "datasets",
+        "tables",
+        "buckets",
+        "objects",
+        "topics",
+        "subscriptions",
+        "secrets",
+        "keyrings",
+        "cryptokeys",
+        "serviceaccounts",
+        "users",
+        "repos",
+        "apis",
+        "services",
+        "v1",
+        "v1alpha",
+        "v1beta",
+        "bin",
+        "usr",
+        "etc",
+        "var",
+        "opt",
+        "home",
+        "tmp",
+        "dev",
+        "proc",
+        "sys",
+        "lib",
+        "local",
+        "google",
+        "cloud",
+        "chronicle",
+        "security",
+    }
+)
+
+TELEMETRY_HAZARD_PATTERNS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "private_key_block",
+        "hazard_class": "leaked_credential",
+        "token_label": "REDACTED_PRIVATE_KEY",
+        "include_len": False,
+        "mitre_technique": "T1552.004",
+        "target_group": 0,
+        "pattern": re.compile(
+            r"-----BEGIN (?:RSA |EC |OPENSSH |DSA |ENCRYPTED )?PRIVATE KEY-----"
+            r"[\s\S]*?"
+            r"-----END (?:RSA |EC |OPENSSH |DSA |ENCRYPTED )?PRIVATE KEY-----"
+        ),
+        "description": "PEM/OpenSSH private key block",
+    },
+    {
+        "name": "dotnet_from_base64_string",
+        "hazard_class": "encoded_stager",
+        "token_label": "REDACTED_B64",
+        "include_len": True,
+        "mitre_technique": "T1059.001",
+        "target_group": 2,
+        "pattern": re.compile(
+            r"(?i)(\bFromBase64String\s*\(\s*['\"])([A-Za-z0-9+/=\s]{8,}?)(['\"]\s*\))"
+        ),
+        "description": ".NET FromBase64String encoded stager payload",
+    },
+    {
+        "name": "powershell_encoded_command",
+        "hazard_class": "encoded_stager",
+        "token_label": "REDACTED_B64",
+        "include_len": True,
+        "mitre_technique": "T1059.001",
+        "target_group": 2,
+        "pattern": re.compile(
+            r"(?i)(?:(?<=^)|(?<=[\s\"'`(;]))(-(?:e|en|enc|encodedcommand)[ \t]+)(?!/)([A-Za-z0-9+/=]{8,})(?![A-Za-z0-9+/=._/-])"
+        ),
+        "description": "PowerShell -EncodedCommand / -Enc Base64 stager payload",
+    },
+    {
+        "name": "powershell_webclient_cradle",
+        "hazard_class": "lolbin_download_cradle",
+        "token_label": "REDACTED_CRADLE",
+        "include_len": False,
+        "mitre_technique": "T1059.001",
+        "target_group": 2,
+        "pattern": re.compile(
+            r"(?i)(\(?New-Object[ \t]+(?:System\.)?Net\.WebClient\)?\.Download(?:String|File|Data)\s*\()([^()\r\n]+)(\))"
+        ),
+        "description": "PowerShell Net.WebClient download cradle arguments",
+    },
+    {
+        "name": "powershell_iwr_iex_cradle",
+        "hazard_class": "lolbin_download_cradle",
+        "token_label": "REDACTED_CRADLE",
+        "include_len": False,
+        "mitre_technique": "T1059.001",
+        "target_group": 2,
+        "pattern": re.compile(
+            r"(?i)\b(Invoke-WebRequest|Invoke-RestMethod|iwr|irm)[ \t]+([^\r\n|;]+?\|[ \t]*(?:Invoke-Expression|iex)\b)"
+        ),
+        "description": "PowerShell Invoke-WebRequest / Invoke-RestMethod piped to Invoke-Expression cradle",
+    },
+    {
+        "name": "lolbin_certutil_urlcache",
+        "hazard_class": "lolbin_download_cradle",
+        "token_label": "REDACTED_LOLBIN_ARGS",
+        "include_len": False,
+        "mitre_technique": "T1105",
+        "target_group": 2,
+        "pattern": re.compile(
+            r"(?i)\b(certutil(?:\.exe)?[ \t]+(?:[-/][a-z]+[ \t]+)*[-/]urlcache(?:[ \t]+[-/](?:split|f))*)[ \t]+([^\r\n\"'`]+)"
+        ),
+        "description": "certutil.exe -urlcache LOLBin ingress transfer arguments",
+    },
+    {
+        "name": "lolbin_bitsadmin_transfer",
+        "hazard_class": "lolbin_download_cradle",
+        "token_label": "REDACTED_LOLBIN_ARGS",
+        "include_len": False,
+        "mitre_technique": "T1197",
+        "target_group": 2,
+        "pattern": re.compile(
+            r"(?i)\b(bitsadmin(?:\.exe)?[ \t]+/transfer)[ \t]+([^\r\n\"'`]+)"
+        ),
+        "description": "bitsadmin.exe /transfer LOLBin download cradle arguments",
+    },
+    {
+        "name": "lolbin_mshta_script",
+        "hazard_class": "lolbin_download_cradle",
+        "token_label": "REDACTED_LOLBIN_ARGS",
+        "include_len": False,
+        "mitre_technique": "T1218.005",
+        "target_group": 2,
+        "pattern": re.compile(
+            r"(?i)\b(mshta(?:\.exe)?[ \t]+(?:vbscript:|javascript:))([^\r\n`]+)"
+        ),
+        "description": "mshta.exe inline script execution payload",
+    },
+    {
+        "name": "lolbin_regsvr32_scrobj",
+        "hazard_class": "lolbin_download_cradle",
+        "token_label": "REDACTED_LOLBIN_ARGS",
+        "include_len": False,
+        "mitre_technique": "T1218.010",
+        "target_group": 2,
+        "pattern": re.compile(
+            r"(?i)\b(regsvr32(?:\.exe)?[ \t]+(?:[/\-][snu][ \t]+)*[/\-]i:)([^\r\n\"'`]+)"
+        ),
+        "description": "regsvr32.exe Squiblydoo COM scriptlet arguments",
+    },
+    {
+        "name": "cred_dump_minidump",
+        "hazard_class": "credential_dump_args",
+        "token_label": "REDACTED_DUMP_ARGS",
+        "include_len": False,
+        "mitre_technique": "T1003.001",
+        "target_group": 2,
+        "pattern": re.compile(
+            r"(?i)(\bMiniDump)[ \t]+((?:\d+\b|[A-Za-z]:\\|\\\\)[^\r\n\"'`]*)"
+        ),
+        "description": "comsvcs.dll MiniDump LSASS memory dump arguments",
+    },
+    {
+        "name": "cred_dump_procdump_lsass",
+        "hazard_class": "credential_dump_args",
+        "token_label": "REDACTED_DUMP_ARGS",
+        "include_len": False,
+        "mitre_technique": "T1003.001",
+        "target_group": 2,
+        "pattern": re.compile(
+            r"(?i)\b(procdump(?:64)?(?:\.exe)?[ \t]+(?:[-/][a-z]+[ \t]+)*[-/]ma)[ \t]+([^\r\n\"'`]+)"
+        ),
+        "description": "Sysinternals procdump -ma process memory dump arguments",
+    },
+    {
+        "name": "cred_dump_ntdsutil_ifm",
+        "hazard_class": "credential_dump_args",
+        "token_label": "REDACTED_DUMP_ARGS",
+        "include_len": False,
+        "mitre_technique": "T1003.003",
+        "target_group": 2,
+        "pattern": re.compile(
+            r"(?i)\b(ntdsutil(?:\.exe)?)[ \t]+([^\r\n`]*?\bifm\b[^\r\n`]*)"
+        ),
+        "description": "ntdsutil Install From Media (IFM) Active Directory NTDS.dit extraction arguments",
+    },
+    {
+        "name": "cred_dump_reg_save_hive",
+        "hazard_class": "credential_dump_args",
+        "token_label": "REDACTED_DUMP_ARGS",
+        "include_len": False,
+        "mitre_technique": "T1003.002",
+        "target_group": 2,
+        "pattern": re.compile(
+            r"(?i)\b(reg(?:\.exe)?[ \t]+save[ \t]+HKLM\\(?:SAM|SYSTEM|SECURITY))[ \t]+([^\r\n\"'`]+)"
+        ),
+        "description": "reg.exe save offline SAM/SYSTEM/SECURITY registry hive extraction arguments",
+    },
+    {
+        "name": "cred_dump_mimikatz_sekurlsa",
+        "hazard_class": "credential_dump_args",
+        "token_label": "REDACTED_DUMP_ARGS",
+        "include_len": False,
+        "mitre_technique": "T1003.001",
+        "target_group": 2,
+        "pattern": re.compile(
+            r"(?i)\b(sekurlsa::)(logonpasswords(?:[ \t]+[^\r\n\"'`]+)?)"
+        ),
+        "description": "Mimikatz sekurlsa::logonpasswords LSASS credential extraction invocation",
+    },
+    {
+        "name": "cred_dump_mimikatz_dcsync",
+        "hazard_class": "credential_dump_args",
+        "token_label": "REDACTED_DUMP_ARGS",
+        "include_len": False,
+        "mitre_technique": "T1003.006",
+        "target_group": 2,
+        "pattern": re.compile(
+            r"(?i)\b(lsadump::dcsync)[ \t]+([^\r\n\"'`]+)"
+        ),
+        "description": "Mimikatz lsadump::dcsync Active Directory replication arguments",
+    },
+    {
+        "name": "revshell_dev_tcp",
+        "hazard_class": "reverse_shell_stager",
+        "token_label": "REDACTED_REVERSE_SHELL",
+        "include_len": False,
+        "mitre_technique": "T1059.004",
+        "target_group": 1,
+        "pattern": re.compile(
+            r"(/dev/(?:tcp|udp)/[^\s\"'`>&|;]+(?:[ \t]+0>&1)?)"
+        ),
+        "description": "Linux /dev/tcp or /dev/udp reverse shell socket redirection",
+    },
+    {
+        "name": "revshell_netcat_exec",
+        "hazard_class": "reverse_shell_stager",
+        "token_label": "REDACTED_REVERSE_SHELL",
+        "include_len": False,
+        "mitre_technique": "T1059.004",
+        "target_group": 2,
+        "pattern": re.compile(
+            r"(?i)\b(nc|ncat|netcat)[ \t]+((?:[^\r\n\"'`|;]*?[ \t]+)?-(?:e|c)[ \t]+/bin/(?:ba)?sh\b[^\r\n\"'`|;]*)"
+        ),
+        "description": "Netcat -e /bin/sh reverse shell execution arguments",
+    },
+    {
+        "name": "revshell_curl_wget_pipe_sh",
+        "hazard_class": "reverse_shell_stager",
+        "token_label": "REDACTED_REVERSE_SHELL",
+        "include_len": False,
+        "mitre_technique": "T1059.004",
+        "target_group": 2,
+        "pattern": re.compile(
+            r"(?i)\b(curl|wget)[ \t]+([^\r\n|;]+?\|[ \t]*(?:sudo[ \t]+)?(?:/bin/)?(?:ba)?sh\b)"
+        ),
+        "description": "curl/wget pipe-to-shell remote stager execution",
+    },
+    {
+        "name": "gcp_oauth_token",
+        "hazard_class": "leaked_credential",
+        "token_label": "REDACTED_GCP_TOKEN",
+        "include_len": False,
+        "mitre_technique": "T1528",
+        "target_group": 1,
+        "pattern": re.compile(
+            r"(?<![A-Za-z0-9._-])(ya29\.[A-Za-z0-9._-]{16,})(?![A-Za-z0-9._-])"
+        ),
+        "description": "Google Cloud OAuth 2.0 ya29.* bearer access token",
+    },
+    {
+        "name": "jwt_bearer_token",
+        "hazard_class": "leaked_credential",
+        "token_label": "REDACTED_JWT",
+        "include_len": False,
+        "mitre_technique": "T1528",
+        "target_group": 1,
+        "pattern": re.compile(
+            r"(?<![A-Za-z0-9_-])(eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,})(?![A-Za-z0-9_-])"
+        ),
+        "description": "JSON Web Token (JWT) bearer token",
+    },
+    {
+        "name": "aws_access_key_id",
+        "hazard_class": "leaked_credential",
+        "token_label": "REDACTED_AWS_KEY",
+        "include_len": False,
+        "mitre_technique": "T1552.001",
+        "target_group": 1,
+        "pattern": re.compile(
+            r"(?<![A-Za-z0-9_-])((?:AKIA|ASIA)[0-9A-Z]{16})(?![A-Za-z0-9_-])"
+        ),
+        "description": "AWS IAM Access Key ID (AKIA*/ASIA*)",
+    },
+    {
+        "name": "standalone_base64_stager",
+        "hazard_class": "encoded_stager",
+        "token_label": "REDACTED_B64",
+        "include_len": True,
+        "mitre_technique": "T1027",
+        "target_group": 1,
+        "pattern": re.compile(
+            r"(?<![A-Za-z0-9+/=._:-])([A-Za-z0-9+/]{64,}={0,2})(?![A-Za-z0-9+/=._:-])"
+        ),
+        "description": "Standalone 64+ character Base64 stager blob",
+    },
+)
+
+
+def _is_false_positive_standalone_b64(blob: str) -> bool:
+    """Returns True when a 64+ char Base64 candidate is actually a hex hash or resource path."""
+    if re.fullmatch(r"[0-9a-fA-F]+", blob):
+        return True
+    if blob.startswith("/"):
+        return True
+    if "/" in blob:
+        segments = [seg.lower() for seg in blob.split("/") if seg]
+        if any(seg in _PATH_LIKE_SEGMENTS for seg in segments):
+            return True
+    return False
+
+
+def _iter_telemetry_hazard_matches(text: str) -> list[dict[str, Any]]:
+    """Scans ``text`` against :data:`TELEMETRY_HAZARD_PATTERNS` and returns non-overlapping
+    hazard match records sorted ascending by ``char_start``."""
+    if not text:
+        return []
+
+    claimed_spans: list[tuple[int, int]] = [
+        (m.start(0), m.end(0))
+        for m in _EXISTING_REDACTED_TOKEN_RE.finditer(text)
+    ]
+    matches: list[dict[str, Any]] = []
+
+    for rule in TELEMETRY_HAZARD_PATTERNS:
+        pattern: re.Pattern[str] = rule["pattern"]
+        target_group: int = int(rule["target_group"])
+        rule_name: str = str(rule["name"])
+        token_label: str = str(rule["token_label"])
+        include_len: bool = bool(rule["include_len"])
+
+        for m in pattern.finditer(text):
+            full_start, full_end = m.start(0), m.end(0)
+            target_start, target_end = m.start(target_group), m.end(target_group)
+
+            while target_end > target_start and text[target_end - 1] in (" ", "\t", "\r"):
+                target_end -= 1
+            if rule_name == "gcp_oauth_token":
+                while target_end > target_start and text[target_end - 1] == ".":
+                    target_end -= 1
+
+            if target_end <= target_start:
+                continue
+
+            raw_target = text[target_start:target_end]
+            if "<REDACTED_" in raw_target or "<REDACTED_" in m.group(0):
+                continue
+
+            if rule_name == "standalone_base64_stager" and _is_false_positive_standalone_b64(
+                raw_target
+            ):
+                continue
+
+            if any(
+                max(target_start, c_start) < min(target_end, c_end)
+                or max(full_start, c_start) < min(full_end, c_end)
+                for c_start, c_end in claimed_spans
+            ):
+                continue
+
+            norm_payload = (
+                raw_target.strip()
+                if rule_name != "private_key_block"
+                else raw_target
+            )
+            sha_prefix = _short_sha256(norm_payload)
+            if include_len:
+                replacement = (
+                    f"<{token_label}:len={len(norm_payload)},sha256={sha_prefix}>"
+                )
+            else:
+                replacement = f"<{token_label}:sha256={sha_prefix}>"
+
+            mitre_id = str(rule["mitre_technique"])
+            ref_url = mitre_technique_url(mitre_id)
+            hazard_class = str(rule["hazard_class"])
+            desc = str(rule["description"])
+            comment_text = (
+                f"Deterministic Telemetry & Credential Safety Check ({hazard_class} / "
+                f"{rule_name}): Unredacted {desc} detected in shared document. "
+                f"Redact sensitive payload/secret to `{replacement}` (preserving "
+                f"SHA-256 prefix `{sha_prefix}` for forensic correlation; "
+                f"MITRE ATT&CK {mitre_id}: {ref_url})."
+            )
+
+            claimed_spans.append((target_start, target_end))
+            matches.append(
+                {
+                    "name": rule_name,
+                    "pattern_name": rule_name,
+                    "category": hazard_class,
+                    "hazard_class": hazard_class,
+                    "token_type": token_label,
+                    "token_label": token_label,
+                    "mitre_technique": mitre_id,
+                    "reference_url": ref_url,
+                    "description": desc,
+                    "char_start": target_start,
+                    "char_end": target_end,
+                    "raw_target": raw_target,
+                    "payload_length": len(norm_payload),
+                    "sha256_prefix": sha_prefix,
+                    "replacement": replacement,
+                    "comment": comment_text,
+                }
+            )
+
+    matches.sort(key=lambda item: int(item["char_start"]))
+    return matches
+
+
+def sanitize_telemetry_text(text: str) -> str:
+    """Redacts adversarial command-line payloads, LOLBin cradles, credential-dump
+    arguments, reverse shells, and leaked cloud/API tokens at the tool boundary.
+
+    Replaces verbatim weaponized payloads and live secrets across 22 deterministic
+    pattern families (:data:`TELEMETRY_HAZARD_PATTERNS`) with forensic correlation
+    tokens (length + 12-char SHA-256 prefix) while preserving 100% of MD5, SHA-1,
+    SHA-256, UUID, Windows SID, Chronicle UDM, MITRE ATT&CK, CVE, and GCP resource
+    identifiers.
     """
     if not text:
         return text
 
-    def _replace_enc_flag(match: re.Match[str]) -> str:
-        prefix, blob = match.group(1), match.group(2)
-        return f"{prefix}<REDACTED_B64:len={len(blob)},sha256={_short_sha256(blob)}>"
+    matches = _iter_telemetry_hazard_matches(text)
+    if not matches:
+        return text
 
-    def _replace_standalone_b64(match: re.Match[str]) -> str:
-        blob = match.group(1)
-        if re.fullmatch(r"[0-9a-fA-F]+", blob):
-            return blob
-        return f"<REDACTED_B64:len={len(blob)},sha256={_short_sha256(blob)}>"
-
-    def _replace_memdump(match: re.Match[str]) -> str:
-        verb, args_str = match.group(1), match.group(2).strip()
-        if args_str.startswith("<REDACTED_"):
-            return match.group(0)
-        return f"{verb} <REDACTED_DUMP_ARGS:sha256={_short_sha256(args_str)}>"
-
-    sanitized = _ENC_FLAG_RE.sub(_replace_enc_flag, text)
-    sanitized = _STANDALONE_B64_RE.sub(_replace_standalone_b64, sanitized)
-    sanitized = _MEMDUMP_ARGS_RE.sub(_replace_memdump, sanitized)
-    return sanitized
+    parts: list[str] = []
+    cursor = 0
+    for item in matches:
+        t_start = int(item["char_start"])
+        t_end = int(item["char_end"])
+        parts.append(text[cursor:t_start])
+        parts.append(str(item["replacement"]))
+        cursor = t_end
+    parts.append(text[cursor:])
+    return "".join(parts)
 
 
 def defang_url(url: str) -> str:
@@ -1319,13 +1746,22 @@ def propose_doc_suggested_edits(
     return result
 
 
+_CLOUD_IMDS_HOSTS: frozenset[str] = frozenset(
+    {
+        "169.254.169.254",
+        "metadata.google.internal",
+        "metadata",
+    }
+)
+
+
 def _is_trusted_domain(url: str, trusted_domains: tuple[str, ...]) -> bool:
     try:
         parsed = urlparse(url)
         host = (parsed.hostname or "").lower()
     except ValueError:
         return False
-    if not host:
+    if not host or host in _CLOUD_IMDS_HOSTS:
         return False
     return any(host == dom or host.endswith("." + dom) for dom in trusted_domains)
 
@@ -1336,7 +1772,7 @@ def find_deterministic_indicator_spans(
     *,
     trusted_domains: tuple[str, ...] = DEFAULT_TRUSTED_DOC_DOMAINS,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Scans document text for live untrusted URLs and raw encoded blobs without an LLM.
+    """Scans document text for live untrusted URLs (including Cloud IMDS SSRF endpoints) without an LLM.
 
     Returns ``(comments, edits)`` using 1-based UTF-16 ``start_index`` and
     ``end_index`` coordinates so ``insert_doc_comments`` and
@@ -1358,15 +1794,28 @@ def find_deterministic_indicator_spans(
         defanged = defang_url(raw_url)
         if defanged == raw_url:
             continue
+        try:
+            host = (urlparse(raw_url).hostname or "").lower()
+        except ValueError:
+            host = ""
+        if host in _CLOUD_IMDS_HOSTS:
+            comment_text = (
+                "Deterministic Indicator Safety Check (Cloud IMDS SSRF Hazard): "
+                f"Live Cloud Instance Metadata Service URL ({host}) auto-linkifies "
+                "in Google Docs and poses an SSRF / token-theft replay hazard. "
+                "Defang indicator scheme and hostname before distributing the report."
+            )
+        else:
+            comment_text = (
+                "Deterministic Indicator Safety Check: Live external URL auto-linkifies "
+                "in Google Docs and creates a click hazard for incident responders. "
+                "Defang indicator scheme and hostname before distributing the report."
+            )
         comments.append(
             {
                 "start_index": start_idx,
                 "end_index": end_idx,
-                "comment": (
-                    "Deterministic Indicator Safety Check: Live external URL auto-linkifies "
-                    "in Google Docs and creates a click hazard for incident responders. "
-                    "Defang indicator scheme and hostname before distributing the report."
-                ),
+                "comment": comment_text,
             }
         )
         edits.append(
@@ -3101,6 +3550,189 @@ def verify_and_redline_mitre_and_cve_in_doc(
     }
 
 
+def find_telemetry_hazard_spans(
+    plain_text: str,
+    index_map: list[int],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Scans Google Doc ``plain_text`` for unredacted telemetry hazards and live secrets without an LLM.
+
+    Covers all 22 deterministic rules in :data:`TELEMETRY_HAZARD_PATTERNS`
+    (encoded PowerShell flags, ``.NET`` ``FromBase64String`` calls, standalone
+    64+ char Base64 stagers, PowerShell & LOLBin download cradles, credential
+    dumpers & offline SAM/SYSTEM/SECURITY hive dumps, Linux reverse shells &
+    ``curl|bash`` pipe-to-shell stagers, and leaked ``ya29.`` GCP OAuth2,
+    ``eyJ`` JWT, ``AKIA``/``ASIA`` AWS keys, and PEM private keys) while
+    strictly preserving forensic identifiers (MD5, SHA-1, SHA-256, UUIDs,
+    Windows SIDs, GCP resource paths, Chronicle UDM fields, and MITRE/CVE IDs).
+
+    Returns ``(comments, edits, findings)`` using exact 1-based UTF-16
+    ``start_index`` and ``end_index`` coordinates so :func:`insert_doc_comments`
+    and :func:`propose_doc_suggested_edits` can stage red-lines directly via
+    the Google Docs API v1 without ever echoing sensitive payloads or live
+    credentials through an LLM.
+    """
+    comments: list[dict[str, Any]] = []
+    edits: list[dict[str, Any]] = []
+    findings: list[dict[str, Any]] = []
+    if not plain_text or not index_map:
+        return comments, edits, findings
+
+    matches = _iter_telemetry_hazard_matches(plain_text)
+    for item in matches:
+        char_start = int(item["char_start"])
+        char_end = int(item["char_end"]) - 1
+        if char_start < 0 or char_end >= len(index_map) or char_start > char_end:
+            continue
+        start_idx = index_map[char_start]
+        end_idx = index_map[char_end] + _utf16_code_unit_len(plain_text[char_end])
+        replacement = str(item["replacement"])
+        comment_text = str(item["comment"])
+        comments.append(
+            {
+                "start_index": start_idx,
+                "end_index": end_idx,
+                "comment": comment_text,
+            }
+        )
+        edits.append(
+            {
+                "start_index": start_idx,
+                "end_index": end_idx,
+                "replacement": replacement,
+            }
+        )
+        findings.append(
+            {
+                "name": item["name"],
+                "category": item["category"],
+                "token_type": item["token_type"],
+                "sha256_prefix": item["sha256_prefix"],
+                "payload_length": item["payload_length"],
+                "start_index": start_idx,
+                "end_index": end_idx,
+                "replacement": replacement,
+                "comment": comment_text,
+            }
+        )
+
+    return comments, edits, findings
+
+
+def sanitize_and_redline_telemetry_in_doc(
+    document_id: str,
+    tool_context: Any = None,
+    *,
+    token_source: TokenSource | None = None,
+    quota_project: str | None = None,
+    transport: httpx.BaseTransport | None = None,
+) -> dict[str, Any]:
+    """Scans a Google Doc for unredacted offensive telemetry payloads and leaked secrets and stages ``writeMode="SUGGEST"`` red-lines.
+
+    1. Calls :func:`read_google_doc` to populate the 1-based UTF-16 ``index_map``
+       and ``pending_suggestion_spans``.
+    2. Runs :func:`find_telemetry_hazard_spans` across the document text to locate
+       encoded PowerShell commands, ``.NET`` Base64 decoders, standalone Base64
+       stagers, LOLBin download cradles, credential-dumping arguments, Linux
+       reverse shells, and leaked cloud/API tokens (``ya29.``, ``eyJ``, ``AKIA``,
+       PEM private keys) without echoing them through an LLM.
+    3. Skips any span overlapping an existing pending suggestion
+       (``skipped_existing_suggestion_count``) for multi-pass idempotency.
+    4. Anchors forensic safety comments first via :func:`insert_doc_comments`.
+    5. Stages descending-index ``writeMode="SUGGEST"`` redaction replacements
+       second via :func:`propose_doc_suggested_edits`.
+    """
+    read_res = read_google_doc(
+        document_id,
+        tool_context=tool_context,
+        token_source=token_source,
+        quota_project=quota_project,
+        transport=transport,
+    )
+    if read_res.get("status") != "success":
+        return read_res
+
+    plain_text, index_map = _load_doc_index_state(document_id, tool_context=tool_context)
+    if plain_text is None or index_map is None:
+        return {
+            "status": "error",
+            "message": "Failed to load UTF-16 index map after read_google_doc.",
+        }
+
+    pending_spans = _load_doc_pending_suggestion_spans(
+        document_id, tool_context=tool_context
+    )
+
+    raw_comments, raw_edits, raw_findings = find_telemetry_hazard_spans(
+        plain_text, index_map
+    )
+
+    comments: list[dict[str, Any]] = []
+    edits: list[dict[str, Any]] = []
+    findings: list[dict[str, Any]] = []
+    skipped_existing_suggestion_count = 0
+    for c_item, e_item, f_item in zip(raw_comments, raw_edits, raw_findings):
+        f_span = (int(f_item["start_index"]), int(f_item["end_index"]))
+        if any(_spans_overlap(f_span, p_span) for p_span in pending_spans):
+            skipped_existing_suggestion_count += 1
+            continue
+        comments.append(c_item)
+        edits.append(e_item)
+        findings.append(f_item)
+
+    comments_res: dict[str, Any] = {
+        "status": "skipped",
+        "inserted_count": 0,
+        "comment_ids": [],
+    }
+    if comments:
+        comments_res = insert_doc_comments(
+            document_id,
+            comments,
+            tool_context=tool_context,
+            token_source=token_source,
+            quota_project=quota_project,
+            transport=transport,
+        )
+        if comments_res.get("status") != "success":
+            return {
+                "status": "error",
+                "message": f"insert_doc_comments failed: {comments_res.get('message')}",
+                "findings": findings,
+                "comments": comments_res,
+            }
+
+    edits_res: dict[str, Any] = {"status": "skipped", "applied_count": 0}
+    if edits:
+        edits_res = propose_doc_suggested_edits(
+            document_id,
+            edits,
+            tool_context=tool_context,
+            token_source=token_source,
+            quota_project=quota_project,
+            transport=transport,
+        )
+        if edits_res.get("status") != "success":
+            return {
+                "status": "error",
+                "message": f"propose_doc_suggested_edits failed: {edits_res.get('message')}",
+                "findings": findings,
+                "comments": comments_res,
+                "edits": edits_res,
+            }
+
+    return {
+        "status": "success",
+        "document_id": document_id,
+        "title": read_res.get("title", ""),
+        "char_count": read_res.get("char_count", 0),
+        "telemetry_hazard_findings_count": len(findings),
+        "skipped_existing_suggestion_count": skipped_existing_suggestion_count,
+        "findings": findings,
+        "comments": comments_res,
+        "edits": edits_res,
+    }
+
+
 def _resolve_item_span(
     plain_text: str, index_map: list[int], item: dict[str, Any]
 ) -> tuple[int, int] | None:
@@ -3138,6 +3770,7 @@ def review_google_doc_with_stage_a(
     semantic_edits: str | list[dict[str, Any]] | None = None,
     tool_context: Any = None,
     *,
+    include_telemetry_hazard_stage_a: bool = True,
     include_udm_stage_a: bool = True,
     include_yaral2_stage_a: bool = True,
     include_mitre_cve_stage_a: bool = True,
@@ -3149,16 +3782,19 @@ def review_google_doc_with_stage_a(
 
     1. Calls :func:`read_google_doc` to populate the 1-based UTF-16 index map
        and ``pending_suggestion_spans``.
-    2. Runs Stage A (:func:`find_deterministic_indicator_spans`,
+    2. Runs Stage A (:func:`find_telemetry_hazard_spans` when
+       ``include_telemetry_hazard_stage_a=True``,
+       :func:`find_deterministic_indicator_spans`,
        :func:`find_udm_field_spans` when ``include_udm_stage_a=True``,
        :func:`find_yaral2_rule_spans` when ``include_yaral2_stage_a=True``, and
        :func:`find_mitre_and_cve_spans` when ``include_mitre_cve_stage_a=True``)
-       to locate live untrusted URLs, standalone Chronicle UDM field defects,
-       YARA-L 2.0 rule defects, and MITRE ATT&CK / CVE defects by numeric UTF-16
-       span without echoing them through an LLM.
-    3. Deduplicates Stage A UDM, YARA-L 2.0, and MITRE/CVE spans against
-       overlapping Stage B ``semantic_comments`` and ``semantic_edits`` and skips
-       any span that overlaps an existing pending suggestion (multi-pass idempotency).
+       to locate unredacted telemetry payloads/secrets, live untrusted URLs,
+       standalone Chronicle UDM field defects, YARA-L 2.0 rule defects, and
+       MITRE ATT&CK / CVE defects by numeric UTF-16 span without echoing them
+       through an LLM.
+    3. Deduplicates Stage A spans against overlapping Stage B
+       ``semantic_comments`` and ``semantic_edits`` and skips any span that
+       overlaps an existing pending suggestion (multi-pass idempotency).
     4. Anchors all comments first via :func:`insert_doc_comments`.
     5. Stages all Suggested Edits second via :func:`propose_doc_suggested_edits`
        (sorted descending by ``startIndex`` under ``writeMode="SUGGEST"``).
@@ -3184,10 +3820,6 @@ def review_google_doc_with_stage_a(
         document_id, tool_context=tool_context
     )
 
-    stage_a_comments, stage_a_edits = find_deterministic_indicator_spans(
-        plain_text, index_map
-    )
-
     try:
         stage_b_comments = _parse_json_or_list(semantic_comments)
         stage_b_edits = _parse_json_or_list(semantic_edits)
@@ -3196,14 +3828,49 @@ def review_google_doc_with_stage_a(
 
     existing_comment_spans = [
         sp
-        for item in (stage_a_comments + stage_b_comments)
+        for item in stage_b_comments
         if (sp := _resolve_item_span(plain_text, index_map, item)) is not None
     ]
     existing_edit_spans = [
         sp
-        for item in (stage_a_edits + stage_b_edits)
+        for item in stage_b_edits
         if (sp := _resolve_item_span(plain_text, index_map, item)) is not None
     ]
+
+    stage_a_telemetry_hazard_count = 0
+    deduped_telemetry_comments: list[dict[str, Any]] = []
+    deduped_telemetry_edits: list[dict[str, Any]] = []
+    if include_telemetry_hazard_stage_a:
+        th_comments, th_edits, th_findings = find_telemetry_hazard_spans(
+            plain_text, index_map
+        )
+        stage_a_telemetry_hazard_count = len(th_findings)
+        for c_item in th_comments:
+            c_span = (c_item["start_index"], c_item["end_index"])
+            if not any(_spans_overlap(c_span, ex) for ex in existing_comment_spans):
+                deduped_telemetry_comments.append(c_item)
+                existing_comment_spans.append(c_span)
+        for e_item in th_edits:
+            e_span = (e_item["start_index"], e_item["end_index"])
+            if not any(_spans_overlap(e_span, ex) for ex in existing_edit_spans):
+                deduped_telemetry_edits.append(e_item)
+                existing_edit_spans.append(e_span)
+
+    raw_url_comments, raw_url_edits = find_deterministic_indicator_spans(
+        plain_text, index_map
+    )
+    stage_a_comments: list[dict[str, Any]] = []
+    stage_a_edits: list[dict[str, Any]] = []
+    for c_item in raw_url_comments:
+        c_span = (c_item["start_index"], c_item["end_index"])
+        if not any(_spans_overlap(c_span, ex) for ex in existing_comment_spans):
+            stage_a_comments.append(c_item)
+            existing_comment_spans.append(c_span)
+    for e_item in raw_url_edits:
+        e_span = (e_item["start_index"], e_item["end_index"])
+        if not any(_spans_overlap(e_span, ex) for ex in existing_edit_spans):
+            stage_a_edits.append(e_item)
+            existing_edit_spans.append(e_span)
 
     stage_a_udm_count = 0
     deduped_udm_comments: list[dict[str, Any]] = []
@@ -3263,14 +3930,16 @@ def review_google_doc_with_stage_a(
                 existing_edit_spans.append(e_span)
 
     raw_all_comments = (
-        stage_a_comments
+        deduped_telemetry_comments
+        + stage_a_comments
         + deduped_udm_comments
         + deduped_yaral2_comments
         + deduped_mitre_cve_comments
         + stage_b_comments
     )
     raw_all_edits = (
-        stage_a_edits
+        deduped_telemetry_edits
+        + stage_a_edits
         + deduped_udm_edits
         + deduped_yaral2_edits
         + deduped_mitre_cve_edits
@@ -3337,6 +4006,7 @@ def review_google_doc_with_stage_a(
         "document_id": document_id,
         "title": read_res.get("title", ""),
         "char_count": read_res.get("char_count", 0),
+        "stage_a_telemetry_hazard_count": stage_a_telemetry_hazard_count,
         "stage_a_url_count": len(stage_a_edits),
         "stage_a_udm_count": stage_a_udm_count,
         "stage_a_yaral2_count": stage_a_yaral2_count,
@@ -3419,6 +4089,7 @@ def stage_runbook_update_as_google_doc(
         "title": doc_title,
         "viewUrl": created.get("viewUrl", f"https://docs.google.com/document/d/{doc_id}/edit"),
         "char_count": review_res.get("char_count", 0),
+        "stage_a_telemetry_hazard_count": review_res.get("stage_a_telemetry_hazard_count", 0),
         "stage_a_url_count": review_res.get("stage_a_url_count", 0),
         "stage_a_udm_count": review_res.get("stage_a_udm_count", 0),
         "stage_a_yaral2_count": review_res.get("stage_a_yaral2_count", 0),

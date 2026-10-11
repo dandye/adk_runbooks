@@ -40,6 +40,7 @@ from .docs_review_tools import (
     inspect_doc_suggestions as _inspect_doc_suggestions,
     propose_doc_suggested_edits as _propose_doc_suggested_edits,
     read_google_doc as _read_google_doc,
+    sanitize_and_redline_telemetry_in_doc as _sanitize_and_redline_telemetry_in_doc,
     verify_and_redline_mitre_and_cve_in_doc as _verify_and_redline_mitre_and_cve_in_doc,
     verify_and_redline_udm_queries_in_doc as _verify_and_redline_udm_queries_in_doc,
     verify_and_redline_yaral2_rules_in_doc as _verify_and_redline_yaral2_rules_in_doc,
@@ -817,6 +818,38 @@ def verify_and_redline_mitre_and_cve_in_doc(
   )
 
 
+def sanitize_and_redline_telemetry_in_doc(
+    document_id: str,
+    tool_context: ToolContext = None,
+) -> dict:
+  """Scans a Google Doc for unredacted offensive telemetry payloads and leaked secrets and stages Suggested Edits.
+
+  Scans the Google Doc by exact 1-based UTF-16 span (`start_index`/`end_index`)
+  for encoded PowerShell flags (`-e`/`-en`/`-enc`/`-EncodedCommand`), `.NET`
+  `FromBase64String(...)` calls, standalone 64+ char Base64 stagers, PowerShell
+  and LOLBin download cradles (`Net.WebClient`, `iwr ... | iex`, `certutil`,
+  `bitsadmin`, `mshta`, `regsvr32`), credential-dumping arguments (`MiniDump`,
+  `procdump`, `ntdsutil`, `reg save HKLM\\SAM`, `sekurlsa`, `lsadump::dcsync`),
+  Linux reverse shells (`/dev/tcp/`, `nc -e`, `curl|bash`, `wget|sh`), and leaked
+  cloud/API tokens (`ya29.` GCP OAuth2 tokens, `eyJ` JWTs, `AKIA`/`ASIA` AWS keys,
+  PEM private keys) while strictly preserving MD5/SHA-1/SHA-256/UUID/SID/GCP
+  resource identifiers. Anchors forensic safety comments first and stages
+  non-destructive `writeMode="SUGGEST"` `<REDACTED_...:sha256=...>` replacements
+  second without echoing raw payloads or secrets through an LLM.
+
+  Args:
+      document_id (str): The Google Docs documentId.
+
+  Returns:
+      dict: {"status", "document_id", "title", "char_count", "telemetry_hazard_findings_count",
+             "skipped_existing_suggestion_count", "findings", "comments", "edits"}.
+  """
+  return _sanitize_and_redline_telemetry_in_doc(
+      document_id=document_id,
+      tool_context=tool_context,
+  )
+
+
 def get_agent_tools():
   """Initializes and returns MCP toolsets and progressive discovery tools.
 
@@ -859,6 +892,9 @@ def get_agent_tools():
   wrapped_verify_and_redline_mitre_and_cve_in_doc = instrument_tool(
       verify_and_redline_mitre_and_cve_in_doc
   )
+  wrapped_sanitize_and_redline_telemetry_in_doc = instrument_tool(
+      sanitize_and_redline_telemetry_in_doc
+  )
   wrapped_inspect_doc_suggestions = instrument_tool(inspect_doc_suggestions)
   wrapped_export_accepted_doc_to_markdown = instrument_tool(
       export_accepted_doc_to_markdown
@@ -891,6 +927,7 @@ def get_agent_tools():
       wrapped_verify_and_redline_udm_queries_in_doc,
       wrapped_verify_and_redline_yaral2_rules_in_doc,
       wrapped_verify_and_redline_mitre_and_cve_in_doc,
+      wrapped_sanitize_and_redline_telemetry_in_doc,
       wrapped_inspect_doc_suggestions,
       wrapped_export_accepted_doc_to_markdown,
       wrapped_get_current_time,
