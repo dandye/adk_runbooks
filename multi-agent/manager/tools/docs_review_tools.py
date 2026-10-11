@@ -386,7 +386,7 @@ CANONICAL_UDM_FIELD_CORRECTIONS: dict[str, str] = {
 _UDM_COMPARISON_RE = re.compile(
     r"(?<![A-Za-z0-9_.$-])([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)"
     r"(\s*(?:!=|=)\s*)"
-    r"(?:\"[^\r\n\"]*\"|'[^\r\n']*'|“[^\r\n”]*”|/[^\r\n/]+/(?:\s*nocase)?)"
+    r"(\"[^\r\n\"]*\"|'[^\r\n']*'|“[^\r\n”]*”|/[^\r\n/]+/(?:[ \t]+(?i:nocase))?)"
 )
 
 _YARAL2_RULE_HEADER_RE = re.compile(
@@ -2048,10 +2048,701 @@ def verify_udm_query_with_siem(
         }
 
 
+_CAMEL_BOUNDARY_1_RE = re.compile(r"([A-Z]+)([A-Z][a-z])")
+_CAMEL_BOUNDARY_2_RE = re.compile(r"([a-z0-9])([A-Z])")
+_UDM_SNAKE_KEY_OVERRIDES: dict[str, str] = {
+    "user_id": "userid",
+}
+_UDM_ENTITY_ROLE_PREFIXES: tuple[str, ...] = (
+    "principal.",
+    "target.",
+    "src.",
+    "about.",
+    "security_result.about.",
+    "observer.",
+    "intermediary.",
+)
+_UDM_QUERY_CONNECTOR_RE = re.compile(r"^[\s()]*\b(?:AND|OR)\b[\s()]*$", re.IGNORECASE)
+
+
+def _camel_to_snake(name: str) -> str:
+    """Converts a camelCase Chronicle UDM wire key (e.g. ``commandLine``) to canonical snake_case."""
+    if not name:
+        return ""
+    step1 = _CAMEL_BOUNDARY_1_RE.sub(r"\1_\2", str(name))
+    step2 = _CAMEL_BOUNDARY_2_RE.sub(r"\1_\2", step1).lower()
+    return _UDM_SNAKE_KEY_OVERRIDES.get(step2, step2)
+
+
+def _extract_udm_event_field_values(udm_event: dict[str, Any]) -> dict[str, list[str]]:
+    """Recursively flattens a Chronicle SIEM UDM event dictionary into canonical snake_case UDM field paths.
+
+    Unwraps ``udm_event["udm"]`` when present, normalizes camelCase wire keys (such as
+    ``commandLine``, ``emailAddresses``, ``productEventType``, ``resourceType``, and
+    ``fullPath``) into canonical snake_case UDM paths (such as ``target.process.command_line``,
+    ``principal.user.email_addresses``, ``metadata.product_event_type``, and
+    ``target.resource.name``), and sanitizes all scalar values via :func:`sanitize_telemetry_text`.
+    """
+    field_values: dict[str, list[str]] = {}
+    if not isinstance(udm_event, dict):
+        return field_values
+
+    root = udm_event.get("udm") if isinstance(udm_event.get("udm"), dict) else udm_event
+
+    def _walk(node: Any, prefix: str) -> None:
+        if isinstance(node, dict):
+            for raw_key, raw_val in node.items():
+                snake_key = _camel_to_snake(str(raw_key))
+                if not snake_key:
+                    continue
+                next_prefix = f"{prefix}.{snake_key}" if prefix else snake_key
+                _walk(raw_val, next_prefix)
+        elif isinstance(node, list):
+            for item in node:
+                _walk(item, prefix)
+        elif node is not None and not isinstance(node, bool) and prefix:
+            raw_str = str(node).strip()
+            if not raw_str:
+                return
+            sanitized_str = sanitize_telemetry_text(raw_str)
+            bucket = field_values.setdefault(prefix, [])
+            if sanitized_str not in bucket:
+                bucket.append(sanitized_str)
+
+    _walk(root, "")
+    return field_values
+
+
+def _is_candidate_udm_field_token(field_token: str) -> bool:
+    """Returns True if ``field_token`` is a known UDM shorthand or has a valid UDM top-level prefix."""
+    if not field_token:
+        return False
+    if field_token in CANONICAL_UDM_FIELD_CORRECTIONS:
+        return True
+    if "." in field_token:
+        top_prefix = field_token.split(".", 1)[0]
+        if top_prefix in VALID_UDM_TOP_LEVEL_PREFIXES:
+            return True
+    return False
+
+
+def extract_udm_query_clauses_from_text(
+    plain_text: str,
+    index_map: list[int],
+) -> list[dict[str, Any]]:
+    """Extracts standalone UDM queries and per-clause 1-based UTF-16 spans from ``plain_text``.
+
+    Excludes YARA-L 2.0 ``rule <name> { ... }`` blocks and groups consecutive UDM comparison
+    clauses separated by boolean ``AND`` / ``OR`` connectors into query records. Each clause
+    record includes 1-based UTF-16 spans for the full clause (``clause_start_index``,
+    ``clause_end_index``), the field token (``field_start_index``, ``field_end_index``), and
+    the RHS literal or regex (``rhs_start_index``, ``rhs_end_index``).
+    """
+    if not plain_text or not index_map:
+        return []
+
+    rule_blocks = _iter_yaral2_rule_blocks(plain_text)
+    excluded_spans = [(int(b["char_start"]), int(b["char_end"])) for b in rule_blocks]
+
+    raw_clauses: list[dict[str, Any]] = []
+    for match in _UDM_COMPARISON_RE.finditer(plain_text):
+        c_start, c_end = match.start(0), match.end(0)
+        if any(max(c_start, r_start) < min(c_end, r_end) for r_start, r_end in excluded_spans):
+            continue
+        field_token = match.group(1)
+        if not _is_candidate_udm_field_token(field_token):
+            continue
+
+        f_char_start, f_char_end = match.start(1), match.end(1) - 1
+        rhs_char_start, rhs_char_end = match.start(3), match.end(3) - 1
+        clause_char_end = c_end - 1
+
+        raw_clauses.append(
+            {
+                "clause_text": match.group(0),
+                "field_token": field_token,
+                "canonical_field": CANONICAL_UDM_FIELD_CORRECTIONS.get(
+                    field_token, field_token
+                ),
+                "operator_raw": match.group(2),
+                "operator": match.group(2).strip(),
+                "rhs_raw": match.group(3),
+                "char_start": c_start,
+                "char_end": c_end,
+                "clause_start_index": index_map[c_start],
+                "clause_end_index": index_map[clause_char_end]
+                + _utf16_code_unit_len(plain_text[clause_char_end]),
+                "field_start_index": index_map[f_char_start],
+                "field_end_index": index_map[f_char_end]
+                + _utf16_code_unit_len(plain_text[f_char_end]),
+                "rhs_start_index": index_map[rhs_char_start],
+                "rhs_end_index": index_map[rhs_char_end]
+                + _utf16_code_unit_len(plain_text[rhs_char_end]),
+            }
+        )
+
+    if not raw_clauses:
+        return []
+
+    grouped_queries: list[list[dict[str, Any]]] = [[raw_clauses[0]]]
+    for clause in raw_clauses[1:]:
+        prev_clause = grouped_queries[-1][-1]
+        between = plain_text[prev_clause["char_end"] : clause["char_start"]]
+        if _UDM_QUERY_CONNECTOR_RE.match(between):
+            grouped_queries[-1].append(clause)
+        else:
+            grouped_queries.append([clause])
+
+    results: list[dict[str, Any]] = []
+    for group in grouped_queries:
+        q_char_start = group[0]["char_start"]
+        q_char_end = group[-1]["char_end"]
+        results.append(
+            {
+                "query_text": plain_text[q_char_start:q_char_end],
+                "char_start": q_char_start,
+                "char_end": q_char_end,
+                "start_index": group[0]["clause_start_index"],
+                "end_index": group[-1]["clause_end_index"],
+                "clauses": group,
+            }
+        )
+    return results
+
+
+def _parse_udm_rhs(rhs_raw: str) -> dict[str, Any]:
+    """Parses a UDM comparison RHS token into ``{kind, value, nocase}``."""
+    stripped = str(rhs_raw or "").strip()
+    regex_match = re.match(r"^/([^\r\n/]+)/([ \t]+nocase)?$", stripped, re.IGNORECASE)
+    if regex_match is not None:
+        return {
+            "kind": "regex",
+            "value": regex_match.group(1),
+            "nocase": bool(regex_match.group(2)),
+        }
+    if len(stripped) >= 2 and (
+        (stripped[0] == '"' and stripped[-1] == '"')
+        or (stripped[0] == "'" and stripped[-1] == "'")
+        or (stripped[0] == "“" and stripped[-1] == "”")
+    ):
+        return {
+            "kind": "literal",
+            "value": stripped[1:-1],
+            "nocase": False,
+        }
+    return {
+        "kind": "literal",
+        "value": stripped,
+        "nocase": False,
+    }
+
+
+def _rhs_matches_observed_value(rhs_parsed: dict[str, Any], observed_val: str) -> bool:
+    """Returns True when an observed UDM scalar value satisfies ``rhs_parsed``."""
+    if not observed_val:
+        return False
+    if rhs_parsed.get("kind") == "regex":
+        pattern_str = str(rhs_parsed.get("value") or "")
+        flags = re.IGNORECASE if rhs_parsed.get("nocase") else 0
+        try:
+            return re.search(pattern_str, observed_val, flags) is not None
+        except re.error:
+            return pattern_str.lower() in observed_val.lower()
+    target_val = str(rhs_parsed.get("value") or "")
+    return observed_val.lower() == target_val.lower()
+
+
+def _shared_prefix_len(a: str, b: str) -> int:
+    """Returns the length of the shared character prefix between ``a`` and ``b``."""
+    limit = min(len(a), len(b))
+    idx = 0
+    while idx < limit and a[idx] == b[idx]:
+        idx += 1
+    return idx
+
+
+def _reconstruct_udm_query_with_clause_overrides(
+    query_text: str,
+    clauses: list[dict[str, Any]],
+    *,
+    skip_index: int | None = None,
+    override_index: int | None = None,
+    override_clause_text: str | None = None,
+) -> str:
+    """Reconstructs a canonicalized UDM query while optionally omitting or overriding one clause."""
+    if skip_index is not None:
+        kept_clauses: list[str] = []
+        for idx, c in enumerate(clauses):
+            if idx == skip_index:
+                continue
+            kept_clauses.append(
+                f"{c['canonical_field']}{c['operator_raw']}{c['rhs_raw']}"
+            )
+        return " AND ".join(kept_clauses)
+
+    out_parts: list[str] = []
+    cursor = 0
+    for idx, c in enumerate(clauses):
+        c_start = int(c["char_start"])
+        c_end = int(c["char_end"])
+        out_parts.append(query_text[cursor:c_start])
+        if idx == override_index and override_clause_text is not None:
+            out_parts.append(override_clause_text)
+        else:
+            out_parts.append(
+                f"{c['canonical_field']}{c['operator_raw']}{c['rhs_raw']}"
+            )
+        cursor = c_end
+    out_parts.append(query_text[cursor:])
+    return "".join(out_parts)
+
+
+def diagnose_zero_hit_udm_query(
+    query: str,
+    *,
+    start_time: str = "2026-02-07T00:00:00Z",
+    end_time: str = "2026-02-08T00:00:00Z",
+    max_events: int = 20,
+    siem_search_fn: Any = None,
+) -> dict[str, Any]:
+    """Diagnoses why a syntactically valid or schema-repaired UDM query returns 0 SIEM events.
+
+    1. Runs :func:`verify_udm_query_with_siem` on ``query``. If ``event_count > 0``, returns
+       ``zero_hit=False`` immediately.
+    2. When ``event_count == 0`` and ``siem_verified=True``, performs clause-by-clause
+       ablation against ``siem_search_fn`` to identify the highest-specificity matching
+       anchor query (``anchor_event_count > 0``) and the ``failing_clause`` that reduced
+       hits to zero.
+    3. Flattens sampled UDM events from the anchor query via
+       :func:`_extract_udm_event_field_values` and classifies three semantic failure modes:
+       - ``exact_match_on_command_line``: Exact ``=`` on a literal that appears as a proper
+         substring of observed UDM values (upgraded to ``/.*<escaped>.*/ nocase``).
+       - ``entity_role_swap``: Valid UDM field whose entity prefix (``principal.``, ``target.``,
+         ``src.``, etc.) does not hold the queried value/regex while a sibling entity role with
+         the same subpath matches.
+       - ``value_format_mismatch``: Literal filter on a UDM field that is populated in the
+         sampled anchor events with a different normalized value (e.g.,
+         ``target.resource.name = "projects/base-production"``).
+    4. Verifies the synthesized ``recommended_query`` against Chronicle SIEM
+       (``pivot_verified=True``, ``pivot_event_count > 0``).
+    """
+    initial_res = verify_udm_query_with_siem(
+        query,
+        start_time=start_time,
+        end_time=end_time,
+        max_events=max_events,
+        siem_search_fn=siem_search_fn,
+    )
+    repaired_query = str(initial_res.get("repaired_query") or query)
+    replacements = list(initial_res.get("replacements") or [])
+    if not initial_res.get("siem_verified"):
+        return {
+            "status": initial_res.get("status", "error"),
+            "original_query": query,
+            "repaired_query": repaired_query,
+            "replacements": replacements,
+            "siem_verified": False,
+            "zero_hit": False,
+            "event_count": 0,
+            "diagnosis_class": None,
+            "message": initial_res.get("message", "SIEM verification failed."),
+        }
+
+    initial_count = int(initial_res.get("event_count", 0) or 0)
+    if initial_count > 0:
+        return {
+            "status": "success",
+            "original_query": query,
+            "repaired_query": repaired_query,
+            "replacements": replacements,
+            "siem_verified": True,
+            "zero_hit": False,
+            "event_count": initial_count,
+            "diagnosis_class": None,
+            "anchor_query": repaired_query,
+            "anchor_event_count": initial_count,
+            "failing_clause": None,
+            "failing_clause_index": None,
+            "recommended_clause": None,
+            "recommended_query": repaired_query,
+            "pivot_verified": True,
+            "pivot_event_count": initial_count,
+            "observed_values": [],
+        }
+
+    extracted_queries = extract_udm_query_clauses_from_text(
+        query, _build_utf16_index_map(query)
+    )
+    if not extracted_queries or len(extracted_queries[0].get("clauses", [])) < 2:
+        return {
+            "status": "success",
+            "original_query": query,
+            "repaired_query": repaired_query,
+            "replacements": replacements,
+            "siem_verified": True,
+            "zero_hit": True,
+            "event_count": 0,
+            "diagnosis_class": "insufficient_clauses_for_ablation",
+            "anchor_query": None,
+            "anchor_event_count": 0,
+            "failing_clause": None,
+            "failing_clause_index": None,
+            "recommended_clause": None,
+            "recommended_query": None,
+            "pivot_verified": False,
+            "pivot_event_count": 0,
+            "observed_values": [],
+        }
+
+    q_obj = extracted_queries[0]
+    clauses: list[dict[str, Any]] = q_obj["clauses"]
+    q_text = str(q_obj["query_text"])
+    q_char_offset = int(q_obj["char_start"])
+    rel_clauses: list[dict[str, Any]] = []
+    for c in clauses:
+        rel_c = dict(c)
+        rel_c["char_start"] = int(c["char_start"]) - q_char_offset
+        rel_c["char_end"] = int(c["char_end"]) - q_char_offset
+        rel_clauses.append(rel_c)
+
+    ablation_Order = list(range(len(rel_clauses) - 1, -1, -1))
+    fallback_anchor: dict[str, Any] | None = None
+
+    for remove_idx in ablation_Order:
+        candidate_anchor = _reconstruct_udm_query_with_clause_overrides(
+            q_text, rel_clauses, skip_index=remove_idx
+        )
+        ablation_res = verify_udm_query_with_siem(
+            candidate_anchor,
+            start_time=start_time,
+            end_time=end_time,
+            max_events=max_events,
+            siem_search_fn=siem_search_fn,
+        )
+        anchor_count = int(ablation_res.get("event_count", 0) or 0)
+        if not ablation_res.get("siem_verified") or anchor_count <= 0:
+            continue
+
+        raw_events = (ablation_res.get("siem_response") or {}).get("events")
+        anchor_events = raw_events if isinstance(raw_events, list) else []
+        merged_field_values: dict[str, list[str]] = {}
+        value_event_freq: dict[tuple[str, str], int] = {}
+        for ev in anchor_events:
+            if not isinstance(ev, dict):
+                continue
+            ev_map = _extract_udm_event_field_values(ev)
+            for f_path, vals in ev_map.items():
+                bucket = merged_field_values.setdefault(f_path, [])
+                for v in vals:
+                    if v not in bucket:
+                        bucket.append(v)
+                    value_event_freq[(f_path, v)] = (
+                        value_event_freq.get((f_path, v), 0) + 1
+                    )
+
+        if fallback_anchor is None:
+            fallback_anchor = {
+                "remove_idx": remove_idx,
+                "anchor_query": candidate_anchor,
+                "anchor_event_count": anchor_count,
+                "merged_field_values": merged_field_values,
+            }
+
+        failing_c = rel_clauses[remove_idx]
+        orig_field = str(failing_c["field_token"])
+        canonical_field = str(failing_c["canonical_field"])
+        operator = str(failing_c["operator"])
+        operator_raw = str(failing_c["operator_raw"])
+        rhs_raw = str(failing_c["rhs_raw"])
+        rhs_parsed = _parse_udm_rhs(rhs_raw)
+        observed_for_canonical = merged_field_values.get(canonical_field, [])
+
+        diagnosis_class: str | None = None
+        recommended_field = canonical_field
+        recommended_rhs = rhs_raw
+        repair_target = "clause"
+        observed_values: list[str] = []
+        ranked_value_candidates: list[str] = []
+
+        # 1. exact_match_on_command_line: exact '=' literal that is a proper substring of observed values
+        if (
+            operator == "="
+            and rhs_parsed["kind"] == "literal"
+            and rhs_parsed["value"]
+            and observed_for_canonical
+        ):
+            lit_val = str(rhs_parsed["value"])
+            lit_lower = lit_val.lower()
+            substring_matches = [
+                obs
+                for obs in observed_for_canonical
+                if lit_lower in obs.lower() and lit_lower != obs.lower()
+            ]
+            exact_matches = [
+                obs for obs in observed_for_canonical if lit_lower == obs.lower()
+            ]
+            if substring_matches and not exact_matches:
+                diagnosis_class = "exact_match_on_command_line"
+                escaped_lit = re.escape(lit_val)
+                recommended_field = canonical_field
+                recommended_rhs = f"/.*{escaped_lit}.*/ nocase"
+                repair_target = "clause" if orig_field != canonical_field else "rhs"
+                observed_values = substring_matches[:5]
+
+        # 2. entity_role_swap: sibling UDM entity role holds the queried literal or regex
+        if diagnosis_class is None:
+            matched_prefix = next(
+                (
+                    p
+                    for p in _UDM_ENTITY_ROLE_PREFIXES
+                    if canonical_field.startswith(p)
+                ),
+                None,
+            )
+            if matched_prefix is not None and not any(
+                _rhs_matches_observed_value(rhs_parsed, obs)
+                for obs in observed_for_canonical
+            ):
+                subpath = canonical_field[len(matched_prefix) :]
+                for sib_prefix in _UDM_ENTITY_ROLE_PREFIXES:
+                    if sib_prefix == matched_prefix:
+                        continue
+                    sib_field = f"{sib_prefix}{subpath}"
+                    sib_vals = merged_field_values.get(sib_field, [])
+                    matching_sib = [
+                        obs
+                        for obs in sib_vals
+                        if _rhs_matches_observed_value(rhs_parsed, obs)
+                    ]
+                    if matching_sib:
+                        diagnosis_class = "entity_role_swap"
+                        recommended_field = sib_field
+                        recommended_rhs = rhs_raw
+                        repair_target = "field"
+                        observed_values = matching_sib[:5]
+                        break
+
+        # 3. value_format_mismatch: canonical field is populated in anchor events with a different value
+        if (
+            diagnosis_class is None
+            and operator == "="
+            and rhs_parsed["kind"] == "literal"
+            and observed_for_canonical
+        ):
+            lit_val = str(rhs_parsed["value"])
+            lit_lower = lit_val.lower()
+            ranked_value_candidates = sorted(
+                observed_for_canonical,
+                key=lambda cand: (
+                    _shared_prefix_len(lit_lower, cand.lower()),
+                    value_event_freq.get((canonical_field, cand), 0),
+                    difflib.SequenceMatcher(None, lit_lower, cand.lower()).ratio(),
+                ),
+                reverse=True,
+            )
+            if ranked_value_candidates:
+                best_val = ranked_value_candidates[0]
+                diagnosis_class = "value_format_mismatch"
+                recommended_field = canonical_field
+                recommended_rhs = f'"{best_val}"'
+                repair_target = "clause" if orig_field != canonical_field else "rhs"
+                observed_values = ranked_value_candidates[:5]
+
+        if diagnosis_class is None:
+            continue
+
+        recommended_clause = f"{recommended_field}{operator_raw}{recommended_rhs}"
+        recommended_query = _reconstruct_udm_query_with_clause_overrides(
+            q_text,
+            rel_clauses,
+            override_index=remove_idx,
+            override_clause_text=recommended_clause,
+        )
+        pivot_res = verify_udm_query_with_siem(
+            recommended_query,
+            start_time=start_time,
+            end_time=end_time,
+            max_events=max_events,
+            siem_search_fn=siem_search_fn,
+        )
+        pivot_count = int(pivot_res.get("event_count", 0) or 0)
+        pivot_verified = bool(pivot_res.get("siem_verified")) and pivot_count > 0
+
+        if (
+            not pivot_verified
+            and diagnosis_class == "value_format_mismatch"
+            and len(ranked_value_candidates) > 1
+        ):
+            for alt_val in ranked_value_candidates[1:3]:
+                alt_rhs = f'"{alt_val}"'
+                alt_clause = f"{recommended_field}{operator_raw}{alt_rhs}"
+                alt_query = _reconstruct_udm_query_with_clause_overrides(
+                    q_text,
+                    rel_clauses,
+                    override_index=remove_idx,
+                    override_clause_text=alt_clause,
+                )
+                alt_res = verify_udm_query_with_siem(
+                    alt_query,
+                    start_time=start_time,
+                    end_time=end_time,
+                    max_events=max_events,
+                    siem_search_fn=siem_search_fn,
+                )
+                alt_count = int(alt_res.get("event_count", 0) or 0)
+                if alt_res.get("siem_verified") and alt_count > 0:
+                    recommended_rhs = alt_rhs
+                    recommended_clause = alt_clause
+                    recommended_query = alt_query
+                    pivot_count = alt_count
+                    pivot_verified = True
+                    break
+
+        return {
+            "status": "success",
+            "original_query": query,
+            "repaired_query": repaired_query,
+            "replacements": replacements,
+            "siem_verified": True,
+            "zero_hit": True,
+            "event_count": 0,
+            "diagnosis_class": diagnosis_class,
+            "repair_target": repair_target,
+            "anchor_query": candidate_anchor,
+            "anchor_event_count": anchor_count,
+            "failing_clause": str(failing_c["clause_text"]),
+            "failing_clause_index": remove_idx,
+            "failing_field": orig_field,
+            "canonical_failing_field": canonical_field,
+            "failing_rhs": rhs_raw,
+            "recommended_field": recommended_field,
+            "recommended_rhs": recommended_rhs,
+            "recommended_clause": recommended_clause,
+            "recommended_query": recommended_query,
+            "pivot_verified": pivot_verified,
+            "pivot_event_count": pivot_count,
+            "observed_values": observed_values,
+        }
+
+    if fallback_anchor is not None:
+        f_idx = int(fallback_anchor["remove_idx"])
+        failing_c = rel_clauses[f_idx]
+        return {
+            "status": "success",
+            "original_query": query,
+            "repaired_query": repaired_query,
+            "replacements": replacements,
+            "siem_verified": True,
+            "zero_hit": True,
+            "event_count": 0,
+            "diagnosis_class": "unclassified_zero_hit_clause",
+            "repair_target": None,
+            "anchor_query": fallback_anchor["anchor_query"],
+            "anchor_event_count": fallback_anchor["anchor_event_count"],
+            "failing_clause": str(failing_c["clause_text"]),
+            "failing_clause_index": f_idx,
+            "failing_field": str(failing_c["field_token"]),
+            "canonical_failing_field": str(failing_c["canonical_field"]),
+            "failing_rhs": str(failing_c["rhs_raw"]),
+            "recommended_field": None,
+            "recommended_rhs": None,
+            "recommended_clause": None,
+            "recommended_query": None,
+            "pivot_verified": False,
+            "pivot_event_count": 0,
+            "observed_values": [],
+        }
+
+    return {
+        "status": "success",
+        "original_query": query,
+        "repaired_query": repaired_query,
+        "replacements": replacements,
+        "siem_verified": True,
+        "zero_hit": True,
+        "event_count": 0,
+        "diagnosis_class": "no_matching_anchor_clause",
+        "repair_target": None,
+        "anchor_query": None,
+        "anchor_event_count": 0,
+        "failing_clause": None,
+        "failing_clause_index": None,
+        "recommended_clause": None,
+        "recommended_query": None,
+        "pivot_verified": False,
+        "pivot_event_count": 0,
+        "observed_values": [],
+    }
+
+
+def _format_zero_hit_udm_comment(
+    diag_res: dict[str, Any],
+    *,
+    has_schema_defect: bool,
+    udm_doc_url: str,
+) -> str:
+    """Formats a grounded Google Docs review comment for a diagnosed zero-hit UDM query."""
+    diag_class = str(diag_res.get("diagnosis_class") or "zero_hit")
+    failing_clause = str(diag_res.get("failing_clause") or "")
+    rec_clause = str(diag_res.get("recommended_clause") or "")
+    rec_query = str(diag_res.get("recommended_query") or "")
+    anchor_query = str(diag_res.get("anchor_query") or "")
+    anchor_count = int(diag_res.get("anchor_event_count", 0) or 0)
+    pivot_count = int(diag_res.get("pivot_event_count", 0) or 0)
+    observed = list(diag_res.get("observed_values") or [])
+    observed_preview = observed[0] if observed else ""
+
+    schema_prefix = ""
+    if has_schema_defect:
+        orig_f = str(diag_res.get("failing_field") or "")
+        canon_f = str(diag_res.get("canonical_failing_field") or "")
+        schema_prefix = (
+            f"Deterministic Chronicle UDM Schema Check: '{orig_f}' is not a valid "
+            f"canonical Chronicle UDM field path (use '{canon_f}', {udm_doc_url}). "
+        )
+
+    if diag_class == "exact_match_on_command_line":
+        reason = (
+            f"Zero-Hit UDM Semantic Diagnosis (exact_match_on_command_line): "
+            f"Exact string equality in '{failing_clause}' returned 0 SIEM events, whereas "
+            f"anchor query '{anchor_query}' matched {anchor_count} events with full command line "
+            f"values such as '{observed_preview}'. Use case-insensitive regular expression "
+            f"matching '{rec_clause}'."
+        )
+    elif diag_class == "entity_role_swap":
+        orig_f = str(diag_res.get("canonical_failing_field") or diag_res.get("failing_field") or "")
+        rec_f = str(diag_res.get("recommended_field") or "")
+        reason = (
+            f"Zero-Hit UDM Semantic Diagnosis (entity_role_swap): "
+            f"Entity role '{orig_f}' in '{failing_clause}' returned 0 SIEM events, whereas "
+            f"sibling entity field '{rec_f}' in anchor query '{anchor_query}' ({anchor_count} "
+            f"events) holds matching telemetry ('{observed_preview}'). Use '{rec_clause}'."
+        )
+    elif diag_class == "value_format_mismatch":
+        canon_f = str(diag_res.get("canonical_failing_field") or "")
+        reason = (
+            f"Zero-Hit UDM Semantic Diagnosis (value_format_mismatch): "
+            f"Filter '{failing_clause}' returned 0 SIEM events even after UDM field normalization, "
+            f"whereas anchor query '{anchor_query}' matched {anchor_count} events where "
+            f"'{canon_f}' is normalized as '{observed_preview}'. Use '{rec_clause}'."
+        )
+    else:
+        reason = (
+            f"Zero-Hit UDM Semantic Diagnosis ({diag_class}): "
+            f"Clause '{failing_clause}' returned 0 SIEM events; replace with '{rec_clause}'."
+        )
+
+    return (
+        f"{schema_prefix}{reason} "
+        f"[SIEM Pivot Verified: query='{rec_query}', events_matched={pivot_count}]"
+    )
+
+
 def verify_and_redline_udm_queries_in_doc(
     document_id: str,
     *,
     run_live_siem_check: bool = False,
+    diagnose_zero_hit_queries: bool = True,
     start_time: str = "2026-02-07T00:00:00Z",
     end_time: str = "2026-02-08T00:00:00Z",
     max_events: int = 5,
@@ -2062,7 +2753,7 @@ def verify_and_redline_udm_queries_in_doc(
     quota_project: str | None = None,
     transport: httpx.BaseTransport | None = None,
 ) -> dict[str, Any]:
-    """Lints UDM queries in a Google Doc, optionally dry-runs them in Chronicle SIEM, and stages red-lines.
+    """Lints UDM queries in a Google Doc, optionally dry-runs and diagnoses 0-hit queries in Chronicle SIEM, and stages red-lines.
 
     1. Calls :func:`read_google_doc` to build the 1-based UTF-16 character index map
        and cache ``pending_suggestion_spans``.
@@ -2072,7 +2763,13 @@ def verify_and_redline_udm_queries_in_doc(
     3. When ``run_live_siem_check=True`` (or ``siem_search_fn`` is provided), executes
        :func:`verify_udm_query_with_siem` on each defective query and enriches the
        anchored Google Docs comment with live SIEM verification metadata.
-    4. Anchors comments first via :func:`insert_doc_comments` and stages descending-index
+    4. When ``diagnose_zero_hit_queries=True`` and live SIEM verification is enabled,
+       decomposes any multi-clause UDM query returning ``0`` SIEM events via
+       :func:`diagnose_zero_hit_udm_query`, upgrading schema-defective zero-hit clauses
+       in-place and staging non-overlapping Suggested Edits on syntactically valid
+       zero-hit UDM queries (``exact_match_on_command_line``, ``entity_role_swap``,
+       ``value_format_mismatch``).
+    5. Anchors comments first via :func:`insert_doc_comments` and stages descending-index
        Suggested Edits second via :func:`propose_doc_suggested_edits` (``writeMode="SUGGEST"``).
     """
     read_res = read_google_doc(
@@ -2102,19 +2799,26 @@ def verify_and_redline_udm_queries_in_doc(
     comments: list[dict[str, Any]] = []
     edits: list[dict[str, Any]] = []
     findings: list[dict[str, Any]] = []
+    finding_idx_by_field_span: dict[tuple[int, int], int] = {}
     skipped_existing_suggestion_count = 0
     for c_item, e_item, f_item in zip(raw_comments, raw_edits, raw_findings):
         f_span = (int(f_item["start_index"]), int(f_item["end_index"]))
         if any(_spans_overlap(f_span, p_span) for p_span in pending_spans):
             skipped_existing_suggestion_count += 1
             continue
+        f_idx = len(findings)
+        finding_idx_by_field_span[f_span] = f_idx
         comments.append(c_item)
         edits.append(e_item)
         findings.append(f_item)
 
     siem_checks: list[dict[str, Any]] = []
-    if (run_live_siem_check or siem_search_fn is not None) and findings:
-        query_cache: dict[str, dict[str, Any]] = {}
+    zero_hit_diagnoses: list[dict[str, Any]] = []
+    zero_hit_findings_count = 0
+    live_siem_enabled = bool(run_live_siem_check or siem_search_fn is not None)
+    query_cache: dict[str, dict[str, Any]] = {}
+
+    if live_siem_enabled and findings:
         for idx, finding in enumerate(findings):
             q_line = str(finding.get("query_line") or finding.get("clause") or "")
             if q_line not in query_cache:
@@ -2136,6 +2840,192 @@ def verify_and_redline_udm_queries_in_doc(
                     f"[SIEM Dry-Run Verified: query='{siem_res['repaired_query']}', "
                     f"events_matched={siem_res['event_count']}]"
                 )
+
+    if live_siem_enabled and diagnose_zero_hit_queries:
+        doc_queries = extract_udm_query_clauses_from_text(plain_text, index_map)
+        diag_cache: dict[str, dict[str, Any]] = {}
+        for q_obj in doc_queries:
+            clauses = q_obj.get("clauses", [])
+            if len(clauses) < 2:
+                continue
+
+            q_span = (int(q_obj["start_index"]), int(q_obj["end_index"]))
+            has_static_schema_clause = any(
+                c["field_token"] != c["canonical_field"] for c in clauses
+            )
+            if has_static_schema_clause and any(
+                _spans_overlap(q_span, p_span) for p_span in pending_spans
+            ):
+                continue
+
+            q_text = str(q_obj["query_text"])
+            if q_text not in query_cache:
+                siem_res = verify_udm_query_with_siem(
+                    q_text,
+                    start_time=start_time,
+                    end_time=end_time,
+                    max_events=max_events,
+                    siem_search_fn=siem_search_fn,
+                )
+                query_cache[q_text] = siem_res
+                siem_checks.append(siem_res)
+            else:
+                siem_res = query_cache[q_text]
+
+            if not siem_res.get("siem_verified") or int(siem_res.get("event_count", 0) or 0) > 0:
+                continue
+
+            if any(_spans_overlap(q_span, p_span) for p_span in pending_spans):
+                if not has_static_schema_clause:
+                    skipped_existing_suggestion_count += 1
+                continue
+
+            if q_text not in diag_cache:
+                diag_res = diagnose_zero_hit_udm_query(
+                    q_text,
+                    start_time=start_time,
+                    end_time=end_time,
+                    max_events=max(max_events, 20),
+                    siem_search_fn=siem_search_fn,
+                )
+                diag_cache[q_text] = diag_res
+                zero_hit_diagnoses.append(diag_res)
+            else:
+                diag_res = diag_cache[q_text]
+
+            if not diag_res.get("pivot_verified") or not diag_res.get("diagnosis_class"):
+                continue
+
+            failing_idx = diag_res.get("failing_clause_index")
+            if not isinstance(failing_idx, int) or not (0 <= failing_idx < len(clauses)):
+                continue
+
+            target_clause = clauses[failing_idx]
+            field_span = (
+                int(target_clause["field_start_index"]),
+                int(target_clause["field_end_index"]),
+            )
+            existing_f_idx = finding_idx_by_field_span.get(field_span)
+
+            if existing_f_idx is not None:
+                c_start = int(target_clause["clause_start_index"])
+                c_end = int(target_clause["clause_end_index"])
+                c_quote = str(target_clause["clause_text"])
+                rec_clause = str(diag_res["recommended_clause"])
+                comment_body = _format_zero_hit_udm_comment(
+                    diag_res,
+                    has_schema_defect=True,
+                    udm_doc_url=udm_doc_url,
+                )
+                comments[existing_f_idx] = {
+                    "start_index": c_start,
+                    "end_index": c_end,
+                    "quote": c_quote,
+                    "comment": comment_body,
+                }
+                edits[existing_f_idx] = {
+                    "start_index": c_start,
+                    "end_index": c_end,
+                    "quote": c_quote,
+                    "replacement": rec_clause,
+                }
+                findings[existing_f_idx].update(
+                    {
+                        "start_index": c_start,
+                        "end_index": c_end,
+                        "zero_hit_diagnosis": diag_res["diagnosis_class"],
+                        "repair_target": "clause",
+                        "failing_clause": c_quote,
+                        "recommended_clause": rec_clause,
+                        "recommended_query": diag_res["recommended_query"],
+                        "anchor_query": diag_res["anchor_query"],
+                        "anchor_event_count": diag_res["anchor_event_count"],
+                        "pivot_event_count": diag_res["pivot_event_count"],
+                        "observed_values": diag_res.get("observed_values", []),
+                    }
+                )
+                zero_hit_findings_count += 1
+            else:
+                repair_target = str(diag_res.get("repair_target") or "clause")
+                if repair_target == "field":
+                    t_start = int(target_clause["field_start_index"])
+                    t_end = int(target_clause["field_end_index"])
+                    t_quote = str(target_clause["field_token"])
+                    t_replacement = str(diag_res["recommended_field"])
+                elif repair_target == "rhs":
+                    t_start = int(target_clause["rhs_start_index"])
+                    t_end = int(target_clause["rhs_end_index"])
+                    t_quote = str(target_clause["rhs_raw"])
+                    t_replacement = str(diag_res["recommended_rhs"])
+                else:
+                    t_start = int(target_clause["clause_start_index"])
+                    t_end = int(target_clause["clause_end_index"])
+                    t_quote = str(target_clause["clause_text"])
+                    t_replacement = str(diag_res["recommended_clause"])
+
+                if any(_spans_overlap((t_start, t_end), p_span) for p_span in pending_spans):
+                    skipped_existing_suggestion_count += 1
+                    continue
+
+                if any(
+                    _spans_overlap(
+                        (t_start, t_end),
+                        (int(existing_e["start_index"]), int(existing_e["end_index"])),
+                    )
+                    for existing_e in edits
+                ):
+                    continue
+
+                comment_body = _format_zero_hit_udm_comment(
+                    diag_res,
+                    has_schema_defect=False,
+                    udm_doc_url=udm_doc_url,
+                )
+                comments.append(
+                    {
+                        "start_index": t_start,
+                        "end_index": t_end,
+                        "quote": t_quote,
+                        "comment": comment_body,
+                    }
+                )
+                edits.append(
+                    {
+                        "start_index": t_start,
+                        "end_index": t_end,
+                        "quote": t_quote,
+                        "replacement": t_replacement,
+                    }
+                )
+                findings.append(
+                    {
+                        "invalid_field": str(target_clause["field_token"]),
+                        "canonical_field": str(diag_res["recommended_field"]),
+                        "start_index": t_start,
+                        "end_index": t_end,
+                        "clause": str(target_clause["clause_text"]),
+                        "query_line": q_text,
+                        "zero_hit_diagnosis": diag_res["diagnosis_class"],
+                        "repair_target": repair_target,
+                        "failing_clause": str(target_clause["clause_text"]),
+                        "recommended_clause": str(diag_res["recommended_clause"]),
+                        "recommended_query": str(diag_res["recommended_query"]),
+                        "anchor_query": str(diag_res["anchor_query"]),
+                        "anchor_event_count": int(diag_res["anchor_event_count"]),
+                        "pivot_event_count": int(diag_res["pivot_event_count"]),
+                        "observed_values": diag_res.get("observed_values", []),
+                    }
+                )
+                zero_hit_findings_count += 1
+
+    if len(findings) > 1:
+        ordered = sorted(
+            zip(comments, edits, findings),
+            key=lambda triple: int(triple[2]["start_index"]),
+        )
+        comments = [item[0] for item in ordered]
+        edits = [item[1] for item in ordered]
+        findings = [item[2] for item in ordered]
 
     comments_res: dict[str, Any] = {"status": "skipped", "inserted_count": 0, "comment_ids": []}
     if comments:
@@ -2178,9 +3068,11 @@ def verify_and_redline_udm_queries_in_doc(
         "title": read_res.get("title", ""),
         "char_count": read_res.get("char_count", 0),
         "udm_findings_count": len(findings),
+        "zero_hit_findings_count": zero_hit_findings_count,
         "skipped_existing_suggestion_count": skipped_existing_suggestion_count,
         "findings": findings,
         "siem_checks": siem_checks,
+        "zero_hit_diagnoses": zero_hit_diagnoses,
         "comments": comments_res,
         "edits": edits_res,
     }

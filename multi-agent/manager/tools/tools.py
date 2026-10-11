@@ -646,30 +646,36 @@ def post_reviewed_doc_to_soar_case(
 def verify_and_redline_udm_queries_in_doc(
     document_id: str,
     run_live_siem_check: bool = False,
+    diagnose_zero_hit_queries: bool = True,
     start_time: str = "2026-02-07T00:00:00Z",
     end_time: str = "2026-02-08T00:00:00Z",
     tool_context: ToolContext = None,
 ) -> dict:
-  """Verifies Chronicle UDM queries inside a Google Doc, optionally dry-runs them in SIEM, and stages red-lines.
+  """Verifies Chronicle UDM queries inside a Google Doc, optionally dry-runs and diagnoses 0-hit queries in SIEM, and stages red-lines.
 
   Scans the Google Doc for unprefixed or hallucinated Chronicle UDM fields by
   exact 1-based UTF-16 span (`start_index`/`end_index`), optionally executes a
   dry-run UDM query against Chronicle SIEM (`search_udm`) when
-  `run_live_siem_check=True`, anchors verification comments first, and proposes
-  non-destructive Suggested Edits (`writeMode="SUGGEST"`) second.
+  `run_live_siem_check=True`, automatically diagnoses 0-hit UDM queries via
+  clause relaxation and live UDM event inspection (`exact_match_on_command_line`,
+  `entity_role_swap`, `value_format_mismatch`) when `diagnose_zero_hit_queries=True`,
+  anchors verification comments first, and proposes non-destructive Suggested Edits
+  (`writeMode="SUGGEST"`) second.
 
   Args:
       document_id (str): The Google Docs documentId.
       run_live_siem_check (bool): Whether to execute a live Chronicle SIEM dry-run query check.
+      diagnose_zero_hit_queries (bool): Whether to diagnose and repair 0-hit UDM queries against live SIEM telemetry.
       start_time (str): ISO-8601 start time for the SIEM dry-run search window.
       end_time (str): ISO-8601 end time for the SIEM dry-run search window.
 
   Returns:
-      dict: {"status", "document_id", "title", "char_count", "udm_findings_count", "findings", "siem_checks", "comments", "edits"}.
+      dict: {"status", "document_id", "title", "char_count", "udm_findings_count", "zero_hit_findings_count", "findings", "siem_checks", "zero_hit_diagnoses", "comments", "edits"}.
   """
   return _verify_and_redline_udm_queries_in_doc(
       document_id=document_id,
       run_live_siem_check=run_live_siem_check,
+      diagnose_zero_hit_queries=diagnose_zero_hit_queries,
       start_time=start_time,
       end_time=end_time,
       tool_context=tool_context,

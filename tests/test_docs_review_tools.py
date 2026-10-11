@@ -2657,3 +2657,453 @@ def test_review_google_doc_with_stage_a_includes_telemetry_hazard_spans_and_adk_
     props = (decl.parameters_json_schema or {}).get("properties", {})
     assert "document_id" in props
     assert "tool_context" not in props
+
+
+def test_extract_udm_event_field_values_normalizes_camelcase_and_sanitizes():
+    """Verifies camelCase-to-snake_case UDM event flattening across nested dicts/lists
+    and confirms offensive payloads inside sampled UDM events are sanitized."""
+    from manager.tools.docs_review_tools import (
+        _camel_to_snake,
+        _extract_udm_event_field_values,
+    )
+
+    assert _camel_to_snake("commandLine") == "command_line"
+    assert _camel_to_snake("emailAddresses") == "email_addresses"
+    assert _camel_to_snake("productEventType") == "product_event_type"
+    assert _camel_to_snake("resourceType") == "resource_type"
+    assert _camel_to_snake("fullPath") == "full_path"
+    assert _camel_to_snake("userId") == "userid"
+
+    sample_event = {
+        "name": "projects/dandye-0324-chronicle/locations/us/instances/inst/events/ev-1",
+        "udm": {
+            "metadata": {
+                "eventType": "PROCESS_LAUNCH",
+                "logType": "WINDOWS_SYSMON",
+                "productEventType": "1",
+            },
+            "principal": {
+                "hostname": "wins-d19",
+                "ip": ["10.128.0.21", "104.198.226.161"],
+                "user": {
+                    "userId": "bruce.wayne",
+                    "emailAddresses": ["bruce.wayne@the.org", "admin@the.org"],
+                },
+            },
+            "target": {
+                "resource": {
+                    "name": "projects/base-production",
+                    "resourceType": "CLOUD_PROJECT",
+                },
+                "process": {
+                    "commandLine": "powershell.exe -NoP -W Hidden -Enc aGVsbG8gd29ybGQgdGVzdCBwYXlsb2Fk",
+                    "file": {
+                        "fullPath": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+                        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                    },
+                },
+            },
+        },
+    }
+
+    flat = _extract_udm_event_field_values(sample_event)
+    assert flat["metadata.event_type"] == ["PROCESS_LAUNCH"]
+    assert flat["metadata.log_type"] == ["WINDOWS_SYSMON"]
+    assert flat["metadata.product_event_type"] == ["1"]
+    assert flat["principal.hostname"] == ["wins-d19"]
+    assert flat["principal.ip"] == ["10.128.0.21", "104.198.226.161"]
+    assert flat["principal.user.userid"] == ["bruce.wayne"]
+    assert flat["principal.user.email_addresses"] == [
+        "bruce.wayne@the.org",
+        "admin@the.org",
+    ]
+    assert flat["target.resource.name"] == ["projects/base-production"]
+    assert flat["target.resource.resource_type"] == ["CLOUD_PROJECT"]
+    assert flat["target.process.file.full_path"] == [
+        "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+    ]
+    assert flat["target.process.file.sha256"] == [
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    ]
+    cmd_val = flat["target.process.command_line"][0]
+    assert "aGVsbG8gd29ybGQgdGVzdCBwYXlsb2Fk" not in cmd_val
+    assert "<REDACTED_B64:len=32,sha256=" in cmd_val
+
+
+def test_diagnose_zero_hit_udm_query_exact_match_command_line_to_regex():
+    """Verifies that a syntactically valid query returning 0 hits due to exact '='
+    on a command-line substring is relaxed to its anchor clause, detects the substring,
+    synthesizes a case-insensitive regex, and verifies pivot_event_count > 0."""
+    from manager.tools.docs_review_tools import diagnose_zero_hit_udm_query
+
+    sample_events = [
+        {
+            "udm": {
+                "metadata": {"eventType": "PROCESS_LAUNCH", "logType": "WINDOWS_SYSMON"},
+                "principal": {"hostname": "wins-d19"},
+                "target": {
+                    "process": {
+                        "commandLine": '"C:\\Windows\\system32\\cmd.exe" /c "findstr /si password *.txt"'
+                    }
+                },
+            }
+        }
+        for _ in range(12)
+    ]
+
+    def fake_siem_search(query: str, **kwargs: Any) -> dict[str, Any]:
+        if 'target.process.command_line = "cmd.exe"' in query:
+            return {"events": [], "total_events": 0}
+        if "target.process.command_line = /.*cmd\\.exe.*/ nocase" in query:
+            return {"events": sample_events[:4], "total_events": 4}
+        if query.strip() == 'principal.hostname = "wins-d19"':
+            return {"events": sample_events, "total_events": 12}
+        return {"events": [], "total_events": 0}
+
+    diag = diagnose_zero_hit_udm_query(
+        'principal.hostname = "wins-d19" AND target.process.command_line = "cmd.exe"',
+        siem_search_fn=fake_siem_search,
+    )
+    assert diag["status"] == "success"
+    assert diag["zero_hit"] is True
+    assert diag["diagnosis_class"] == "exact_match_on_command_line"
+    assert diag["repair_target"] == "rhs"
+    assert diag["anchor_query"] == 'principal.hostname = "wins-d19"'
+    assert diag["anchor_event_count"] == 12
+    assert diag["failing_clause"] == 'target.process.command_line = "cmd.exe"'
+    assert diag["recommended_rhs"] == r"/.*cmd\.exe.*/ nocase"
+    assert (
+        diag["recommended_clause"]
+        == r"target.process.command_line = /.*cmd\.exe.*/ nocase"
+    )
+    assert (
+        diag["recommended_query"]
+        == r'principal.hostname = "wins-d19" AND target.process.command_line = /.*cmd\.exe.*/ nocase'
+    )
+    assert diag["pivot_verified"] is True
+    assert diag["pivot_event_count"] == 4
+
+
+def test_diagnose_zero_hit_udm_query_entity_role_swap():
+    """Verifies detection and repair when a queried value or regex exists in sampled
+    UDM events under a sibling entity role (principal.* vs target.*)."""
+    from manager.tools.docs_review_tools import diagnose_zero_hit_udm_query
+
+    win_events = [
+        {
+            "udm": {
+                "principal": {
+                    "hostname": "wins-d19",
+                    "process": {"commandLine": "C:\\Windows\\System32\\services.exe"},
+                },
+                "target": {
+                    "process": {
+                        "commandLine": '"C:\\Windows\\system32\\cmd.exe" /c "whoami /all"'
+                    }
+                },
+            }
+        }
+        for _ in range(8)
+    ]
+
+    def fake_siem_cmd(query: str, **kwargs: Any) -> dict[str, Any]:
+        if "principal.process.command_line = /.*cmd.*/ nocase" in query:
+            return {"events": [], "total_events": 0}
+        if "target.process.command_line = /.*cmd.*/ nocase" in query:
+            return {"events": win_events[:4], "total_events": 4}
+        if query.strip() == 'principal.hostname = "wins-d19"':
+            return {"events": win_events, "total_events": 8}
+        return {"events": [], "total_events": 0}
+
+    diag_cmd = diagnose_zero_hit_udm_query(
+        'principal.hostname = "wins-d19" AND principal.process.command_line = /.*cmd.*/ nocase',
+        siem_search_fn=fake_siem_cmd,
+    )
+    assert diag_cmd["status"] == "success"
+    assert diag_cmd["zero_hit"] is True
+    assert diag_cmd["diagnosis_class"] == "entity_role_swap"
+    assert diag_cmd["repair_target"] == "field"
+    assert diag_cmd["failing_field"] == "principal.process.command_line"
+    assert diag_cmd["recommended_field"] == "target.process.command_line"
+    assert (
+        diag_cmd["recommended_clause"]
+        == "target.process.command_line = /.*cmd.*/ nocase"
+    )
+    assert (
+        diag_cmd["recommended_query"]
+        == 'principal.hostname = "wins-d19" AND target.process.command_line = /.*cmd.*/ nocase'
+    )
+    assert diag_cmd["pivot_verified"] is True
+    assert diag_cmd["pivot_event_count"] == 4
+
+    cloud_events = [
+        {
+            "udm": {
+                "metadata": {"logType": "GCP_CLOUDAUDIT"},
+                "principal": {
+                    "ip": ["104.198.226.161"],
+                    "user": {"emailAddresses": ["bruce.wayne@the.org"]},
+                },
+                "target": {"resource": {"name": "projects/base-production"}},
+            }
+        }
+        for _ in range(6)
+    ]
+
+    def fake_siem_email(query: str, **kwargs: Any) -> dict[str, Any]:
+        if 'target.user.email_addresses = "bruce.wayne@the.org"' in query:
+            return {"events": [], "total_events": 0}
+        if 'principal.user.email_addresses = "bruce.wayne@the.org"' in query:
+            return {"events": cloud_events[:5], "total_events": 5}
+        if 'metadata.log_type = "GCP_CLOUDAUDIT"' in query:
+            return {"events": cloud_events, "total_events": 6}
+        return {"events": [], "total_events": 0}
+
+    diag_email = diagnose_zero_hit_udm_query(
+        'metadata.log_type = "GCP_CLOUDAUDIT" AND target.user.email_addresses = "bruce.wayne@the.org"',
+        siem_search_fn=fake_siem_email,
+    )
+    assert diag_email["diagnosis_class"] == "entity_role_swap"
+    assert diag_email["repair_target"] == "field"
+    assert diag_email["recommended_field"] == "principal.user.email_addresses"
+    assert diag_email["pivot_verified"] is True
+    assert diag_email["pivot_event_count"] == 5
+
+
+def test_diagnose_zero_hit_udm_query_value_format_mismatch():
+    """Verifies detection and repair when resource.name returns 0 hits even after
+    schema repair to target.resource.name, inspects sampled GCP_CLOUDAUDIT events,
+    and recommends target.resource.name = "projects/base-production" with pivot_event_count > 0."""
+    from manager.tools.docs_review_tools import diagnose_zero_hit_udm_query
+
+    gcp_events = [
+        {
+            "udm": {
+                "metadata": {"logType": "GCP_CLOUDAUDIT", "eventType": "USER_RESOURCE_ACCESS"},
+                "principal": {"ip": ["104.198.226.161"]},
+                "target": {
+                    "resource": {
+                        "name": "projects/base-production",
+                        "resourceType": "CLOUD_PROJECT",
+                    }
+                },
+            }
+        }
+        for _ in range(18)
+    ]
+
+    def fake_siem_gcp(query: str, **kwargs: Any) -> dict[str, Any]:
+        if "projects/base-analytics/instances/prod-customers" in query:
+            return {"events": [], "total_events": 0}
+        if 'target.resource.name = "projects/base-production"' in query:
+            return {"events": gcp_events[:18], "total_events": 18}
+        if (
+            'metadata.log_type = "GCP_CLOUDAUDIT"' in query
+            and 'principal.ip = "104.198.226.161"' in query
+        ):
+            return {"events": gcp_events, "total_events": 18}
+        return {"events": [], "total_events": 0}
+
+    diag = diagnose_zero_hit_udm_query(
+        'metadata.log_type = "GCP_CLOUDAUDIT" AND principal.ip = "104.198.226.161" AND resource.name = "projects/base-analytics/instances/prod-customers"',
+        siem_search_fn=fake_siem_gcp,
+    )
+    assert diag["status"] == "success"
+    assert diag["zero_hit"] is True
+    assert diag["diagnosis_class"] == "value_format_mismatch"
+    assert diag["repair_target"] == "clause"
+    assert (
+        diag["anchor_query"]
+        == 'metadata.log_type = "GCP_CLOUDAUDIT" AND principal.ip = "104.198.226.161"'
+    )
+    assert diag["anchor_event_count"] == 18
+    assert (
+        diag["failing_clause"]
+        == 'resource.name = "projects/base-analytics/instances/prod-customers"'
+    )
+    assert diag["recommended_field"] == "target.resource.name"
+    assert diag["recommended_rhs"] == '"projects/base-production"'
+    assert (
+        diag["recommended_clause"]
+        == 'target.resource.name = "projects/base-production"'
+    )
+    assert (
+        diag["recommended_query"]
+        == 'metadata.log_type = "GCP_CLOUDAUDIT" AND principal.ip = "104.198.226.161" AND target.resource.name = "projects/base-production"'
+    )
+    assert diag["pivot_verified"] is True
+    assert diag["pivot_event_count"] == 18
+
+
+def test_verify_and_redline_udm_queries_in_doc_zero_hit_pivots_and_idempotency():
+    """Verifies end-to-end Google Docs UTF-16 span commenting, non-overlapping
+    descending-index writeMode='SUGGEST' edits across combined schema+value and
+    pure semantic zero-hit queries, zero false positives on queries with event_count > 0,
+    and multi-pass suggestion idempotency."""
+    from google.adk.tools.function_tool import FunctionTool
+    from manager.tools import tools as tools_module
+    from manager.tools.docs_review_tools import verify_and_redline_udm_queries_in_doc
+
+    doc_text = (
+        "Runbook UDM Hunting Queries:\n"
+        '1. Cloud Audit Query: `metadata.log_type = "GCP_CLOUDAUDIT" AND principal.ip = "104.198.226.161" AND resource.name = "projects/base-analytics/instances/prod-customers"`\n'
+        '2. Endpoint Exact Match Query: `principal.hostname = "wins-d19" AND target.process.command_line = "cmd.exe"`\n'
+        '3. Entity Role Swap Query: `principal.hostname = "wins-d19" AND principal.process.command_line = /.*cmd.*/ nocase`\n'
+        '4. Valid Control Query: `metadata.log_type = "WINDOWS_SYSMON" AND principal.hostname = "wins-d19"`\n'
+    )
+    mock_doc = _make_single_paragraph_doc(
+        "doc-zero-hit-pivots", "UDM Zero Hit Pivot Test", doc_text
+    )
+
+    gcp_events = [
+        {
+            "udm": {
+                "metadata": {"logType": "GCP_CLOUDAUDIT"},
+                "principal": {"ip": ["104.198.226.161"]},
+                "target": {"resource": {"name": "projects/base-production"}},
+            }
+        }
+        for _ in range(18)
+    ]
+    win_events = [
+        {
+            "udm": {
+                "metadata": {"logType": "WINDOWS_SYSMON"},
+                "principal": {
+                    "hostname": "wins-d19",
+                    "process": {"commandLine": "C:\\Windows\\System32\\services.exe"},
+                },
+                "target": {
+                    "process": {
+                        "commandLine": '"C:\\Windows\\system32\\cmd.exe" /c "findstr /si password *.txt"'
+                    }
+                },
+            }
+        }
+        for _ in range(12)
+    ]
+
+    def fake_siem(query: str, **kwargs: Any) -> dict[str, Any]:
+        q = query.strip()
+        if "projects/base-analytics/instances/prod-customers" in q:
+            return {"events": [], "total_events": 0}
+        if 'target.resource.name = "projects/base-production"' in q:
+            return {"events": gcp_events, "total_events": 18}
+        if (
+            'metadata.log_type = "GCP_CLOUDAUDIT"' in q
+            and 'principal.ip = "104.198.226.161"' in q
+        ):
+            return {"events": gcp_events, "total_events": 18}
+        if 'target.process.command_line = "cmd.exe"' in q:
+            return {"events": [], "total_events": 0}
+        if "principal.process.command_line = /.*cmd.*/ nocase" in q:
+            return {"events": [], "total_events": 0}
+        if (
+            "target.process.command_line = /.*cmd\\.exe.*/ nocase" in q
+            or "target.process.command_line = /.*cmd.*/ nocase" in q
+        ):
+            return {"events": win_events[:4], "total_events": 4}
+        if 'principal.hostname = "wins-d19"' in q:
+            return {"events": win_events, "total_events": 12}
+        return {"events": [], "total_events": 0}
+
+    batch_calls: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=mock_doc)
+        payload = json.loads(request.content.decode("utf-8"))
+        batch_calls.append(payload)
+        if any("insertComment" in r for r in payload.get("requests", [])):
+            return httpx.Response(
+                200,
+                json={
+                    "replies": [
+                        {"insertComment": {"commentId": f"c-zh-{i}"}}
+                        for i in range(len(payload.get("requests", [])))
+                    ]
+                },
+            )
+        return httpx.Response(
+            200,
+            json={"replies": [{} for _ in payload.get("requests", [])]},
+        )
+
+    res = verify_and_redline_udm_queries_in_doc(
+        "doc-zero-hit-pivots",
+        run_live_siem_check=True,
+        diagnose_zero_hit_queries=True,
+        siem_search_fn=fake_siem,
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(handler),
+    )
+    assert res["status"] == "success"
+    assert res["udm_findings_count"] == 3
+    assert res["zero_hit_findings_count"] == 3
+    assert res["skipped_existing_suggestion_count"] == 0
+    assert res["comments"]["inserted_count"] == 3
+    assert res["edits"]["applied_count"] == 3
+
+    diag_classes = [f.get("zero_hit_diagnosis") for f in res["findings"]]
+    assert diag_classes == [
+        "value_format_mismatch",
+        "exact_match_on_command_line",
+        "entity_role_swap",
+    ]
+
+    assert len(batch_calls) == 2
+    assert "writeControl" not in batch_calls[0]
+    assert batch_calls[1]["writeControl"] == {"writeMode": "SUGGEST"}
+    delete_starts = [
+        req["deleteContentRange"]["range"]["startIndex"]
+        for req in batch_calls[1]["requests"]
+        if "deleteContentRange" in req
+    ]
+    assert delete_starts == sorted(delete_starts, reverse=True)
+
+    # Second pass with pending suggestions covering the document -> 0 new edits, 3 skipped
+    mock_doc_pending = {
+        "documentId": "doc-zero-hit-pivots",
+        "title": "UDM Zero Hit Pivot Test",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": len(doc_text) + 1,
+                                "textRun": {
+                                    "content": doc_text,
+                                    "suggestedDeletionIds": ["suggest.zh.existing"],
+                                },
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+    }
+    batch_calls.clear()
+    res2 = verify_and_redline_udm_queries_in_doc(
+        "doc-zero-hit-pivots",
+        run_live_siem_check=True,
+        diagnose_zero_hit_queries=True,
+        siem_search_fn=fake_siem,
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(lambda req: httpx.Response(200, json=mock_doc_pending)),
+    )
+    assert res2["status"] == "success"
+    assert res2["udm_findings_count"] == 0
+    assert res2["zero_hit_findings_count"] == 0
+    assert res2["skipped_existing_suggestion_count"] == 3
+    assert res2["comments"]["inserted_count"] == 0
+    assert res2["edits"]["applied_count"] == 0
+    assert len(batch_calls) == 0
+
+    ft = FunctionTool(tools_module.verify_and_redline_udm_queries_in_doc)
+    decl = ft._get_declaration()
+    props = (decl.parameters_json_schema or {}).get("properties", {})
+    assert "diagnose_zero_hit_queries" in props
+    assert "tool_context" not in props
+
