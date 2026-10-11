@@ -3757,3 +3757,582 @@ def test_verify_and_redline_yaral2_rules_in_doc_zero_hit_pivots_and_idempotency(
     assert "tool_context" not in props
 
 
+def test_extract_yaral2_multi_event_spec_multiline_and_collapsed() -> None:
+    """Verifies extraction of event_vars, per_event_udm_queries, join_bindings, match_clauses,
+    and condition_tokens with exact 1-based UTF-16 spans on both multi-line and Drive-collapsed
+    single-line multi-event YARA-L 2.0 rules."""
+    from manager.tools.docs_review_tools import (
+        _build_utf16_index_map,
+        extract_yaral2_multi_event_spec,
+    )
+
+    multiline_rule = (
+        "rule wins_d19_multi_stage {\n"
+        "  meta:\n"
+        '    author = "SecOps"\n'
+        "  events:\n"
+        '    $cmd.principal.hostname = "wins-d19"\n'
+        "    re.regex($cmd.target.process.command_line, `.*cmd.*`) nocase\n"
+        "    $cmd.principal.hostname = $host\n"
+        "    re.regex($svc.target.process.command_line, `.*DERPService.*`) nocase\n"
+        "    $svc.target.hostname = $host\n"
+        "  match:\n"
+        "    $host over 15m\n"
+        "  condition:\n"
+        "    $cmd and $svc\n"
+        "}"
+    )
+    prefix = "Lead-in emoji \U0001f680 text:\n"
+    full_text = prefix + multiline_rule
+    idx_map = _build_utf16_index_map(full_text)
+
+    spec = extract_yaral2_multi_event_spec(
+        multiline_rule,
+        rule_char_start=len(prefix),
+        full_plain_text=full_text,
+        index_map=idx_map,
+    )
+    assert spec["is_multi_event"] is True
+    assert spec["event_vars"] == ["$cmd", "$svc"]
+    assert spec["join_placeholders"] == ["$host"]
+    assert spec["per_event_udm_queries"] == {
+        "$cmd": 'principal.hostname = "wins-d19" AND target.process.command_line = /.*cmd.*/ nocase',
+        "$svc": "target.process.command_line = /.*DERPService.*/ nocase",
+    }
+    assert len(spec["join_bindings"]) == 2
+    jb0, jb1 = spec["join_bindings"]
+    assert jb0["var_field_token"] == "$cmd.principal.hostname"
+    assert jb0["semantic_type"] == "hostname"
+    assert jb1["var_field_token"] == "$svc.target.hostname"
+    assert jb1["semantic_type"] == "hostname"
+
+    # Verify UTF-16 span of $svc.target.hostname in full_text
+    expected_vf_pos = full_text.index("$svc.target.hostname")
+    assert jb1["var_field_start_index"] == idx_map[expected_vf_pos]
+    assert (
+        jb1["var_field_end_index"]
+        == idx_map[expected_vf_pos + len("$svc.target.hostname") - 1] + 1
+    )
+
+    assert len(spec["match_clauses"]) == 1
+    mc = spec["match_clauses"][0]
+    assert mc["placeholder_var"] == "$host"
+    assert mc["window_raw"] == "over 15m"
+    assert mc["window_valid"] is True
+    assert mc["window_normalized"] == "over 15m"
+
+    assert [ct["token_text"] for ct in spec["condition_tokens"]] == ["$cmd", "$svc"]
+    assert spec["condition_span"]["condition_text"] == "$cmd and $svc"
+
+    # Drive-collapsed single-line multi-event rule
+    collapsed_rule = " ".join(
+        line.strip() for line in multiline_rule.splitlines() if line.strip()
+    )
+    spec_collapsed = extract_yaral2_multi_event_spec(collapsed_rule)
+    assert spec_collapsed["is_multi_event"] is True
+    assert spec_collapsed["event_vars"] == ["$cmd", "$svc"]
+    assert spec_collapsed["per_event_udm_queries"] == spec["per_event_udm_queries"]
+    assert len(spec_collapsed["join_bindings"]) == 2
+    assert spec_collapsed["match_clauses"][0]["window_valid"] is True
+    assert [ct["token_text"] for ct in spec_collapsed["condition_tokens"]] == [
+        "$cmd",
+        "$svc",
+    ]
+
+
+def test_find_yaral2_rule_spans_detects_multi_event_join_match_and_condition_defects() -> None:
+    """Verifies exact UTF-16 span detection and repaired_rule_text generation for
+    match_placeholder_mismatch, invalid_match_window_syntax, cross_event_join_type_mismatch,
+    and multi_event_condition_mismatch (both undeclared variable and omitted variable)."""
+    from manager.tools.docs_review_tools import (
+        _build_utf16_index_map,
+        find_yaral2_rule_spans,
+    )
+
+    doc_text = (
+        "rule gcp_iam_to_cloudsql_destructive_chain {\n"
+        "  meta:\n"
+        '    author = "SecOps Autonomous Agent"\n'
+        "  strings:\n"
+        '    $iam.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $iam.resource.name = "projects/base-production"\n'
+        "    $iam.principal.ip = $ip\n"
+        '    $sql.log_type = "GCP_CLOUDAUDIT"\n'
+        "    $sql.principal.hostname = $ip\n"
+        "  match:\n"
+        "    $src_ip within 15 minutes\n"
+        "  condition:\n"
+        "    $iam and $sql_event\n"
+        "}\n\n"
+        "rule incomplete_multi_event_condition {\n"
+        "  events:\n"
+        '    $e1.metadata.event_type = "PROCESS_LAUNCH"\n'
+        "    $e1.principal.ip = $actor_ip\n"
+        '    $e2.metadata.event_type = "NETWORK_CONNECTION"\n'
+        "    $e2.principal.ip = $actor_ip\n"
+        "  match:\n"
+        "    $actor_ip over 1 hour\n"
+        "  condition:\n"
+        "    $e1\n"
+        "}\n"
+    )
+    idx_map = _build_utf16_index_map(doc_text)
+    comments, edits, findings = find_yaral2_rule_spans(doc_text, idx_map)
+
+    r1_findings = [
+        f
+        for f in findings
+        if f["rule_name"] == "gcp_iam_to_cloudsql_destructive_chain"
+    ]
+    assert [f["defect_type"] for f in r1_findings] == [
+        "yara_strings_section",
+        "invalid_udm_field",
+        "invalid_udm_field",
+        "invalid_udm_field",
+        "cross_event_join_type_mismatch",
+        "match_placeholder_mismatch",
+        "invalid_match_window_syntax",
+        "multi_event_condition_mismatch",
+    ]
+    assert [
+        (f["quote"], f["replacement"]) for f in r1_findings
+    ] == [
+        ("strings:", "events:"),
+        ("$iam.log_type", "$iam.metadata.log_type"),
+        ("$iam.resource.name", "$iam.target.resource.name"),
+        ("$sql.log_type", "$sql.metadata.log_type"),
+        ("$sql.principal.hostname", "$sql.principal.ip"),
+        ("$src_ip", "$ip"),
+        ("within 15 minutes", "over 15m"),
+        ("$sql_event", "$sql"),
+    ]
+
+    repaired_r1 = r1_findings[0]["repaired_rule_text"]
+    assert "events:" in repaired_r1
+    assert "$sql.principal.ip = $ip" in repaired_r1
+    assert "$ip over 15m" in repaired_r1
+    assert "$iam and $sql" in repaired_r1
+    assert r1_findings[0]["is_multi_event"] is True
+
+    # Rule 2: incomplete condition ($e1 -> $e1 and $e2) + verbose match window (over 1 hour -> over 1h)
+    r2_findings = [
+        f
+        for f in findings
+        if f["rule_name"] == "incomplete_multi_event_condition"
+    ]
+    assert [(f["defect_type"], f["quote"], f["replacement"]) for f in r2_findings] == [
+        ("invalid_match_window_syntax", "over 1 hour", "over 1h"),
+        ("multi_event_condition_mismatch", "$e1", "$e1 and $e2"),
+    ]
+    assert "$e1 and $e2" in r2_findings[0]["repaired_rule_text"]
+    assert "over 1h" in r2_findings[0]["repaired_rule_text"]
+
+    # Ensure no two edit spans overlap across the entire document
+    sorted_edits = sorted(edits, key=lambda e: e["start_index"])
+    for prev_e, next_e in zip(sorted_edits, sorted_edits[1:]):
+        assert prev_e["end_index"] <= next_e["start_index"]
+
+
+def test_verify_yaral2_rule_with_siem_multi_event_per_stream_correlation() -> None:
+    """Verifies that verify_yaral2_rule_with_siem executes separate search_udm calls per event
+    variable ($iam, $sql), computes shared_join_values across streams, and reports
+    correlated_event_count > 0 without falsely merging $iam and $sql into one impossible query."""
+    from manager.tools.docs_review_tools import verify_yaral2_rule_with_siem
+
+    rule_text = (
+        "rule gcp_iam_to_cloudsql_destructive_chain {\n"
+        "  meta:\n"
+        '    author = "SecOps Autonomous Agent"\n'
+        "  strings:\n"
+        '    $iam.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $iam.resource.name = "projects/base-production"\n'
+        "    $iam.principal.ip = $ip\n"
+        '    $sql.log_type = "GCP_CLOUDAUDIT"\n'
+        "    $sql.principal.hostname = $ip\n"
+        "  match:\n"
+        "    $src_ip within 15 minutes\n"
+        "  condition:\n"
+        "    $iam and $sql_event\n"
+        "}"
+    )
+
+    queried_streams: list[str] = []
+
+    def fake_validate(rule_text: str) -> str:
+        assert "events:" in rule_text
+        assert "$sql.principal.ip = $ip" in rule_text
+        assert "$ip over 15m" in rule_text
+        assert "$iam and $sql" in rule_text
+        return "Rule validation PASSED."
+
+    def fake_search(query: str, **kwargs: Any) -> dict[str, Any]:
+        queried_streams.append(query)
+        if 'target.resource.name = "projects/base-production"' in query:
+            return {
+                "events": [
+                    {
+                        "udm": {
+                            "metadata": {"log_type": "GCP_CLOUDAUDIT"},
+                            "principal": {"ip": ["104.198.226.161"]},
+                            "target": {"resource": {"name": "projects/base-production"}},
+                        }
+                    }
+                ],
+                "total_events": 1,
+            }
+        if query == 'metadata.log_type = "GCP_CLOUDAUDIT"':
+            return {
+                "events": [
+                    {
+                        "udm": {
+                            "metadata": {"log_type": "GCP_CLOUDAUDIT"},
+                            "principal": {"ip": ["104.198.226.161"]},
+                        }
+                    }
+                    for _ in range(9)
+                ],
+                "total_events": 9,
+            }
+        return {"events": [], "total_events": 0}
+
+    res = verify_yaral2_rule_with_siem(
+        rule_text,
+        run_retrohunt_check=True,
+        siem_validate_fn=fake_validate,
+        siem_search_fn=fake_search,
+    )
+    assert res["status"] == "success"
+    assert res["is_multi_event"] is True
+    assert res["compiler_verified"] is True
+    assert res["retrohunt_verified"] is True
+    assert res["retrohunt_event_count"] == 10
+    assert len(queried_streams) == 2
+    me_retro = res["multi_event_retrohunt"]
+    assert me_retro["per_event_counts"] == {"$iam": 1, "$sql": 9}
+    assert me_retro["shared_join_values"] == ["104.198.226.161"]
+    assert me_retro["correlated_event_count"] == 10
+
+
+def test_diagnose_zero_hit_yaral2_rule_multi_event_join_entity_role_swap() -> None:
+    """Verifies that when $cmd and $svc both match events individually in Chronicle SIEM
+    but have 0 shared join values because $svc used $svc.target.hostname = $host instead of
+    $svc.principal.hostname = $host, diagnose_zero_hit_yaral2_rule pivots $svc's join binding
+    to $svc.principal.hostname, compiles the pivoted rule, and computes correlated_event_count."""
+    from manager.tools.docs_review_tools import diagnose_zero_hit_yaral2_rule
+
+    rule_text = (
+        "rule wins_d19_lolbin_to_derpservice_correlation {\n"
+        "  meta:\n"
+        '    author = "SecOps Autonomous Agent"\n'
+        "  events:\n"
+        '    $cmd.principal.hostname = "wins-d19"\n'
+        "    re.regex($cmd.target.process.command_line, `.*cmd.*`) nocase\n"
+        "    $cmd.principal.hostname = $host\n"
+        "    re.regex($svc.target.process.command_line, `.*DERPService.*`) nocase\n"
+        "    $svc.target.hostname = $host\n"
+        "  match:\n"
+        "    $host over 15m\n"
+        "  condition:\n"
+        "    $cmd and $svc\n"
+        "}"
+    )
+
+    validated_rules: list[str] = []
+
+    def fake_validate(rule_text: str) -> str:
+        validated_rules.append(rule_text)
+        return "Rule validation PASSED."
+
+    def fake_search(query: str, **kwargs: Any) -> dict[str, Any]:
+        if "DERPService" in query:
+            return {
+                "events": [
+                    {
+                        "udm": {
+                            "principal": {"hostname": "wins-d19"},
+                            "target": {
+                                "process": {
+                                    "command_line": "C:\\Users\\Administrator\\DERPService.exe"
+                                }
+                            },
+                        }
+                    }
+                ],
+                "total_events": 1,
+            }
+        if 'principal.hostname = "wins-d19"' in query:
+            return {
+                "events": [
+                    {
+                        "udm": {
+                            "principal": {"hostname": "wins-d19"},
+                            "target": {
+                                "process": {
+                                    "command_line": 'C:\\Windows\\system32\\cmd.exe /c "sc create DERPService"'
+                                }
+                            },
+                        }
+                    }
+                    for _ in range(10)
+                ],
+                "total_events": 10,
+            }
+        return {"events": [], "total_events": 0}
+
+    diag = diagnose_zero_hit_yaral2_rule(
+        rule_text,
+        siem_validate_fn=fake_validate,
+        siem_search_fn=fake_search,
+    )
+    assert diag["status"] == "success"
+    assert diag["is_multi_event"] is True
+    assert diag["zero_hit"] is True
+    assert diag["diagnosis_class"] == "cross_event_join_entity_role_swap"
+    assert diag["recommended_field"] == "principal.hostname"
+    assert diag["recommended_span_target"] == "var_field"
+    assert diag["recommended_span_replacement"] == "$svc.principal.hostname"
+    assert diag["recommended_yaral2_predicate"] == "$svc.principal.hostname = $host"
+    assert "$svc.principal.hostname = $host" in diag["pivoted_rule_text"]
+    assert "$svc.target.hostname" not in diag["pivoted_rule_text"]
+    assert diag["pivot_verified"] is True
+    assert diag["pivot_compiler_verified"] is True
+    assert diag["pivot_event_count"] == 11
+    assert diag["shared_join_values"] == ["wins-d19"]
+    assert any("$svc.principal.hostname = $host" in r for r in validated_rules)
+
+
+def test_verify_and_redline_yaral2_rules_in_doc_multi_event_end_to_end_and_idempotency() -> None:
+    """Verifies end-to-end Google Docs API v1 batchUpdate ordering (comments first,
+    descending-index writeMode="SUGGEST" replacements second) across static multi-event defects,
+    zero-hit cross_event_join_entity_role_swap diagnosis, valid multi-event control preservation,
+    and Pass 2 idempotency."""
+    from manager.tools.docs_review_tools import (
+        clear_doc_index_cache,
+        verify_and_redline_yaral2_rules_in_doc,
+    )
+
+    clear_doc_index_cache()
+
+    doc_text = (
+        "# Multi-Event YARA-L 2.0 Detection Rules\n\n"
+        "rule gcp_iam_to_cloudsql_destructive_chain {\n"
+        "  meta:\n"
+        '    author = "SecOps Autonomous Agent"\n'
+        "  strings:\n"
+        '    $iam.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $iam.resource.name = "projects/base-production"\n'
+        "    $iam.principal.ip = $ip\n"
+        '    $sql.log_type = "GCP_CLOUDAUDIT"\n'
+        "    $sql.principal.hostname = $ip\n"
+        "  match:\n"
+        "    $src_ip within 15 minutes\n"
+        "  condition:\n"
+        "    $iam and $sql_event\n"
+        "}\n\n"
+        "rule wins_d19_lolbin_to_derpservice_correlation {\n"
+        "  meta:\n"
+        '    author = "SecOps Autonomous Agent"\n'
+        "  events:\n"
+        '    $cmd.principal.hostname = "wins-d19"\n'
+        "    re.regex($cmd.target.process.command_line, `.*cmd.*`) nocase\n"
+        "    $cmd.principal.hostname = $host\n"
+        "    re.regex($svc.target.process.command_line, `.*DERPService.*`) nocase\n"
+        "    $svc.target.hostname = $host\n"
+        "  match:\n"
+        "    $host over 15m\n"
+        "  condition:\n"
+        "    $cmd and $svc\n"
+        "}\n\n"
+        "rule wins_d19_verified_multi_event_baseline {\n"
+        "  meta:\n"
+        '    author = "SecOps Autonomous Agent"\n'
+        "  events:\n"
+        '    $e1.principal.hostname = "wins-d19"\n'
+        "    re.regex($e1.target.process.command_line, `.*cmd.*`) nocase\n"
+        "    $e1.principal.hostname = $host\n"
+        "    re.regex($e2.target.process.command_line, `.*DERPService.*`) nocase\n"
+        "    $e2.principal.hostname = $host\n"
+        "  match:\n"
+        "    $host over 15m\n"
+        "  condition:\n"
+        "    $e1 and $e2\n"
+        "}\n"
+    )
+
+    mock_doc = {
+        "documentId": "doc-multi-event-yl2",
+        "title": "Multi-Event YARA-L 2.0 Correlation Test",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": len(doc_text) + 1,
+                                "textRun": {"content": doc_text},
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+    }
+    batch_calls: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=mock_doc)
+        payload = json.loads(request.content.decode("utf-8"))
+        batch_calls.append(payload)
+        if any("insertComment" in r for r in payload.get("requests", [])):
+            return httpx.Response(
+                200,
+                json={
+                    "replies": [
+                        {"insertComment": {"commentId": f"c-me-{i}"}}
+                        for i, _ in enumerate(payload["requests"])
+                    ]
+                },
+            )
+        return httpx.Response(
+            200,
+            json={"replies": [{} for _ in payload.get("requests", [])]},
+        )
+
+    def fake_validate(rule_text: str) -> str:
+        return "Rule validation PASSED."
+
+    def fake_search(query: str, **kwargs: Any) -> dict[str, Any]:
+        if "GCP_CLOUDAUDIT" in query:
+            return {
+                "events": [
+                    {
+                        "udm": {
+                            "metadata": {"log_type": "GCP_CLOUDAUDIT"},
+                            "principal": {"ip": ["104.198.226.161"]},
+                            "target": {"resource": {"name": "projects/base-production"}},
+                        }
+                    }
+                    for _ in range(5)
+                ],
+                "total_events": 5,
+            }
+        if "DERPService" in query:
+            return {
+                "events": [
+                    {
+                        "udm": {
+                            "principal": {"hostname": "wins-d19"},
+                            "target": {
+                                "process": {
+                                    "command_line": "C:\\Users\\Administrator\\DERPService.exe"
+                                }
+                            },
+                        }
+                    }
+                ],
+                "total_events": 1,
+            }
+        if 'principal.hostname = "wins-d19"' in query:
+            return {
+                "events": [
+                    {
+                        "udm": {
+                            "principal": {"hostname": "wins-d19"},
+                            "target": {
+                                "process": {
+                                    "command_line": "C:\\Windows\\system32\\cmd.exe /c whoami"
+                                }
+                            },
+                        }
+                    }
+                    for _ in range(10)
+                ],
+                "total_events": 10,
+            }
+        return {"events": [], "total_events": 0}
+
+    res = verify_and_redline_yaral2_rules_in_doc(
+        "doc-multi-event-yl2",
+        run_live_siem_check=True,
+        diagnose_zero_hit_retrohunt=True,
+        siem_validate_fn=fake_validate,
+        siem_search_fn=fake_search,
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(handler),
+    )
+    assert res["status"] == "success"
+    # 8 static findings on Rule 1 + 1 zero-hit join swap on Rule 2 + 0 on Rule 3 = 9
+    assert res["yaral2_findings_count"] == 9
+    assert res["zero_hit_yaral2_findings_count"] == 1
+    assert res["skipped_existing_suggestion_count"] == 0
+    assert res["comments"]["inserted_count"] == 9
+    assert res["edits"]["applied_count"] == 9
+
+    rule_names_with_findings = {f["rule_name"] for f in res["findings"]}
+    assert "wins_d19_verified_multi_event_baseline" not in rule_names_with_findings
+
+    zh_findings = [f for f in res["findings"] if f.get("zero_hit_diagnosis")]
+    assert len(zh_findings) == 1
+    assert zh_findings[0]["zero_hit_diagnosis"] == "cross_event_join_entity_role_swap"
+    assert zh_findings[0]["quote"] == "$svc.target.hostname"
+    assert zh_findings[0]["replacement"] == "$svc.principal.hostname"
+    assert zh_findings[0]["shared_join_values"] == ["wins-d19"]
+
+    assert len(batch_calls) == 2
+    assert "writeControl" not in batch_calls[0]
+    assert batch_calls[1]["writeControl"] == {"writeMode": "SUGGEST"}
+    delete_starts = [
+        req["deleteContentRange"]["range"]["startIndex"]
+        for req in batch_calls[1]["requests"]
+        if "deleteContentRange" in req
+    ]
+    assert delete_starts == sorted(delete_starts, reverse=True)
+
+    # Pass 2 idempotency with pending suggestions covering the document -> 0 new edits, 9 skipped
+    mock_doc_pending = {
+        "documentId": "doc-multi-event-yl2",
+        "title": "Multi-Event YARA-L 2.0 Correlation Test",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": len(doc_text) + 1,
+                                "textRun": {
+                                    "content": doc_text,
+                                    "suggestedDeletionIds": [
+                                        "suggest.yl2.me.existing"
+                                    ],
+                                },
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+    }
+    batch_calls.clear()
+    res2 = verify_and_redline_yaral2_rules_in_doc(
+        "doc-multi-event-yl2",
+        run_live_siem_check=True,
+        diagnose_zero_hit_retrohunt=True,
+        siem_validate_fn=fake_validate,
+        siem_search_fn=fake_search,
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(
+            lambda req: httpx.Response(200, json=mock_doc_pending)
+        ),
+    )
+    assert res2["status"] == "success"
+    assert res2["yaral2_findings_count"] == 0
+    assert res2["zero_hit_yaral2_findings_count"] == 0
+    assert res2["skipped_existing_suggestion_count"] == 9
+    assert res2["comments"]["inserted_count"] == 0
+    assert res2["edits"]["applied_count"] == 0
+    assert len(batch_calls) == 0
+
+

@@ -762,25 +762,30 @@ def verify_and_redline_yaral2_rules_in_doc(
     end_time: str = "2026-02-08T00:00:00Z",
     tool_context: ToolContext = None,
 ) -> dict:
-  """Lints YARA-L 2.0 (YL2) rules in a Google Doc, optionally compiles and retrohunts them in Chronicle SIEM, and stages red-lines.
+  """Lints single-event and multi-event YARA-L 2.0 (YL2) rules in a Google Doc, optionally compiles and retrohunts them in Chronicle SIEM, and stages red-lines.
 
-  Scans the Google Doc for YARA-L 2.0 (`YL2`) rule blocks and identifies
-  standard-YARA `strings:` sections used instead of YARA-L 2.0 `events:`,
-  event-variable-prefixed invalid UDM fields (`$e.resource.name`, `$e.ip`,
-  `re.regex($e.process.command_line, ...)`), and undeclared event variables in
-  `condition:` by exact 1-based UTF-16 span. When `run_live_siem_check=True`,
+  Scans the Google Doc for single-event and multi-event YARA-L 2.0 (`YL2`) rule
+  blocks and identifies standard-YARA `strings:` sections used instead of
+  YARA-L 2.0 `events:`, event-variable-prefixed invalid UDM fields
+  (`$e.resource.name`, `$e.ip`, `re.regex($e.process.command_line, ...)`),
+  cross-event join semantic type contradictions (`cross_event_join_type_mismatch`),
+  `match:` placeholder variable mismatches (`match_placeholder_mismatch`),
+  invalid `match:` time window syntax (`invalid_match_window_syntax`, normalized
+  to `over <N><s|m|h|d>`), and single-event or multi-event `condition:` variable
+  binding errors by exact 1-based UTF-16 span. When `run_live_siem_check=True`,
   compiles the repaired YARA-L 2.0 rule against Chronicle SIEM (`validate_rule`),
-  dry-runs its `events:` predicates against historical UDM telemetry
-  (`search_udm`), diagnoses 0-hit retrohunt predicates via clause ablation and
-  live UDM event inspection (`exact_match_on_command_line`, `entity_role_swap`,
-  `value_format_mismatch`), and stages compiler-verified `writeMode="SUGGEST"` edits.
+  executes single-event or per-stream multi-event UDM correlation retrohunts
+  (`search_udm`), diagnoses 0-hit retrohunt predicates and cross-event join
+  entity-role swaps (`exact_match_on_command_line`, `entity_role_swap`,
+  `value_format_mismatch`, `cross_event_join_entity_role_swap`), and stages
+  compiler-verified `writeMode="SUGGEST"` edits.
 
   Args:
       document_id (str): The Google Docs documentId.
       run_live_siem_check (bool): Whether to compile the repaired YARA-L 2.0 rule
-                                  and dry-run its UDM predicates against live Chronicle SIEM.
+                                  and dry-run its UDM predicates (or per-stream correlation queries) against live Chronicle SIEM.
       diagnose_zero_hit_retrohunt (bool): Whether to diagnose and stage compiler-verified
-                                          pivots for 0-hit YARA-L 2.0 retrohunt predicates.
+                                          pivots for 0-hit YARA-L 2.0 retrohunt predicates and cross-event join entity-role swaps.
       start_time (str): ISO-8601 start time for the SIEM retrohunt search window.
       end_time (str): ISO-8601 end time for the SIEM retrohunt search window.
 
