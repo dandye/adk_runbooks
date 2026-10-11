@@ -41,6 +41,7 @@ from .docs_review_tools import (
     propose_doc_suggested_edits as _propose_doc_suggested_edits,
     read_google_doc as _read_google_doc,
     verify_and_redline_udm_queries_in_doc as _verify_and_redline_udm_queries_in_doc,
+    verify_and_redline_yaral2_rules_in_doc as _verify_and_redline_yaral2_rules_in_doc,
 )
 
 logger = logging.getLogger(__name__)
@@ -745,6 +746,44 @@ def export_accepted_doc_to_markdown(
   )
 
 
+def verify_and_redline_yaral2_rules_in_doc(
+    document_id: str,
+    run_live_siem_check: bool = False,
+    start_time: str = "2026-02-07T00:00:00Z",
+    end_time: str = "2026-02-08T00:00:00Z",
+    tool_context: ToolContext = None,
+) -> dict:
+  """Lints YARA-L 2.0 (YL2) rules in a Google Doc, optionally compiles and retrohunts them in Chronicle SIEM, and stages red-lines.
+
+  Scans the Google Doc for YARA-L 2.0 (`YL2`) rule blocks and identifies
+  standard-YARA `strings:` sections used instead of YARA-L 2.0 `events:`,
+  event-variable-prefixed invalid UDM fields (`$e.resource.name`, `$e.ip`,
+  `re.regex($e.process.command_line, ...)`), and undeclared event variables in
+  `condition:` by exact 1-based UTF-16 span. When `run_live_siem_check=True`,
+  compiles the repaired YARA-L 2.0 rule against Chronicle SIEM (`validate_rule`)
+  and dry-runs its `events:` predicates against historical UDM telemetry
+  (`search_udm`) before anchoring comments and staging `writeMode="SUGGEST"` edits.
+
+  Args:
+      document_id (str): The Google Docs documentId.
+      run_live_siem_check (bool): Whether to compile the repaired YARA-L 2.0 rule
+                                  and dry-run its UDM predicates against live Chronicle SIEM.
+      start_time (str): ISO-8601 start time for the SIEM retrohunt search window.
+      end_time (str): ISO-8601 end time for the SIEM retrohunt search window.
+
+  Returns:
+      dict: {"status", "document_id", "title", "char_count", "yaral2_findings_count",
+             "skipped_existing_suggestion_count", "findings", "siem_rule_checks", "comments", "edits"}.
+  """
+  return _verify_and_redline_yaral2_rules_in_doc(
+      document_id=document_id,
+      run_live_siem_check=run_live_siem_check,
+      start_time=start_time,
+      end_time=end_time,
+      tool_context=tool_context,
+  )
+
+
 def get_agent_tools():
   """Initializes and returns MCP toolsets and progressive discovery tools.
 
@@ -781,6 +820,9 @@ def get_agent_tools():
   wrapped_verify_and_redline_udm_queries_in_doc = instrument_tool(
       verify_and_redline_udm_queries_in_doc
   )
+  wrapped_verify_and_redline_yaral2_rules_in_doc = instrument_tool(
+      verify_and_redline_yaral2_rules_in_doc
+  )
   wrapped_inspect_doc_suggestions = instrument_tool(inspect_doc_suggestions)
   wrapped_export_accepted_doc_to_markdown = instrument_tool(
       export_accepted_doc_to_markdown
@@ -811,6 +853,7 @@ def get_agent_tools():
       wrapped_stage_runbook_update_as_google_doc,
       wrapped_post_reviewed_doc_to_soar_case,
       wrapped_verify_and_redline_udm_queries_in_doc,
+      wrapped_verify_and_redline_yaral2_rules_in_doc,
       wrapped_inspect_doc_suggestions,
       wrapped_export_accepted_doc_to_markdown,
       wrapped_get_current_time,

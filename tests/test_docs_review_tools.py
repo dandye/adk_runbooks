@@ -401,6 +401,7 @@ def test_adk_function_tool_declarations_for_docs_review_tools():
         "stage_runbook_update_as_google_doc",
         "post_reviewed_doc_to_soar_case",
         "verify_and_redline_udm_queries_in_doc",
+        "verify_and_redline_yaral2_rules_in_doc",
         "inspect_doc_suggestions",
         "export_accepted_doc_to_markdown",
     ):
@@ -416,6 +417,7 @@ def test_adk_function_tool_declarations_for_docs_review_tools():
         assert "token_source" not in props
         assert "client" not in props
         assert "siem_search_fn" not in props
+        assert "siem_validate_fn" not in props
         assert "skill_content_override" not in props
 
 
@@ -1595,6 +1597,376 @@ def test_export_accepted_doc_to_markdown_restores_frontmatter_and_applies_edits(
     assert meta.category == "irps"
     assert res["drive"] is not None
     assert res["drive"]["parentId"] == reports_folder
+
+
+def _make_single_paragraph_doc(
+    document_id: str, title: str, body_text: str
+) -> dict[str, Any]:
+    return {
+        "documentId": document_id,
+        "title": title,
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": 1 + len(body_text),
+                                "textRun": {"content": body_text},
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+    }
+
+
+def test_find_yaral2_rule_spans_detects_prefixed_udm_fields_strings_section_and_condition_var_mismatch():
+    """Verifies exact 1-based UTF-16 span extraction across a YARA-L 2.0 rule
+    containing ``strings:`` (instead of ``events:``), ``$e.resource.name``,
+    ``$e.ip``, ``re.regex($e.process.command_line, ...)``, and undeclared
+    ``$event`` in ``condition:``, confirming non-overlapping spans and clean
+    ``repaired_rule_text``."""
+    from manager.tools.docs_review_tools import (
+        DEFAULT_UDM_FIELD_LIST_URL,
+        DEFAULT_YARAL2_DOC_URL,
+        find_yaral2_rule_spans,
+    )
+
+    body = (
+        "Detection Engineering Follow-Up:\n"
+        "rule gcp_sa_and_lolbin_test {\n"
+        "  meta:\n"
+        '    author = "Detection Engineering"\n'
+        "  strings:\n"
+        '    $e.metadata.event_type = "GCP_CLOUDAUDIT"\n'
+        '    $e.resource.name = "projects/base-production"\n'
+        '    $e.ip = "104.198.226.161"\n'
+        "    re.regex($e.process.command_line, /.*cmd.*/ nocase)\n"
+        "  condition:\n"
+        "    $event\n"
+        "}\n"
+    )
+    doc = _make_single_paragraph_doc("doc-yaral2-spans", "YARA-L 2.0 Postmortem", body)
+    plain_text, index_map = _extract_text_and_index_map(doc)
+
+    comments, edits, findings = find_yaral2_rule_spans(plain_text, index_map)
+
+    assert len(findings) == 5
+    assert len(comments) == 5
+    assert len(edits) == 5
+
+    defect_types = [f["defect_type"] for f in findings]
+    assert defect_types == [
+        "yara_strings_section",
+        "invalid_udm_field",
+        "invalid_udm_field",
+        "invalid_udm_field",
+        "condition_variable_mismatch",
+    ]
+
+    # Verify standard YARA vs YARA-L 2.0 distinction in rationale and exact UTF-16 slice
+    f_strings = findings[0]
+    assert f_strings["quote"] == "strings:"
+    assert f_strings["replacement"] == "events:"
+    assert "standard YARA" in comments[0]["comment"]
+    assert "YARA-L 2.0" in comments[0]["comment"]
+    assert DEFAULT_YARAL2_DOC_URL in comments[0]["comment"]
+
+    # Verify event-prefixed UDM field spans
+    f_res = findings[1]
+    assert f_res["invalid_field"] == "resource.name"
+    assert f_res["canonical_field"] == "target.resource.name"
+    assert f_res["quote"] == "$e.resource.name"
+    assert f_res["replacement"] == "$e.target.resource.name"
+    assert DEFAULT_UDM_FIELD_LIST_URL in comments[1]["comment"]
+
+    f_ip = findings[2]
+    assert f_ip["invalid_field"] == "ip"
+    assert f_ip["canonical_field"] == "principal.ip"
+    assert f_ip["quote"] == "$e.ip"
+    assert f_ip["replacement"] == "$e.principal.ip"
+
+    f_cmd = findings[3]
+    assert f_cmd["invalid_field"] == "process.command_line"
+    assert f_cmd["canonical_field"] == "target.process.command_line"
+    assert f_cmd["quote"] == "$e.process.command_line"
+    assert f_cmd["replacement"] == "$e.target.process.command_line"
+
+    # Verify condition variable mismatch span
+    f_cond = findings[4]
+    assert f_cond["quote"] == "$event"
+    assert f_cond["replacement"] == "$e"
+
+    # Verify all spans are strictly non-overlapping and align with index_map
+    spans = sorted((e["start_index"], e["end_index"]) for e in edits)
+    for i in range(len(spans) - 1):
+        assert spans[i][1] <= spans[i + 1][0]
+
+    repaired_rule = findings[0]["repaired_rule_text"]
+    assert "events:" in repaired_rule
+    assert "strings:" not in repaired_rule
+    assert '$e.target.resource.name = "projects/base-production"' in repaired_rule
+    assert '$e.principal.ip = "104.198.226.161"' in repaired_rule
+    assert "re.regex($e.target.process.command_line, `.*cmd.*`) nocase" in repaired_rule
+    assert "condition:\n    $e" in repaired_rule
+
+    # Also verify single-line collapsed YARA-L 2.0 rule blocks (as converted by Google Drive Markdown import)
+    collapsed_body = " ".join(line.strip() for line in body.splitlines() if line.strip()) + "\n"
+    collapsed_doc = _make_single_paragraph_doc(
+        "doc-yaral2-collapsed", "Collapsed YARA-L 2.0", collapsed_body
+    )
+    c_plain, c_map = _extract_text_and_index_map(collapsed_doc)
+    c_comments, c_edits, c_findings = find_yaral2_rule_spans(c_plain, c_map)
+    assert len(c_findings) == 5
+    assert len(c_comments) == 5
+    assert len(c_edits) == 5
+    assert 'target.resource.name = "projects/base-production"' in c_findings[0]["retrohunt_udm_query"]
+    assert 'principal.ip = "104.198.226.161"' in c_findings[0]["retrohunt_udm_query"]
+    assert "target.process.command_line = /.*cmd.*/ nocase" in c_findings[0]["retrohunt_udm_query"]
+
+
+def test_verify_yaral2_rule_with_siem_compiles_via_validate_rule_and_runs_retrohunt():
+    """Verifies ``verify_yaral2_rule_with_siem`` repairs the YARA-L 2.0 rule,
+    invokes injected ``siem_validate_fn`` (``validate_rule``), extracts the
+    ``events:`` predicates into a UDM query, and invokes ``siem_search_fn``
+    (``search_udm``) to return ``compiler_verified=True`` and
+    ``retrohunt_event_count``."""
+    from manager.tools.docs_review_tools import verify_yaral2_rule_with_siem
+
+    raw_rule = (
+        "rule wins_d19_lolbin_execution {\n"
+        "  meta:\n"
+        '    author = "Detection Engineering"\n'
+        "  events:\n"
+        '    $proc.metadata.event_type = "PROCESS_LAUNCH"\n'
+        '    $proc.hostname = "wins-d19"\n'
+        "    re.regex($proc.process.command_line, /.*cmd.*/ nocase)\n"
+        "  condition:\n"
+        "    $e\n"
+        "}"
+    )
+
+    validate_calls: list[str] = []
+    search_calls: list[dict] = []
+
+    def fake_validate(rule_text: str) -> str:
+        validate_calls.append(rule_text)
+        # Simulate secops-mcp_validate_rule output (including leading non-ASCII symbol to verify stripping)
+        return "\u2705 Rule validation PASSED - syntax is valid"
+
+    def fake_search(query: str, start_time: str, end_time: str, max_events: int):
+        search_calls.append({"query": query, "max_events": max_events})
+        return {"events": [{"id": f"ev-{i}"} for i in range(12)], "total_events": 12}
+
+    result = verify_yaral2_rule_with_siem(
+        raw_rule,
+        run_retrohunt_check=True,
+        siem_validate_fn=fake_validate,
+        siem_search_fn=fake_search,
+    )
+
+    assert result["status"] == "success"
+    assert result["rule_name"] == "wins_d19_lolbin_execution"
+    assert len(result["findings"]) == 3
+    assert result["compiler_verified"] is True
+    # Confirm non-ASCII symbols are stripped from compiler output
+    assert all(ord(c) < 128 for c in result["compiler_output"])
+    assert "Rule validation PASSED" in result["compiler_output"]
+    assert len(validate_calls) == 1
+    assert '$proc.principal.hostname = "wins-d19"' in validate_calls[0]
+    assert "re.regex($proc.target.process.command_line, `.*cmd.*`) nocase" in validate_calls[0]
+    assert "condition:\n    $proc" in validate_calls[0]
+
+    assert result["retrohunt_verified"] is True
+    assert result["retrohunt_event_count"] == 12
+    assert len(search_calls) == 1
+    assert 'metadata.event_type = "PROCESS_LAUNCH"' in search_calls[0]["query"]
+    assert 'principal.hostname = "wins-d19"' in search_calls[0]["query"]
+    assert "target.process.command_line = /.*cmd.*/ nocase" in search_calls[0]["query"]
+
+
+def test_verify_and_redline_yaral2_rules_in_doc_anchors_comments_and_suggest_edits_with_idempotency():
+    """Verifies ``verify_and_redline_yaral2_rules_in_doc`` executes
+    ``insertComment`` before descending-index ``writeMode="SUGGEST"`` edits,
+    enriches comments with compiler + retrohunt badges, and skips spans
+    overlapping existing ``suggest.*`` ranges on a second pass."""
+    from manager.tools.docs_review_tools import verify_and_redline_yaral2_rules_in_doc
+
+    doc_text = (
+        "Detection Engineering Follow-Up:\n"
+        "rule gcp_sa_privilege_escalation {\n"
+        "  meta:\n"
+        '    author = "Detection Engineering"\n'
+        "  strings:\n"
+        '    $e.metadata.event_type = "GCP_CLOUDAUDIT"\n'
+        '    $e.resource.name = "projects/base-production"\n'
+        '    $e.ip = "104.198.226.161"\n'
+        "  condition:\n"
+        "    $event\n"
+        "}\n"
+    )
+    mock_doc = _make_single_paragraph_doc("doc-yaral2-live", "Postmortem YARA-L 2.0", doc_text)
+    batch_calls: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=mock_doc)
+        payload = json.loads(request.content.decode("utf-8"))
+        batch_calls.append(payload)
+        return httpx.Response(
+            200,
+            json={
+                "documentId": "doc-yaral2-live",
+                "replies": [{} for _ in payload.get("requests", [])],
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+    token_source = StaticTokenSource("adc-token")
+
+    def fake_validate(rule_text: str) -> str:
+        return "Rule validation PASSED - syntax is valid"
+
+    def fake_search(query: str, start_time: str, end_time: str, max_events: int):
+        # Simulate Case 33278 where target.resource.name returns 0 hits and relaxed query returns 9 hits
+        if "target.resource.name" in query:
+            return {"events": [], "total_events": 0}
+        return {"events": [{"id": f"ev-{i}"} for i in range(9)], "total_events": 9}
+
+    res = verify_and_redline_yaral2_rules_in_doc(
+        "doc-yaral2-live",
+        run_live_siem_check=True,
+        siem_validate_fn=fake_validate,
+        siem_search_fn=fake_search,
+        token_source=token_source,
+        transport=transport,
+    )
+
+    assert res["status"] == "success"
+    assert res["yaral2_findings_count"] == 4
+    assert res["skipped_existing_suggestion_count"] == 0
+    assert res["comments"]["inserted_count"] == 4
+    assert res["edits"]["applied_count"] == 4
+    assert len(res["siem_rule_checks"]) == 1
+    rv = res["siem_rule_checks"][0]
+    assert rv["compiler_verified"] is True
+    assert rv["retrohunt_event_count"] == 9
+
+    # Ordering invariant: batch_calls[0] is comments (no writeControl), batch_calls[1] is SUGGEST edits
+    assert len(batch_calls) == 2
+    assert "writeControl" not in batch_calls[0]
+    assert batch_calls[1]["writeControl"] == {"writeMode": "SUGGEST"}
+
+    for req in batch_calls[0]["requests"]:
+        body_str = req["insertComment"]["content"]
+        assert "Chronicle YARA-L 2.0 Compiler Verified: PASSED" in body_str
+        assert "events_matched=9" in body_str
+
+    # Verify descending index ordering on SUGGEST deleteContentRange requests
+    delete_starts = [
+        req["deleteContentRange"]["range"]["startIndex"]
+        for req in batch_calls[1]["requests"]
+        if "deleteContentRange" in req
+    ]
+    assert delete_starts == sorted(delete_starts, reverse=True)
+
+    # Second pass: simulate existing pending suggestion spanning the entire rule block
+    mock_doc_with_suggestions = {
+        "documentId": "doc-yaral2-live",
+        "title": "Postmortem YARA-L 2.0",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": len(doc_text) + 1,
+                                "textRun": {
+                                    "content": doc_text,
+                                    "suggestedDeletionIds": ["suggest.existing.yaral2"],
+                                },
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+    }
+    batch_calls.clear()
+    transport2 = httpx.MockTransport(
+        lambda req: httpx.Response(200, json=mock_doc_with_suggestions)
+    )
+    res2 = verify_and_redline_yaral2_rules_in_doc(
+        "doc-yaral2-live",
+        run_live_siem_check=True,
+        siem_validate_fn=fake_validate,
+        siem_search_fn=fake_search,
+        token_source=token_source,
+        transport=transport2,
+    )
+    assert res2["yaral2_findings_count"] == 0
+    assert res2["skipped_existing_suggestion_count"] == 4
+    assert res2["comments"]["inserted_count"] == 0
+    assert res2["edits"]["applied_count"] == 0
+    assert len(batch_calls) == 0
+
+
+def test_review_google_doc_with_stage_a_includes_and_deduplicates_yaral2_spans():
+    """Verifies ``review_google_doc_with_stage_a`` automatically includes Stage A
+    YARA-L 2.0 findings and deduplicates them against Stage B semantic edits."""
+    from manager.tools.docs_review_tools import (
+        find_yaral2_rule_spans,
+        review_google_doc_with_stage_a,
+    )
+
+    doc_text = (
+        "Rule:\n"
+        "rule sample_rule {\n"
+        "  events:\n"
+        '    $e.ip = "104.198.226.161"\n'
+        "  condition:\n"
+        "    $e\n"
+        "}\n"
+    )
+    mock_doc = _make_single_paragraph_doc("doc-stage-a-yaral2", "Stage A YARA-L 2.0", doc_text)
+    plain, idx_map = _extract_text_and_index_map(mock_doc)
+    _, yara_edits, _ = find_yaral2_rule_spans(plain, idx_map)
+    assert len(yara_edits) == 1
+    ip_span = yara_edits[0]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=mock_doc)
+        payload = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(
+            200,
+            json={
+                "documentId": "doc-stage-a-yaral2",
+                "replies": [{} for _ in payload.get("requests", [])],
+            },
+        )
+
+    # Pass an overlapping Stage B edit on the exact same $e.ip span to verify deduplication
+    res = review_google_doc_with_stage_a(
+        "doc-stage-a-yaral2",
+        semantic_edits=[
+            {
+                "start_index": ip_span["start_index"],
+                "end_index": ip_span["end_index"],
+                "replacement": "$e.principal.ip",
+            }
+        ],
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(handler),
+    )
+
+    assert res["status"] == "success"
+    assert res["stage_a_yaral2_count"] == 1
+    assert res["edits"]["applied_count"] == 1
 
 
 

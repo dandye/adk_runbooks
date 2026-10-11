@@ -37,6 +37,7 @@ from .tools.tools import (
     stage_runbook_update_as_google_doc,
     post_reviewed_doc_to_soar_case,
     verify_and_redline_udm_queries_in_doc,
+    verify_and_redline_yaral2_rules_in_doc,
     inspect_doc_suggestions,
     export_accepted_doc_to_markdown,
 )
@@ -114,10 +115,11 @@ root_agent = Agent(
     1. Call `read_google_doc(document_id)` first to read the text and build the UTF-16 index map.
     2. Call `insert_doc_comments(document_id, comments)` **before** proposing edits so comments attach to the pre-edit index spans (include authoritative citation URLs in comments).
     3. Call `propose_doc_suggested_edits(document_id, edits)` **second** to propose non-destructive Suggested Edits (`writeMode="SUGGEST"`).
-    4. Or call `review_google_doc_with_stage_a(document_id, semantic_comments, semantic_edits)` to automatically combine Stage A span-based URL defanging and UDM field linting with Stage B grounded comments and edits.
+    4. Or call `review_google_doc_with_stage_a(document_id, semantic_comments, semantic_edits)` to automatically combine Stage A span-based URL defanging, standalone UDM field linting, and YARA-L 2.0 (`YL2`) rule linting with Stage B grounded comments and edits.
     5. Call `verify_and_redline_udm_queries_in_doc(document_id, run_live_siem_check)` to lint Chronicle UDM queries by UTF-16 span, optionally dry-run repaired queries against live Chronicle SIEM (`search_udm`), and stage `writeMode="SUGGEST"` corrections.
-    6. Call `stage_runbook_update_as_google_doc(skill_name, case_id, semantic_comments, semantic_edits, lessons_learned_markdown)` to draft and red-line a Drive runbook from SOAR case lessons learned, and `post_reviewed_doc_to_soar_case` to post the reviewed Google Doc links back to the SOAR case timeline.
-    7. Call `inspect_doc_suggestions(document_id, accept_suggestion_ids)` to inspect pending `suggest.*` changes and unified diffs, and `export_accepted_doc_to_markdown(document_id, skill_name, accept_suggestion_ids, output_path, publish_to_drive)` to export accepted red-lines back into a valid Markdown runbook with YAML frontmatter restored.
+    6. Call `verify_and_redline_yaral2_rules_in_doc(document_id, run_live_siem_check)` to lint YARA-L 2.0 (`YL2`) detection rules (distinguishing standard YARA `strings:` from YARA-L 2.0 `events:`, repairing `$var.<field>` UDM paths and `condition:` event variables), optionally compile the repaired rule via Chronicle SIEM (`validate_rule`) and dry-run its `events:` predicates via `search_udm`, and stage `writeMode="SUGGEST"` fixes.
+    7. Call `stage_runbook_update_as_google_doc(skill_name, case_id, semantic_comments, semantic_edits, lessons_learned_markdown)` to draft and red-line a Drive runbook from SOAR case lessons learned, and `post_reviewed_doc_to_soar_case` to post the reviewed Google Doc links back to the SOAR case timeline.
+    8. Call `inspect_doc_suggestions(document_id, accept_suggestion_ids)` to inspect pending `suggest.*` changes and unified diffs, and `export_accepted_doc_to_markdown(document_id, skill_name, accept_suggestion_ids, output_path, publish_to_drive)` to export accepted red-lines back into a valid Markdown runbook with YAML frontmatter restored.
 
     **Your Tools:**
     You have direct access to these tools for oversight, skill retrieval, tool discovery, grounding, and reporting:
@@ -131,6 +133,7 @@ root_agent = Agent(
     - propose_doc_suggested_edits
     - review_google_doc_with_stage_a
     - verify_and_redline_udm_queries_in_doc
+    - verify_and_redline_yaral2_rules_in_doc
     - inspect_doc_suggestions
     - export_accepted_doc_to_markdown
     - stage_runbook_update_as_google_doc

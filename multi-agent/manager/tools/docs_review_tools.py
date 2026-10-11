@@ -102,6 +102,9 @@ _LIVE_URL_RE = re.compile(
 DEFAULT_UDM_FIELD_LIST_URL = (
     "https://docs.cloud.google.com/chronicle/docs/reference/udm-field-list"
 )
+DEFAULT_YARAL2_DOC_URL = (
+    "https://docs.cloud.google.com/chronicle/docs/detection/yara-l-2-0-syntax"
+)
 
 VALID_UDM_TOP_LEVEL_PREFIXES: tuple[str, ...] = (
     "metadata",
@@ -140,9 +143,42 @@ CANONICAL_UDM_FIELD_CORRECTIONS: dict[str, str] = {
 }
 
 _UDM_COMPARISON_RE = re.compile(
-    r"(?<![A-Za-z0-9_.-])([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)"
+    r"(?<![A-Za-z0-9_.$-])([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)"
     r"(\s*(?:!=|=)\s*)"
     r"(?:\"[^\r\n\"]*\"|'[^\r\n']*'|“[^\r\n”]*”|/[^\r\n/]+/(?:\s*nocase)?)"
+)
+
+_YARAL2_RULE_HEADER_RE = re.compile(
+    r"(?<![A-Za-z0-9_])rule\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{"
+)
+_YARAL2_SECTION_HEADER_RE = re.compile(
+    r"(?:(?<=^)|(?<=[\s{]))(meta|events|strings|match|outcome|condition|options)\s*:"
+)
+_YARAL2_EVENT_FIELD_RE = re.compile(
+    r"\$([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)(?![A-Za-z0-9_.])"
+)
+_YARAL2_PLACEHOLDER_RHS_RE = re.compile(
+    r"(?:!=|=)\s*\$([A-Za-z_][A-Za-z0-9_]*)(?!\.)"
+)
+_YARAL2_PLACEHOLDER_LHS_RE = re.compile(
+    r"\$([A-Za-z_][A-Za-z0-9_]*)(?!\.)\s*(?:!=|=)"
+)
+_YARAL2_COND_VAR_RE = re.compile(
+    r"([#$])([A-Za-z_][A-Za-z0-9_]*)(?!\.)"
+)
+_YARAL2_RE_REGEX_SLASH_NORM_RE = re.compile(
+    r"(re\.regex\(\s*\$[A-Za-z_][A-Za-z0-9_.]*\s*,\s*)/([^/\r\n]+)/(\s*nocase)?(\s*\))(\s*nocase)?",
+    re.IGNORECASE,
+)
+_YARAL2_RE_REGEX_CALL_RE = re.compile(
+    r"re\.regex\(\s*\$([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_.]*)\s*,\s*"
+    r"(?:/([^/\r\n]+)/|`([^`\r\n]+)`|\"([^\r\n\"]+)\")\s*(nocase)?\s*\)\s*(nocase)?",
+    re.IGNORECASE,
+)
+_YARAL2_EVENT_COMPARISON_RE = re.compile(
+    r"\$([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_.]*)"
+    r"(\s*(?:!=|=)\s*)"
+    r"(\"[^\r\n\"]*\"|'[^\r\n']*'|“[^\r\n”]*”|/[^\r\n/]+/(?:\s*nocase)?|`[^`\r\n]*`(?:\s*nocase)?)"
 )
 
 _FRONTMATTER_BLOCK_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n(.*)$", re.DOTALL)
@@ -1460,6 +1496,694 @@ def verify_and_redline_udm_queries_in_doc(
     }
 
 
+def _build_utf16_index_map(text: str, start_index: int = 1) -> list[int]:
+    """Builds a synthetic 1-based UTF-16 index map for standalone text strings."""
+    index_map: list[int] = []
+    cursor = start_index
+    for ch in text:
+        index_map.append(cursor)
+        cursor += _utf16_code_unit_len(ch)
+    return index_map
+
+
+def _iter_yaral2_rule_blocks(plain_text: str) -> list[dict[str, Any]]:
+    """Extracts ``rule <name> { ... }`` blocks from ``plain_text`` with balanced braces."""
+    blocks: list[dict[str, Any]] = []
+    if not plain_text:
+        return blocks
+
+    search_pos = 0
+    text_len = len(plain_text)
+    while search_pos < text_len:
+        match = _YARAL2_RULE_HEADER_RE.search(plain_text, search_pos)
+        if match is None:
+            break
+        rule_name = match.group(1)
+        open_brace = match.end() - 1
+        depth = 0
+        in_double_quote = False
+        escape = False
+        close_brace = -1
+        for idx in range(open_brace, text_len):
+            ch = plain_text[idx]
+            if escape:
+                escape = False
+                continue
+            if ch == "\\":
+                escape = True
+                continue
+            if ch == '"':
+                in_double_quote = not in_double_quote
+                continue
+            if in_double_quote:
+                continue
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    close_brace = idx
+                    break
+        if close_brace == -1:
+            search_pos = match.end()
+            continue
+
+        char_start = match.start()
+        char_end = close_brace + 1
+        blocks.append(
+            {
+                "rule_name": rule_name,
+                "char_start": char_start,
+                "char_end": char_end,
+                "rule_text": plain_text[char_start:char_end],
+            }
+        )
+        search_pos = char_end
+
+    return blocks
+
+
+def _normalize_yaral2_re_regex_calls(rule_text: str) -> str:
+    """Normalizes ``re.regex($var.field, /pattern/ nocase)`` into valid Chronicle YARA-L 2.0
+    ``re.regex($var.field, `pattern`) nocase`` syntax."""
+
+    def _replace_call(match: re.Match[str]) -> str:
+        prefix = match.group(1)
+        pattern = match.group(2)
+        inner_nocase = match.group(3) or ""
+        close_paren = match.group(4)
+        outer_nocase = match.group(5) or ""
+        has_nocase = bool(inner_nocase.strip() or outer_nocase.strip())
+        suffix = " nocase" if has_nocase else ""
+        return f"{prefix}`{pattern}`{close_paren}{suffix}"
+
+    return _YARAL2_RE_REGEX_SLASH_NORM_RE.sub(_replace_call, rule_text)
+
+
+def _extract_retrohunt_udm_query_from_yaral2(
+    rule_text: str,
+) -> tuple[str, list[str]]:
+    """Extracts a Chronicle UDM retrohunt search query and clause list from a YARA-L 2.0 rule's events section."""
+    sec_matches = list(_YARAL2_SECTION_HEADER_RE.finditer(rule_text))
+    events_body = ""
+    for i, sm in enumerate(sec_matches):
+        sec_name = sm.group(1).lower()
+        if sec_name in ("events", "strings"):
+            b_start = sm.end()
+            b_end = (
+                sec_matches[i + 1].start()
+                if i + 1 < len(sec_matches)
+                else max(b_start, rule_text.rfind("}"))
+            )
+            events_body += "\n" + rule_text[b_start:b_end]
+
+    if not events_body.strip():
+        return "", []
+
+    cleaned_lines = [
+        raw_line
+        for raw_line in events_body.splitlines()
+        if not raw_line.strip().startswith("//")
+    ]
+    cleaned_body = "\n".join(cleaned_lines)
+
+    positioned_clauses: list[tuple[int, str]] = []
+    re_spans: list[tuple[int, int]] = []
+    for re_match in _YARAL2_RE_REGEX_CALL_RE.finditer(cleaned_body):
+        re_spans.append((re_match.start(), re_match.end()))
+        raw_field = re_match.group(2)
+        field_path = CANONICAL_UDM_FIELD_CORRECTIONS.get(raw_field, raw_field)
+        pattern = re_match.group(3) or re_match.group(4) or re_match.group(5) or ""
+        has_nocase = bool(re_match.group(6) or re_match.group(7))
+        clause = (
+            f"{field_path} = /{pattern}/ nocase"
+            if has_nocase
+            else f"{field_path} = /{pattern}/"
+        )
+        positioned_clauses.append((re_match.start(), clause))
+
+    for cmp_match in _YARAL2_EVENT_COMPARISON_RE.finditer(cleaned_body):
+        c_span = (cmp_match.start(), cmp_match.end())
+        if any(_spans_overlap(c_span, r_span) for r_span in re_spans):
+            continue
+        raw_field = cmp_match.group(2)
+        field_path = CANONICAL_UDM_FIELD_CORRECTIONS.get(raw_field, raw_field)
+        op = cmp_match.group(3).strip()
+        rhs = cmp_match.group(4).strip()
+        clause = f"{field_path} {op} {rhs}"
+        positioned_clauses.append((cmp_match.start(), clause))
+
+    positioned_clauses.sort(key=lambda item: item[0])
+    clauses: list[str] = []
+    for _pos, clause in positioned_clauses:
+        if clause not in clauses:
+            clauses.append(clause)
+
+    return " AND ".join(clauses), clauses
+
+
+def find_yaral2_rule_spans(
+    plain_text: str,
+    index_map: list[int],
+    *,
+    udm_doc_url: str = DEFAULT_UDM_FIELD_LIST_URL,
+    yaral2_doc_url: str = DEFAULT_YARAL2_DOC_URL,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Scans ``plain_text`` for YARA-L 2.0 (``YL2``) detection rules and computes 1-based UTF-16 spans.
+
+    Detects three deterministic YARA-L 2.0 defect classes without an LLM:
+    1. Standard YARA (``strings:``) vs. Chronicle YARA-L 2.0 (``events:``) section confusion,
+       explicitly distinguishing standard YARA (file/payload byte-pattern matching) from
+       YARA-L 2.0 / YL2 (Chronicle SIEM UDM event detection rules).
+    2. Event-variable-prefixed invalid UDM fields (``$<var>.<field_path>`` in comparisons or
+       inside YARA-L 2.0 function calls such as ``re.regex($<var>.<field_path>, ...)``).
+    3. Condition event-variable mismatch (when ``events:`` binds ``$<var>`` and ``condition:``
+       references an undeclared event variable such as ``$event``).
+
+    Returns:
+        ``(comments, edits, findings)`` with exact 1-based UTF-16 ``start_index`` and
+        ``end_index`` coordinates, plus synthesized ``repaired_rule_text`` and
+        ``retrohunt_udm_query`` per rule block.
+    """
+    comments: list[dict[str, Any]] = []
+    edits: list[dict[str, Any]] = []
+    findings: list[dict[str, Any]] = []
+    if not plain_text or not index_map:
+        return comments, edits, findings
+
+    for block in _iter_yaral2_rule_blocks(plain_text):
+        rule_name = block["rule_name"]
+        rule_char_start = int(block["char_start"])
+        rule_text = str(block["rule_text"])
+
+        sec_matches = list(_YARAL2_SECTION_HEADER_RE.finditer(rule_text))
+        if not sec_matches:
+            continue
+
+        sections: list[dict[str, Any]] = []
+        for i, sm in enumerate(sec_matches):
+            sec_name = sm.group(1).lower()
+            token_text = sm.group(0).lstrip(" \t")
+            token_local_start = sm.end() - len(token_text)
+            token_local_end = sm.end()
+            body_local_start = sm.end()
+            body_local_end = (
+                sec_matches[i + 1].start()
+                if i + 1 < len(sec_matches)
+                else max(body_local_start, rule_text.rfind("}"))
+            )
+            sections.append(
+                {
+                    "name": sec_name,
+                    "token_text": token_text,
+                    "token_start": token_local_start,
+                    "token_end": token_local_end,
+                    "body_start": body_local_start,
+                    "body_end": body_local_end,
+                    "body": rule_text[body_local_start:body_local_end],
+                }
+            )
+
+        declared_event_vars: list[str] = []
+        declared_placeholder_vars: set[str] = set()
+        for sec in sections:
+            if sec["name"] in ("events", "strings"):
+                for ev_m in _YARAL2_EVENT_FIELD_RE.finditer(sec["body"]):
+                    vname = ev_m.group(1)
+                    if vname not in declared_event_vars:
+                        declared_event_vars.append(vname)
+                for ph_m in _YARAL2_PLACEHOLDER_RHS_RE.finditer(sec["body"]):
+                    declared_placeholder_vars.add(ph_m.group(1))
+                for ph_m in _YARAL2_PLACEHOLDER_LHS_RE.finditer(sec["body"]):
+                    declared_placeholder_vars.add(ph_m.group(1))
+
+        rule_defects: list[dict[str, Any]] = []
+
+        # (a) Standard YARA 'strings:' section used instead of YARA-L 2.0 'events:'
+        for sec in sections:
+            if sec["name"] == "strings":
+                local_start = int(sec["token_start"])
+                local_end = int(sec["token_end"])
+                quote = rule_text[local_start:local_end]
+                rule_defects.append(
+                    {
+                        "local_start": local_start,
+                        "local_end": local_end,
+                        "defect_type": "yara_strings_section",
+                        "quote": quote,
+                        "replacement": "events:",
+                        "invalid_field": quote,
+                        "canonical_field": "events:",
+                        "comment": (
+                            f"Deterministic YARA-L 2.0 (YL2) Syntax Check in rule '{rule_name}': "
+                            "'strings:' is a standard YARA section for file/payload byte-pattern "
+                            "matching, not a valid Chronicle SIEM YARA-L 2.0 (YL2) UDM event "
+                            f"detection rule section. Replace '{quote}' with 'events:' ({yaral2_doc_url})."
+                        ),
+                    }
+                )
+
+        # (b) Event-variable-prefixed invalid UDM fields ($<var>.<field_path>)
+        for ev_m in _YARAL2_EVENT_FIELD_RE.finditer(rule_text):
+            var_name = ev_m.group(1)
+            field_path = ev_m.group(2)
+            canonical_field = CANONICAL_UDM_FIELD_CORRECTIONS.get(field_path)
+            if not canonical_field or canonical_field == field_path:
+                continue
+            local_start = ev_m.start(0)
+            local_end = ev_m.end(0)
+            quote = f"${var_name}.{field_path}"
+            replacement = f"${var_name}.{canonical_field}"
+            rule_defects.append(
+                {
+                    "local_start": local_start,
+                    "local_end": local_end,
+                    "defect_type": "invalid_udm_field",
+                    "event_var": f"${var_name}",
+                    "quote": quote,
+                    "replacement": replacement,
+                    "invalid_field": field_path,
+                    "canonical_field": canonical_field,
+                    "comment": (
+                        f"Deterministic YARA-L 2.0 (YL2) UDM Schema Check in rule '{rule_name}': "
+                        f"'{quote}' references non-canonical Chronicle UDM field '{field_path}'. "
+                        f"Use '{replacement}' ({udm_doc_url})."
+                    ),
+                }
+            )
+
+        # (c) Undeclared event variable in 'condition:' section
+        if len(declared_event_vars) == 1:
+            canonical_ev = declared_event_vars[0]
+            for sec in sections:
+                if sec["name"] != "condition":
+                    continue
+                for cm in _YARAL2_COND_VAR_RE.finditer(sec["body"]):
+                    sigil = cm.group(1)
+                    cond_var = cm.group(2)
+                    if (
+                        cond_var in declared_event_vars
+                        or cond_var in declared_placeholder_vars
+                    ):
+                        continue
+                    local_start = int(sec["body_start"]) + cm.start(0)
+                    local_end = int(sec["body_start"]) + cm.end(0)
+                    quote = f"{sigil}{cond_var}"
+                    replacement = f"{sigil}{canonical_ev}"
+                    rule_defects.append(
+                        {
+                            "local_start": local_start,
+                            "local_end": local_end,
+                            "defect_type": "condition_variable_mismatch",
+                            "quote": quote,
+                            "replacement": replacement,
+                            "invalid_field": quote,
+                            "canonical_field": replacement,
+                            "comment": (
+                                f"Deterministic YARA-L 2.0 (YL2) Condition Binding Check in rule '{rule_name}': "
+                                f"condition references undeclared event variable '{quote}', while the events "
+                                f"section binds '${canonical_ev}'. Replace '{quote}' with "
+                                f"'{replacement}' ({yaral2_doc_url})."
+                            ),
+                        }
+                    )
+
+        if not rule_defects:
+            continue
+
+        rule_defects.sort(key=lambda d: int(d["local_start"]))
+
+        # Build repaired_rule_text by applying local replacements back-to-front
+        repaired_rule = rule_text
+        for defect in sorted(
+            rule_defects, key=lambda d: int(d["local_start"]), reverse=True
+        ):
+            l_start = int(defect["local_start"])
+            l_end = int(defect["local_end"])
+            repaired_rule = (
+                repaired_rule[:l_start]
+                + str(defect["replacement"])
+                + repaired_rule[l_end:]
+            )
+        repaired_rule = _normalize_yaral2_re_regex_calls(repaired_rule)
+        retrohunt_query, retrohunt_clauses = _extract_retrohunt_udm_query_from_yaral2(
+            repaired_rule
+        )
+
+        for defect in rule_defects:
+            abs_start = rule_char_start + int(defect["local_start"])
+            abs_end = rule_char_start + int(defect["local_end"]) - 1
+            start_idx = index_map[abs_start]
+            end_idx = index_map[abs_end] + _utf16_code_unit_len(plain_text[abs_end])
+            quote = str(defect["quote"])
+            replacement = str(defect["replacement"])
+            comment_text = str(defect["comment"])
+
+            comments.append(
+                {
+                    "start_index": start_idx,
+                    "end_index": end_idx,
+                    "quote": quote,
+                    "comment": comment_text,
+                }
+            )
+            edits.append(
+                {
+                    "start_index": start_idx,
+                    "end_index": end_idx,
+                    "quote": quote,
+                    "replacement": replacement,
+                }
+            )
+            findings.append(
+                {
+                    "rule_name": rule_name,
+                    "defect_type": defect["defect_type"],
+                    "invalid_field": defect["invalid_field"],
+                    "canonical_field": defect["canonical_field"],
+                    "quote": quote,
+                    "replacement": replacement,
+                    "start_index": start_idx,
+                    "end_index": end_idx,
+                    "original_rule_text": rule_text,
+                    "repaired_rule_text": repaired_rule,
+                    "retrohunt_udm_query": retrohunt_query,
+                    "retrohunt_clauses": retrohunt_clauses,
+                }
+            )
+
+    return comments, edits, findings
+
+
+def _strip_non_ascii_symbols(text: str) -> str:
+    """Strips non-ASCII symbols/pictographs from upstream MCP responses."""
+    cleaned = "".join(ch for ch in text if ord(ch) < 128)
+    return re.sub(r"[ \t]{2,}", " ", cleaned).strip()
+
+
+def _parse_siem_validate_output(raw_res: Any) -> dict[str, Any]:
+    """Normalizes an MCP or Python ``validate_rule`` response into a dictionary."""
+    if isinstance(raw_res, dict):
+        if "content" in raw_res and isinstance(raw_res["content"], list):
+            for block in raw_res["content"]:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    text = _strip_non_ascii_symbols(str(block.get("text") or ""))
+                    passed = (
+                        "rule validation passed" in text.lower()
+                        or "appears to be valid" in text.lower()
+                    )
+                    return {"compiler_verified": passed, "compiler_output": text}
+        if "success" in raw_res or "isValid" in raw_res:
+            passed = bool(raw_res.get("success") or raw_res.get("isValid"))
+            msg = _strip_non_ascii_symbols(
+                str(raw_res.get("message") or raw_res.get("compiler_output") or raw_res)
+            )
+            return {"compiler_verified": passed, "compiler_output": msg}
+    if isinstance(raw_res, str):
+        cleaned = _strip_non_ascii_symbols(raw_res)
+        passed = (
+            "rule validation passed" in cleaned.lower()
+            or "appears to be valid" in cleaned.lower()
+        )
+        return {"compiler_verified": passed, "compiler_output": cleaned}
+    return {
+        "compiler_verified": False,
+        "compiler_output": _strip_non_ascii_symbols(str(raw_res)),
+    }
+
+
+def verify_yaral2_rule_with_siem(
+    rule_text: str,
+    *,
+    run_retrohunt_check: bool = True,
+    start_time: str = "2026-02-07T00:00:00Z",
+    end_time: str = "2026-02-08T00:00:00Z",
+    max_events: int = 10,
+    siem_validate_fn: Any = None,
+    siem_search_fn: Any = None,
+) -> dict[str, Any]:
+    """Repairs a candidate YARA-L 2.0 (``YL2``) rule, compiles it via Chronicle ``validate_rule``,
+    and dry-runs its ``events:`` predicates against historical Chronicle UDM telemetry.
+    """
+    synthetic_map = _build_utf16_index_map(rule_text)
+    _comments, _edits, findings = find_yaral2_rule_spans(rule_text, synthetic_map)
+
+    blocks = _iter_yaral2_rule_blocks(rule_text)
+    rule_name = blocks[0]["rule_name"] if blocks else "unknown_rule"
+
+    if findings:
+        repaired_rule_text = str(findings[0]["repaired_rule_text"])
+        retrohunt_udm_query = str(findings[0]["retrohunt_udm_query"])
+        retrohunt_clauses = list(findings[0].get("retrohunt_clauses") or [])
+    else:
+        repaired_rule_text = _normalize_yaral2_re_regex_calls(rule_text)
+        retrohunt_udm_query, retrohunt_clauses = (
+            _extract_retrohunt_udm_query_from_yaral2(repaired_rule_text)
+        )
+
+    compiler_verified = False
+    compiler_output = ""
+    try:
+        if siem_validate_fn is not None:
+            try:
+                raw_val = siem_validate_fn(rule_text=repaired_rule_text)
+            except TypeError:
+                raw_val = siem_validate_fn(repaired_rule_text)
+        else:
+            from .tools import execute_mcp_tool
+
+            raw_val = execute_mcp_tool(
+                "secops-mcp_validate_rule",
+                {"rule_text": repaired_rule_text},
+            )
+        parsed_val = _parse_siem_validate_output(raw_val)
+        compiler_verified = bool(parsed_val["compiler_verified"])
+        compiler_output = str(parsed_val["compiler_output"])
+    except Exception as err:
+        compiler_verified = False
+        compiler_output = f"Chronicle validate_rule call failed: {err}"
+
+    retrohunt_verified = False
+    retrohunt_event_count = 0
+    retrohunt_res: dict[str, Any] = {}
+    retrohunt_initial_zero_hit_query: str | None = None
+
+    if run_retrohunt_check and retrohunt_udm_query:
+        retrohunt_res = verify_udm_query_with_siem(
+            retrohunt_udm_query,
+            start_time=start_time,
+            end_time=end_time,
+            max_events=max_events,
+            siem_search_fn=siem_search_fn,
+        )
+        retrohunt_verified = bool(retrohunt_res.get("siem_verified"))
+        retrohunt_event_count = int(retrohunt_res.get("event_count", 0) or 0)
+
+        # If a multi-clause GCP Cloud Audit query yields 0 hits due to a restrictive
+        # target.resource.name literal (where SetIamPolicy stores project scope under
+        # target.cloud.project.name), pivot to the remaining core clauses.
+        if (
+            retrohunt_verified
+            and retrohunt_event_count == 0
+            and len(retrohunt_clauses) >= 2
+            and any(c.startswith("target.resource.name =") for c in retrohunt_clauses)
+        ):
+            relaxed_clauses = [
+                c
+                for c in retrohunt_clauses
+                if not c.startswith("target.resource.name =")
+            ]
+            if relaxed_clauses:
+                relaxed_query = " AND ".join(relaxed_clauses)
+                relaxed_res = verify_udm_query_with_siem(
+                    relaxed_query,
+                    start_time=start_time,
+                    end_time=end_time,
+                    max_events=max_events,
+                    siem_search_fn=siem_search_fn,
+                )
+                if relaxed_res.get("siem_verified") and int(
+                    relaxed_res.get("event_count", 0) or 0
+                ) > 0:
+                    retrohunt_initial_zero_hit_query = retrohunt_udm_query
+                    retrohunt_udm_query = relaxed_query
+                    retrohunt_event_count = int(relaxed_res.get("event_count", 0) or 0)
+                    retrohunt_res = relaxed_res
+
+    result: dict[str, Any] = {
+        "status": "success" if compiler_verified else "error",
+        "rule_name": rule_name,
+        "original_rule_text": rule_text,
+        "repaired_rule_text": repaired_rule_text,
+        "findings": findings,
+        "compiler_verified": compiler_verified,
+        "compiler_output": compiler_output,
+        "retrohunt_udm_query": retrohunt_udm_query,
+        "retrohunt_verified": retrohunt_verified,
+        "retrohunt_event_count": retrohunt_event_count,
+        "retrohunt_response": retrohunt_res,
+    }
+    if retrohunt_initial_zero_hit_query is not None:
+        result["retrohunt_initial_zero_hit_query"] = retrohunt_initial_zero_hit_query
+    return result
+
+
+def verify_and_redline_yaral2_rules_in_doc(
+    document_id: str,
+    *,
+    run_live_siem_check: bool = False,
+    start_time: str = "2026-02-07T00:00:00Z",
+    end_time: str = "2026-02-08T00:00:00Z",
+    max_events: int = 10,
+    udm_doc_url: str = DEFAULT_UDM_FIELD_LIST_URL,
+    yaral2_doc_url: str = DEFAULT_YARAL2_DOC_URL,
+    siem_validate_fn: Any = None,
+    siem_search_fn: Any = None,
+    tool_context: Any = None,
+    token_source: TokenSource | None = None,
+    quota_project: str | None = None,
+    transport: httpx.BaseTransport | None = None,
+) -> dict[str, Any]:
+    """Lints YARA-L 2.0 (``YL2``) rules in a Google Doc, optionally compiles and retrohunts them
+    in Chronicle SIEM, and stages non-destructive Suggested Edits (``writeMode="SUGGEST"``).
+
+    1. Calls :func:`read_google_doc` to populate the 1-based UTF-16 character index map
+       and ``pending_suggestion_spans``.
+    2. Calls :func:`find_yaral2_rule_spans` and skips any span that overlaps an existing
+       pending suggestion (guaranteeing multi-pass idempotency).
+    3. When ``run_live_siem_check=True`` (or ``siem_validate_fn`` / ``siem_search_fn`` is
+       provided), verifies each repaired YARA-L 2.0 rule via :func:`verify_yaral2_rule_with_siem`
+       and enriches the anchored Google Docs comments with compiler and retrohunt results.
+    4. Anchors comments first via :func:`insert_doc_comments` and stages descending-index
+       Suggested Edits second via :func:`propose_doc_suggested_edits` (``writeMode="SUGGEST"``).
+    """
+    read_res = read_google_doc(
+        document_id,
+        tool_context=tool_context,
+        token_source=token_source,
+        quota_project=quota_project,
+        transport=transport,
+    )
+    if read_res.get("status") != "success":
+        return read_res
+
+    plain_text, index_map = _load_doc_index_state(document_id, tool_context=tool_context)
+    if plain_text is None or index_map is None:
+        return {
+            "status": "error",
+            "message": "Failed to load UTF-16 index map after read_google_doc.",
+        }
+
+    raw_comments, raw_edits, raw_findings = find_yaral2_rule_spans(
+        plain_text,
+        index_map,
+        udm_doc_url=udm_doc_url,
+        yaral2_doc_url=yaral2_doc_url,
+    )
+    pending_spans = _load_doc_pending_suggestion_spans(
+        document_id, tool_context=tool_context
+    )
+
+    comments: list[dict[str, Any]] = []
+    edits: list[dict[str, Any]] = []
+    findings: list[dict[str, Any]] = []
+    skipped_existing_suggestion_count = 0
+    for c_item, e_item, f_item in zip(raw_comments, raw_edits, raw_findings):
+        f_span = (int(f_item["start_index"]), int(f_item["end_index"]))
+        if any(_spans_overlap(f_span, p_span) for p_span in pending_spans):
+            skipped_existing_suggestion_count += 1
+            continue
+        comments.append(c_item)
+        edits.append(e_item)
+        findings.append(f_item)
+
+    siem_rule_checks: list[dict[str, Any]] = []
+    if (
+        run_live_siem_check
+        or siem_validate_fn is not None
+        or siem_search_fn is not None
+    ) and findings:
+        rule_cache: dict[str, dict[str, Any]] = {}
+        for idx, finding in enumerate(findings):
+            r_name = str(finding.get("rule_name") or "")
+            orig_rule = str(finding.get("original_rule_text") or "")
+            cache_key = r_name or orig_rule
+            if cache_key not in rule_cache:
+                rule_check = verify_yaral2_rule_with_siem(
+                    orig_rule,
+                    run_retrohunt_check=True,
+                    start_time=start_time,
+                    end_time=end_time,
+                    max_events=max_events,
+                    siem_validate_fn=siem_validate_fn,
+                    siem_search_fn=siem_search_fn,
+                )
+                rule_cache[cache_key] = rule_check
+                siem_rule_checks.append(rule_check)
+            else:
+                rule_check = rule_cache[cache_key]
+
+            if rule_check.get("compiler_verified"):
+                comments[idx]["comment"] = (
+                    f"{comments[idx]['comment']} "
+                    f"[Chronicle YARA-L 2.0 Compiler Verified: PASSED | "
+                    f"Retrohunt Dry-Run: query='{rule_check['retrohunt_udm_query']}', "
+                    f"events_matched={rule_check['retrohunt_event_count']}]"
+                )
+
+    comments_res: dict[str, Any] = {
+        "status": "skipped",
+        "inserted_count": 0,
+        "comment_ids": [],
+    }
+    if comments:
+        comments_res = insert_doc_comments(
+            document_id,
+            comments,
+            tool_context=tool_context,
+            token_source=token_source,
+            quota_project=quota_project,
+            transport=transport,
+        )
+        if comments_res.get("status") != "success":
+            return {
+                "status": "error",
+                "message": f"insert_doc_comments failed: {comments_res.get('message')}",
+                "comments": comments_res,
+            }
+
+    edits_res: dict[str, Any] = {"status": "skipped", "applied_count": 0}
+    if edits:
+        edits_res = propose_doc_suggested_edits(
+            document_id,
+            edits,
+            tool_context=tool_context,
+            token_source=token_source,
+            quota_project=quota_project,
+            transport=transport,
+        )
+        if edits_res.get("status") != "success":
+            return {
+                "status": "error",
+                "message": f"propose_doc_suggested_edits failed: {edits_res.get('message')}",
+                "comments": comments_res,
+                "edits": edits_res,
+            }
+
+    return {
+        "status": "success",
+        "document_id": document_id,
+        "title": read_res.get("title", ""),
+        "char_count": read_res.get("char_count", 0),
+        "yaral2_findings_count": len(findings),
+        "skipped_existing_suggestion_count": skipped_existing_suggestion_count,
+        "findings": findings,
+        "siem_rule_checks": siem_rule_checks,
+        "comments": comments_res,
+        "edits": edits_res,
+    }
+
+
 def _resolve_item_span(
     plain_text: str, index_map: list[int], item: dict[str, Any]
 ) -> tuple[int, int] | None:
@@ -1498,6 +2222,7 @@ def review_google_doc_with_stage_a(
     tool_context: Any = None,
     *,
     include_udm_stage_a: bool = True,
+    include_yaral2_stage_a: bool = True,
     token_source: TokenSource | None = None,
     quota_project: str | None = None,
     transport: httpx.BaseTransport | None = None,
@@ -1506,11 +2231,13 @@ def review_google_doc_with_stage_a(
 
     1. Calls :func:`read_google_doc` to populate the 1-based UTF-16 index map
        and ``pending_suggestion_spans``.
-    2. Runs Stage A (:func:`find_deterministic_indicator_spans` and, when
-       ``include_udm_stage_a=True``, :func:`find_udm_field_spans`) to locate any
-       live untrusted URLs and unprefixed/hallucinated Chronicle UDM fields by
-       numeric UTF-16 span without echoing them through an LLM.
-    3. Deduplicates Stage A UDM spans against overlapping Stage B
+    2. Runs Stage A (:func:`find_deterministic_indicator_spans`,
+       :func:`find_udm_field_spans` when ``include_udm_stage_a=True``, and
+       :func:`find_yaral2_rule_spans` when ``include_yaral2_stage_a=True``) to
+       locate live untrusted URLs, standalone Chronicle UDM field defects, and
+       YARA-L 2.0 rule defects by numeric UTF-16 span without echoing them
+       through an LLM.
+    3. Deduplicates Stage A UDM and YARA-L 2.0 spans against overlapping Stage B
        ``semantic_comments`` and ``semantic_edits`` and skips any span that
        overlaps an existing pending suggestion (multi-pass idempotency).
     4. Anchors all comments first via :func:`insert_doc_comments`.
@@ -1548,6 +2275,17 @@ def review_google_doc_with_stage_a(
     except json.JSONDecodeError as err:
         return {"status": "error", "message": f"Invalid semantic review JSON: {err}"}
 
+    existing_comment_spans = [
+        sp
+        for item in (stage_a_comments + stage_b_comments)
+        if (sp := _resolve_item_span(plain_text, index_map, item)) is not None
+    ]
+    existing_edit_spans = [
+        sp
+        for item in (stage_a_edits + stage_b_edits)
+        if (sp := _resolve_item_span(plain_text, index_map, item)) is not None
+    ]
+
     stage_a_udm_count = 0
     deduped_udm_comments: list[dict[str, Any]] = []
     deduped_udm_edits: list[dict[str, Any]] = []
@@ -1556,16 +2294,6 @@ def review_google_doc_with_stage_a(
             plain_text, index_map
         )
         stage_a_udm_count = len(udm_findings)
-        existing_comment_spans = [
-            sp
-            for item in (stage_a_comments + stage_b_comments)
-            if (sp := _resolve_item_span(plain_text, index_map, item)) is not None
-        ]
-        existing_edit_spans = [
-            sp
-            for item in (stage_a_edits + stage_b_edits)
-            if (sp := _resolve_item_span(plain_text, index_map, item)) is not None
-        ]
         for c_item in udm_comments:
             c_span = (c_item["start_index"], c_item["end_index"])
             if not any(_spans_overlap(c_span, ex) for ex in existing_comment_spans):
@@ -1577,8 +2305,37 @@ def review_google_doc_with_stage_a(
                 deduped_udm_edits.append(e_item)
                 existing_edit_spans.append(e_span)
 
-    raw_all_comments = stage_a_comments + deduped_udm_comments + stage_b_comments
-    raw_all_edits = stage_a_edits + deduped_udm_edits + stage_b_edits
+    stage_a_yaral2_count = 0
+    deduped_yaral2_comments: list[dict[str, Any]] = []
+    deduped_yaral2_edits: list[dict[str, Any]] = []
+    if include_yaral2_stage_a:
+        yl2_comments, yl2_edits, yl2_findings = find_yaral2_rule_spans(
+            plain_text, index_map
+        )
+        stage_a_yaral2_count = len(yl2_findings)
+        for c_item in yl2_comments:
+            c_span = (c_item["start_index"], c_item["end_index"])
+            if not any(_spans_overlap(c_span, ex) for ex in existing_comment_spans):
+                deduped_yaral2_comments.append(c_item)
+                existing_comment_spans.append(c_span)
+        for e_item in yl2_edits:
+            e_span = (e_item["start_index"], e_item["end_index"])
+            if not any(_spans_overlap(e_span, ex) for ex in existing_edit_spans):
+                deduped_yaral2_edits.append(e_item)
+                existing_edit_spans.append(e_span)
+
+    raw_all_comments = (
+        stage_a_comments
+        + deduped_udm_comments
+        + deduped_yaral2_comments
+        + stage_b_comments
+    )
+    raw_all_edits = (
+        stage_a_edits
+        + deduped_udm_edits
+        + deduped_yaral2_edits
+        + stage_b_edits
+    )
 
     all_comments: list[dict[str, Any]] = []
     for c_item in raw_all_comments:
@@ -1642,6 +2399,7 @@ def review_google_doc_with_stage_a(
         "char_count": read_res.get("char_count", 0),
         "stage_a_url_count": len(stage_a_edits),
         "stage_a_udm_count": stage_a_udm_count,
+        "stage_a_yaral2_count": stage_a_yaral2_count,
         "skipped_existing_suggestion_count": skipped_existing_suggestion_count,
         "comments": comments_res,
         "edits": edits_res,
@@ -1722,6 +2480,7 @@ def stage_runbook_update_as_google_doc(
         "char_count": review_res.get("char_count", 0),
         "stage_a_url_count": review_res.get("stage_a_url_count", 0),
         "stage_a_udm_count": review_res.get("stage_a_udm_count", 0),
+        "stage_a_yaral2_count": review_res.get("stage_a_yaral2_count", 0),
         "comments": review_res.get("comments", {}),
         "edits": review_res.get("edits", {}),
         "message": review_res.get("message", ""),
