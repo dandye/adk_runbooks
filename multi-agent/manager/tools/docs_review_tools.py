@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import difflib
 import hashlib
+import ipaddress
 import json
 import logging
 import os
@@ -485,6 +486,32 @@ _YARAL2_OUTCOME_FUNC_CALL_RE = re.compile(
 )
 _YARAL2_COND_NOT_VAR_RE = re.compile(
     r"(?i)\b(not)[ \t]+([#$])([A-Za-z_][A-Za-z0-9_]*)(?!\.)"
+)
+_YARAL2_CIDR_CALL_RE = re.compile(
+    r"(?<![A-Za-z0-9_.])(net\.ip_in_range_cidr|ip_in_range_cidr|cidrmatch|cidr_match|ipv4_is_in_range|in_cidr)\s*\(\s*"
+    r"(?:"
+    r"\$([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_.]*)\s*,\s*(\"[^\r\n\"]+\"|'[^\r\n']+'|“[^\r\n”]+”)"
+    r"|"
+    r"(\"[^\r\n\"]+\"|'[^\r\n']+'|“[^\r\n”]+”)\s*,\s*\$([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_.]*)"
+    r")\s*\)",
+    re.IGNORECASE,
+)
+_UDM_CIDR_CLAUSE_RE = re.compile(
+    r"(?<![A-Za-z0-9_.$-])net\.ip_in_range_cidr\s*\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*,\s*(\"[^\r\n\"]+\"|'[^\r\n']+'|“[^\r\n”]+”)\s*\)",
+    re.IGNORECASE,
+)
+_YARAL2_CASE_WHEN_RE = re.compile(
+    r"^case\s+when\s+(.*?)\s+then\s+(.*?)\s+else\s+(.*?)\s+end$",
+    re.IGNORECASE | re.DOTALL,
+)
+_YARAL2_IF_CALL_RE = re.compile(
+    r"^(if|iff|iif)\s*\((.*)\)$",
+    re.IGNORECASE | re.DOTALL,
+)
+_YARAL2_COND_OUTCOME_CMP_RE = re.compile(
+    r"\$([A-Za-z_][A-Za-z0-9_]*)(?!\.)"
+    r"([ \t]*(>=|<=|!=|==|=|>|<)[ \t]*)"
+    r"(-?\d+)(?![A-Za-z0-9_.])"
 )
 
 _FRONTMATTER_BLOCK_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n(.*)$", re.DOTALL)
@@ -2014,6 +2041,40 @@ def _parse_siem_search_output(raw_res: Any) -> dict[str, Any]:
     return {"raw_result": raw_res}
 
 
+def _ip_in_cidr(ip_str: str, cidr_str: str) -> bool:
+    """Returns True if ``ip_str`` is a valid IP address inside ``cidr_str``."""
+    try:
+        clean_ip = str(ip_str or "").strip().strip("\"'“”")
+        clean_cidr = str(cidr_str or "").strip().strip("\"'“”")
+        if not clean_ip or not clean_cidr:
+            return False
+        return ipaddress.ip_address(clean_ip) in ipaddress.ip_network(
+            clean_cidr, strict=False
+        )
+    except ValueError:
+        return False
+
+
+def _filter_udm_events_by_cidr_clauses(
+    events: list[dict[str, Any]], cidr_filters: list[tuple[str, str]]
+) -> list[dict[str, Any]]:
+    """Filters a list of Chronicle UDM event dicts by ``(canonical_field, cidr_str)`` pairs."""
+    if not cidr_filters:
+        return events
+    matched: list[dict[str, Any]] = []
+    for ev in events:
+        fmap = _extract_udm_event_field_values(ev)
+        ok = True
+        for c_field, cidr_val in cidr_filters:
+            obs_ips = fmap.get(c_field, [])
+            if not any(_ip_in_cidr(ip_v, cidr_val) for ip_v in obs_ips):
+                ok = False
+                break
+        if ok:
+            matched.append(ev)
+    return matched
+
+
 def verify_udm_query_with_siem(
     query: str,
     *,
@@ -2050,32 +2111,103 @@ def verify_udm_query_with_siem(
         )
         return canonical_field + match.group(0)[len(field_token) :]
 
-    repaired_query = _UDM_COMPARISON_RE.sub(_replace_clause, query)
+    def _replace_cidr_clause(match: re.Match[str]) -> str:
+        field_token = match.group(1)
+        cidr_lit = match.group(2)
+        canonical_field = CANONICAL_UDM_FIELD_CORRECTIONS.get(
+            field_token, field_token
+        )
+        if canonical_field != field_token:
+            replacements.append(
+                {
+                    "invalid_field": field_token,
+                    "canonical_field": canonical_field,
+                }
+            )
+        clean_cidr = cidr_lit.strip("\"'“”")
+        return f'net.ip_in_range_cidr({canonical_field}, "{clean_cidr}")'
 
-    try:
+    repaired_query = _UDM_COMPARISON_RE.sub(_replace_clause, query)
+    repaired_query = _UDM_CIDR_CLAUSE_RE.sub(_replace_cidr_clause, repaired_query)
+
+    def _exec_search(q_str: str, limit: int) -> dict[str, Any]:
         if siem_search_fn is not None:
             try:
-                raw_res = siem_search_fn(
-                    query=repaired_query,
+                raw_r = siem_search_fn(
+                    query=q_str,
                     start_time=start_time,
                     end_time=end_time,
-                    max_events=max_events,
+                    max_events=limit,
                 )
             except TypeError:
-                raw_res = siem_search_fn(repaired_query)
+                raw_r = siem_search_fn(q_str)
         else:
             from .tools import execute_mcp_tool
 
-            raw_res = execute_mcp_tool(
+            raw_r = execute_mcp_tool(
                 "secops-mcp_search_udm",
                 {
-                    "query": repaired_query,
+                    "query": q_str,
                     "start_time": start_time,
                     "end_time": end_time,
-                    "max_events": max_events,
+                    "max_events": limit,
                 },
             )
-        parsed = _parse_siem_search_output(raw_res)
+        return _parse_siem_search_output(raw_r)
+
+    try:
+        cidr_filters: list[tuple[str, str]] = [
+            (
+                CANONICAL_UDM_FIELD_CORRECTIONS.get(m.group(1), m.group(1)),
+                m.group(2).strip("\"'“”"),
+            )
+            for m in _UDM_CIDR_CLAUSE_RE.finditer(repaired_query)
+        ]
+        parsed: dict[str, Any] | None = None
+        try:
+            parsed = _exec_search(repaired_query, max_events)
+        except Exception:
+            if not cidr_filters:
+                raise
+            parsed = None
+
+        if cidr_filters and (
+            parsed is None
+            or ("error" in parsed and "events" not in parsed)
+        ):
+            stripped_q = _UDM_CIDR_CLAUSE_RE.sub("", repaired_query)
+            stripped_q = re.sub(
+                r"(?i)^\s*(?:AND|OR)\s+|\s+(?:AND|OR)\s*$", "", stripped_q
+            )
+            stripped_q = re.sub(
+                r"(?i)\b(?:AND|OR)\s+(?:AND|OR)\b", "AND", stripped_q
+            ).strip()
+            if not stripped_q:
+                first_f = cidr_filters[0][0]
+                stripped_q = f'{first_f} != ""'
+            fallback_parsed = _exec_search(stripped_q, max(max_events, 20))
+            if "error" not in fallback_parsed or "events" in fallback_parsed:
+                fb_events = fallback_parsed.get("events")
+                if isinstance(fb_events, list):
+                    filtered_events = _filter_udm_events_by_cidr_clauses(
+                        fb_events, cidr_filters
+                    )
+                    parsed = dict(fallback_parsed)
+                    parsed["events"] = filtered_events[:max_events]
+                    parsed["total_events"] = len(filtered_events)
+                else:
+                    parsed = fallback_parsed
+
+        if parsed is None:
+            return {
+                "status": "error",
+                "original_query": query,
+                "repaired_query": repaired_query,
+                "replacements": replacements,
+                "siem_verified": False,
+                "event_count": 0,
+                "message": "Chronicle SIEM UDM dry-run returned no response.",
+            }
         if "error" in parsed and "events" not in parsed:
             return {
                 "status": "error",
@@ -2210,9 +2342,48 @@ def extract_udm_query_clauses_from_text(
     excluded_spans = [(int(b["char_start"]), int(b["char_end"])) for b in rule_blocks]
 
     raw_clauses: list[dict[str, Any]] = []
+    cidr_spans: list[tuple[int, int]] = []
+    for cidr_m in _UDM_CIDR_CLAUSE_RE.finditer(plain_text):
+        c_start, c_end = cidr_m.start(0), cidr_m.end(0)
+        if any(max(c_start, r_start) < min(c_end, r_end) for r_start, r_end in excluded_spans):
+            continue
+        field_token = cidr_m.group(1)
+        if not _is_candidate_udm_field_token(field_token):
+            continue
+        cidr_spans.append((c_start, c_end))
+        f_char_start, f_char_end = cidr_m.start(1), cidr_m.end(1) - 1
+        rhs_char_start, rhs_char_end = cidr_m.start(2), cidr_m.end(2) - 1
+        clause_char_end = c_end - 1
+        raw_clauses.append(
+            {
+                "clause_text": cidr_m.group(0),
+                "field_token": field_token,
+                "canonical_field": CANONICAL_UDM_FIELD_CORRECTIONS.get(
+                    field_token, field_token
+                ),
+                "operator_raw": "net.ip_in_range_cidr",
+                "operator": "net.ip_in_range_cidr",
+                "rhs_raw": cidr_m.group(2),
+                "is_cidr_clause": True,
+                "char_start": c_start,
+                "char_end": c_end,
+                "clause_start_index": index_map[c_start],
+                "clause_end_index": index_map[clause_char_end]
+                + _utf16_code_unit_len(plain_text[clause_char_end]),
+                "field_start_index": index_map[f_char_start],
+                "field_end_index": index_map[f_char_end]
+                + _utf16_code_unit_len(plain_text[f_char_end]),
+                "rhs_start_index": index_map[rhs_char_start],
+                "rhs_end_index": index_map[rhs_char_end]
+                + _utf16_code_unit_len(plain_text[rhs_char_end]),
+            }
+        )
+
     for match in _UDM_COMPARISON_RE.finditer(plain_text):
         c_start, c_end = match.start(0), match.end(0)
         if any(max(c_start, r_start) < min(c_end, r_end) for r_start, r_end in excluded_spans):
+            continue
+        if any(max(c_start, cs) < min(c_end, ce) for cs, ce in cidr_spans):
             continue
         field_token = match.group(1)
         if not _is_candidate_udm_field_token(field_token):
@@ -2232,6 +2403,7 @@ def extract_udm_query_clauses_from_text(
                 "operator_raw": match.group(2),
                 "operator": match.group(2).strip(),
                 "rhs_raw": match.group(3),
+                "is_cidr_clause": False,
                 "char_start": c_start,
                 "char_end": c_end,
                 "clause_start_index": index_map[c_start],
@@ -2249,6 +2421,7 @@ def extract_udm_query_clauses_from_text(
     if not raw_clauses:
         return []
 
+    raw_clauses.sort(key=lambda c: int(c["char_start"]))
     grouped_queries: list[list[dict[str, Any]]] = [[raw_clauses[0]]]
     for clause in raw_clauses[1:]:
         prev_clause = grouped_queries[-1][-1]
@@ -2326,6 +2499,14 @@ def _shared_prefix_len(a: str, b: str) -> int:
     return idx
 
 
+def _format_canonical_udm_clause(c: dict[str, Any]) -> str:
+    """Formats a parsed UDM clause record into canonical UDM query text."""
+    if c.get("is_cidr_clause") or c.get("operator") == "net.ip_in_range_cidr":
+        clean_cidr = str(c["rhs_raw"]).strip("\"'“”")
+        return f'net.ip_in_range_cidr({c["canonical_field"]}, "{clean_cidr}")'
+    return f"{c['canonical_field']}{c['operator_raw']}{c['rhs_raw']}"
+
+
 def _reconstruct_udm_query_with_clause_overrides(
     query_text: str,
     clauses: list[dict[str, Any]],
@@ -2340,9 +2521,7 @@ def _reconstruct_udm_query_with_clause_overrides(
         for idx, c in enumerate(clauses):
             if idx == skip_index:
                 continue
-            kept_clauses.append(
-                f"{c['canonical_field']}{c['operator_raw']}{c['rhs_raw']}"
-            )
+            kept_clauses.append(_format_canonical_udm_clause(c))
         return " AND ".join(kept_clauses)
 
     out_parts: list[str] = []
@@ -2354,9 +2533,7 @@ def _reconstruct_udm_query_with_clause_overrides(
         if idx == override_index and override_clause_text is not None:
             out_parts.append(override_clause_text)
         else:
-            out_parts.append(
-                f"{c['canonical_field']}{c['operator_raw']}{c['rhs_raw']}"
-            )
+            out_parts.append(_format_canonical_udm_clause(c))
         cursor = c_end
     out_parts.append(query_text[cursor:])
     return "".join(out_parts)
@@ -2433,6 +2610,7 @@ def diagnose_zero_hit_udm_query(
             "pivot_verified": True,
             "pivot_event_count": initial_count,
             "observed_values": [],
+            "siem_response": initial_res.get("siem_response"),
         }
 
     extracted_queries = extract_udm_query_clauses_from_text(
@@ -3268,10 +3446,89 @@ def extract_yaral2_event_predicates(
             for cm in re.finditer(r"(?m)^[ \t]*//[^\r\n]*", sec_body)
         ]
         re_spans: list[tuple[int, int]] = []
+        cidr_spans: list[tuple[int, int]] = []
+
+        for cidr_match in _YARAL2_CIDR_CALL_RE.finditer(sec_body):
+            m_span = (cidr_match.start(), cidr_match.end())
+            if any(_spans_overlap(m_span, c_span) for c_span in comment_spans):
+                continue
+            cidr_spans.append(m_span)
+            func_name = cidr_match.group(1)
+            if cidr_match.group(2) is not None:
+                var_name = cidr_match.group(2)
+                field_token = cidr_match.group(3)
+                cidr_raw = cidr_match.group(4)
+                arg_order = "field_first"
+                local_var_field_start = b_start + cidr_match.start(2) - 1
+                local_var_field_end = b_start + cidr_match.end(3)
+                local_rhs_start = b_start + cidr_match.start(4)
+                local_rhs_end = b_start + cidr_match.end(4)
+            else:
+                cidr_raw = cidr_match.group(5)
+                var_name = cidr_match.group(6)
+                field_token = cidr_match.group(7)
+                arg_order = "cidr_first"
+                local_var_field_start = b_start + cidr_match.start(6) - 1
+                local_var_field_end = b_start + cidr_match.end(7)
+                local_rhs_start = b_start + cidr_match.start(5)
+                local_rhs_end = b_start + cidr_match.end(5)
+
+            event_var = f"${var_name}"
+            var_field_token = f"{event_var}.{field_token}"
+            canonical_field = CANONICAL_UDM_FIELD_CORRECTIONS.get(
+                field_token, field_token
+            )
+            cidr_value = cidr_raw.strip("\"'“”")
+            canonical_cidr_lit = f'"{cidr_value}"'
+            is_valid_cidr_syntax = bool(
+                func_name == "net.ip_in_range_cidr"
+                and arg_order == "field_first"
+                and cidr_raw == canonical_cidr_lit
+            )
+            canonical_yaral2_call = (
+                f"net.ip_in_range_cidr({event_var}.{canonical_field}, {canonical_cidr_lit})"
+            )
+            udm_clause = (
+                f"net.ip_in_range_cidr({canonical_field}, {canonical_cidr_lit})"
+            )
+            local_predicate_start = b_start + cidr_match.start(0)
+            local_predicate_end = b_start + cidr_match.end(0)
+
+            raw_items.append(
+                {
+                    "predicate_kind": "cidr",
+                    "predicate_text": rule_text[
+                        local_predicate_start:local_predicate_end
+                    ],
+                    "event_var": event_var,
+                    "var_field_token": var_field_token,
+                    "field_token": field_token,
+                    "canonical_field": canonical_field,
+                    "operator": "net.ip_in_range_cidr",
+                    "operator_raw": func_name,
+                    "cidr_function": func_name,
+                    "cidr_arg_order": arg_order,
+                    "is_valid_cidr_syntax": is_valid_cidr_syntax,
+                    "cidr_value": cidr_value,
+                    "canonical_yaral2_call": canonical_yaral2_call,
+                    "rhs_raw": cidr_raw,
+                    "regex_pattern": None,
+                    "has_nocase": False,
+                    "udm_clause": udm_clause,
+                    "local_predicate_start": local_predicate_start,
+                    "local_predicate_end": local_predicate_end,
+                    "local_var_field_start": local_var_field_start,
+                    "local_var_field_end": local_var_field_end,
+                    "local_rhs_start": local_rhs_start,
+                    "local_rhs_end": local_rhs_end,
+                }
+            )
 
         for re_match in _YARAL2_RE_REGEX_CALL_RE.finditer(sec_body):
             m_span = (re_match.start(), re_match.end())
             if any(_spans_overlap(m_span, c_span) for c_span in comment_spans):
+                continue
+            if any(_spans_overlap(m_span, cd_span) for cd_span in cidr_spans):
                 continue
             re_spans.append(m_span)
             var_name = re_match.group(1)
@@ -3338,6 +3595,8 @@ def extract_yaral2_event_predicates(
         for cmp_match in _YARAL2_EVENT_COMPARISON_RE.finditer(sec_body):
             c_span = (cmp_match.start(), cmp_match.end())
             if any(_spans_overlap(c_span, r_span) for r_span in re_spans):
+                continue
+            if any(_spans_overlap(c_span, cd_span) for cd_span in cidr_spans):
                 continue
             if any(_spans_overlap(c_span, cm_span) for cm_span in comment_spans):
                 continue
@@ -3513,6 +3772,161 @@ def _choose_yaral2_outcome_agg_func(
     return "array_distinct"
 
 
+def _split_top_level_comma_args(args_str: str) -> list[str]:
+    """Splits a function argument string by commas at parenthesis depth 0 outside quotes."""
+    parts: list[str] = []
+    cur_start = 0
+    depth = 0
+    in_quote = False
+    quote_ch = ""
+    escape = False
+    for idx, ch in enumerate(args_str):
+        if escape:
+            escape = False
+            continue
+        if ch == "\\":
+            escape = True
+            continue
+        if in_quote:
+            if ch == quote_ch:
+                in_quote = False
+            continue
+        if ch in ('"', "'", "`"):
+            in_quote = True
+            quote_ch = ch
+            continue
+        if ch == "(":
+            depth += 1
+        elif ch == ")" and depth > 0:
+            depth -= 1
+        elif ch == "," and depth == 0:
+            parts.append(args_str[cur_start:idx].strip())
+            cur_start = idx + 1
+    parts.append(args_str[cur_start:].strip())
+    return parts
+
+
+def _canonicalize_yaral2_expr_fields(expr_str: str) -> str:
+    """Canonicalizes ``$<var>.<field>`` UDM paths, CIDR calls, and ``re.regex`` calls inside an expression."""
+    if not expr_str:
+        return expr_str
+
+    def _replace_cidr(m: re.Match[str]) -> str:
+        if m.group(2) is not None:
+            v_n = m.group(2)
+            f_t = m.group(3)
+            c_r = m.group(4)
+        else:
+            c_r = m.group(5)
+            v_n = m.group(6)
+            f_t = m.group(7)
+        c_f = CANONICAL_UDM_FIELD_CORRECTIONS.get(f_t, f_t)
+        c_v = c_r.strip("\"'“”")
+        return f'net.ip_in_range_cidr(${v_n}.{c_f}, "{c_v}")'
+
+    step1 = _YARAL2_CIDR_CALL_RE.sub(_replace_cidr, expr_str)
+
+    def _replace_vf(m: re.Match[str]) -> str:
+        v_n = m.group(1)
+        f_p = m.group(2)
+        c_f = CANONICAL_UDM_FIELD_CORRECTIONS.get(f_p, f_p)
+        return f"${v_n}.{c_f}"
+
+    step2 = _YARAL2_EVENT_FIELD_RE.sub(_replace_vf, step1)
+    return _normalize_yaral2_re_regex_calls(step2)
+
+
+def _try_parse_numeric(val_str: str) -> int | float | None:
+    """Attempts to parse an integer or float literal from ``val_str``."""
+    s = str(val_str or "").strip()
+    if not s:
+        return None
+    try:
+        return int(s)
+    except ValueError:
+        try:
+            return float(s)
+        except ValueError:
+            return None
+
+
+def _parse_yaral2_conditional_expr(rhs_text: str) -> dict[str, Any] | None:
+    """Parses ``CASE WHEN <cond> THEN <t> ELSE <f> END``, ``iff(<cond>, <t>, <f>)``, and
+    ``if(<cond>, <t>, <f>)`` expressions (standalone or wrapped in an aggregation function)."""
+    stripped = str(rhs_text or "").strip()
+    if not stripped:
+        return None
+
+    outer_agg_func: str | None = None
+    canonical_outer_agg_func: str | None = None
+    inner_text = stripped
+
+    fn_m = _YARAL2_OUTCOME_FUNC_CALL_RE.match(stripped)
+    if fn_m is not None:
+        fn_name = fn_m.group(1)
+        fn_lower = fn_name.lower()
+        if fn_lower in VALID_YARAL2_OUTCOME_AGG_FUNCS:
+            outer_agg_func = fn_name
+            canonical_outer_agg_func = fn_lower
+            inner_text = fn_m.group(2).strip()
+        elif fn_lower in CANONICAL_YARAL2_OUTCOME_AGG_CORRECTIONS:
+            outer_agg_func = fn_name
+            canonical_outer_agg_func = CANONICAL_YARAL2_OUTCOME_AGG_CORRECTIONS[
+                fn_lower
+            ]
+            inner_text = fn_m.group(2).strip()
+
+    conditional_kind: str | None = None
+    is_valid_conditional_syntax = False
+    cond_raw = ""
+    true_raw = ""
+    false_raw = ""
+
+    cw_m = _YARAL2_CASE_WHEN_RE.match(inner_text)
+    if cw_m is not None:
+        conditional_kind = "case_when"
+        is_valid_conditional_syntax = False
+        cond_raw = cw_m.group(1).strip()
+        true_raw = cw_m.group(2).strip()
+        false_raw = cw_m.group(3).strip()
+    else:
+        if_m = _YARAL2_IF_CALL_RE.match(inner_text)
+        if if_m is not None:
+            kw = if_m.group(1)
+            kw_lower = kw.lower()
+            parts = _split_top_level_comma_args(if_m.group(2))
+            if len(parts) == 3:
+                conditional_kind = "if" if kw_lower == "if" else "iff"
+                is_valid_conditional_syntax = bool(kw == "if")
+                cond_raw, true_raw, false_raw = parts[0], parts[1], parts[2]
+
+    if conditional_kind is None:
+        return None
+
+    canonical_cond = _canonicalize_yaral2_expr_fields(cond_raw)
+    canonical_true = _canonicalize_yaral2_expr_fields(true_raw)
+    canonical_false = _canonicalize_yaral2_expr_fields(false_raw)
+    canonical_if_expr = (
+        f"if({canonical_cond}, {canonical_true}, {canonical_false})"
+    )
+
+    return {
+        "conditional_kind": conditional_kind,
+        "is_valid_conditional_syntax": is_valid_conditional_syntax,
+        "outer_agg_func": outer_agg_func,
+        "canonical_outer_agg_func": canonical_outer_agg_func,
+        "condition_expr": cond_raw,
+        "canonical_condition_expr": canonical_cond,
+        "true_expr": true_raw,
+        "false_expr": false_raw,
+        "canonical_true_expr": canonical_true,
+        "canonical_false_expr": canonical_false,
+        "true_value": _try_parse_numeric(true_raw),
+        "false_value": _try_parse_numeric(false_raw),
+        "canonical_if_expr": canonical_if_expr,
+    }
+
+
 def _find_top_level_outcome_lhs_matches(
     sec_body: str, comment_spans: list[tuple[int, int]]
 ) -> list[re.Match[str]]:
@@ -3624,8 +4038,8 @@ def extract_yaral2_multi_event_spec(
 ) -> dict[str, Any]:
     """Parses multi-line and Drive-collapsed single-line YARA-L 2.0 (``YL2``) rules into
     per-event-stream UDM queries, cross-event join bindings, ``match:`` clauses,
-    ``outcome:`` variable bindings, and ``condition:`` variable tokens (including
-    ``!$e2`` non-existence correlation) with exact 1-based UTF-16 spans.
+    ``outcome:`` variable bindings (including ``CASE WHEN`` / ``iff()`` / ``if()`` conditionals),
+    ``condition:`` variable tokens, and ``condition_outcome_comparisons`` with exact 1-based UTF-16 spans.
     """
     if full_plain_text is None:
         full_plain_text = rule_text
@@ -3656,8 +4070,10 @@ def extract_yaral2_multi_event_spec(
     outcome_vars: list[str] = []
     outcome_var_names: list[str] = []
     outcome_bindings: list[dict[str, Any]] = []
+    outcome_conditionals: list[dict[str, Any]] = []
     condition_tokens: list[dict[str, Any]] = []
     condition_negation_spans: list[dict[str, Any]] = []
+    condition_outcome_comparisons: list[dict[str, Any]] = []
     condition_span: dict[str, Any] | None = None
 
     for i, sm in enumerate(sec_matches):
@@ -3923,6 +4339,8 @@ def extract_yaral2_multi_event_spec(
                             CANONICAL_YARAL2_OUTCOME_AGG_CORRECTIONS[fn_lower]
                         )
 
+                cond_spec = _parse_yaral2_conditional_expr(rhs_text)
+
                 ref_event_vars: list[str] = []
                 ref_event_fields: list[dict[str, Any]] = []
                 for ef_m in _YARAL2_EVENT_FIELD_RE.finditer(rhs_text):
@@ -3955,6 +4373,23 @@ def extract_yaral2_multi_event_spec(
                 var_u_s, var_u_e = _to_utf16_span(local_var_start, local_var_end)
                 rhs_u_s, rhs_u_e = _to_utf16_span(local_rhs_start, local_rhs_end)
 
+                if cond_spec is not None:
+                    cond_spec_enriched = dict(cond_spec)
+                    cond_spec_enriched.update(
+                        {
+                            "outcome_var": out_var,
+                            "outcome_var_name": out_var_name,
+                            "rhs_text": rhs_text,
+                            "local_rhs_start": local_rhs_start,
+                            "local_rhs_end": local_rhs_end,
+                            "rhs_start_index": rhs_u_s,
+                            "rhs_end_index": rhs_u_e,
+                        }
+                    )
+                    outcome_conditionals.append(cond_spec_enriched)
+                else:
+                    cond_spec_enriched = None
+
                 outcome_bindings.append(
                     {
                         "binding_index": len(outcome_bindings),
@@ -3969,6 +4404,13 @@ def extract_yaral2_multi_event_spec(
                         "is_valid_agg_func": is_valid_agg_func,
                         "is_non_canonical_agg_func": is_non_canonical_agg_func,
                         "is_aggregated": is_aggregated,
+                        "is_conditional": bool(cond_spec_enriched is not None),
+                        "is_valid_conditional_syntax": (
+                            bool(cond_spec_enriched["is_valid_conditional_syntax"])
+                            if cond_spec_enriched is not None
+                            else True
+                        ),
+                        "conditional_spec": cond_spec_enriched,
                         "referenced_event_vars": ref_event_vars,
                         "referenced_event_fields": [
                             str(item["var_field_token"])
@@ -4100,6 +4542,56 @@ def extract_yaral2_multi_event_spec(
                     }
                 )
 
+            for oc_m in _YARAL2_COND_OUTCOME_CMP_RE.finditer(sec_body):
+                oc_span = (oc_m.start(), oc_m.end())
+                if any(_spans_overlap(oc_span, cs) for cs in comment_spans):
+                    continue
+                v_name = oc_m.group(1)
+                out_var = f"${v_name}"
+                op_raw = oc_m.group(2)
+                op_str = oc_m.group(3)
+                rhs_str = oc_m.group(4)
+                try:
+                    thresh_val = int(rhs_str)
+                except ValueError:
+                    continue
+                loc_cmp_s = b_start + oc_m.start(0)
+                loc_cmp_e = b_start + oc_m.end(0)
+                loc_var_s = b_start + oc_m.start(0)
+                loc_var_e = b_start + oc_m.end(1)
+                loc_rhs_s = b_start + oc_m.start(4)
+                loc_rhs_e = b_start + oc_m.end(4)
+                cmp_u_s, cmp_u_e = _to_utf16_span(loc_cmp_s, loc_cmp_e)
+                var_u_s, var_u_e = _to_utf16_span(loc_var_s, loc_var_e)
+                rhs_u_s, rhs_u_e = _to_utf16_span(loc_rhs_s, loc_rhs_e)
+                condition_outcome_comparisons.append(
+                    {
+                        "comparison_index": len(condition_outcome_comparisons),
+                        "comparison_text": rule_text[loc_cmp_s:loc_cmp_e],
+                        "outcome_var": out_var,
+                        "outcome_var_name": v_name,
+                        "is_declared_outcome_var": bool(
+                            v_name in outcome_var_names
+                        ),
+                        "operator": op_str,
+                        "operator_raw": op_raw,
+                        "threshold_raw": rhs_str,
+                        "threshold_value": thresh_val,
+                        "local_comparison_start": loc_cmp_s,
+                        "local_comparison_end": loc_cmp_e,
+                        "local_var_start": loc_var_s,
+                        "local_var_end": loc_var_e,
+                        "local_rhs_start": loc_rhs_s,
+                        "local_rhs_end": loc_rhs_e,
+                        "comparison_start_index": cmp_u_s,
+                        "comparison_end_index": cmp_u_e,
+                        "var_start_index": var_u_s,
+                        "var_end_index": var_u_e,
+                        "rhs_start_index": rhs_u_s,
+                        "rhs_end_index": rhs_u_e,
+                    }
+                )
+
     raw_join_bindings.sort(key=lambda item: int(item["local_binding_start"]))
     join_bindings: list[dict[str, Any]] = []
     for item in raw_join_bindings:
@@ -4169,8 +4661,10 @@ def extract_yaral2_multi_event_spec(
         "outcome_vars": outcome_vars,
         "outcome_var_names": outcome_var_names,
         "outcome_bindings": outcome_bindings,
+        "outcome_conditionals": outcome_conditionals,
         "condition_tokens": condition_tokens,
         "condition_negation_spans": condition_negation_spans,
+        "condition_outcome_comparisons": condition_outcome_comparisons,
         "condition_span": condition_span,
     }
 
@@ -4240,7 +4734,9 @@ def find_yaral2_rule_spans(
        YARA-L 2.0 / YL2 (Chronicle SIEM UDM event detection rules).
     2. Event-variable-prefixed invalid UDM fields (``$<var>.<field_path>`` in comparisons,
        join bindings, ``outcome:`` expressions, or inside YARA-L 2.0 function calls such as
-       ``re.regex($<var>.<field_path>, ...)``).
+       ``re.regex($<var>.<field_path>, ...)``) and non-canonical CIDR function calls
+       (``invalid_cidr_function_syntax``: ``cidrmatch(...)``, ``ipv4_is_in_range(...)``,
+       ``in_cidr(...)``, or reversed arguments -> ``net.ip_in_range_cidr($<var>.<canonical_field>, "<cidr>")``).
     3. Cross-event join semantic type contradictions (``cross_event_join_type_mismatch``) where
        two event streams bind the same join placeholder ``$<join_key>`` to incompatible UDM domains
        (e.g. ``$e1.principal.ip = $ip`` paired with ``$e2.principal.hostname = $ip``).
@@ -4249,8 +4745,11 @@ def find_yaral2_rule_spans(
        normalized to ``over <N><s|m|h|d>``).
     5. ``outcome:`` section non-YARA-L SQL/Splunk aggregation functions
        (``invalid_outcome_aggregation_function``: ``distinct_count`` -> ``count_distinct``,
-       ``collect_set`` -> ``array_distinct``, ``avg`` -> ``max``) and unaggregated event fields
-       in rules with a ``match:`` window (``unaggregated_outcome_in_match_rule``).
+       ``collect_set`` -> ``array_distinct``, ``avg`` -> ``max``), SQL/Splunk conditional
+       scoring expressions (``invalid_outcome_conditional_syntax``: ``CASE WHEN ... END`` and
+       ``iff(...)`` -> ``if(...)``, wrapped in ``max(if(...))`` when top-level in a ``match:``
+       rule), and unaggregated event fields in rules with a ``match:`` window
+       (``unaggregated_outcome_in_match_rule``).
     6. Single-event (``condition_variable_mismatch``), multi-event
        (``multi_event_condition_mismatch``), ``outcome:`` threshold variable
        (``condition_outcome_variable_mismatch``), and non-existence negation syntax
@@ -4377,6 +4876,44 @@ def find_yaral2_rule_spans(
                         f"Deterministic YARA-L 2.0 (YL2) UDM Schema Check in rule '{rule_name}': "
                         f"'{quote}' references non-canonical Chronicle UDM field '{field_path}'. "
                         f"Use '{replacement}' ({udm_doc_url})."
+                    ),
+                }
+            )
+
+        # (b2) Non-canonical CIDR function calls in events:/strings: (cidrmatch, ipv4_is_in_range, in_cidr, or reversed args)
+        for pred in multi_spec["predicates"]:
+            if pred.get("predicate_kind") != "cidr":
+                continue
+            if pred.get("is_valid_cidr_syntax"):
+                continue
+            local_start = int(pred["local_predicate_start"])
+            local_end = int(pred["local_predicate_end"])
+            quote = str(pred["predicate_text"])
+            replacement = str(pred["canonical_yaral2_call"])
+            cidr_fn = str(pred.get("cidr_function") or quote)
+            rule_defects = [
+                d
+                for d in rule_defects
+                if not _spans_overlap(
+                    (int(d["local_start"]), int(d["local_end"])),
+                    (local_start, local_end),
+                )
+            ]
+            rule_defects.append(
+                {
+                    "local_start": local_start,
+                    "local_end": local_end,
+                    "defect_type": "invalid_cidr_function_syntax",
+                    "event_var": str(pred["event_var"]),
+                    "quote": quote,
+                    "replacement": replacement,
+                    "invalid_field": cidr_fn,
+                    "canonical_field": "net.ip_in_range_cidr",
+                    "comment": (
+                        f"Deterministic YARA-L 2.0 (YL2) CIDR Function Check in rule '{rule_name}': "
+                        f"'{quote}' uses non-canonical CIDR function syntax '{cidr_fn}(...)'. "
+                        f"Chronicle YARA-L 2.0 requires 'net.ip_in_range_cidr(<udm_ip_field>, \"<cidr>\")'; "
+                        f"replace '{quote}' with '{replacement}' ({yaral2_doc_url})."
                     ),
                 }
             )
@@ -4516,11 +5053,71 @@ def find_yaral2_rule_spans(
                         }
                     )
 
-        # (d2) 'outcome:' section non-canonical aggregation functions and unaggregated fields in match rules
+        # (d2) 'outcome:' section non-canonical conditionals, aggregation functions, and unaggregated fields in match rules
         if multi_spec["outcome_bindings"]:
             has_match_section = bool(multi_spec["match_clauses"])
             for ob in multi_spec["outcome_bindings"]:
+                cond_spec = ob.get("conditional_spec")
                 if (
+                    isinstance(cond_spec, dict)
+                    and not cond_spec.get("is_valid_conditional_syntax", True)
+                ):
+                    local_start = int(ob["local_rhs_start"])
+                    local_end = int(ob["local_rhs_end"])
+                    quote = str(ob["rhs_text"])
+                    canon_if = str(cond_spec["canonical_if_expr"])
+                    if ob.get("canonical_func_name"):
+                        agg_fn = str(ob["canonical_func_name"])
+                        replacement = f"{agg_fn}({canon_if})"
+                    elif has_match_section:
+                        first_canon_field = (
+                            str(
+                                ob["referenced_event_field_specs"][0][
+                                    "canonical_field"
+                                ]
+                            )
+                            if ob["referenced_event_field_specs"]
+                            else ""
+                        )
+                        agg_fn = (
+                            "max"
+                            if (
+                                cond_spec.get("true_value") is not None
+                                or cond_spec.get("false_value") is not None
+                            )
+                            else _choose_yaral2_outcome_agg_func(
+                                str(ob["outcome_var_name"]), first_canon_field
+                            )
+                        )
+                        replacement = f"{agg_fn}({canon_if})"
+                    else:
+                        replacement = canon_if
+                    rule_defects = [
+                        d
+                        for d in rule_defects
+                        if not _spans_overlap(
+                            (int(d["local_start"]), int(d["local_end"])),
+                            (local_start, local_end),
+                        )
+                    ]
+                    rule_defects.append(
+                        {
+                            "local_start": local_start,
+                            "local_end": local_end,
+                            "defect_type": "invalid_outcome_conditional_syntax",
+                            "quote": quote,
+                            "replacement": replacement,
+                            "invalid_field": quote,
+                            "canonical_field": replacement,
+                            "comment": (
+                                f"Deterministic YARA-L 2.0 (YL2) Outcome Conditional Check in rule '{rule_name}': "
+                                f"outcome variable '{ob['outcome_var']}' uses SQL/Splunk conditional syntax "
+                                f"'{quote}'. Replace with canonical Chronicle YARA-L 2.0 conditional "
+                                f"'{replacement}' ({yaral2_doc_url})."
+                            ),
+                        }
+                    )
+                elif (
                     ob["is_non_canonical_agg_func"]
                     and ob.get("local_func_start") is not None
                     and ob.get("local_func_end") is not None
@@ -4555,22 +5152,19 @@ def find_yaral2_rule_spans(
                     local_start = int(ob["local_rhs_start"])
                     local_end = int(ob["local_rhs_end"])
                     quote = str(ob["rhs_text"])
-
-                    def _canon_rhs_field(m: re.Match[str]) -> str:
-                        v_n = m.group(1)
-                        f_p = m.group(2)
-                        c_f = CANONICAL_UDM_FIELD_CORRECTIONS.get(f_p, f_p)
-                        return f"${v_n}.{c_f}"
-
-                    canonical_rhs = _YARAL2_EVENT_FIELD_RE.sub(
-                        _canon_rhs_field, quote
-                    )
+                    canonical_rhs = _canonicalize_yaral2_expr_fields(quote)
                     first_canon_field = str(
                         ob["referenced_event_field_specs"][0]["canonical_field"]
                     )
-                    agg_func = _choose_yaral2_outcome_agg_func(
-                        str(ob["outcome_var_name"]), first_canon_field
-                    )
+                    if isinstance(cond_spec, dict) and (
+                        cond_spec.get("true_value") is not None
+                        or cond_spec.get("false_value") is not None
+                    ):
+                        agg_func = "max"
+                    else:
+                        agg_func = _choose_yaral2_outcome_agg_func(
+                            str(ob["outcome_var_name"]), first_canon_field
+                        )
                     replacement = f"{agg_func}({canonical_rhs})"
                     # Supersede any inner invalid_udm_field defect overlapping this RHS span
                     rule_defects = [
@@ -5383,6 +5977,604 @@ def _synthesize_yaral2_predicate_pivot(
     )
 
 
+def _evaluate_yaral2_atomic_cond_on_event_map(
+    atom_expr: str, em: dict[str, list[str]]
+) -> bool:
+    """Evaluates an atomic YARA-L 2.0 conditional predicate against a flattened UDM event map."""
+    expr = str(atom_expr or "").strip()
+    while expr.startswith("(") and expr.endswith(")"):
+        expr = expr[1:-1].strip()
+    if not expr:
+        return False
+
+    cidr_m = _YARAL2_CIDR_CALL_RE.search(expr)
+    if cidr_m is not None:
+        if cidr_m.group(2) is not None:
+            f_tok = cidr_m.group(3)
+            c_raw = cidr_m.group(4)
+        else:
+            c_raw = cidr_m.group(5)
+            f_tok = cidr_m.group(7)
+        canon_f = CANONICAL_UDM_FIELD_CORRECTIONS.get(f_tok, f_tok)
+        cidr_val = c_raw.strip("\"'“”")
+        vals = em.get(canon_f, [])
+        return any(_ip_in_cidr(v, cidr_val) for v in vals)
+
+    rx_m = _YARAL2_RE_REGEX_CALL_RE.search(expr)
+    if rx_m is not None:
+        f_tok = rx_m.group(2)
+        pat_lit = rx_m.group(3)
+        nocase_flag = bool((rx_m.group(4) or "").strip() or (rx_m.group(5) or "").strip())
+        canon_f = CANONICAL_UDM_FIELD_CORRECTIONS.get(f_tok, f_tok)
+        pat_str = pat_lit[1:-1] if len(pat_lit) >= 2 else pat_lit
+        flags = re.IGNORECASE if nocase_flag else 0
+        vals = em.get(canon_f, [])
+        try:
+            comp_re = re.compile(pat_str, flags)
+            return any(comp_re.search(v) is not None for v in vals)
+        except re.error:
+            return any(
+                (pat_str.lower() in v.lower() if nocase_flag else pat_str in v)
+                for v in vals
+            )
+
+    num_cmp_m = re.match(
+        r"^\$([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_.]*)\s*(>=|<=|!=|==|=|>|<)\s*(.+)$",
+        expr,
+    )
+    if num_cmp_m is not None:
+        f_tok = num_cmp_m.group(2)
+        op_str = num_cmp_m.group(3)
+        rhs_raw = num_cmp_m.group(4).strip()
+        nocase_suffix = False
+        if re.search(r"(?i)\s+nocase$", rhs_raw):
+            nocase_suffix = True
+            rhs_raw = re.sub(r"(?i)\s+nocase$", "", rhs_raw).strip()
+        canon_f = CANONICAL_UDM_FIELD_CORRECTIONS.get(f_tok, f_tok)
+        vals = em.get(canon_f, [])
+        rhs_num = _try_parse_numeric(rhs_raw)
+        if rhs_num is not None and op_str in (">=", "<=", ">", "<"):
+            for v in vals:
+                v_num = _try_parse_numeric(v)
+                if v_num is None:
+                    continue
+                if op_str == ">=" and v_num >= rhs_num:
+                    return True
+                if op_str == "<=" and v_num <= rhs_num:
+                    return True
+                if op_str == ">" and v_num > rhs_num:
+                    return True
+                if op_str == "<" and v_num < rhs_num:
+                    return True
+            return False
+        if rhs_raw.startswith("/") and (
+            rhs_raw.endswith("/") or rhs_raw.lower().endswith("/ nocase")
+        ):
+            pat_s = rhs_raw.strip()
+            nc = nocase_suffix
+            if pat_s.lower().endswith("nocase"):
+                nc = True
+                pat_s = pat_s[:-6].strip()
+            if pat_s.startswith("/") and pat_s.endswith("/") and len(pat_s) >= 2:
+                pat_s = pat_s[1:-1]
+            try:
+                cre = re.compile(pat_s, re.IGNORECASE if nc else 0)
+                matched = any(cre.search(v) is not None for v in vals)
+            except re.error:
+                matched = any(pat_s.lower() in v.lower() for v in vals)
+            return (not matched) if op_str == "!=" else matched
+
+        rhs_clean = rhs_raw.strip("\"'“”`")
+        if op_str in ("=", "=="):
+            if nocase_suffix:
+                return any(v.lower() == rhs_clean.lower() for v in vals)
+            return any(
+                v == rhs_clean or v.lower() == rhs_clean.lower() for v in vals
+            )
+        if op_str == "!=":
+            if not vals:
+                return False
+            return all(v.lower() != rhs_clean.lower() for v in vals)
+
+    return False
+
+
+def _evaluate_yaral2_condition_on_event_map(
+    cond_expr: str, em: dict[str, list[str]]
+) -> bool:
+    """Evaluates a (possibly compound ``and``/``or``) YARA-L 2.0 conditional expression
+    against a flattened UDM event map."""
+    expr = str(cond_expr or "").strip()
+    if not expr:
+        return False
+    or_parts = re.split(r"(?i)\s+\bor\b\s+", expr)
+    if len(or_parts) > 1:
+        return any(
+            _evaluate_yaral2_condition_on_event_map(part, em)
+            for part in or_parts
+        )
+    and_parts = re.split(r"(?i)\s+\band\b\s+", expr)
+    if len(and_parts) > 1:
+        return all(
+            _evaluate_yaral2_atomic_cond_on_event_map(part, em)
+            for part in and_parts
+        )
+    return _evaluate_yaral2_atomic_cond_on_event_map(expr, em)
+
+
+def _resolve_yaral2_branch_value_on_event_map(
+    branch_expr: str,
+    numeric_val: int | float | None,
+    em: dict[str, list[str]],
+) -> Any:
+    """Resolves a conditional true/false branch expression against a flattened UDM event map."""
+    if numeric_val is not None:
+        return numeric_val
+    expr = str(branch_expr or "").strip()
+    vf_m = _YARAL2_EVENT_FIELD_RE.match(expr)
+    if vf_m is not None:
+        f_tok = vf_m.group(2)
+        canon_f = CANONICAL_UDM_FIELD_CORRECTIONS.get(f_tok, f_tok)
+        vals = em.get(canon_f, [])
+        if vals:
+            parsed_n = _try_parse_numeric(vals[0])
+            return parsed_n if parsed_n is not None else vals[0]
+        return 0
+    return expr.strip("\"'“”`")
+
+
+def _compare_outcome_threshold(
+    empirical_val: int | float,
+    operator: str,
+    threshold_val: int | float,
+) -> bool:
+    """Returns True if ``empirical_val <operator> threshold_val`` holds."""
+    if operator == ">=":
+        return empirical_val >= threshold_val
+    if operator == ">":
+        return empirical_val > threshold_val
+    if operator == "<=":
+        return empirical_val <= threshold_val
+    if operator == "<":
+        return empirical_val < threshold_val
+    if operator in ("=", "=="):
+        return empirical_val == threshold_val
+    if operator == "!=":
+        return empirical_val != threshold_val
+    return False
+
+
+def evaluate_yaral2_outcome_thresholds(
+    rule_text: str,
+    siem_events_or_retrohunt: Any = None,
+    *,
+    siem_events: list[dict[str, Any]] | None = None,
+    retrohunt_result: dict[str, Any] | None = None,
+    multi_event_retrohunt: dict[str, Any] | None = None,
+    _orig_rule_text: str | None = None,
+) -> dict[str, Any]:
+    """Evaluates YARA-L 2.0 (``YL2``) ``outcome:`` aggregations (``count_distinct``, ``count``,
+    ``max``, ``min``, ``sum``, ``array_distinct``, ``array``, and ``if(...)`` conditionals)
+    against matched single-event or multi-event/non-existence SIEM UDM events and verifies
+    whether ``condition:`` outcome thresholds (e.g. ``$event_count >= 5``, ``$risk_score >= 95``)
+    are satisfied or suppress rule detections (``uncalibrated_outcome_threshold``).
+    """
+    orig_rule = _orig_rule_text if _orig_rule_text is not None else rule_text
+    orig_map = _build_utf16_index_map(orig_rule)
+    _c, _e, static_findings = find_yaral2_rule_spans(orig_rule, orig_map)
+    if static_findings:
+        repaired_rule_text = str(static_findings[0]["repaired_rule_text"])
+    else:
+        repaired_rule_text = _normalize_yaral2_re_regex_calls(rule_text)
+
+    blocks = _iter_yaral2_rule_blocks(orig_rule)
+    rule_name = blocks[0]["rule_name"] if blocks else "unknown_rule"
+
+    orig_spec = extract_yaral2_multi_event_spec(orig_rule)
+    rep_spec = extract_yaral2_multi_event_spec(repaired_rule_text)
+    event_vars: list[str] = list(rep_spec["event_vars"] or ["$e"])
+
+    source = (
+        siem_events_or_retrohunt
+        if siem_events_or_retrohunt is not None
+        else (
+            multi_event_retrohunt
+            if multi_event_retrohunt is not None
+            else (
+                retrohunt_result
+                if retrohunt_result is not None
+                else siem_events
+            )
+        )
+    )
+
+    per_event_filtered_maps: dict[str, list[dict[str, list[str]]]] = {
+        ev: [] for ev in event_vars
+    }
+    per_event_filtered_counts: dict[str, int] = {ev: 0 for ev in event_vars}
+    events_matched = 0
+
+    if isinstance(source, dict) and (
+        source.get("is_multi_event")
+        or isinstance(source.get("multi_event_retrohunt"), dict)
+        or isinstance(source.get("per_event_events"), dict)
+        or isinstance(source.get("per_event_event_maps"), dict)
+    ):
+        me_dict = (
+            source["multi_event_retrohunt"]
+            if isinstance(source.get("multi_event_retrohunt"), dict)
+            else source
+        )
+        raw_ev_maps = dict(me_dict.get("per_event_event_maps") or {})
+        raw_ev_events = dict(me_dict.get("per_event_events") or {})
+        raw_ev_resps = dict(me_dict.get("per_event_responses") or {})
+        raw_ev_counts = dict(me_dict.get("per_event_counts") or {})
+        shared_join_vals = list(me_dict.get("shared_join_values") or [])
+        shared_lower = {v.lower() for v in shared_join_vals}
+        join_ph = me_dict.get("join_placeholder")
+        j_bindings = list(
+            me_dict.get("join_bindings") or rep_spec["join_bindings"]
+        )
+        join_field_by_ev: dict[str, str] = {}
+        for jb in j_bindings:
+            if join_ph is None or str(jb.get("placeholder_var")) == str(join_ph):
+                join_field_by_ev[str(jb["event_var"])] = str(
+                    jb["canonical_field"]
+                )
+
+        for ev in event_vars:
+            ev_maps = list(raw_ev_maps.get(ev) or [])
+            if not ev_maps and ev in raw_ev_events:
+                for ev_obj in raw_ev_events[ev]:
+                    if isinstance(ev_obj, dict):
+                        ev_maps.append(_extract_udm_event_field_values(ev_obj))
+            if not ev_maps and ev in raw_ev_resps:
+                resp_events = (
+                    (raw_ev_resps[ev].get("siem_response") or {}).get("events")
+                    if isinstance(raw_ev_resps[ev], dict)
+                    else None
+                )
+                if isinstance(resp_events, list):
+                    for ev_obj in resp_events:
+                        if isinstance(ev_obj, dict):
+                            ev_maps.append(
+                                _extract_udm_event_field_values(ev_obj)
+                            )
+            j_field = join_field_by_ev.get(ev)
+            if shared_lower and j_field and ev_maps:
+                matched_maps = [
+                    em
+                    for em in ev_maps
+                    if any(
+                        v.lower() in shared_lower for v in em.get(j_field, [])
+                    )
+                ]
+                if matched_maps:
+                    ev_maps = matched_maps
+            per_event_filtered_maps[ev] = ev_maps
+            per_event_filtered_counts[ev] = (
+                len(ev_maps)
+                if ev_maps
+                else int(raw_ev_counts.get(ev, 0) or 0)
+            )
+
+        if "correlated_event_count" in me_dict:
+            events_matched = int(me_dict.get("correlated_event_count", 0) or 0)
+        else:
+            pos_evs = list(rep_spec.get("positive_event_vars") or event_vars)
+            events_matched = sum(
+                per_event_filtered_counts.get(ev, 0) for ev in pos_evs
+            )
+    else:
+        raw_events_list: list[dict[str, Any]] = []
+        explicit_count: int | None = None
+        if isinstance(source, list):
+            raw_events_list = [e for e in source if isinstance(e, dict)]
+        elif isinstance(source, dict):
+            if "siem_response" in source and isinstance(
+                source["siem_response"], dict
+            ):
+                ev_l = source["siem_response"].get("events")
+                if isinstance(ev_l, list):
+                    raw_events_list = [e for e in ev_l if isinstance(e, dict)]
+            elif "events" in source and isinstance(source["events"], list):
+                raw_events_list = [
+                    e for e in source["events"] if isinstance(e, dict)
+                ]
+            elif any(
+                k in source
+                for k in ("udm", "metadata", "principal", "target", "src")
+            ):
+                raw_events_list = [source]
+            if "event_count" in source:
+                explicit_count = int(source.get("event_count", 0) or 0)
+            elif "retrohunt_event_count" in source:
+                explicit_count = int(
+                    source.get("retrohunt_event_count", 0) or 0
+                )
+
+        ev_maps = [
+            _extract_udm_event_field_values(ev_obj)
+            for ev_obj in raw_events_list
+        ]
+        events_matched = (
+            explicit_count
+            if explicit_count is not None and explicit_count > len(ev_maps)
+            else len(ev_maps)
+        )
+        for ev in event_vars:
+            per_event_filtered_maps[ev] = list(ev_maps)
+            per_event_filtered_counts[ev] = events_matched
+
+    outcome_values: dict[str, Any] = {}
+    outcome_evaluations: list[dict[str, Any]] = []
+
+    for ob in rep_spec["outcome_bindings"]:
+        out_var = str(ob["outcome_var"])
+        out_var_name = str(ob["outcome_var_name"])
+        agg_fn = (
+            str(ob["canonical_func_name"]).lower()
+            if ob.get("canonical_func_name")
+            else None
+        )
+        cond_spec = ob.get("conditional_spec")
+        ref_evs = list(ob.get("referenced_event_vars") or [])
+        target_ev = ref_evs[0] if ref_evs else event_vars[0]
+        ev_maps = per_event_filtered_maps.get(target_ev, [])
+        ev_cnt = per_event_filtered_counts.get(target_ev, len(ev_maps))
+
+        computed_val: Any = 0
+        per_event_samples: list[Any] = []
+
+        if isinstance(cond_spec, dict):
+            canon_cond = str(cond_spec["canonical_condition_expr"])
+            true_expr = str(cond_spec["canonical_true_expr"])
+            false_expr = str(cond_spec["canonical_false_expr"])
+            true_num = cond_spec.get("true_value")
+            false_num = cond_spec.get("false_value")
+            for em in ev_maps:
+                cond_ok = _evaluate_yaral2_condition_on_event_map(
+                    canon_cond, em
+                )
+                b_val = (
+                    _resolve_yaral2_branch_value_on_event_map(
+                        true_expr, true_num, em
+                    )
+                    if cond_ok
+                    else _resolve_yaral2_branch_value_on_event_map(
+                        false_expr, false_num, em
+                    )
+                )
+                per_event_samples.append(b_val)
+            if not per_event_samples and ev_cnt > 0:
+                fallback_val = (
+                    false_num
+                    if false_num is not None
+                    else (true_num if true_num is not None else 0)
+                )
+                per_event_samples = [fallback_val] * ev_cnt
+
+            num_samples = [
+                v for v in per_event_samples if isinstance(v, (int, float))
+            ]
+            eff_agg = agg_fn or (
+                "max" if rep_spec["match_clauses"] else None
+            )
+            if eff_agg == "max":
+                computed_val = max(num_samples) if num_samples else 0
+            elif eff_agg == "min":
+                computed_val = min(num_samples) if num_samples else 0
+            elif eff_agg == "sum":
+                computed_val = sum(num_samples) if num_samples else 0
+            elif eff_agg == "count":
+                computed_val = len(per_event_samples)
+            elif eff_agg == "count_distinct":
+                computed_val = len(
+                    {str(v) for v in per_event_samples if v is not None}
+                )
+            elif eff_agg == "array_distinct":
+                computed_val = list(
+                    dict.fromkeys(str(v) for v in per_event_samples)
+                )
+            elif eff_agg == "array":
+                computed_val = [str(v) for v in per_event_samples]
+            else:
+                computed_val = (
+                    max(num_samples)
+                    if num_samples
+                    else (per_event_samples[0] if per_event_samples else 0)
+                )
+        else:
+            ref_specs = list(ob.get("referenced_event_field_specs") or [])
+            first_field = (
+                str(ref_specs[0]["canonical_field"]) if ref_specs else None
+            )
+            for idx_em, em in enumerate(ev_maps):
+                vals = em.get(first_field, []) if first_field else []
+                if vals:
+                    per_event_samples.extend(vals)
+                elif first_field == "metadata.id":
+                    per_event_samples.append(f"__event_{target_ev}_{idx_em}")
+            if (
+                not per_event_samples
+                and ev_cnt > 0
+                and first_field == "metadata.id"
+            ):
+                per_event_samples = [
+                    f"__event_{target_ev}_{i}" for i in range(ev_cnt)
+                ]
+            if not per_event_samples and not ref_specs and ev_cnt > 0:
+                rhs_stripped = str(ob.get("rhs_text") or "").strip()
+                fn_m = _YARAL2_OUTCOME_FUNC_CALL_RE.match(rhs_stripped)
+                inner_const = (
+                    fn_m.group(2).strip() if fn_m is not None else rhs_stripped
+                )
+                const_num = _try_parse_numeric(inner_const)
+                if const_num is not None:
+                    per_event_samples = [const_num] * ev_cnt
+
+            if agg_fn == "count_distinct":
+                computed_val = (
+                    len({str(v) for v in per_event_samples})
+                    if per_event_samples
+                    else ev_cnt
+                )
+            elif agg_fn == "count":
+                computed_val = (
+                    len(per_event_samples) if per_event_samples else ev_cnt
+                )
+            elif agg_fn in ("max", "min", "sum"):
+                nums = [
+                    n
+                    for n in (
+                        _try_parse_numeric(str(v)) for v in per_event_samples
+                    )
+                    if n is not None
+                ]
+                if agg_fn == "max":
+                    computed_val = max(nums) if nums else 0
+                elif agg_fn == "min":
+                    computed_val = min(nums) if nums else 0
+                else:
+                    computed_val = sum(nums) if nums else 0
+            elif agg_fn == "array_distinct":
+                computed_val = list(
+                    dict.fromkeys(str(v) for v in per_event_samples)
+                )
+            elif agg_fn == "array":
+                computed_val = [str(v) for v in per_event_samples]
+            else:
+                if per_event_samples:
+                    n0 = _try_parse_numeric(str(per_event_samples[0]))
+                    computed_val = (
+                        n0 if n0 is not None else per_event_samples[0]
+                    )
+                else:
+                    computed_val = 0
+
+        if isinstance(computed_val, float) and computed_val.is_integer():
+            computed_val = int(computed_val)
+        outcome_values[out_var] = computed_val
+        outcome_evaluations.append(
+            {
+                "outcome_var": out_var,
+                "outcome_var_name": out_var_name,
+                "event_var": target_ev,
+                "canonical_func_name": agg_fn,
+                "is_conditional": bool(isinstance(cond_spec, dict)),
+                "empirical_value": computed_val,
+                "sample_values": per_event_samples[:10],
+            }
+        )
+
+    orig_cmps = list(orig_spec["condition_outcome_comparisons"])
+    rep_cmps = list(rep_spec["condition_outcome_comparisons"])
+    condition_comparisons: list[dict[str, Any]] = []
+    uncalibrated_comparisons: list[dict[str, Any]] = []
+
+    for c_idx, rep_cmp in enumerate(rep_cmps):
+        orig_cmp = orig_cmps[c_idx] if c_idx < len(orig_cmps) else rep_cmp
+        out_var = str(rep_cmp["outcome_var"])
+        op = str(rep_cmp["operator"])
+        thresh_val = int(rep_cmp["threshold_value"])
+        emp_val = outcome_values.get(out_var)
+        if not isinstance(emp_val, (int, float)):
+            continue
+        emp_num: int | float = (
+            int(emp_val)
+            if isinstance(emp_val, float) and emp_val.is_integer()
+            else emp_val
+        )
+        satisfied = (
+            _compare_outcome_threshold(emp_num, op, thresh_val)
+            if events_matched > 0
+            else False
+        )
+        rec_op = (
+            ">="
+            if op in (">=", ">")
+            else ("<=" if op in ("<=", "<") else "=")
+        )
+        rec_thresh = emp_num
+        rec_cmp = f"{out_var} {rec_op} {rec_thresh}"
+        cmp_entry = {
+            "comparison_index": c_idx,
+            "comparison_text": str(orig_cmp["comparison_text"]),
+            "outcome_var": out_var,
+            "outcome_var_name": str(rep_cmp["outcome_var_name"]),
+            "operator": op,
+            "threshold_value": thresh_val,
+            "empirical_value": emp_num,
+            "satisfied": satisfied,
+            "recommended_operator": rec_op,
+            "recommended_threshold": rec_thresh,
+            "recommended_comparison": rec_cmp,
+            "local_comparison_start": int(orig_cmp["local_comparison_start"]),
+            "local_comparison_end": int(orig_cmp["local_comparison_end"]),
+            "local_rhs_start": int(orig_cmp["local_rhs_start"]),
+            "local_rhs_end": int(orig_cmp["local_rhs_end"]),
+            "rep_local_comparison_start": int(
+                rep_cmp["local_comparison_start"]
+            ),
+            "rep_local_comparison_end": int(rep_cmp["local_comparison_end"]),
+            "rep_local_rhs_start": int(rep_cmp["local_rhs_start"]),
+            "rep_local_rhs_end": int(rep_cmp["local_rhs_end"]),
+            "comparison_start_index": int(orig_cmp["comparison_start_index"]),
+            "comparison_end_index": int(orig_cmp["comparison_end_index"]),
+            "rhs_start_index": int(orig_cmp["rhs_start_index"]),
+            "rhs_end_index": int(orig_cmp["rhs_end_index"]),
+        }
+        condition_comparisons.append(cmp_entry)
+        if events_matched > 0 and not satisfied:
+            uncalibrated_comparisons.append(cmp_entry)
+
+    calibrated_rule_text = repaired_rule_text
+    for uc in sorted(
+        uncalibrated_comparisons,
+        key=lambda item: int(item["rep_local_comparison_start"]),
+        reverse=True,
+    ):
+        rs = int(uc["rep_local_comparison_start"])
+        re_end = int(uc["rep_local_comparison_end"])
+        calibrated_rule_text = (
+            calibrated_rule_text[:rs]
+            + str(uc["recommended_comparison"])
+            + calibrated_rule_text[re_end:]
+        )
+
+    has_outcome_thresholds = bool(condition_comparisons)
+    all_thresholds_satisfied = (
+        all(bool(c["satisfied"]) for c in condition_comparisons)
+        if has_outcome_thresholds
+        else True
+    )
+    threshold_suppressed = bool(
+        events_matched > 0
+        and has_outcome_thresholds
+        and not all_thresholds_satisfied
+    )
+    effective_detections = (
+        events_matched
+        if (not has_outcome_thresholds or all_thresholds_satisfied)
+        else 0
+    )
+
+    return {
+        "rule_name": rule_name,
+        "events_matched": events_matched,
+        "has_outcome_thresholds": has_outcome_thresholds,
+        "outcome_values": outcome_values,
+        "outcome_evaluations": outcome_evaluations,
+        "condition_comparisons": condition_comparisons,
+        "uncalibrated_comparisons": uncalibrated_comparisons,
+        "all_thresholds_satisfied": all_thresholds_satisfied,
+        "threshold_suppressed": threshold_suppressed,
+        "effective_detections": effective_detections,
+        "repaired_rule_text": repaired_rule_text,
+        "calibrated_rule_text": calibrated_rule_text,
+    }
+
+
 def diagnose_zero_hit_yaral2_rule(
     rule_text: str,
     *,
@@ -5392,13 +6584,17 @@ def diagnose_zero_hit_yaral2_rule(
     siem_validate_fn: Any = None,
     siem_search_fn: Any = None,
 ) -> dict[str, Any]:
-    """Diagnoses a zero-hit single-event or multi-event YARA-L 2.0 (``YL2``) detection rule
-    against historical UDM telemetry and synthesizes a compiler-verified YARA-L 2.0 pivot.
+    """Diagnoses a zero-hit or threshold-suppressed single-event or multi-event YARA-L 2.0
+    (``YL2``) detection rule against historical UDM telemetry and synthesizes a
+    compiler-verified YARA-L 2.0 pivot.
 
-    1. Repairs any static YARA-L 2.0 syntax/schema/correlation/outcome defects via
-       :func:`find_yaral2_rule_spans`.
+    1. Repairs any static YARA-L 2.0 syntax/schema/correlation/outcome/CIDR/conditional
+       defects via :func:`find_yaral2_rule_spans`.
     2. For multi-event correlation and non-existence rules (``is_multi_event=True``), executes
        per-stream UDM queries via :func:`_run_multi_event_siem_retrohunt`:
+       - When correlated events match (``correlated_event_count > 0``) but ``condition:``
+         outcome thresholds suppress all detections, diagnoses ``uncalibrated_outcome_threshold``
+         via :func:`evaluate_yaral2_outcome_thresholds` and calibrates the threshold(s).
        - When individual streams match events but share 0 join-key values, detects
          ``cross_event_join_entity_role_swap`` and pivots the swapped stream's join binding
          to the matching sibling entity role.
@@ -5409,10 +6605,10 @@ def diagnose_zero_hit_yaral2_rule(
          verifies compilation via Chronicle's ``validate_rule`` API, and re-runs
          :func:`_run_multi_event_siem_retrohunt` to confirm ``correlated_event_count > 0``.
     3. For single-event rules, extracts ordered ``events:`` predicates via
-       :func:`extract_yaral2_event_predicates`, invokes :func:`diagnose_zero_hit_udm_query`,
-       maps ``failing_clause_index`` back to the corresponding YARA-L 2.0 predicate
-       (``exact_match_on_command_line``, ``entity_role_swap``, ``value_format_mismatch``),
-       and compiles ``pivoted_rule_text`` via Chronicle's ``validate_rule`` API.
+       :func:`extract_yaral2_event_predicates`, checks for ``uncalibrated_outcome_threshold``
+       when ``events:`` match ``> 0`` UDM events, or invokes :func:`diagnose_zero_hit_udm_query`
+       when ``events:`` match ``0`` UDM events, and compiles ``pivoted_rule_text`` via
+       Chronicle's ``validate_rule`` API.
     """
     synthetic_map = _build_utf16_index_map(rule_text)
     _comments, _edits, static_findings = find_yaral2_rule_spans(
@@ -5447,7 +6643,85 @@ def diagnose_zero_hit_yaral2_rule(
         summary_query = str(me_retro["summary_query"])
         initial_corr_count = int(me_retro["correlated_event_count"])
 
+        if initial_corr_count > 0 and me_retro["siem_verified"]:
+            outcome_eval = evaluate_yaral2_outcome_thresholds(
+                repaired_rule_text,
+                me_retro,
+                _orig_rule_text=rule_text,
+            )
+            if outcome_eval["threshold_suppressed"]:
+                pivoted_rule_text = str(outcome_eval["calibrated_rule_text"])
+                pivot_compiler_verified, pivot_compiler_output = (
+                    _validate_yaral2_rule_with_compiler(
+                        pivoted_rule_text, siem_validate_fn=siem_validate_fn
+                    )
+                )
+                first_uc = outcome_eval["uncalibrated_comparisons"][0]
+                return {
+                    "status": "success",
+                    "rule_name": rule_name,
+                    "original_rule_text": rule_text,
+                    "repaired_rule_text": repaired_rule_text,
+                    "pivoted_rule_text": pivoted_rule_text,
+                    "static_findings": static_findings,
+                    "has_schema_defect": bool(static_findings),
+                    "is_multi_event": True,
+                    "compiler_verified": compiler_verified,
+                    "compiler_output": compiler_output,
+                    "retrohunt_udm_query": summary_query,
+                    "initial_event_count": initial_corr_count,
+                    "event_count": initial_corr_count,
+                    "effective_detections": 0,
+                    "calibrated_effective_detections": initial_corr_count,
+                    "zero_hit": True,
+                    "diagnosis_class": "uncalibrated_outcome_threshold",
+                    "failure_reason": "uncalibrated_outcome_threshold",
+                    "anchor_query": summary_query,
+                    "anchor_event_count": initial_corr_count,
+                    "failing_predicate_index": None,
+                    "failing_join_binding_index": None,
+                    "failing_outcome_comparison_index": int(
+                        first_uc["comparison_index"]
+                    ),
+                    "failing_predicate": first_uc,
+                    "recommended_field": str(first_uc["outcome_var"]),
+                    "recommended_rhs": str(first_uc["recommended_threshold"]),
+                    "recommended_yaral2_predicate": str(
+                        first_uc["recommended_comparison"]
+                    ),
+                    "recommended_span_target": "condition_outcome_comparison",
+                    "recommended_span_replacement": str(
+                        first_uc["recommended_comparison"]
+                    ),
+                    "pivoted_retrohunt_udm_query": summary_query,
+                    "recommended_query": summary_query,
+                    "pivot_verified": True,
+                    "pivot_event_count": initial_corr_count,
+                    "pivot_compiler_verified": pivot_compiler_verified,
+                    "pivot_compiler_output": pivot_compiler_output,
+                    "outcome_evaluation": outcome_eval,
+                    "outcome_values": outcome_eval["outcome_values"],
+                    "uncalibrated_comparisons": outcome_eval[
+                        "uncalibrated_comparisons"
+                    ],
+                    "shared_join_values": list(me_retro["shared_join_values"]),
+                    "observed_values": [
+                        f"{uc['outcome_var']}={uc['empirical_value']}"
+                        for uc in outcome_eval["uncalibrated_comparisons"]
+                    ],
+                    "sample_observed_values": [
+                        f"{uc['outcome_var']}={uc['empirical_value']}"
+                        for uc in outcome_eval["uncalibrated_comparisons"]
+                    ],
+                    "multi_event_retrohunt": me_retro,
+                }
+
         if initial_corr_count > 0 or not me_retro["siem_verified"]:
+            outcome_eval = evaluate_yaral2_outcome_thresholds(
+                repaired_rule_text,
+                me_retro,
+                _orig_rule_text=rule_text,
+            )
             return {
                 "status": "success" if me_retro["siem_verified"] else "error",
                 "rule_name": rule_name,
@@ -5462,6 +6736,9 @@ def diagnose_zero_hit_yaral2_rule(
                 "retrohunt_udm_query": summary_query,
                 "initial_event_count": initial_corr_count,
                 "event_count": initial_corr_count,
+                "effective_detections": int(
+                    outcome_eval["effective_detections"]
+                ),
                 "zero_hit": initial_corr_count == 0,
                 "diagnosis_class": None,
                 "failure_reason": None,
@@ -5479,6 +6756,9 @@ def diagnose_zero_hit_yaral2_rule(
                 "pivot_event_count": initial_corr_count,
                 "pivot_compiler_verified": compiler_verified,
                 "pivot_compiler_output": compiler_output,
+                "outcome_evaluation": outcome_eval,
+                "outcome_values": outcome_eval["outcome_values"],
+                "uncalibrated_comparisons": [],
                 "shared_join_values": list(me_retro["shared_join_values"]),
                 "observed_values": list(me_retro["shared_join_values"]),
                 "sample_observed_values": list(me_retro["shared_join_values"]),
@@ -5815,9 +7095,158 @@ def diagnose_zero_hit_yaral2_rule(
         str(p["udm_clause"]) for p in repaired_predicates
     )
 
-    if not retrohunt_udm_query or len(repaired_predicates) < 2:
+    if not retrohunt_udm_query:
         return {
-            "status": "error" if not retrohunt_udm_query else "success",
+            "status": "error",
+            "rule_name": rule_name,
+            "original_rule_text": rule_text,
+            "repaired_rule_text": repaired_rule_text,
+            "pivoted_rule_text": repaired_rule_text,
+            "static_findings": static_findings,
+            "has_schema_defect": bool(static_findings),
+            "compiler_verified": compiler_verified,
+            "compiler_output": compiler_output,
+            "retrohunt_udm_query": retrohunt_udm_query,
+            "initial_event_count": 0,
+            "event_count": 0,
+            "zero_hit": True,
+            "diagnosis_class": None,
+            "failure_reason": None,
+            "failing_predicate_index": None,
+            "failing_predicate": None,
+            "recommended_field": None,
+            "recommended_rhs": None,
+            "recommended_yaral2_predicate": None,
+            "recommended_span_target": None,
+            "recommended_span_replacement": None,
+            "pivoted_retrohunt_udm_query": None,
+            "recommended_query": None,
+            "pivot_verified": False,
+            "pivot_event_count": 0,
+            "pivot_compiler_verified": compiler_verified,
+            "pivot_compiler_output": compiler_output,
+            "observed_values": [],
+            "sample_observed_values": [],
+        }
+
+    # Check if events: query already matches > 0 UDM events and only condition: outcome thresholds suppress detections
+    initial_siem_res = verify_udm_query_with_siem(
+        retrohunt_udm_query,
+        start_time=start_time,
+        end_time=end_time,
+        max_events=max(max_events, 20),
+        siem_search_fn=siem_search_fn,
+    )
+    initial_event_count = int(initial_siem_res.get("event_count", 0) or 0)
+    if initial_siem_res.get("siem_verified") and initial_event_count > 0:
+        outcome_eval = evaluate_yaral2_outcome_thresholds(
+            repaired_rule_text,
+            initial_siem_res,
+            _orig_rule_text=rule_text,
+        )
+        if outcome_eval["threshold_suppressed"]:
+            pivoted_rule_text = str(outcome_eval["calibrated_rule_text"])
+            pivot_compiler_verified, pivot_compiler_output = (
+                _validate_yaral2_rule_with_compiler(
+                    pivoted_rule_text, siem_validate_fn=siem_validate_fn
+                )
+            )
+            first_uc = outcome_eval["uncalibrated_comparisons"][0]
+            return {
+                "status": "success",
+                "rule_name": rule_name,
+                "original_rule_text": rule_text,
+                "repaired_rule_text": repaired_rule_text,
+                "pivoted_rule_text": pivoted_rule_text,
+                "static_findings": static_findings,
+                "has_schema_defect": bool(static_findings),
+                "is_multi_event": False,
+                "compiler_verified": compiler_verified,
+                "compiler_output": compiler_output,
+                "retrohunt_udm_query": retrohunt_udm_query,
+                "initial_event_count": initial_event_count,
+                "event_count": initial_event_count,
+                "effective_detections": 0,
+                "calibrated_effective_detections": initial_event_count,
+                "zero_hit": True,
+                "diagnosis_class": "uncalibrated_outcome_threshold",
+                "failure_reason": "uncalibrated_outcome_threshold",
+                "anchor_query": retrohunt_udm_query,
+                "anchor_event_count": initial_event_count,
+                "failing_predicate_index": None,
+                "failing_outcome_comparison_index": int(
+                    first_uc["comparison_index"]
+                ),
+                "failing_predicate": first_uc,
+                "recommended_field": str(first_uc["outcome_var"]),
+                "recommended_rhs": str(first_uc["recommended_threshold"]),
+                "recommended_yaral2_predicate": str(
+                    first_uc["recommended_comparison"]
+                ),
+                "recommended_span_target": "condition_outcome_comparison",
+                "recommended_span_replacement": str(
+                    first_uc["recommended_comparison"]
+                ),
+                "pivoted_retrohunt_udm_query": retrohunt_udm_query,
+                "recommended_query": retrohunt_udm_query,
+                "pivot_verified": True,
+                "pivot_event_count": initial_event_count,
+                "pivot_compiler_verified": pivot_compiler_verified,
+                "pivot_compiler_output": pivot_compiler_output,
+                "outcome_evaluation": outcome_eval,
+                "outcome_values": outcome_eval["outcome_values"],
+                "uncalibrated_comparisons": outcome_eval[
+                    "uncalibrated_comparisons"
+                ],
+                "observed_values": [
+                    f"{uc['outcome_var']}={uc['empirical_value']}"
+                    for uc in outcome_eval["uncalibrated_comparisons"]
+                ],
+                "sample_observed_values": [
+                    f"{uc['outcome_var']}={uc['empirical_value']}"
+                    for uc in outcome_eval["uncalibrated_comparisons"]
+                ],
+            }
+        return {
+            "status": "success",
+            "rule_name": rule_name,
+            "original_rule_text": rule_text,
+            "repaired_rule_text": repaired_rule_text,
+            "pivoted_rule_text": repaired_rule_text,
+            "static_findings": static_findings,
+            "has_schema_defect": bool(static_findings),
+            "compiler_verified": compiler_verified,
+            "compiler_output": compiler_output,
+            "retrohunt_udm_query": retrohunt_udm_query,
+            "initial_event_count": initial_event_count,
+            "event_count": initial_event_count,
+            "effective_detections": int(outcome_eval["effective_detections"]),
+            "zero_hit": False,
+            "diagnosis_class": None,
+            "failure_reason": None,
+            "failing_predicate_index": None,
+            "failing_predicate": None,
+            "recommended_field": None,
+            "recommended_rhs": None,
+            "recommended_yaral2_predicate": None,
+            "recommended_span_target": None,
+            "recommended_span_replacement": None,
+            "pivoted_retrohunt_udm_query": retrohunt_udm_query,
+            "recommended_query": retrohunt_udm_query,
+            "pivot_verified": True,
+            "pivot_event_count": initial_event_count,
+            "pivot_compiler_verified": compiler_verified,
+            "pivot_compiler_output": compiler_output,
+            "outcome_evaluation": outcome_eval,
+            "outcome_values": outcome_eval["outcome_values"],
+            "uncalibrated_comparisons": [],
+            "observed_values": [],
+            "sample_observed_values": [],
+        }
+
+    if len(repaired_predicates) < 2:
+        return {
+            "status": "success",
             "rule_name": rule_name,
             "original_rule_text": rule_text,
             "repaired_rule_text": repaired_rule_text,
@@ -5984,24 +7413,42 @@ def _format_zero_hit_yaral2_comment(
     *,
     rule_name: str,
     has_schema_defect: bool = False,
+    uncalibrated_comparison: dict[str, Any] | None = None,
     udm_doc_url: str = DEFAULT_UDM_FIELD_LIST_URL,
     yaral2_doc_url: str = DEFAULT_YARAL2_DOC_URL,
 ) -> str:
-    """Formats a grounded Google Docs review comment for a zero-hit YARA-L 2.0 (``YL2``) predicate pivot."""
+    """Formats a grounded Google Docs review comment for a zero-hit or threshold-suppressed
+    YARA-L 2.0 (``YL2``) predicate/condition pivot."""
     diag_class = str(
         diag_res.get("diagnosis_class")
         or diag_res.get("failure_reason")
         or "zero_hit"
     )
-    failing_pred = diag_res.get("failing_predicate") or {}
-    orig_pred_text = str(failing_pred.get("predicate_text") or "")
+    failing_pred = (
+        uncalibrated_comparison
+        if isinstance(uncalibrated_comparison, dict)
+        else (diag_res.get("failing_predicate") or {})
+    )
+    orig_pred_text = str(
+        failing_pred.get("comparison_text")
+        or failing_pred.get("predicate_text")
+        or ""
+    )
     orig_var_field = str(failing_pred.get("var_field_token") or "")
     orig_field = str(failing_pred.get("field_token") or "")
     canon_field = str(failing_pred.get("canonical_field") or "")
     event_var = str(failing_pred.get("event_var") or "$e")
     rec_field = str(diag_res.get("recommended_field") or canon_field)
-    rec_pred = str(diag_res.get("recommended_yaral2_predicate") or "")
-    rec_span_rep = str(diag_res.get("recommended_span_replacement") or rec_pred)
+    rec_pred = str(
+        failing_pred.get("recommended_comparison")
+        or diag_res.get("recommended_yaral2_predicate")
+        or ""
+    )
+    rec_span_rep = str(
+        failing_pred.get("recommended_comparison")
+        or diag_res.get("recommended_span_replacement")
+        or rec_pred
+    )
     anchor_query = str(diag_res.get("anchor_query") or "")
     anchor_count = int(diag_res.get("anchor_event_count", 0) or 0)
     pivoted_query = str(diag_res.get("pivoted_retrohunt_udm_query") or "")
@@ -6013,14 +7460,25 @@ def _format_zero_hit_yaral2_comment(
     )
 
     schema_prefix = ""
-    if has_schema_defect:
+    if has_schema_defect and orig_var_field:
         schema_prefix = (
             f"Deterministic YARA-L 2.0 (YL2) UDM Schema Check in rule '{rule_name}': "
             f"'{orig_var_field}' references non-canonical Chronicle UDM field '{orig_field}' "
             f"(canonical: '{event_var}.{canon_field}', {udm_doc_url}). "
         )
 
-    if diag_class == "exact_match_on_command_line":
+    if diag_class == "uncalibrated_outcome_threshold":
+        out_var = str(failing_pred.get("outcome_var") or rec_field)
+        thresh_val = failing_pred.get("threshold_value")
+        emp_val = failing_pred.get("empirical_value")
+        reason = (
+            f"Uncalibrated YARA-L 2.0 (YL2) Outcome Threshold Diagnosis in rule '{rule_name}' "
+            f"(uncalibrated_outcome_threshold): Condition threshold '{orig_pred_text}' suppresses "
+            f"100% of detections across {pivot_count} matched Chronicle SIEM UDM event(s) because "
+            f"outcome variable '{out_var}' evaluates empirically to {emp_val} (vs. threshold {thresh_val}). "
+            f"Calibrate condition comparison to '{rec_span_rep}' ({yaral2_doc_url})."
+        )
+    elif diag_class == "exact_match_on_command_line":
         reason = (
             f"Zero-Hit YARA-L 2.0 (YL2) Retrohunt Diagnosis in rule '{rule_name}' "
             f"(exact_match_on_command_line): Exact string equality in '{orig_pred_text}' "
@@ -6085,9 +7543,10 @@ def verify_yaral2_rule_with_siem(
     siem_search_fn: Any = None,
 ) -> dict[str, Any]:
     """Repairs a candidate single-event or multi-event YARA-L 2.0 (``YL2``) rule, compiles it
-    via Chronicle ``validate_rule``, and dry-runs its ``events:`` predicates (or per-stream
+    via Chronicle ``validate_rule``, dry-runs its ``events:`` predicates (or per-stream
     multi-event correlation / non-existence set-difference queries) against historical
-    Chronicle UDM telemetry.
+    Chronicle UDM telemetry, and evaluates ``outcome:`` threshold calibration against
+    ``condition:`` comparisons.
     """
     synthetic_map = _build_utf16_index_map(rule_text)
     _comments, _edits, findings = find_yaral2_rule_spans(rule_text, synthetic_map)
@@ -6119,6 +7578,7 @@ def verify_yaral2_rule_with_siem(
     retrohunt_initial_zero_hit_query: str | None = None
     pivoted_rule_text = repaired_rule_text
     zero_hit_diagnosis: dict[str, Any] | None = None
+    outcome_evaluation: dict[str, Any] | None = None
 
     if run_retrohunt_check and is_multi_event:
         multi_event_retrohunt = _run_multi_event_siem_retrohunt(
@@ -6136,10 +7596,18 @@ def verify_yaral2_rule_with_siem(
         retrohunt_udm_query = str(
             multi_event_retrohunt.get("summary_query") or retrohunt_udm_query
         )
+        outcome_evaluation = evaluate_yaral2_outcome_thresholds(
+            repaired_rule_text,
+            multi_event_retrohunt,
+            _orig_rule_text=rule_text,
+        )
 
         if (
             retrohunt_verified
-            and retrohunt_event_count == 0
+            and (
+                retrohunt_event_count == 0
+                or outcome_evaluation.get("threshold_suppressed")
+            )
             and diagnose_zero_hit_retrohunt
         ):
             zero_hit_diagnosis = diagnose_zero_hit_yaral2_rule(
@@ -6153,7 +7621,8 @@ def verify_yaral2_rule_with_siem(
             if zero_hit_diagnosis.get("pivot_verified") and zero_hit_diagnosis.get(
                 "pivot_compiler_verified"
             ):
-                retrohunt_initial_zero_hit_query = retrohunt_udm_query
+                if retrohunt_event_count == 0:
+                    retrohunt_initial_zero_hit_query = retrohunt_udm_query
                 retrohunt_udm_query = str(
                     zero_hit_diagnosis["pivoted_retrohunt_udm_query"]
                 )
@@ -6180,17 +7649,24 @@ def verify_yaral2_rule_with_siem(
             retrohunt_udm_query,
             start_time=start_time,
             end_time=end_time,
-            max_events=max_events,
+            max_events=max(max_events, 20),
             siem_search_fn=siem_search_fn,
         )
         retrohunt_verified = bool(retrohunt_res.get("siem_verified"))
         retrohunt_event_count = int(retrohunt_res.get("event_count", 0) or 0)
+        outcome_evaluation = evaluate_yaral2_outcome_thresholds(
+            repaired_rule_text,
+            retrohunt_res,
+            _orig_rule_text=rule_text,
+        )
 
         if (
             retrohunt_verified
-            and retrohunt_event_count == 0
+            and (
+                (retrohunt_event_count == 0 and len(retrohunt_clauses) >= 2)
+                or outcome_evaluation.get("threshold_suppressed")
+            )
             and diagnose_zero_hit_retrohunt
-            and len(retrohunt_clauses) >= 2
         ):
             zero_hit_diagnosis = diagnose_zero_hit_yaral2_rule(
                 rule_text,
@@ -6203,7 +7679,8 @@ def verify_yaral2_rule_with_siem(
             if zero_hit_diagnosis.get("pivot_verified") and zero_hit_diagnosis.get(
                 "pivot_compiler_verified"
             ):
-                retrohunt_initial_zero_hit_query = retrohunt_udm_query
+                if retrohunt_event_count == 0:
+                    retrohunt_initial_zero_hit_query = retrohunt_udm_query
                 retrohunt_udm_query = str(
                     zero_hit_diagnosis["pivoted_retrohunt_udm_query"]
                 )
@@ -6265,6 +7742,9 @@ def verify_yaral2_rule_with_siem(
         "retrohunt_event_count": retrohunt_event_count,
         "retrohunt_response": retrohunt_res,
     }
+    if outcome_evaluation is not None:
+        result["outcome_evaluation"] = outcome_evaluation
+        result["outcome_values"] = outcome_evaluation.get("outcome_values", {})
     if multi_event_retrohunt is not None:
         result["multi_event_retrohunt"] = multi_event_retrohunt
     if retrohunt_initial_zero_hit_query is not None:
@@ -6292,9 +7772,10 @@ def verify_and_redline_yaral2_rules_in_doc(
     transport: httpx.BaseTransport | None = None,
 ) -> dict[str, Any]:
     """Lints single-event and multi-event YARA-L 2.0 (``YL2``) rules (including ``outcome:``
-    aggregations and ``!$e2`` non-existence correlation) in a Google Doc, optionally compiles
-    and retrohunts them in Chronicle SIEM, and stages non-destructive Suggested Edits
-    (``writeMode="SUGGEST"``).
+    aggregations, ``if()`` conditionals, ``net.ip_in_range_cidr()`` CIDR calls, ``!$e2``
+    non-existence correlation, and ``condition:`` outcome threshold calibration) in a Google Doc,
+    optionally compiles and retrohunts them in Chronicle SIEM, and stages non-destructive
+    Suggested Edits (``writeMode="SUGGEST"``).
 
     1. Calls :func:`read_google_doc` to populate the 1-based UTF-16 character index map
        and ``pending_suggestion_spans``.
@@ -6304,7 +7785,8 @@ def verify_and_redline_yaral2_rules_in_doc(
        provided), verifies every YARA-L 2.0 rule in the document via
        :func:`verify_yaral2_rule_with_siem` and :func:`diagnose_zero_hit_yaral2_rule`,
        upgrading combined static-schema + zero-hit value predicates in-place and staging
-       compiler-verified ``writeMode="SUGGEST"`` pivots for syntactically valid zero-hit rules.
+       compiler-verified ``writeMode="SUGGEST"`` pivots for syntactically valid zero-hit
+       or ``uncalibrated_outcome_threshold`` rules.
     4. Anchors comments first via :func:`insert_doc_comments` and stages descending-index
        Suggested Edits second via :func:`propose_doc_suggested_edits` (``writeMode="SUGGEST"``).
     """
@@ -6412,8 +7894,127 @@ def verify_and_redline_yaral2_rules_in_doc(
                             index_map=index_map,
                         )
                         doc_preds = doc_multi_spec["predicates"]
+                        doc_out_cmps = doc_multi_spec[
+                            "condition_outcome_comparisons"
+                        ]
                         f_pred_idx = zh_diag.get("failing_predicate_index")
                         if (
+                            zh_diag.get("diagnosis_class")
+                            == "uncalibrated_outcome_threshold"
+                        ):
+                            for uc in zh_diag.get(
+                                "uncalibrated_comparisons", []
+                            ):
+                                c_idx = int(uc["comparison_index"])
+                                if not (0 <= c_idx < len(doc_out_cmps)):
+                                    continue
+                                target_cmp = doc_out_cmps[c_idx]
+                                t_start = int(
+                                    target_cmp["comparison_start_index"]
+                                )
+                                t_end = int(target_cmp["comparison_end_index"])
+                                t_quote = str(target_cmp["comparison_text"])
+                                t_replacement = str(
+                                    uc["recommended_comparison"]
+                                )
+                                if any(
+                                    _spans_overlap((t_start, t_end), p_span)
+                                    for p_span in pending_spans
+                                ):
+                                    skipped_existing_suggestion_count += 1
+                                    continue
+                                if any(
+                                    _spans_overlap(
+                                        (t_start, t_end),
+                                        (
+                                            int(ex_e["start_index"]),
+                                            int(ex_e["end_index"]),
+                                        ),
+                                    )
+                                    for ex_e in edits
+                                ):
+                                    continue
+                                comment_body = _format_zero_hit_yaral2_comment(
+                                    zh_diag,
+                                    rule_name=r_name,
+                                    has_schema_defect=False,
+                                    uncalibrated_comparison=uc,
+                                    udm_doc_url=udm_doc_url,
+                                    yaral2_doc_url=yaral2_doc_url,
+                                )
+                                comments.append(
+                                    {
+                                        "start_index": t_start,
+                                        "end_index": t_end,
+                                        "quote": t_quote,
+                                        "comment": comment_body,
+                                    }
+                                )
+                                edits.append(
+                                    {
+                                        "start_index": t_start,
+                                        "end_index": t_end,
+                                        "quote": t_quote,
+                                        "replacement": t_replacement,
+                                    }
+                                )
+                                findings.append(
+                                    {
+                                        "rule_name": r_name,
+                                        "defect_type": "uncalibrated_outcome_threshold",
+                                        "invalid_field": t_quote,
+                                        "canonical_field": t_replacement,
+                                        "quote": t_quote,
+                                        "replacement": t_replacement,
+                                        "start_index": t_start,
+                                        "end_index": t_end,
+                                        "original_rule_text": orig_rule,
+                                        "repaired_rule_text": zh_diag[
+                                            "pivoted_rule_text"
+                                        ],
+                                        "pivoted_rule_text": zh_diag[
+                                            "pivoted_rule_text"
+                                        ],
+                                        "is_multi_event": bool(
+                                            zh_diag.get("is_multi_event", False)
+                                        ),
+                                        "retrohunt_udm_query": zh_diag[
+                                            "pivoted_retrohunt_udm_query"
+                                        ],
+                                        "zero_hit_diagnosis": "uncalibrated_outcome_threshold",
+                                        "failure_reason": "uncalibrated_outcome_threshold",
+                                        "outcome_var": str(uc["outcome_var"]),
+                                        "threshold_value": uc[
+                                            "threshold_value"
+                                        ],
+                                        "empirical_value": uc[
+                                            "empirical_value"
+                                        ],
+                                        "outcome_values": zh_diag.get(
+                                            "outcome_values", {}
+                                        ),
+                                        "recommended_yaral2_predicate": t_replacement,
+                                        "recommended_span_target": "condition_outcome_comparison",
+                                        "anchor_query": zh_diag["anchor_query"],
+                                        "anchor_event_count": zh_diag[
+                                            "anchor_event_count"
+                                        ],
+                                        "pivot_event_count": zh_diag[
+                                            "pivot_event_count"
+                                        ],
+                                        "pivot_compiler_verified": zh_diag[
+                                            "pivot_compiler_verified"
+                                        ],
+                                        "shared_join_values": zh_diag.get(
+                                            "shared_join_values", []
+                                        ),
+                                        "observed_values": zh_diag.get(
+                                            "observed_values", []
+                                        ),
+                                    }
+                                )
+                                zero_hit_yaral2_findings_count += 1
+                        elif (
                             zh_diag.get("diagnosis_class")
                             != "cross_event_join_entity_role_swap"
                             and isinstance(f_pred_idx, int)
@@ -6681,6 +8282,7 @@ def verify_and_redline_yaral2_rules_in_doc(
                     index_map=index_map,
                 )
                 doc_preds = doc_multi_spec["predicates"]
+                doc_out_cmps = doc_multi_spec["condition_outcome_comparisons"]
                 if r_name in static_rules_all:
                     if pending_spans:
                         rule_check = verify_yaral2_rule_with_siem(
@@ -6700,6 +8302,30 @@ def verify_and_redline_yaral2_rules_in_doc(
                             else None
                         )
                         if (
+                            isinstance(zh_diag, dict)
+                            and zh_diag.get("pivot_verified")
+                            and zh_diag.get("pivot_compiler_verified")
+                            and zh_diag.get("diagnosis_class")
+                            == "uncalibrated_outcome_threshold"
+                        ):
+                            for uc in zh_diag.get(
+                                "uncalibrated_comparisons", []
+                            ):
+                                c_idx = int(uc["comparison_index"])
+                                if 0 <= c_idx < len(doc_out_cmps):
+                                    target_cmp = doc_out_cmps[c_idx]
+                                    cmp_span = (
+                                        int(
+                                            target_cmp["comparison_start_index"]
+                                        ),
+                                        int(target_cmp["comparison_end_index"]),
+                                    )
+                                    if any(
+                                        _spans_overlap(cmp_span, p_span)
+                                        for p_span in pending_spans
+                                    ):
+                                        skipped_existing_suggestion_count += 1
+                        elif (
                             isinstance(zh_diag, dict)
                             and zh_diag.get("pivot_verified")
                             and zh_diag.get("pivot_compiler_verified")
@@ -6724,7 +8350,11 @@ def verify_and_redline_yaral2_rules_in_doc(
                                 ):
                                     skipped_existing_suggestion_count += 1
                     continue
-                if len(doc_preds) < 2 and not doc_multi_spec["is_multi_event"]:
+                if (
+                    len(doc_preds) < 2
+                    and not doc_multi_spec["is_multi_event"]
+                    and not doc_out_cmps
+                ):
                     continue
 
                 rule_span = (
@@ -6748,33 +8378,46 @@ def verify_and_redline_yaral2_rules_in_doc(
                         initial_me.get("correlated_event_count", 0) or 0
                     )
                     if initial_hits > 0:
-                        comp_ok, comp_out = _validate_yaral2_rule_with_compiler(
-                            normalized_rule, siem_validate_fn=siem_validate_fn
+                        initial_out_eval = evaluate_yaral2_outcome_thresholds(
+                            normalized_rule,
+                            initial_me,
+                            _orig_rule_text=orig_rule,
                         )
-                        siem_rule_checks.append(
-                            {
-                                "status": "success" if comp_ok else "error",
-                                "rule_name": r_name,
-                                "original_rule_text": orig_rule,
-                                "repaired_rule_text": normalized_rule,
-                                "pivoted_rule_text": normalized_rule,
-                                "findings": [],
-                                "is_multi_event": True,
-                                "is_non_existence": bool(
-                                    initial_me.get("is_non_existence")
-                                ),
-                                "compiler_verified": comp_ok,
-                                "compiler_output": comp_out,
-                                "retrohunt_udm_query": str(
-                                    initial_me.get("summary_query") or ""
-                                ),
-                                "retrohunt_verified": True,
-                                "retrohunt_event_count": initial_hits,
-                                "retrohunt_response": initial_me,
-                                "multi_event_retrohunt": initial_me,
-                            }
-                        )
-                        continue
+                        if not initial_out_eval["threshold_suppressed"]:
+                            comp_ok, comp_out = (
+                                _validate_yaral2_rule_with_compiler(
+                                    normalized_rule,
+                                    siem_validate_fn=siem_validate_fn,
+                                )
+                            )
+                            siem_rule_checks.append(
+                                {
+                                    "status": "success" if comp_ok else "error",
+                                    "rule_name": r_name,
+                                    "original_rule_text": orig_rule,
+                                    "repaired_rule_text": normalized_rule,
+                                    "pivoted_rule_text": normalized_rule,
+                                    "findings": [],
+                                    "is_multi_event": True,
+                                    "is_non_existence": bool(
+                                        initial_me.get("is_non_existence")
+                                    ),
+                                    "compiler_verified": comp_ok,
+                                    "compiler_output": comp_out,
+                                    "retrohunt_udm_query": str(
+                                        initial_me.get("summary_query") or ""
+                                    ),
+                                    "retrohunt_verified": True,
+                                    "retrohunt_event_count": initial_hits,
+                                    "retrohunt_response": initial_me,
+                                    "multi_event_retrohunt": initial_me,
+                                    "outcome_evaluation": initial_out_eval,
+                                    "outcome_values": initial_out_eval[
+                                        "outcome_values"
+                                    ],
+                                }
+                            )
+                            continue
                 else:
                     retrohunt_query = " AND ".join(
                         str(p["udm_clause"]) for p in doc_preds
@@ -6783,40 +8426,47 @@ def verify_and_redline_yaral2_rules_in_doc(
                         retrohunt_query,
                         start_time=start_time,
                         end_time=end_time,
-                        max_events=max_events,
+                        max_events=max(max_events, 20),
                         siem_search_fn=siem_search_fn,
                     )
                     if not initial_siem.get("siem_verified"):
                         continue
                     initial_hits = int(initial_siem.get("event_count", 0) or 0)
                     if initial_hits > 0:
-                        comp_ok, comp_out = _validate_yaral2_rule_with_compiler(
-                            normalized_rule, siem_validate_fn=siem_validate_fn
+                        initial_out_eval = evaluate_yaral2_outcome_thresholds(
+                            normalized_rule,
+                            initial_siem,
+                            _orig_rule_text=orig_rule,
                         )
-                        siem_rule_checks.append(
-                            {
-                                "status": "success" if comp_ok else "error",
-                                "rule_name": r_name,
-                                "original_rule_text": orig_rule,
-                                "repaired_rule_text": normalized_rule,
-                                "pivoted_rule_text": normalized_rule,
-                                "findings": [],
-                                "is_multi_event": False,
-                                "compiler_verified": comp_ok,
-                                "compiler_output": comp_out,
-                                "retrohunt_udm_query": retrohunt_query,
-                                "retrohunt_verified": True,
-                                "retrohunt_event_count": initial_hits,
-                                "retrohunt_response": initial_siem,
-                            }
-                        )
-                        continue
-
-                if any(
-                    _spans_overlap(rule_span, p_span) for p_span in pending_spans
-                ):
-                    skipped_existing_suggestion_count += 1
-                    continue
+                        if not initial_out_eval["threshold_suppressed"]:
+                            comp_ok, comp_out = (
+                                _validate_yaral2_rule_with_compiler(
+                                    normalized_rule,
+                                    siem_validate_fn=siem_validate_fn,
+                                )
+                            )
+                            siem_rule_checks.append(
+                                {
+                                    "status": "success" if comp_ok else "error",
+                                    "rule_name": r_name,
+                                    "original_rule_text": orig_rule,
+                                    "repaired_rule_text": normalized_rule,
+                                    "pivoted_rule_text": normalized_rule,
+                                    "findings": [],
+                                    "is_multi_event": False,
+                                    "compiler_verified": comp_ok,
+                                    "compiler_output": comp_out,
+                                    "retrohunt_udm_query": retrohunt_query,
+                                    "retrohunt_verified": True,
+                                    "retrohunt_event_count": initial_hits,
+                                    "retrohunt_response": initial_siem,
+                                    "outcome_evaluation": initial_out_eval,
+                                    "outcome_values": initial_out_eval[
+                                        "outcome_values"
+                                    ],
+                                }
+                            )
+                            continue
 
                 rule_check = verify_yaral2_rule_with_siem(
                     orig_rule,
@@ -6835,12 +8485,125 @@ def verify_and_redline_yaral2_rules_in_doc(
                     and zh_diag.get("pivot_verified")
                     and zh_diag.get("pivot_compiler_verified")
                 ):
+                    if any(
+                        _spans_overlap(rule_span, p_span)
+                        for p_span in pending_spans
+                    ):
+                        skipped_existing_suggestion_count += 1
                     continue
 
                 zero_hit_yaral2_diagnoses.append(zh_diag)
                 span_target = str(
                     zh_diag.get("recommended_span_target") or "predicate"
                 )
+
+                if (
+                    zh_diag.get("diagnosis_class")
+                    == "uncalibrated_outcome_threshold"
+                ):
+                    for uc in zh_diag.get("uncalibrated_comparisons", []):
+                        c_idx = int(uc["comparison_index"])
+                        if not (0 <= c_idx < len(doc_out_cmps)):
+                            continue
+                        target_cmp = doc_out_cmps[c_idx]
+                        t_start = int(target_cmp["comparison_start_index"])
+                        t_end = int(target_cmp["comparison_end_index"])
+                        t_quote = str(target_cmp["comparison_text"])
+                        t_replacement = str(uc["recommended_comparison"])
+                        if any(
+                            _spans_overlap((t_start, t_end), p_span)
+                            for p_span in pending_spans
+                        ):
+                            skipped_existing_suggestion_count += 1
+                            continue
+                        if any(
+                            _spans_overlap(
+                                (t_start, t_end),
+                                (
+                                    int(existing_e["start_index"]),
+                                    int(existing_e["end_index"]),
+                                ),
+                            )
+                            for existing_e in edits
+                        ):
+                            continue
+                        comment_body = _format_zero_hit_yaral2_comment(
+                            zh_diag,
+                            rule_name=r_name,
+                            has_schema_defect=False,
+                            uncalibrated_comparison=uc,
+                            udm_doc_url=udm_doc_url,
+                            yaral2_doc_url=yaral2_doc_url,
+                        )
+                        comments.append(
+                            {
+                                "start_index": t_start,
+                                "end_index": t_end,
+                                "quote": t_quote,
+                                "comment": comment_body,
+                            }
+                        )
+                        edits.append(
+                            {
+                                "start_index": t_start,
+                                "end_index": t_end,
+                                "quote": t_quote,
+                                "replacement": t_replacement,
+                            }
+                        )
+                        findings.append(
+                            {
+                                "rule_name": r_name,
+                                "defect_type": "uncalibrated_outcome_threshold",
+                                "invalid_field": t_quote,
+                                "canonical_field": t_replacement,
+                                "quote": t_quote,
+                                "replacement": t_replacement,
+                                "start_index": t_start,
+                                "end_index": t_end,
+                                "original_rule_text": orig_rule,
+                                "repaired_rule_text": zh_diag[
+                                    "pivoted_rule_text"
+                                ],
+                                "pivoted_rule_text": zh_diag[
+                                    "pivoted_rule_text"
+                                ],
+                                "is_multi_event": bool(
+                                    zh_diag.get("is_multi_event", False)
+                                ),
+                                "retrohunt_udm_query": zh_diag[
+                                    "pivoted_retrohunt_udm_query"
+                                ],
+                                "zero_hit_diagnosis": "uncalibrated_outcome_threshold",
+                                "failure_reason": "uncalibrated_outcome_threshold",
+                                "outcome_var": str(uc["outcome_var"]),
+                                "threshold_value": uc["threshold_value"],
+                                "empirical_value": uc["empirical_value"],
+                                "outcome_values": zh_diag.get(
+                                    "outcome_values", {}
+                                ),
+                                "recommended_yaral2_predicate": t_replacement,
+                                "recommended_span_target": "condition_outcome_comparison",
+                                "anchor_query": zh_diag["anchor_query"],
+                                "anchor_event_count": zh_diag[
+                                    "anchor_event_count"
+                                ],
+                                "pivot_event_count": zh_diag[
+                                    "pivot_event_count"
+                                ],
+                                "pivot_compiler_verified": zh_diag[
+                                    "pivot_compiler_verified"
+                                ],
+                                "shared_join_values": zh_diag.get(
+                                    "shared_join_values", []
+                                ),
+                                "observed_values": zh_diag.get(
+                                    "observed_values", []
+                                ),
+                            }
+                        )
+                        zero_hit_yaral2_findings_count += 1
+                    continue
 
                 if (
                     zh_diag.get("diagnosis_class")

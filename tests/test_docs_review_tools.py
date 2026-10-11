@@ -4938,4 +4938,642 @@ def test_verify_and_redline_yaral2_rules_in_doc_stages_outcome_and_non_existence
     assert len(batch_calls) == 0
 
 
+def test_extract_yaral2_event_predicates_and_spec_parse_cidr_conditionals_and_outcome_thresholds() -> None:
+    """Verifies extraction of net.ip_in_range_cidr/cidrmatch predicates, outcome CASE WHEN/iff/if
+    conditional expressions, and condition outcome threshold comparisons with exact 1-based UTF-16 spans."""
+    from manager.tools.docs_review_tools import (
+        _build_utf16_index_map,
+        _iter_yaral2_rule_blocks,
+        extract_yaral2_event_predicates,
+        extract_yaral2_multi_event_spec,
+    )
+
+    doc_text = (
+        "Cycle 10 H17 Parser Test:\n\n"
+        "rule gcp_iam_cidr_and_conditional_outcome_case_33278 {\n"
+        "  meta:\n"
+        '    author = "SOC Detection Engineering"\n'
+        "  events:\n"
+        '    $iam.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    cidrmatch("104.198.226.0/24", $iam.ip)\n'
+        "    $iam.principal.ip = $src_ip\n"
+        "  match:\n"
+        "    $src_ip over 15m\n"
+        "  outcome:\n"
+        "    $event_count = count_distinct($iam.metadata.id)\n"
+        '    $risk_score = CASE WHEN $iam.resource.name = "projects/base-production" THEN 85 ELSE 40 END\n'
+        "  condition:\n"
+        "    $iam and $event_count >= 5 and $risk_score >= 95\n"
+        "}\n\n"
+        'rule collapsed_cidr_rule { meta: author = "SOC" events: '
+        '$e.metadata.log_type = "GCP_CLOUDAUDIT" '
+        'net.ip_in_range_cidr($e.principal.ip, "104.198.226.0/24") '
+        'outcome: $risk_score = iff($e.target.resource.name = "projects/base-production", 85, 40) '
+        "condition: $e and $risk_score > 70 }\n"
+    )
+    index_map = _build_utf16_index_map(doc_text)
+    blocks = _iter_yaral2_rule_blocks(doc_text)
+    assert len(blocks) == 2
+
+    b0 = blocks[0]
+    preds0 = extract_yaral2_event_predicates(
+        b0["rule_text"],
+        rule_char_start=b0["char_start"],
+        full_plain_text=doc_text,
+        index_map=index_map,
+    )
+    cidr_preds0 = [p for p in preds0 if p["predicate_kind"] == "cidr"]
+    assert len(cidr_preds0) == 1
+    cp0 = cidr_preds0[0]
+    assert cp0["cidr_function"] == "cidrmatch"
+    assert cp0["operator"] == "net.ip_in_range_cidr"
+    assert cp0["cidr_arg_order"] == "cidr_first"
+    assert cp0["event_var"] == "$iam"
+    assert cp0["field_token"] == "ip"
+    assert cp0["canonical_field"] == "principal.ip"
+    assert cp0["cidr_value"] == "104.198.226.0/24"
+    assert cp0["udm_clause"] == 'net.ip_in_range_cidr(principal.ip, "104.198.226.0/24")'
+    s0 = cp0["predicate_start_index"] - 1
+    e0 = cp0["predicate_end_index"] - 1
+    assert doc_text[s0:e0] == 'cidrmatch("104.198.226.0/24", $iam.ip)'
+
+    spec0 = extract_yaral2_multi_event_spec(
+        b0["rule_text"],
+        rule_char_start=b0["char_start"],
+        full_plain_text=doc_text,
+        index_map=index_map,
+    )
+    assert len(spec0["outcome_conditionals"]) == 1
+    oc0 = spec0["outcome_conditionals"][0]
+    assert oc0["conditional_kind"] == "case_when"
+    assert oc0["true_value"] == 85
+    assert oc0["false_value"] == 40
+    assert (
+        oc0["canonical_if_expr"]
+        == 'if($iam.target.resource.name = "projects/base-production", 85, 40)'
+    )
+    assert len(spec0["condition_outcome_comparisons"]) == 2
+    cmp_ec = spec0["condition_outcome_comparisons"][0]
+    assert cmp_ec["outcome_var"] == "$event_count"
+    assert cmp_ec["outcome_var_name"] == "event_count"
+    assert cmp_ec["operator"] == ">="
+    assert cmp_ec["threshold_value"] == 5
+    c_s0 = cmp_ec["comparison_start_index"] - 1
+    c_e0 = cmp_ec["comparison_end_index"] - 1
+    assert doc_text[c_s0:c_e0] == "$event_count >= 5"
+
+    cmp_rs = spec0["condition_outcome_comparisons"][1]
+    assert cmp_rs["outcome_var"] == "$risk_score"
+    assert cmp_rs["outcome_var_name"] == "risk_score"
+    assert cmp_rs["operator"] == ">="
+    assert cmp_rs["threshold_value"] == 95
+    c_s1 = cmp_rs["comparison_start_index"] - 1
+    c_e1 = cmp_rs["comparison_end_index"] - 1
+    assert doc_text[c_s1:c_e1] == "$risk_score >= 95"
+
+    b1 = blocks[1]
+    preds1 = extract_yaral2_event_predicates(
+        b1["rule_text"],
+        rule_char_start=b1["char_start"],
+        full_plain_text=doc_text,
+        index_map=index_map,
+    )
+    cidr_preds1 = [p for p in preds1 if p["predicate_kind"] == "cidr"]
+    assert len(cidr_preds1) == 1
+    assert cidr_preds1[0]["cidr_function"] == "net.ip_in_range_cidr"
+    assert cidr_preds1[0]["cidr_arg_order"] == "field_first"
+    spec1 = extract_yaral2_multi_event_spec(
+        b1["rule_text"],
+        rule_char_start=b1["char_start"],
+        full_plain_text=doc_text,
+        index_map=index_map,
+    )
+    assert len(spec1["outcome_conditionals"]) == 1
+    assert spec1["outcome_conditionals"][0]["conditional_kind"] == "iff"
+    assert len(spec1["condition_outcome_comparisons"]) == 1
+    assert spec1["condition_outcome_comparisons"][0]["outcome_var"] == "$risk_score"
+    assert spec1["condition_outcome_comparisons"][0]["threshold_value"] == 70
+
+
+def test_find_yaral2_rule_spans_repairs_cidr_functions_and_outcome_conditionals_without_overlap() -> None:
+    """Verifies static span detection and non-overlapping 1-based UTF-16 repair for
+    invalid_cidr_function_syntax and invalid_outcome_conditional_syntax, while preserving
+    valid net.ip_in_range_cidr() and if() expressions with 0 false positives."""
+    from manager.tools.docs_review_tools import (
+        _build_utf16_index_map,
+        find_yaral2_rule_spans,
+    )
+
+    doc_text = (
+        "Rule 1 (Defective CIDR + CASE WHEN in match rule):\n"
+        "rule gcp_iam_cidr_and_conditional_outcome_case_33278 {\n"
+        "  meta:\n"
+        '    author = "SOC Detection Engineering"\n'
+        "  events:\n"
+        '    $iam.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    cidrmatch("104.198.226.0/24", $iam.ip)\n'
+        "    $iam.principal.ip = $src_ip\n"
+        "  match:\n"
+        "    $src_ip over 15m\n"
+        "  outcome:\n"
+        "    $event_count = count_distinct($iam.metadata.id)\n"
+        '    $risk_score = CASE WHEN $iam.resource.name = "projects/base-production" THEN 85 ELSE 40 END\n'
+        "  condition:\n"
+        "    $iam and $event_count >= 1 and $risk_score >= 50\n"
+        "}\n\n"
+        "Rule 2 (Defective ipv4_is_in_range + iff in single-event rule):\n"
+        "rule single_event_iff_and_ipv4_range {\n"
+        "  meta:\n"
+        '    author = "SOC Detection Engineering"\n'
+        "  events:\n"
+        '    $iam.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    ipv4_is_in_range($iam.principal.ip, "104.198.226.0/24")\n'
+        "  outcome:\n"
+        '    $risk_score = iff($iam.target.resource.name = "projects/base-production", 85, 40)\n'
+        "  condition:\n"
+        "    $iam and $risk_score >= 50\n"
+        "}\n\n"
+        "Rule 3 (Valid control rule):\n"
+        "rule gcp_iam_calibrated_outcome_control {\n"
+        "  meta:\n"
+        '    author = "SOC Detection Engineering"\n'
+        "  events:\n"
+        '    $iam.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    net.ip_in_range_cidr($iam.principal.ip, "104.198.226.0/24")\n'
+        "    $iam.principal.ip = $src_ip\n"
+        "  match:\n"
+        "    $src_ip over 15m\n"
+        "  outcome:\n"
+        "    $event_count = count_distinct($iam.metadata.id)\n"
+        '    $risk_score = max(if($iam.target.resource.name = "projects/base-production", 85, 40))\n'
+        "  condition:\n"
+        "    $iam and $event_count >= 1 and $risk_score >= 50\n"
+        "}\n"
+    )
+    index_map = _build_utf16_index_map(doc_text)
+    comments, edits, findings = find_yaral2_rule_spans(doc_text, index_map)
+    assert len(findings) == 4
+    assert len(comments) == 4
+    assert len(edits) == 4
+
+    # Control rule must have 0 findings
+    assert "gcp_iam_calibrated_outcome_control" not in {
+        f["rule_name"] for f in findings
+    }
+
+    r1_findings = [
+        f
+        for f in findings
+        if f["rule_name"] == "gcp_iam_cidr_and_conditional_outcome_case_33278"
+    ]
+    assert [f["defect_type"] for f in r1_findings] == [
+        "invalid_cidr_function_syntax",
+        "invalid_outcome_conditional_syntax",
+    ]
+    assert (
+        r1_findings[0]["replacement"]
+        == 'net.ip_in_range_cidr($iam.principal.ip, "104.198.226.0/24")'
+    )
+    assert (
+        r1_findings[1]["replacement"]
+        == 'max(if($iam.target.resource.name = "projects/base-production", 85, 40))'
+    )
+
+    r2_findings = [
+        f
+        for f in findings
+        if f["rule_name"] == "single_event_iff_and_ipv4_range"
+    ]
+    assert [f["defect_type"] for f in r2_findings] == [
+        "invalid_cidr_function_syntax",
+        "invalid_outcome_conditional_syntax",
+    ]
+    assert (
+        r2_findings[0]["replacement"]
+        == 'net.ip_in_range_cidr($iam.principal.ip, "104.198.226.0/24")'
+    )
+    assert (
+        r2_findings[1]["replacement"]
+        == 'if($iam.target.resource.name = "projects/base-production", 85, 40)'
+    )
+
+    # Apply edits in descending start_index order and confirm 0 remaining findings
+    repaired_doc = doc_text
+    for f in sorted(findings, key=lambda x: int(x["start_index"]), reverse=True):
+        s_idx = int(f["start_index"]) - 1
+        e_idx = int(f["end_index"]) - 1
+        assert repaired_doc[s_idx:e_idx] == f["quote"]
+        repaired_doc = repaired_doc[:s_idx] + str(f["replacement"]) + repaired_doc[e_idx:]
+
+    _, _, remaining = find_yaral2_rule_spans(
+        repaired_doc, _build_utf16_index_map(repaired_doc)
+    )
+    assert remaining == []
+
+
+def test_evaluate_yaral2_outcome_thresholds_computes_empirical_aggregations_and_detects_suppression() -> None:
+    """Verifies that evaluate_yaral2_outcome_thresholds computes count_distinct, count, max, min,
+    sum, and nested if() conditional expressions against matched SIEM UDM events and identifies
+    suppressing condition outcome thresholds."""
+    from manager.tools.docs_review_tools import evaluate_yaral2_outcome_thresholds
+
+    rule_text = (
+        "rule gcp_iam_outcome_threshold_test {\n"
+        "  meta:\n"
+        '    author = "SOC Detection Engineering"\n'
+        "  events:\n"
+        '    $iam.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    net.ip_in_range_cidr($iam.principal.ip, "104.198.226.0/24")\n'
+        "    $iam.principal.ip = $src_ip\n"
+        "  match:\n"
+        "    $src_ip over 15m\n"
+        "  outcome:\n"
+        "    $event_count = count_distinct($iam.metadata.id)\n"
+        '    $risk_score = max(if($iam.target.resource.name = "projects/base-production", 85, 40))\n'
+        "  condition:\n"
+        "    $iam and $event_count >= 5 and $risk_score >= 95\n"
+        "}"
+    )
+    sample_events = [
+        {
+            "udm": {
+                "metadata": {"id": "evt-33278-1", "log_type": "GCP_CLOUDAUDIT"},
+                "principal": {"ip": ["104.198.226.161"]},
+                "target": {"resource": {"name": "projects/base-production"}},
+            }
+        }
+    ]
+    eval_res = evaluate_yaral2_outcome_thresholds(
+        rule_text,
+        sample_events,
+    )
+    assert eval_res["events_matched"] == 1
+    assert eval_res["outcome_values"]["$event_count"] == 1
+    assert eval_res["outcome_values"]["$risk_score"] == 85
+    assert eval_res["all_thresholds_satisfied"] is False
+    assert eval_res["threshold_suppressed"] is True
+    assert eval_res["effective_detections"] == 0
+    assert len(eval_res["uncalibrated_comparisons"]) == 2
+    assert (
+        eval_res["uncalibrated_comparisons"][0]["recommended_comparison"]
+        == "$event_count >= 1"
+    )
+    assert (
+        eval_res["uncalibrated_comparisons"][1]["recommended_comparison"]
+        == "$risk_score >= 85"
+    )
+    assert "$event_count >= 1 and $risk_score >= 85" in eval_res["calibrated_rule_text"]
+
+
+def test_diagnose_zero_hit_yaral2_rule_calibrates_suppressing_outcome_thresholds() -> None:
+    """Verifies that diagnose_zero_hit_yaral2_rule detects uncalibrated_outcome_threshold
+    on both single-event and multi-event YARA-L 2.0 rules when events match > 0 telemetry
+    but condition outcome thresholds suppress all detections."""
+    from manager.tools.docs_review_tools import (
+        diagnose_zero_hit_yaral2_rule,
+        verify_yaral2_rule_with_siem,
+    )
+
+    multi_rule = (
+        "rule wins_d19_multi_event_uncalibrated_threshold_case_33280 {\n"
+        "  meta:\n"
+        '    author = "SOC Detection Engineering"\n'
+        "  events:\n"
+        '    $cmd.metadata.event_type = "PROCESS_LAUNCH"\n'
+        '    $cmd.principal.hostname = "wins-d19"\n'
+        "    re.regex($cmd.target.process.command_line, `.*cmd\\.exe.*`) nocase\n"
+        "    $cmd.principal.hostname = $host\n"
+        '    $svc.metadata.event_type = "PROCESS_LAUNCH"\n'
+        "    re.regex($svc.target.process.command_line, `.*services\\.exe.*`) nocase\n"
+        "    $svc.principal.hostname = $host\n"
+        "  match:\n"
+        "    $host over 15m\n"
+        "  outcome:\n"
+        "    $cmd_count = count_distinct($cmd.metadata.id)\n"
+        "    $svc_count = count_distinct($svc.metadata.id)\n"
+        "  condition:\n"
+        "    $cmd and $svc and $svc_count >= 3\n"
+        "}"
+    )
+
+    def fake_validate(rule_text: str) -> str:
+        return "Rule validation PASSED."
+
+    def fake_search(query: str, **kwargs: Any) -> dict[str, Any]:
+        if "services\\.exe" in query:
+            return {
+                "events": [
+                    {
+                        "udm": {
+                            "metadata": {"id": "svc-1", "event_type": "PROCESS_LAUNCH"},
+                            "principal": {"hostname": "wins-d19"},
+                            "target": {"process": {"command_line": "C:\\Windows\\System32\\services.exe"}},
+                        }
+                    }
+                ],
+                "total_events": 1,
+            }
+        return {
+            "events": [
+                {
+                    "udm": {
+                        "metadata": {"id": f"cmd-{i}", "event_type": "PROCESS_LAUNCH"},
+                        "principal": {"hostname": "wins-d19"},
+                        "target": {"process": {"command_line": "cmd.exe /c whoami"}},
+                    }
+                }
+                for i in range(6)
+            ],
+            "total_events": 6,
+        }
+
+    diag = diagnose_zero_hit_yaral2_rule(
+        multi_rule,
+        siem_validate_fn=fake_validate,
+        siem_search_fn=fake_search,
+    )
+    assert diag["status"] == "success"
+    assert diag["is_multi_event"] is True
+    assert diag["initial_event_count"] == 7
+    assert diag["failure_reason"] == "uncalibrated_outcome_threshold"
+    assert diag["failing_predicate"]["comparison_text"] == "$svc_count >= 3"
+    assert diag["recommended_yaral2_predicate"] == "$svc_count >= 1"
+    assert diag["recommended_span_target"] == "condition_outcome_comparison"
+    assert diag["recommended_span_replacement"] == "$svc_count >= 1"
+    assert diag["pivot_verified"] is True
+    assert diag["pivot_compiler_verified"] is True
+    assert diag["pivot_event_count"] == 7
+    assert "$cmd and $svc and $svc_count >= 1" in diag["pivoted_rule_text"]
+
+    siem_check = verify_yaral2_rule_with_siem(
+        multi_rule,
+        diagnose_zero_hit_retrohunt=True,
+        siem_validate_fn=fake_validate,
+        siem_search_fn=fake_search,
+    )
+    assert siem_check["compiler_verified"] is True
+    assert siem_check["retrohunt_event_count"] == 7
+    assert siem_check["outcome_evaluation"]["all_thresholds_satisfied"] is False
+    assert (
+        siem_check["zero_hit_diagnosis"]["failure_reason"]
+        == "uncalibrated_outcome_threshold"
+    )
+
+
+def test_verify_and_redline_yaral2_rules_in_doc_stages_cidr_conditional_and_threshold_calibration_idempotently() -> None:
+    """End-to-end mock Google Docs test verifying combined static (cidrmatch, CASE WHEN) and
+    live SIEM uncalibrated_outcome_threshold red-lining in descending startIndex order under
+    writeMode='SUGGEST', control rule preservation, and Pass 2 suggestion idempotency."""
+    from manager.tools.docs_review_tools import (
+        _build_utf16_index_map,
+        clear_doc_index_cache,
+        find_yaral2_rule_spans,
+        verify_and_redline_yaral2_rules_in_doc,
+    )
+
+    clear_doc_index_cache()
+
+    doc_text = (
+        "Cycle 10 H17 End-to-End Test:\n\n"
+        "1. Single-event CIDR + CASE WHEN + uncalibrated outcome thresholds:\n"
+        "rule gcp_iam_cidr_and_conditional_outcome_case_33278 {\n"
+        "  meta:\n"
+        '    author = "SOC Detection Engineering"\n'
+        "  events:\n"
+        '    $iam.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    cidrmatch("104.198.226.0/24", $iam.ip)\n'
+        "    $iam.principal.ip = $src_ip\n"
+        "  match:\n"
+        "    $src_ip over 15m\n"
+        "  outcome:\n"
+        "    $event_count = count_distinct($iam.metadata.id)\n"
+        '    $risk_score = CASE WHEN $iam.resource.name = "projects/base-production" THEN 85 ELSE 40 END\n'
+        "  condition:\n"
+        "    $iam and $event_count >= 5 and $risk_score >= 95\n"
+        "}\n\n"
+        "2. Multi-event uncalibrated outcome threshold:\n"
+        "rule wins_d19_multi_event_uncalibrated_threshold_case_33280 {\n"
+        "  meta:\n"
+        '    author = "SOC Detection Engineering"\n'
+        "  events:\n"
+        '    $cmd.metadata.event_type = "PROCESS_LAUNCH"\n'
+        '    $cmd.principal.hostname = "wins-d19"\n'
+        "    re.regex($cmd.target.process.command_line, `.*cmd\\.exe.*`) nocase\n"
+        "    $cmd.principal.hostname = $host\n"
+        '    $svc.metadata.event_type = "PROCESS_LAUNCH"\n'
+        "    re.regex($svc.target.process.command_line, `.*services\\.exe.*`) nocase\n"
+        "    $svc.principal.hostname = $host\n"
+        "  match:\n"
+        "    $host over 15m\n"
+        "  outcome:\n"
+        "    $cmd_count = count_distinct($cmd.metadata.id)\n"
+        "    $svc_count = count_distinct($svc.metadata.id)\n"
+        "  condition:\n"
+        "    $cmd and $svc and $svc_count >= 3\n"
+        "}\n\n"
+        "3. Calibrated control rule:\n"
+        "rule gcp_iam_calibrated_outcome_control {\n"
+        "  meta:\n"
+        '    author = "SOC Detection Engineering"\n'
+        "  events:\n"
+        '    $iam.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    net.ip_in_range_cidr($iam.principal.ip, "104.198.226.0/24")\n'
+        "    $iam.principal.ip = $src_ip\n"
+        "  match:\n"
+        "    $src_ip over 15m\n"
+        "  outcome:\n"
+        "    $event_count = count_distinct($iam.metadata.id)\n"
+        '    $risk_score = max(if($iam.target.resource.name = "projects/base-production", 85, 40))\n'
+        "  condition:\n"
+        "    $iam and $event_count >= 1 and $risk_score >= 50\n"
+        "}\n"
+    )
+
+    mock_doc = {
+        "documentId": "doc-h17-outcome-calibration",
+        "title": "Cycle 10 H17 Outcome Calibration & Functions Test",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": len(doc_text) + 1,
+                                "textRun": {"content": doc_text},
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+    }
+
+    batch_calls: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=mock_doc)
+        payload = json.loads(request.content.decode("utf-8"))
+        batch_calls.append(payload)
+        if any("insertComment" in r for r in payload.get("requests", [])):
+            return httpx.Response(
+                200,
+                json={
+                    "replies": [
+                        {"insertComment": {"commentId": f"c-h17-{i}"}}
+                        for i, _ in enumerate(payload["requests"])
+                    ]
+                },
+            )
+        return httpx.Response(
+            200,
+            json={"replies": [{} for _ in payload.get("requests", [])]},
+        )
+
+    def fake_validate(rule_text: str) -> str:
+        return "Rule validation PASSED."
+
+    def fake_search(query: str, **kwargs: Any) -> dict[str, Any]:
+        if "GCP_CLOUDAUDIT" in query:
+            return {
+                "events": [
+                    {
+                        "udm": {
+                            "metadata": {"id": "iam-33278-1", "log_type": "GCP_CLOUDAUDIT"},
+                            "principal": {"ip": ["104.198.226.161"]},
+                            "target": {"resource": {"name": "projects/base-production"}},
+                        }
+                    }
+                ],
+                "total_events": 1,
+            }
+        if "services\\.exe" in query:
+            return {
+                "events": [
+                    {
+                        "udm": {
+                            "metadata": {"id": "svc-1", "event_type": "PROCESS_LAUNCH"},
+                            "principal": {"hostname": "wins-d19"},
+                            "target": {"process": {"command_line": "C:\\Windows\\System32\\services.exe"}},
+                        }
+                    }
+                ],
+                "total_events": 1,
+            }
+        if "cmd\\.exe" in query:
+            return {
+                "events": [
+                    {
+                        "udm": {
+                            "metadata": {"id": f"cmd-{i}", "event_type": "PROCESS_LAUNCH"},
+                            "principal": {"hostname": "wins-d19"},
+                            "target": {"process": {"command_line": "cmd.exe /c whoami"}},
+                        }
+                    }
+                    for i in range(6)
+                ],
+                "total_events": 6,
+            }
+        return {"events": [], "total_events": 0}
+
+    res = verify_and_redline_yaral2_rules_in_doc(
+        "doc-h17-outcome-calibration",
+        run_live_siem_check=True,
+        diagnose_zero_hit_retrohunt=True,
+        siem_validate_fn=fake_validate,
+        siem_search_fn=fake_search,
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(handler),
+    )
+    assert res["status"] == "success"
+    # Rule 1: 2 static findings (cidrmatch, CASE WHEN) + 2 uncalibrated outcome threshold findings ($event_count >= 5, $risk_score >= 95)
+    # Rule 2: 1 uncalibrated outcome threshold finding ($svc_count >= 3)
+    # Rule 3: 0 findings
+    assert res["yaral2_findings_count"] == 5
+    assert res["zero_hit_yaral2_findings_count"] == 3
+    assert res["skipped_existing_suggestion_count"] == 0
+    assert res["comments"]["inserted_count"] == 5
+    assert res["edits"]["applied_count"] == 5
+
+    # Control rule must have 0 findings
+    assert "gcp_iam_calibrated_outcome_control" not in {
+        f["rule_name"] for f in res["findings"]
+    }
+
+    # Verify descending-index writeMode="SUGGEST" execution order
+    assert len(batch_calls) == 2
+    assert "writeControl" not in batch_calls[0]
+    assert batch_calls[1]["writeControl"] == {"writeMode": "SUGGEST"}
+    delete_starts = [
+        req["deleteContentRange"]["range"]["startIndex"]
+        for req in batch_calls[1]["requests"]
+        if "deleteContentRange" in req
+    ]
+    assert delete_starts == sorted(delete_starts, reverse=True)
+
+    # Apply staged edits in descending order and verify accepted_text has 0 defects and calibrated thresholds
+    accepted_text = doc_text
+    for f in sorted(
+        res["findings"], key=lambda item: int(item["start_index"]), reverse=True
+    ):
+        s_idx = int(f["start_index"]) - 1
+        e_idx = int(f["end_index"]) - 1
+        assert accepted_text[s_idx:e_idx] == f["quote"]
+        accepted_text = (
+            accepted_text[:s_idx] + str(f["replacement"]) + accepted_text[e_idx:]
+        )
+    _, _, remaining_findings = find_yaral2_rule_spans(
+        accepted_text, _build_utf16_index_map(accepted_text)
+    )
+    assert remaining_findings == []
+    assert 'net.ip_in_range_cidr($iam.principal.ip, "104.198.226.0/24")' in accepted_text
+    assert 'max(if($iam.target.resource.name = "projects/base-production", 85, 40))' in accepted_text
+    assert "$iam and $event_count >= 1 and $risk_score >= 85" in accepted_text
+    assert "$cmd and $svc and $svc_count >= 1" in accepted_text
+
+    # Pass 2 idempotency
+    mock_doc_pending = {
+        "documentId": "doc-h17-outcome-calibration",
+        "title": "Cycle 10 H17 Outcome Calibration & Functions Test",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": len(doc_text) + 1,
+                                "textRun": {
+                                    "content": doc_text,
+                                    "suggestedDeletionIds": [
+                                        "suggest.yl2.h17.existing"
+                                    ],
+                                },
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+    }
+    batch_calls.clear()
+    res2 = verify_and_redline_yaral2_rules_in_doc(
+        "doc-h17-outcome-calibration",
+        run_live_siem_check=True,
+        diagnose_zero_hit_retrohunt=True,
+        siem_validate_fn=fake_validate,
+        siem_search_fn=fake_search,
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(
+            lambda req: httpx.Response(200, json=mock_doc_pending)
+        ),
+    )
+    assert res2["status"] == "success"
+    assert res2["yaral2_findings_count"] == 0
+    assert res2["zero_hit_yaral2_findings_count"] == 0
+    assert res2["skipped_existing_suggestion_count"] == 5
+    assert res2["comments"]["inserted_count"] == 0
+    assert res2["edits"]["applied_count"] == 0
+    assert len(batch_calls) == 0
 

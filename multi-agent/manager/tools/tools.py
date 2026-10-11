@@ -768,13 +768,19 @@ def verify_and_redline_yaral2_rules_in_doc(
   blocks and identifies standard-YARA `strings:` sections used instead of
   YARA-L 2.0 `events:`, event-variable-prefixed invalid UDM fields
   (`$e.resource.name`, `$e.ip`, `re.regex($e.process.command_line, ...)`),
-  cross-event join semantic type contradictions (`cross_event_join_type_mismatch`),
-  `match:` placeholder variable mismatches (`match_placeholder_mismatch`),
-  invalid `match:` time window syntax (`invalid_match_window_syntax`, normalized
-  to `over <N><s|m|h|d>`), non-YARA-L SQL/Splunk aggregation functions in
+  non-YARA-L network CIDR functions (`invalid_cidr_function_syntax`:
+  `cidrmatch(...)`, `ipv4_is_in_range(...)`, `in_cidr(...)` normalized to
+  `net.ip_in_range_cidr($var.<field>, "<cidr>")`), cross-event join semantic
+  type contradictions (`cross_event_join_type_mismatch`), `match:` placeholder
+  variable mismatches (`match_placeholder_mismatch`), invalid `match:` time
+  window syntax (`invalid_match_window_syntax`, normalized to
+  `over <N><s|m|h|d>`), non-YARA-L SQL/Splunk aggregation functions in
   `outcome:` (`invalid_outcome_aggregation_function`: `distinct_count` ->
   `count_distinct`, `collect_set` -> `array_distinct`, `avg` -> `max`),
-  unaggregated event fields in `outcome:` when `match:` is present
+  SQL/Splunk conditional scoring expressions in `outcome:`
+  (`invalid_outcome_conditional_syntax`: `CASE WHEN ... THEN ... ELSE ... END`
+  and `iff(...)` normalized to `if(...)` or `max(if(...))`), unaggregated event
+  fields in `outcome:` when `match:` is present
   (`unaggregated_outcome_in_match_rule`), `condition:` outcome threshold
   variable mismatches (`condition_outcome_variable_mismatch`), `not $e2`
   negation syntax (`invalid_condition_negation_syntax`, normalized to `!$e2`),
@@ -782,10 +788,13 @@ def verify_and_redline_yaral2_rules_in_doc(
   1-based UTF-16 span. When `run_live_siem_check=True`, compiles the repaired
   YARA-L 2.0 rule against Chronicle SIEM (`validate_rule`), executes
   single-event, multi-event intersection, or non-existence (`$e1 and !$e2`
-  set-difference) UDM correlation retrohunts (`search_udm`), diagnoses 0-hit
-  retrohunt predicates and cross-event join entity-role swaps
-  (`exact_match_on_command_line`, `entity_role_swap`, `value_format_mismatch`,
-  `cross_event_join_entity_role_swap`), and stages compiler-verified
+  set-difference) UDM correlation retrohunts (`search_udm`), evaluates empirical
+  `outcome:` aggregations (`count_distinct`, `count`, `max`, `min`, `sum`,
+  `if(...)`) against `condition:` outcome thresholds, diagnoses 0-hit retrohunt
+  predicates, cross-event join entity-role swaps, and suppressing outcome
+  thresholds (`exact_match_on_command_line`, `entity_role_swap`,
+  `value_format_mismatch`, `cross_event_join_entity_role_swap`,
+  `uncalibrated_outcome_threshold`), and stages compiler-verified
   `writeMode="SUGGEST"` edits.
 
   Args:
@@ -793,7 +802,7 @@ def verify_and_redline_yaral2_rules_in_doc(
       run_live_siem_check (bool): Whether to compile the repaired YARA-L 2.0 rule
                                   and dry-run its UDM predicates (or per-stream correlation queries) against live Chronicle SIEM.
       diagnose_zero_hit_retrohunt (bool): Whether to diagnose and stage compiler-verified
-                                          pivots for 0-hit YARA-L 2.0 retrohunt predicates and cross-event join entity-role swaps.
+                                          pivots for 0-hit YARA-L 2.0 retrohunt predicates, cross-event join entity-role swaps, and uncalibrated outcome thresholds.
       start_time (str): ISO-8601 start time for the SIEM retrohunt search window.
       end_time (str): ISO-8601 end time for the SIEM retrohunt search window.
 
