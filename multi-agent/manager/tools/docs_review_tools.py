@@ -67,6 +67,7 @@ from .drive_tools import (  # noqa: E402
 logger = logging.getLogger(__name__)
 
 DOCS_API_BASE_URL = "https://docs.googleapis.com/v1/documents"
+DRIVE_FILES_API_BASE_URL = "https://www.googleapis.com/drive/v3/files"
 GOOGLE_DOC_MIME_TYPE = "application/vnd.google-apps.document"
 MARKDOWN_MIME_TYPE = "text/markdown"
 DEFAULT_DOCS_TIMEOUT_SECONDS = 30.0
@@ -409,7 +410,7 @@ _YARAL2_COND_VAR_RE = re.compile(
     r"([#$])([A-Za-z_][A-Za-z0-9_]*)(?!\.)"
 )
 _YARAL2_RE_REGEX_SLASH_NORM_RE = re.compile(
-    r"(re\.regex\(\s*\$[A-Za-z_][A-Za-z0-9_.]*\s*,\s*)/([^/\r\n]+)/(\s*nocase)?(\s*\))(\s*nocase)?",
+    r"(re\.regex\(\s*\$[A-Za-z_][A-Za-z0-9_.]*\s*,\s*)(?:/([^/\r\n]+)/|`([^`\r\n]+)`)(\s*nocase)?(\s*\))(\s*nocase)?",
     re.IGNORECASE,
 )
 _YARAL2_RE_REGEX_CALL_RE = re.compile(
@@ -519,6 +520,7 @@ _FRONTMATTER_BLOCK_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n(.*)$", re.DOTALL)
 _cache_lock = threading.Lock()
 _DOC_INDEX_CACHE: dict[str, tuple[str, list[int]]] = {}
 _DOC_SUGGESTION_CACHE: dict[str, list[tuple[int, int]]] = {}
+_DOC_RAW_AST_CACHE: dict[str, dict[str, Any]] = {}
 
 
 def clear_doc_index_cache() -> None:
@@ -526,6 +528,7 @@ def clear_doc_index_cache() -> None:
     with _cache_lock:
         _DOC_INDEX_CACHE.clear()
         _DOC_SUGGESTION_CACHE.clear()
+        _DOC_RAW_AST_CACHE.clear()
 
 
 def _short_sha256(value: str) -> str:
@@ -1367,11 +1370,14 @@ def _store_doc_index_state(
     tool_context: Any = None,
     *,
     pending_suggestion_spans: list[tuple[int, int]] | None = None,
+    raw_doc: dict[str, Any] | None = None,
 ) -> None:
     spans = list(pending_suggestion_spans or [])
     with _cache_lock:
         _DOC_INDEX_CACHE[document_id] = (plain_text, index_map)
         _DOC_SUGGESTION_CACHE[document_id] = spans
+        if isinstance(raw_doc, dict):
+            _DOC_RAW_AST_CACHE[document_id] = raw_doc
     if tool_context is not None:
         state = getattr(tool_context, "state", None)
         if isinstance(state, dict):
@@ -1379,6 +1385,8 @@ def _store_doc_index_state(
             state["doc_index_map"] = index_map
             state["doc_pending_suggestion_spans"] = spans
             state["doc_id"] = document_id
+            if isinstance(raw_doc, dict):
+                state["doc_raw_ast"] = raw_doc
 
 
 def _load_doc_index_state(
@@ -1415,6 +1423,20 @@ def _load_doc_pending_suggestion_spans(
                 ]
     with _cache_lock:
         return list(_DOC_SUGGESTION_CACHE.get(document_id, []))
+
+
+def _load_doc_raw_ast(
+    document_id: str,
+    tool_context: Any = None,
+) -> dict[str, Any] | None:
+    if tool_context is not None:
+        state = getattr(tool_context, "state", None)
+        if isinstance(state, dict) and state.get("doc_id") == document_id:
+            raw_doc = state.get("doc_raw_ast")
+            if isinstance(raw_doc, dict):
+                return raw_doc
+    with _cache_lock:
+        return _DOC_RAW_AST_CACHE.get(document_id)
 
 
 def create_google_doc(
@@ -1499,7 +1521,8 @@ def read_google_doc(
     ``propose_doc_suggested_edits``. Extracts the ``"baseline"`` text projection
     (excluding ``suggestedInsertionIds`` so pending replacements never fuse
     ``deleted_text + inserted_text``) while caching ``pending_suggestion_spans``
-    for multi-pass review idempotency.
+    and the raw Google Docs AST for multi-pass review idempotency and italic
+    regex wildcard recovery.
 
     Args:
         document_id: The Google Docs ``documentId``.
@@ -1543,6 +1566,7 @@ def read_google_doc(
         index_map,
         tool_context=tool_context,
         pending_suggestion_spans=pending_spans,
+        raw_doc=doc,
     )
 
     return {
@@ -3032,9 +3056,44 @@ def verify_and_redline_udm_queries_in_doc(
             "message": "Failed to load UTF-16 index map after read_google_doc.",
         }
 
+    raw_doc = _load_doc_raw_ast(document_id, tool_context=tool_context)
     raw_comments, raw_edits, raw_findings = find_udm_field_spans(
         plain_text, index_map, udm_doc_url=udm_doc_url
     )
+    if isinstance(raw_doc, dict):
+        ic_comments, ic_edits, ic_findings = find_italic_corrupted_regex_spans(
+            raw_doc,
+            plain_text=plain_text,
+            index_map=index_map,
+            udm_doc_url=udm_doc_url,
+            yaral2_doc_url=DEFAULT_YARAL2_DOC_URL,
+        )
+        repaired_line_by_orig: dict[str, str] = {}
+        for ic_f in ic_findings:
+            if ic_f.get("context_kind") == "udm":
+                orig_ql = str(ic_f.get("original_query_line") or "")
+                rep_ql = str(ic_f.get("query_line") or "")
+                if orig_ql and rep_ql:
+                    repaired_line_by_orig[orig_ql] = rep_ql
+        for f_item in raw_findings:
+            ql = str(f_item.get("query_line") or "")
+            if ql in repaired_line_by_orig:
+                f_item["query_line"] = repaired_line_by_orig[ql]
+        for ic_c, ic_e, ic_f in zip(ic_comments, ic_edits, ic_findings):
+            if ic_f.get("context_kind") != "udm":
+                continue
+            ic_span = (int(ic_f["start_index"]), int(ic_f["end_index"]))
+            if any(
+                _spans_overlap(
+                    ic_span, (int(ex_e["start_index"]), int(ex_e["end_index"]))
+                )
+                for ex_e in raw_edits
+            ):
+                continue
+            raw_comments.append(ic_c)
+            raw_edits.append(ic_e)
+            raw_findings.append(ic_f)
+
     pending_spans = _load_doc_pending_suggestion_spans(
         document_id, tool_context=tool_context
     )
@@ -3050,7 +3109,8 @@ def verify_and_redline_udm_queries_in_doc(
             skipped_existing_suggestion_count += 1
             continue
         f_idx = len(findings)
-        finding_idx_by_field_span[f_span] = f_idx
+        if f_item.get("defect_type") != "italic_corrupted_regex_wildcard":
+            finding_idx_by_field_span[f_span] = f_idx
         comments.append(c_item)
         edits.append(e_item)
         findings.append(f_item)
@@ -3388,16 +3448,310 @@ def _iter_yaral2_rule_blocks(plain_text: str) -> list[dict[str, Any]]:
     return blocks
 
 
+_ITALIC_RE_REGEX_ARG_RE = re.compile(
+    r"re\.regex\(\s*(?:\$?[A-Za-z_][A-Za-z0-9_.]*)\s*,\s*(/[^/\r\n]+/|`[^`\r\n]+`)",
+    re.IGNORECASE,
+)
+_ITALIC_UDM_CMP_REGEX_RE = re.compile(
+    r"(?:!=|=~|!~|=)[ \t]*(/[^/\r\n]+/)"
+)
+_ITALIC_NOCASE_REGEX_RE = re.compile(
+    r"(/[^\s/\r\n][^/\r\n]*/)(?=[ \t]+nocase\b)",
+    re.IGNORECASE,
+)
+
+
+def _restore_italic_wildcards_in_regex_body(
+    inner_text: str,
+    inner_italics: list[bool],
+) -> tuple[str, list[str], int]:
+    """Reconstructs ``*...*`` regex wildcards stripped into ``textStyle.italic=True`` runs."""
+    if not inner_text or len(inner_text) != len(inner_italics) or not any(inner_italics):
+        return inner_text, [], 0
+
+    runs: list[tuple[bool, str]] = []
+    cur_italic = inner_italics[0]
+    cur_chars = [inner_text[0]]
+    for ch, is_it in zip(inner_text[1:], inner_italics[1:]):
+        if is_it == cur_italic:
+            cur_chars.append(ch)
+        else:
+            runs.append((cur_italic, "".join(cur_chars)))
+            cur_italic = is_it
+            cur_chars = [ch]
+    runs.append((cur_italic, "".join(cur_chars)))
+
+    out_parts: list[str] = []
+    italic_subspans: list[str] = []
+    for is_it, segment in runs:
+        if not is_it:
+            out_parts.append(segment)
+            continue
+        prev_str = "".join(out_parts)
+        need_left = not prev_str.endswith("*") and not segment.startswith("*")
+        need_right = not segment.endswith("*")
+        wrapped = f"{'*' if need_left else ''}{segment}{'*' if need_right else ''}"
+        out_parts.append(wrapped)
+        italic_subspans.append(segment)
+
+    restored_inner = "".join(out_parts)
+    return restored_inner, italic_subspans, (1 if italic_subspans else 0)
+
+
+def _iter_italic_corrupted_regex_tokens(
+    text: str,
+    italic_flags: list[bool],
+) -> list[dict[str, Any]]:
+    """Finds regex literals in ``text`` whose ``*`` quantifiers were stripped into italic runs."""
+    if not text or len(text) != len(italic_flags) or not any(italic_flags):
+        return []
+
+    candidate_spans: list[tuple[int, int]] = []
+    seen_spans: set[tuple[int, int]] = set()
+    for pat in (_ITALIC_RE_REGEX_ARG_RE, _ITALIC_UDM_CMP_REGEX_RE, _ITALIC_NOCASE_REGEX_RE):
+        for m in pat.finditer(text):
+            sp = (m.start(1), m.end(1))
+            if sp not in seen_spans:
+                seen_spans.add(sp)
+                candidate_spans.append(sp)
+    candidate_spans.sort(key=lambda item: item[0])
+
+    results: list[dict[str, Any]] = []
+    for tok_start, tok_end in candidate_spans:
+        inner_start = tok_start + 1
+        inner_end = tok_end - 1
+        if inner_end <= inner_start:
+            continue
+        inner_italics = italic_flags[inner_start:inner_end]
+        if not any(inner_italics):
+            continue
+        # Skip if the entire token including outer delimiters is uniformly italicized
+        if italic_flags[tok_start] and italic_flags[tok_end - 1] and all(inner_italics):
+            continue
+        inner_text = text[inner_start:inner_end]
+        restored_inner, italic_subspans, _ = _restore_italic_wildcards_in_regex_body(
+            inner_text, inner_italics
+        )
+        delim = text[tok_start]
+        quote = text[tok_start:tok_end]
+        replacement = f"{delim}{restored_inner}{delim}"
+        if replacement == quote:
+            continue
+        results.append(
+            {
+                "tok_start": tok_start,
+                "tok_end": tok_end,
+                "quote": quote,
+                "replacement": replacement,
+                "restored_inner": restored_inner,
+                "restored_regex": f"/{restored_inner}/",
+                "yaral2_backtick_regex": f"`{restored_inner}`",
+                "italic_subspans": italic_subspans,
+            }
+        )
+    return results
+
+
+def find_italic_corrupted_regex_spans(
+    doc: dict[str, Any],
+    *,
+    plain_text: str | None = None,
+    index_map: list[int] | None = None,
+    udm_doc_url: str = DEFAULT_UDM_FIELD_LIST_URL,
+    yaral2_doc_url: str = DEFAULT_YARAL2_DOC_URL,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Scans a Google Docs AST for regex literals whose ``*`` quantifiers were stripped into ``textStyle.italic=True``.
+
+    When Google Drive converts Markdown containing a regex with two ``*`` quantifiers
+    (such as ``/.*cmd.*/``) into a native Google Doc, the Markdown parser treats
+    ``*cmd.*`` as ``<em>cmd.</em>``, stripping both ``*`` characters from ``textRun.content``
+    (yielding ``/.cmd./``) and setting ``textStyle.italic=True`` on ``cmd.``.
+
+    Walks ``tabs[0].documentTab.body.content`` (or ``body.content``, recursing into
+    nested ``table.tableRows[].tableCells[]``) in ``"baseline"`` view mode, tracks
+    per-character ``textStyle.italic`` state and 1-based UTF-16 indices, and restores
+    ``*...*`` around contiguous italic runs inside UDM and YARA-L 2.0 regex literals
+    while ignoring normal prose italics outside regex delimiters.
+    """
+    comments: list[dict[str, Any]] = []
+    edits: list[dict[str, Any]] = []
+    findings: list[dict[str, Any]] = []
+    if not isinstance(doc, dict):
+        return comments, edits, findings
+
+    tabs = doc.get("tabs", [])
+    if tabs:
+        body = tabs[0].get("documentTab", {}).get("body", {})
+    else:
+        body = doc.get("body", {})
+
+    chars: list[str] = []
+    extracted_map: list[int] = []
+    italic_flags: list[bool] = []
+
+    def _walk_elements(elements: list[dict[str, Any]]) -> None:
+        for element in elements:
+            if "paragraph" in element:
+                for pe in element["paragraph"].get("elements", []):
+                    text_run = pe.get("textRun")
+                    if not text_run:
+                        continue
+                    ins_ids = [
+                        str(x)
+                        for x in (text_run.get("suggestedInsertionIds") or [])
+                        if x
+                    ]
+                    if ins_ids:
+                        continue
+                    content = text_run.get("content", "")
+                    is_italic = bool((text_run.get("textStyle") or {}).get("italic"))
+                    start_idx = int(pe.get("startIndex", 0) or 0)
+                    utf16_offset = 0
+                    for ch in content:
+                        chars.append(ch)
+                        extracted_map.append(start_idx + utf16_offset)
+                        italic_flags.append(is_italic)
+                        utf16_offset += _utf16_code_unit_len(ch)
+            elif "table" in element:
+                for row in element["table"].get("tableRows", []):
+                    for cell in row.get("tableCells", []):
+                        _walk_elements(cell.get("content", []))
+
+    _walk_elements(body.get("content", []))
+    full_text = "".join(chars)
+    if not full_text or not any(italic_flags):
+        return comments, edits, findings
+
+    use_map = (
+        index_map
+        if (index_map is not None and len(index_map) == len(full_text))
+        else extracted_map
+    )
+
+    tokens = _iter_italic_corrupted_regex_tokens(full_text, italic_flags)
+    if not tokens:
+        return comments, edits, findings
+
+    rule_blocks = _iter_yaral2_rule_blocks(full_text)
+
+    # Precompute line-level UDM query repairs so standalone UDM lines with multiple
+    # or single italic-corrupted regex tokens have a wildcard-restored query_line.
+    repaired_full_text = full_text
+    for tok in sorted(tokens, key=lambda item: int(item["tok_start"]), reverse=True):
+        ts = int(tok["tok_start"])
+        te = int(tok["tok_end"])
+        repaired_full_text = (
+            repaired_full_text[:ts]
+            + str(tok["replacement"])
+            + repaired_full_text[te:]
+        )
+
+    for tok in tokens:
+        char_start = int(tok["tok_start"])
+        char_end = int(tok["tok_end"])
+        quote = str(tok["quote"])
+        replacement = str(tok["replacement"])
+        restored_regex = str(tok["restored_regex"])
+        yaral2_backtick_regex = str(tok["yaral2_backtick_regex"])
+        italic_subspans = list(tok["italic_subspans"])
+
+        start_idx = use_map[char_start]
+        end_idx = use_map[char_end - 1] + _utf16_code_unit_len(full_text[char_end - 1])
+
+        enclosing_block = None
+        for b in rule_blocks:
+            if int(b["char_start"]) <= char_start < int(b["char_end"]):
+                enclosing_block = b
+                break
+
+        if enclosing_block is not None:
+            context_kind = "yaral2"
+            rule_name: str | None = str(enclosing_block["rule_name"])
+            local_start: int | None = char_start - int(enclosing_block["char_start"])
+            local_end: int | None = char_end - int(enclosing_block["char_start"])
+            orig_query_line = ""
+            repaired_query_line = ""
+            clause_text = quote
+            comment_text = (
+                f"Deterministic Google Docs Italic-Stripped Regex Wildcard Check in YARA-L 2.0 (YL2) rule '{rule_name}': "
+                f"Google Drive Markdown import parsed paired '*' regex wildcards in '{replacement}' as Markdown italics "
+                f"(textStyle.italic=True on {italic_subspans!r}), stripping the '*' quantifiers to produce '{quote}'. "
+                f"Restore wildcard quantifiers as '{replacement}' (or canonical YARA-L 2.0 backtick regex "
+                f"'{yaral2_backtick_regex}') ({yaral2_doc_url})."
+            )
+        else:
+            context_kind = "udm"
+            rule_name = None
+            local_start = None
+            local_end = None
+            orig_query_line = _extract_udm_query_from_line(full_text, char_start, quote)
+            repaired_query_line = orig_query_line.replace(quote, replacement)
+            clause_text = quote
+            comment_text = (
+                "Deterministic Google Docs Italic-Stripped Regex Wildcard Check: "
+                f"Google Drive Markdown import parsed paired '*' regex wildcards in '{replacement}' as Markdown italics "
+                f"(textStyle.italic=True on {italic_subspans!r}), stripping the '*' quantifiers to produce '{quote}'. "
+                f"Restore wildcard quantifiers as '{replacement}' ({udm_doc_url})."
+            )
+
+        comments.append(
+            {
+                "start_index": start_idx,
+                "end_index": end_idx,
+                "quote": quote,
+                "comment": comment_text,
+            }
+        )
+        edits.append(
+            {
+                "start_index": start_idx,
+                "end_index": end_idx,
+                "quote": quote,
+                "replacement": replacement,
+            }
+        )
+        findings.append(
+            {
+                "defect_type": "italic_corrupted_regex_wildcard",
+                "context_kind": context_kind,
+                "rule_name": rule_name,
+                "quote": quote,
+                "replacement": replacement,
+                "restored_regex": restored_regex,
+                "yaral2_backtick_regex": yaral2_backtick_regex,
+                "italic_subspans": italic_subspans,
+                "invalid_field": quote,
+                "canonical_field": replacement,
+                "start_index": start_idx,
+                "end_index": end_idx,
+                "char_start": char_start,
+                "char_end": char_end,
+                "local_start": local_start,
+                "local_end": local_end,
+                "clause": clause_text,
+                "query_line": repaired_query_line,
+                "original_query_line": orig_query_line,
+                "comment": comment_text,
+            }
+        )
+
+    return comments, edits, findings
+
+
 def _normalize_yaral2_re_regex_calls(rule_text: str) -> str:
     """Normalizes ``re.regex($var.field, /pattern/ nocase)`` into valid Chronicle YARA-L 2.0
     ``re.regex($var.field, `pattern`) nocase`` syntax."""
 
     def _replace_call(match: re.Match[str]) -> str:
         prefix = match.group(1)
-        pattern = match.group(2)
-        inner_nocase = match.group(3) or ""
-        close_paren = match.group(4)
-        outer_nocase = match.group(5) or ""
+        pattern = (
+            match.group(2)
+            if match.group(2) is not None
+            else (match.group(3) or "")
+        )
+        inner_nocase = match.group(4) or ""
+        close_paren = match.group(5)
+        outer_nocase = match.group(6) or ""
         has_nocase = bool(inner_nocase.strip() or outer_nocase.strip())
         suffix = " nocase" if has_nocase else ""
         return f"{prefix}`{pattern}`{close_paren}{suffix}"
@@ -4724,6 +5078,7 @@ def find_yaral2_rule_spans(
     *,
     udm_doc_url: str = DEFAULT_UDM_FIELD_LIST_URL,
     yaral2_doc_url: str = DEFAULT_YARAL2_DOC_URL,
+    doc: dict[str, Any] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     """Scans ``plain_text`` for single-event and multi-event YARA-L 2.0 (``YL2``) detection rules
     and computes 1-based UTF-16 spans.
@@ -4734,9 +5089,11 @@ def find_yaral2_rule_spans(
        YARA-L 2.0 / YL2 (Chronicle SIEM UDM event detection rules).
     2. Event-variable-prefixed invalid UDM fields (``$<var>.<field_path>`` in comparisons,
        join bindings, ``outcome:`` expressions, or inside YARA-L 2.0 function calls such as
-       ``re.regex($<var>.<field_path>, ...)``) and non-canonical CIDR function calls
+       ``re.regex($<var>.<field_path>, ...)``), non-canonical CIDR function calls
        (``invalid_cidr_function_syntax``: ``cidrmatch(...)``, ``ipv4_is_in_range(...)``,
-       ``in_cidr(...)``, or reversed arguments -> ``net.ip_in_range_cidr($<var>.<canonical_field>, "<cidr>")``).
+       ``in_cidr(...)``, or reversed arguments -> ``net.ip_in_range_cidr($<var>.<canonical_field>, "<cidr>")``),
+       and Google Drive Markdown-imported italic-corrupted regex wildcards
+       (``italic_corrupted_regex_wildcard``: ``/.cmd./`` with ``textStyle.italic=True`` -> ``/.*cmd.*/``).
     3. Cross-event join semantic type contradictions (``cross_event_join_type_mismatch``) where
        two event streams bind the same join placeholder ``$<join_key>`` to incompatible UDM domains
        (e.g. ``$e1.principal.ip = $ip`` paired with ``$e2.principal.hostname = $ip``).
@@ -4765,6 +5122,19 @@ def find_yaral2_rule_spans(
     findings: list[dict[str, Any]] = []
     if not plain_text or not index_map:
         return comments, edits, findings
+
+    italic_regex_by_rule: dict[str, list[dict[str, Any]]] = {}
+    if isinstance(doc, dict):
+        _ir_comments, _ir_edits, ir_findings = find_italic_corrupted_regex_spans(
+            doc,
+            udm_doc_url=udm_doc_url,
+            yaral2_doc_url=yaral2_doc_url,
+        )
+        for ir_f in ir_findings:
+            if ir_f.get("context_kind") == "yaral2" and ir_f.get("rule_name"):
+                italic_regex_by_rule.setdefault(
+                    str(ir_f["rule_name"]), []
+                ).append(ir_f)
 
     for block in _iter_yaral2_rule_blocks(plain_text):
         rule_name = block["rule_name"]
@@ -4915,6 +5285,48 @@ def find_yaral2_rule_spans(
                         f"Chronicle YARA-L 2.0 requires 'net.ip_in_range_cidr(<udm_ip_field>, \"<cidr>\")'; "
                         f"replace '{quote}' with '{replacement}' ({yaral2_doc_url})."
                     ),
+                }
+            )
+
+        # (b3) Italic-corrupted regex wildcards inside YARA-L 2.0 rules (Google Drive Markdown import)
+        for ir_f in italic_regex_by_rule.get(rule_name, []):
+            raw_loc_s = ir_f.get("local_start")
+            raw_loc_e = ir_f.get("local_end")
+            if raw_loc_s is None or raw_loc_e is None:
+                continue
+            local_start = int(raw_loc_s)
+            local_end = int(raw_loc_e)
+            if (
+                local_start < 0
+                or local_end > len(rule_text)
+                or local_start >= local_end
+            ):
+                continue
+            if any(
+                _spans_overlap(
+                    (int(d["local_start"]), int(d["local_end"])),
+                    (local_start, local_end),
+                )
+                for d in rule_defects
+            ):
+                continue
+            quote = str(ir_f["quote"])
+            if rule_text[local_start:local_end] != quote:
+                continue
+            replacement = str(ir_f["replacement"])
+            rule_defects.append(
+                {
+                    "local_start": local_start,
+                    "local_end": local_end,
+                    "defect_type": "italic_corrupted_regex_wildcard",
+                    "quote": quote,
+                    "replacement": replacement,
+                    "invalid_field": str(ir_f["invalid_field"]),
+                    "canonical_field": str(ir_f["canonical_field"]),
+                    "restored_regex": str(ir_f["restored_regex"]),
+                    "yaral2_backtick_regex": str(ir_f["yaral2_backtick_regex"]),
+                    "italic_subspans": list(ir_f.get("italic_subspans", [])),
+                    "comment": str(ir_f["comment"]),
                 }
             )
 
@@ -5436,26 +5848,31 @@ def find_yaral2_rule_spans(
                     "replacement": replacement,
                 }
             )
-            findings.append(
-                {
-                    "rule_name": rule_name,
-                    "defect_type": defect["defect_type"],
-                    "invalid_field": defect["invalid_field"],
-                    "canonical_field": defect["canonical_field"],
-                    "quote": quote,
-                    "replacement": replacement,
-                    "start_index": start_idx,
-                    "end_index": end_idx,
-                    "original_rule_text": rule_text,
-                    "repaired_rule_text": repaired_rule,
-                    "is_multi_event": repaired_multi_spec["is_multi_event"],
-                    "per_event_udm_queries": repaired_multi_spec[
-                        "per_event_udm_queries"
-                    ],
-                    "retrohunt_udm_query": retrohunt_query,
-                    "retrohunt_clauses": retrohunt_clauses,
-                }
-            )
+            f_record: dict[str, Any] = {
+                "rule_name": rule_name,
+                "defect_type": defect["defect_type"],
+                "invalid_field": defect["invalid_field"],
+                "canonical_field": defect["canonical_field"],
+                "quote": quote,
+                "replacement": replacement,
+                "start_index": start_idx,
+                "end_index": end_idx,
+                "original_rule_text": rule_text,
+                "repaired_rule_text": repaired_rule,
+                "is_multi_event": repaired_multi_spec["is_multi_event"],
+                "per_event_udm_queries": repaired_multi_spec[
+                    "per_event_udm_queries"
+                ],
+                "retrohunt_udm_query": retrohunt_query,
+                "retrohunt_clauses": retrohunt_clauses,
+            }
+            if "restored_regex" in defect:
+                f_record["restored_regex"] = defect["restored_regex"]
+                f_record["yaral2_backtick_regex"] = defect.get(
+                    "yaral2_backtick_regex", ""
+                )
+                f_record["italic_subspans"] = defect.get("italic_subspans", [])
+            findings.append(f_record)
 
     return comments, edits, findings
 
@@ -7541,6 +7958,8 @@ def verify_yaral2_rule_with_siem(
     max_events: int = 10,
     siem_validate_fn: Any = None,
     siem_search_fn: Any = None,
+    doc: dict[str, Any] | None = None,
+    repaired_rule_override: str | None = None,
 ) -> dict[str, Any]:
     """Repairs a candidate single-event or multi-event YARA-L 2.0 (``YL2``) rule, compiles it
     via Chronicle ``validate_rule``, dry-runs its ``events:`` predicates (or per-stream
@@ -7549,12 +7968,21 @@ def verify_yaral2_rule_with_siem(
     ``condition:`` comparisons.
     """
     synthetic_map = _build_utf16_index_map(rule_text)
-    _comments, _edits, findings = find_yaral2_rule_spans(rule_text, synthetic_map)
+    _comments, _edits, findings = find_yaral2_rule_spans(
+        rule_text, synthetic_map, doc=doc
+    )
 
     blocks = _iter_yaral2_rule_blocks(rule_text)
     rule_name = blocks[0]["rule_name"] if blocks else "unknown_rule"
 
-    if findings:
+    if repaired_rule_override and repaired_rule_override.strip():
+        repaired_rule_text = _normalize_yaral2_re_regex_calls(
+            repaired_rule_override
+        )
+        retrohunt_udm_query, retrohunt_clauses = (
+            _extract_retrohunt_udm_query_from_yaral2(repaired_rule_text)
+        )
+    elif findings:
         repaired_rule_text = str(findings[0]["repaired_rule_text"])
         retrohunt_udm_query = str(findings[0]["retrohunt_udm_query"])
         retrohunt_clauses = list(findings[0].get("retrohunt_clauses") or [])
@@ -7807,11 +8235,13 @@ def verify_and_redline_yaral2_rules_in_doc(
             "message": "Failed to load UTF-16 index map after read_google_doc.",
         }
 
+    raw_doc = _load_doc_raw_ast(document_id, tool_context=tool_context)
     raw_comments, raw_edits, raw_findings = find_yaral2_rule_spans(
         plain_text,
         index_map,
         udm_doc_url=udm_doc_url,
         yaral2_doc_url=yaral2_doc_url,
+        doc=raw_doc,
     )
     pending_spans = _load_doc_pending_suggestion_spans(
         document_id, tool_context=tool_context
@@ -7875,6 +8305,10 @@ def verify_and_redline_yaral2_rules_in_doc(
                     max_events=max_events,
                     siem_validate_fn=siem_validate_fn,
                     siem_search_fn=siem_search_fn,
+                    doc=raw_doc,
+                    repaired_rule_override=str(
+                        finding.get("repaired_rule_text") or ""
+                    ),
                 )
                 rule_cache[cache_key] = rule_check
                 siem_rule_checks.append(rule_check)
@@ -9729,6 +10163,7 @@ def review_google_doc_with_stage_a(
             "message": "Failed to load UTF-16 index map after read_google_doc.",
         }
 
+    raw_doc = _load_doc_raw_ast(document_id, tool_context=tool_context)
     pending_spans = _load_doc_pending_suggestion_spans(
         document_id, tool_context=tool_context
     )
@@ -9786,12 +10221,27 @@ def review_google_doc_with_stage_a(
             existing_edit_spans.append(e_span)
 
     stage_a_udm_count = 0
+    stage_a_italic_regex_count = 0
     deduped_udm_comments: list[dict[str, Any]] = []
     deduped_udm_edits: list[dict[str, Any]] = []
     if include_udm_stage_a:
         udm_comments, udm_edits, udm_findings = find_udm_field_spans(
             plain_text, index_map
         )
+        if isinstance(raw_doc, dict):
+            ir_comments, ir_edits, ir_findings = (
+                find_italic_corrupted_regex_spans(
+                    raw_doc,
+                    plain_text=plain_text,
+                    index_map=index_map,
+                )
+            )
+            stage_a_italic_regex_count = len(ir_findings)
+            for ir_c, ir_e, ir_f in zip(ir_comments, ir_edits, ir_findings):
+                if ir_f.get("context_kind") == "udm":
+                    udm_comments.append(ir_c)
+                    udm_edits.append(ir_e)
+                    udm_findings.append(ir_f)
         stage_a_udm_count = len(udm_findings)
         for c_item in udm_comments:
             c_span = (c_item["start_index"], c_item["end_index"])
@@ -9809,7 +10259,7 @@ def review_google_doc_with_stage_a(
     deduped_yaral2_edits: list[dict[str, Any]] = []
     if include_yaral2_stage_a:
         yl2_comments, yl2_edits, yl2_findings = find_yaral2_rule_spans(
-            plain_text, index_map
+            plain_text, index_map, doc=raw_doc
         )
         stage_a_yaral2_count = len(yl2_findings)
         for c_item in yl2_comments:
@@ -9924,6 +10374,7 @@ def review_google_doc_with_stage_a(
         "stage_a_udm_count": stage_a_udm_count,
         "stage_a_yaral2_count": stage_a_yaral2_count,
         "stage_a_mitre_cve_count": stage_a_mitre_cve_count,
+        "stage_a_italic_regex_count": stage_a_italic_regex_count,
         "skipped_existing_suggestion_count": skipped_existing_suggestion_count,
         "comments": comments_res,
         "edits": edits_res,
@@ -10007,6 +10458,7 @@ def stage_runbook_update_as_google_doc(
         "stage_a_udm_count": review_res.get("stage_a_udm_count", 0),
         "stage_a_yaral2_count": review_res.get("stage_a_yaral2_count", 0),
         "stage_a_mitre_cve_count": review_res.get("stage_a_mitre_cve_count", 0),
+        "stage_a_italic_regex_count": review_res.get("stage_a_italic_regex_count", 0),
         "comments": review_res.get("comments", {}),
         "edits": review_res.get("edits", {}),
         "message": review_res.get("message", ""),
@@ -10092,6 +10544,362 @@ def post_reviewed_doc_to_soar_case(
     }
 
 
+_NAMED_STYLE_HEADING_PREFIX: dict[str, str] = {
+    "TITLE": "# ",
+    "SUBTITLE": "## ",
+    "HEADING_1": "# ",
+    "HEADING_2": "## ",
+    "HEADING_3": "### ",
+    "HEADING_4": "#### ",
+    "HEADING_5": "##### ",
+    "HEADING_6": "###### ",
+}
+_ORDERED_LIST_GLYPH_TYPES: frozenset[str] = frozenset(
+    {
+        "DECIMAL",
+        "ZERO_DECIMAL",
+        "UPPER_ALPHA",
+        "ALPHA",
+        "UPPER_ROMAN",
+        "ROMAN",
+    }
+)
+_EXISTING_ORDERED_LIST_RE = re.compile(r"^\d+\.\s+")
+
+
+def reconstruct_markdown_from_doc_ast(
+    doc: dict[str, Any],
+    *,
+    view_mode: str = "accepted",
+    accept_suggestion_ids: str | list[str] | set[str] | tuple[str, ...] | None = None,
+    recover_italic_regex_wildcards: bool = True,
+) -> dict[str, Any]:
+    """Reconstructs structural Markdown from a Google Docs API v1 AST.
+
+    Walks ``tabs[0].documentTab.body.content`` (or ``body.content``) and ``lists``
+    (``tabs[0].documentTab.lists`` or ``doc.get("lists", {})``), honoring
+    ``view_mode`` (``"accepted"``, ``"baseline"``, or ``"inline"``) and
+    ``accept_suggestion_ids``:
+    1. Reconstructs Markdown ``#`` through ``######`` headings from
+       ``paragraph.paragraphStyle.namedStyleType`` when the paragraph text does
+       not already start with ``#``.
+    2. Reconstructs ordered (``1. ``, ``2. ``, ...) and unordered (``- ``) list
+       items from ``paragraph.bullet`` (``listId``, ``nestingLevel``) and
+       ``lists[listId].listProperties.nestingLevels[nestingLevel].glyphType``
+       with ``2 * nestingLevel`` space indentation.
+    3. Reconstructs pipe-delimited Markdown tables (``| col1 | col2 |`` +
+       ``| --- | --- |``) from ``element["table"]["tableRows"]``.
+    4. When ``recover_italic_regex_wildcards=True``, automatically restores
+       paired ``*`` wildcard quantifiers that Google Drive's Markdown importer
+       silently converted into ``textStyle.italic=True`` runs inside UDM or
+       YARA-L 2.0 regex literals (e.g. ``/.cmd./`` -> ``/.*cmd.*/``).
+    """
+    if view_mode not in ("baseline", "accepted", "inline"):
+        raise ValueError(f"Unsupported view_mode: {view_mode!r}")
+
+    accepted_set = _normalize_suggestion_ids(accept_suggestion_ids)
+    tabs = doc.get("tabs", [])
+    if tabs:
+        doc_tab = tabs[0].get("documentTab", {})
+        body = doc_tab.get("body", {})
+        lists_map = doc_tab.get("lists") or doc.get("lists") or {}
+    else:
+        body = doc.get("body", {})
+        lists_map = doc.get("lists") or {}
+
+    def _should_include_text_run(del_ids: list[str], ins_ids: list[str]) -> bool:
+        if view_mode == "inline":
+            return True
+        if view_mode == "baseline":
+            return not bool(ins_ids)
+        if accepted_set is None:
+            return not bool(del_ids)
+        if ins_ids and not any(sid in accepted_set for sid in ins_ids):
+            return False
+        if del_ids and any(sid in accepted_set for sid in del_ids):
+            return False
+        return True
+
+    def _is_ordered_list_level(list_id: str, nesting_level: int) -> bool:
+        if not list_id or not isinstance(lists_map, dict):
+            return False
+        list_spec = lists_map.get(list_id)
+        if not isinstance(list_spec, dict):
+            return False
+        levels = list_spec.get("listProperties", {}).get("nestingLevels", [])
+        if not isinstance(levels, list) or not (0 <= nesting_level < len(levels)):
+            return False
+        lvl = levels[nesting_level]
+        if not isinstance(lvl, dict):
+            return False
+        glyph_type = str(lvl.get("glyphType") or "").upper()
+        if glyph_type in _ORDERED_LIST_GLYPH_TYPES:
+            return True
+        glyph_fmt = str(lvl.get("glyphFormat") or "")
+        if "%" in glyph_fmt and not lvl.get("glyphSymbol"):
+            return True
+        return False
+
+    headings_reconstructed_count = 0
+    list_items_reconstructed_count = 0
+    tables_reconstructed_count = 0
+    italic_regex_wildcards_recovered_count = 0
+
+    def _extract_paragraph_text(paragraph: dict[str, Any]) -> str:
+        nonlocal italic_regex_wildcards_recovered_count
+        p_chars: list[str] = []
+        p_italics: list[bool] = []
+        for pe in paragraph.get("elements", []):
+            text_run = pe.get("textRun")
+            if not text_run:
+                continue
+            del_ids = [
+                str(x)
+                for x in (text_run.get("suggestedDeletionIds") or [])
+                if x
+            ]
+            ins_ids = [
+                str(x)
+                for x in (text_run.get("suggestedInsertionIds") or [])
+                if x
+            ]
+            if not _should_include_text_run(del_ids, ins_ids):
+                continue
+            content = str(text_run.get("content") or "")
+            is_italic = bool(text_run.get("textStyle", {}).get("italic"))
+            for ch in content:
+                p_chars.append(ch)
+                p_italics.append(is_italic)
+
+        raw_p = "".join(p_chars)
+        if recover_italic_regex_wildcards and any(p_italics):
+            tokens = _iter_italic_corrupted_regex_tokens(raw_p, p_italics)
+            if tokens:
+                rebuilt = raw_p
+                for tok in sorted(
+                    tokens, key=lambda t: int(t["tok_start"]), reverse=True
+                ):
+                    t_s = int(tok["tok_start"])
+                    t_e = int(tok["tok_end"])
+                    rebuilt = (
+                        rebuilt[:t_s]
+                        + str(tok["restored_regex"])
+                        + rebuilt[t_e:]
+                    )
+                italic_regex_wildcards_recovered_count += len(tokens)
+                raw_p = rebuilt
+        return raw_p.rstrip("\r\n")
+
+    output_lines: list[str] = []
+    list_counters: dict[tuple[str, int], int] = {}
+
+    for element in body.get("content", []):
+        if "paragraph" in element:
+            paragraph = element["paragraph"]
+            line_text = _extract_paragraph_text(paragraph)
+            stripped = line_text.strip()
+            p_style = paragraph.get("paragraphStyle", {})
+            named_style = (
+                str(p_style.get("namedStyleType") or "NORMAL_TEXT")
+                if isinstance(p_style, dict)
+                else "NORMAL_TEXT"
+            )
+            bullet = paragraph.get("bullet")
+
+            if isinstance(bullet, dict) and stripped:
+                list_id = str(bullet.get("listId") or "default_list")
+                nesting_level = int(bullet.get("nestingLevel", 0) or 0)
+                for lid, lvl in list(list_counters.keys()):
+                    if lid == list_id and lvl > nesting_level:
+                        del list_counters[(lid, lvl)]
+                count = list_counters.get((list_id, nesting_level), 0) + 1
+                list_counters[(list_id, nesting_level)] = count
+                indent = "  " * nesting_level
+                clean_item = line_text.lstrip()
+                if _is_ordered_list_level(list_id, nesting_level):
+                    if not _EXISTING_ORDERED_LIST_RE.match(clean_item):
+                        line_text = f"{indent}{count}. {clean_item}"
+                        list_items_reconstructed_count += 1
+                    else:
+                        line_text = f"{indent}{clean_item}"
+                else:
+                    if not clean_item.startswith(("- ", "* ", "+ ")):
+                        line_text = f"{indent}- {clean_item}"
+                        list_items_reconstructed_count += 1
+                    else:
+                        line_text = f"{indent}{clean_item}"
+            else:
+                if stripped:
+                    list_counters.clear()
+                heading_prefix = _NAMED_STYLE_HEADING_PREFIX.get(named_style)
+                if heading_prefix and stripped:
+                    clean_heading = line_text.lstrip()
+                    if not clean_heading.startswith("#"):
+                        line_text = f"{heading_prefix}{clean_heading}"
+                        headings_reconstructed_count += 1
+                    if output_lines and output_lines[-1].strip():
+                        output_lines.append("")
+            output_lines.append(line_text)
+
+        elif "table" in element:
+            list_counters.clear()
+            table_rows = element["table"].get("tableRows", [])
+            rendered_rows: list[list[str]] = []
+            max_cols = 0
+            for row in table_rows:
+                cells = row.get("tableCells", [])
+                row_vals: list[str] = []
+                for cell in cells:
+                    cell_parts: list[str] = []
+                    for c_el in cell.get("content", []):
+                        if "paragraph" in c_el:
+                            c_line = _extract_paragraph_text(c_el["paragraph"]).strip()
+                            if c_line:
+                                cell_parts.append(c_line)
+                    cell_str = "<br>".join(cell_parts).replace("|", "\\|")
+                    row_vals.append(cell_str)
+                if row_vals:
+                    max_cols = max(max_cols, len(row_vals))
+                    rendered_rows.append(row_vals)
+            if rendered_rows and max_cols > 0:
+                tables_reconstructed_count += 1
+                if output_lines and output_lines[-1].strip():
+                    output_lines.append("")
+                for r_idx, r_vals in enumerate(rendered_rows):
+                    padded = r_vals + [""] * (max_cols - len(r_vals))
+                    output_lines.append("| " + " | ".join(padded) + " |")
+                    if r_idx == 0:
+                        output_lines.append(
+                            "| " + " | ".join(["---"] * max_cols) + " |"
+                        )
+                output_lines.append("")
+
+    markdown_text = "\n".join(output_lines)
+    if markdown_text and not markdown_text.endswith("\n"):
+        markdown_text += "\n"
+
+    return {
+        "markdown": markdown_text,
+        "headings_reconstructed_count": headings_reconstructed_count,
+        "list_items_reconstructed_count": list_items_reconstructed_count,
+        "tables_reconstructed_count": tables_reconstructed_count,
+        "italic_regex_wildcards_recovered_count": italic_regex_wildcards_recovered_count,
+    }
+
+
+def list_doc_comments(
+    document_id: str,
+    *,
+    include_resolved: bool = True,
+    tool_context: Any = None,
+    token_source: TokenSource | None = None,
+    quota_project: str | None = None,
+    transport: httpx.BaseTransport | None = None,
+) -> dict[str, Any]:
+    """Lists native review comments on a Google Doc via Google Drive API v3 ``files.comments``.
+
+    Queries ``GET https://www.googleapis.com/drive/v3/files/{document_id}/comments``
+    and classifies comments into resolved and unresolved sets so runbook promotion
+    workflows can enforce an Unresolved Comment Governance Gate before overwriting
+    production runbooks in ``SOC Runbooks``.
+    """
+    try:
+        token = resolve_docs_token(tool_context, token_source=token_source)
+    except (DriveRegistryConfigError, DriveMcpError) as err:
+        return {"status": "error", "message": str(err)}
+
+    url = f"{DRIVE_FILES_API_BASE_URL}/{document_id}/comments"
+    headers = _build_docs_headers(token, quota_project=quota_project)
+    base_params: dict[str, str] = {
+        "fields": (
+            "comments(id,content,resolved,deleted,createdTime,modifiedTime,"
+            "author(displayName),quotedFileContent,anchor),nextPageToken"
+        ),
+        "includeDeleted": "false",
+        "pageSize": "100",
+    }
+
+    raw_comments: list[dict[str, Any]] = []
+    page_token = ""
+    try:
+        with httpx.Client(
+            timeout=DEFAULT_DOCS_TIMEOUT_SECONDS, transport=transport
+        ) as http:
+            for _ in range(5):
+                params = dict(base_params)
+                if page_token:
+                    params["pageToken"] = page_token
+                resp = http.get(url, params=params, headers=headers)
+                if resp.status_code != 200:
+                    return {
+                        "status": "error",
+                        "document_id": document_id,
+                        "message": (
+                            f"Google Drive comments API returned HTTP {resp.status_code}: "
+                            f"{resp.text[:300]}"
+                        ),
+                    }
+                payload = resp.json()
+                batch = payload.get("comments", [])
+                if isinstance(batch, list):
+                    raw_comments.extend(c for c in batch if isinstance(c, dict))
+                page_token = str(payload.get("nextPageToken") or "").strip()
+                if not page_token:
+                    break
+    except httpx.HTTPError as err:
+        return {
+            "status": "error",
+            "document_id": document_id,
+            "message": f"HTTP transport error listing doc comments: {err}",
+        }
+
+    all_records: list[dict[str, Any]] = []
+    unresolved_comments: list[dict[str, Any]] = []
+    resolved_comments: list[dict[str, Any]] = []
+
+    for c in raw_comments:
+        if bool(c.get("deleted", False)):
+            continue
+        is_resolved = bool(c.get("resolved", False))
+        quoted_obj = c.get("quotedFileContent")
+        quoted_value = (
+            str(quoted_obj.get("value") or "")
+            if isinstance(quoted_obj, dict)
+            else ""
+        )
+        author_obj = c.get("author")
+        author_name = (
+            str(author_obj.get("displayName") or "")
+            if isinstance(author_obj, dict)
+            else ""
+        )
+        rec = {
+            "id": str(c.get("id") or ""),
+            "content": str(c.get("content") or ""),
+            "resolved": is_resolved,
+            "author": author_name,
+            "quoted_text": quoted_value,
+            "anchor": str(c.get("anchor") or ""),
+            "created_time": str(c.get("createdTime") or ""),
+        }
+        all_records.append(rec)
+        if is_resolved:
+            resolved_comments.append(rec)
+        else:
+            unresolved_comments.append(rec)
+
+    returned = all_records if include_resolved else unresolved_comments
+    return {
+        "status": "success",
+        "document_id": document_id,
+        "total_comment_count": len(all_records),
+        "unresolved_comment_count": len(unresolved_comments),
+        "resolved_comment_count": len(resolved_comments),
+        "unresolved_comments": unresolved_comments,
+        "comments": returned,
+    }
+
+
 def inspect_doc_suggestions(
     document_id: str,
     *,
@@ -10109,7 +10917,8 @@ def inspect_doc_suggestions(
     (excluding ``suggestedInsertionIds`` so deleted+inserted strings never fuse)
     and ``accepted_text`` (applying all or selected ``accept_suggestion_ids``),
     groups paired ``suggestedDeletionIds`` and ``suggestedInsertionIds`` by
-    ``suggestion_id``, and generates a standard unified diff.
+    ``suggestion_id``, reconstructs structural Markdown from the Google Docs AST,
+    and generates a standard unified diff.
     """
     try:
         token = resolve_docs_token(tool_context, token_source=token_source)
@@ -10153,6 +10962,14 @@ def inspect_doc_suggestions(
         baseline_index_map,
         tool_context=tool_context,
         pending_suggestion_spans=pending_spans,
+        raw_doc=doc,
+    )
+
+    ast_recon = reconstruct_markdown_from_doc_ast(
+        doc,
+        view_mode="accepted",
+        accept_suggestion_ids=accept_suggestion_ids,
+        recover_italic_regex_wildcards=True,
     )
 
     diff_lines = list(
@@ -10180,6 +10997,13 @@ def inspect_doc_suggestions(
         ],
         "baseline_text": baseline_text,
         "accepted_text": accepted_text,
+        "accepted_markdown_body": ast_recon["markdown"],
+        "headings_reconstructed_count": ast_recon["headings_reconstructed_count"],
+        "list_items_reconstructed_count": ast_recon["list_items_reconstructed_count"],
+        "tables_reconstructed_count": ast_recon["tables_reconstructed_count"],
+        "italic_regex_wildcards_recovered_count": ast_recon[
+            "italic_regex_wildcards_recovered_count"
+        ],
         "unified_diff": unified_diff,
     }
 
@@ -10234,6 +11058,8 @@ def export_accepted_doc_to_markdown(
     *,
     skill_name: str = "",
     accept_suggestion_ids: str | list[str] | set[str] | tuple[str, ...] | None = None,
+    reconstruct_markdown_structure: bool = True,
+    require_resolved_comments: bool = False,
     output_path: str = "",
     publish_to_drive: bool = False,
     drive_title: str = "",
@@ -10248,15 +11074,19 @@ def export_accepted_doc_to_markdown(
     """Exports a red-lined Google Doc with accepted Suggested Edits back to Markdown.
 
     1. Calls :func:`inspect_doc_suggestions` to obtain the clean ``accepted_text``
-       (with all or selected ``accept_suggestion_ids`` applied and zero fused
-       inline suggestion artifacts).
+       and structural AST Markdown reconstruction (:func:`reconstruct_markdown_from_doc_ast`
+       when ``reconstruct_markdown_structure=True``), preserving ``#`` headings,
+       ordered/unordered lists, Markdown tables, and recovered ``*`` regex wildcards.
     2. When ``skill_name`` (or ``skill_content_override``) is provided, checks
        whether the exported text begins with YAML frontmatter (``--- ... ---``).
        If Google Docs horizontal-rule conversion stripped the frontmatter
        delimiter lines, reconstructs the canonical YAML frontmatter header from
        the source skill so the exported Markdown remains a valid
        :class:`SkillRegistry` / :class:`DriveSkillRegistry` runbook.
-    3. Optionally writes the accepted Markdown to ``output_path`` and/or publishes
+    3. When ``require_resolved_comments=True``, queries Google Drive API v3
+       ``files.comments`` via :func:`list_doc_comments` and blocks export/promotion
+       with ``status="blocked_unresolved_comments"`` if any unresolved comment exists.
+    4. Optionally writes the accepted Markdown to ``output_path`` and/or publishes
        it to Google Drive via :func:`publish_report_to_drive`.
     """
     inspected = inspect_doc_suggestions(
@@ -10270,22 +11100,58 @@ def export_accepted_doc_to_markdown(
     if inspected.get("status") != "success":
         return inspected
 
-    accepted_text = str(inspected.get("accepted_text") or "")
-    frontmatter_restored = False
-
-    if _FRONTMATTER_BLOCK_RE.match(accepted_text.lstrip()):
-        accepted_markdown = accepted_text.lstrip()
-    elif skill_name or skill_content_override:
-        canonical_fm = _extract_canonical_frontmatter_header(
-            skill_name, skill_content_override=skill_content_override
+    if reconstruct_markdown_structure:
+        source_body = str(
+            inspected.get("accepted_markdown_body")
+            or inspected.get("accepted_text")
+            or ""
         )
-        cleaned_body = accepted_text.lstrip()
+        headings_reconstructed_count = int(
+            inspected.get("headings_reconstructed_count", 0) or 0
+        )
+        list_items_reconstructed_count = int(
+            inspected.get("list_items_reconstructed_count", 0) or 0
+        )
+        tables_reconstructed_count = int(
+            inspected.get("tables_reconstructed_count", 0) or 0
+        )
+        italic_regex_wildcards_recovered_count = int(
+            inspected.get("italic_regex_wildcards_recovered_count", 0) or 0
+        )
+    else:
+        source_body = str(inspected.get("accepted_text") or "")
+        headings_reconstructed_count = 0
+        list_items_reconstructed_count = 0
+        tables_reconstructed_count = 0
+        italic_regex_wildcards_recovered_count = 0
+
+    frontmatter_restored = False
+    collapsed_fm_re = re.compile(
+        r"^(?:#+\s*)?name:\s*(\S+)[^\n]*\bdescription:\s*[^\n]*\n+",
+        re.IGNORECASE,
+    )
+    effective_skill_name = skill_name.strip()
+    if not effective_skill_name:
+        collapsed_match = collapsed_fm_re.match(source_body.lstrip())
+        if collapsed_match:
+            effective_skill_name = collapsed_match.group(1).strip()
+        else:
+            title_match = re.match(
+                r"^Runbook_Redline_([A-Za-z0-9_-]+?)_Case_",
+                str(inspected.get("title") or ""),
+            )
+            if title_match:
+                effective_skill_name = title_match.group(1).strip()
+
+    if _FRONTMATTER_BLOCK_RE.match(source_body.lstrip()):
+        accepted_markdown = source_body.lstrip()
+    elif effective_skill_name or skill_content_override:
+        canonical_fm = _extract_canonical_frontmatter_header(
+            effective_skill_name, skill_content_override=skill_content_override
+        )
+        cleaned_body = source_body.lstrip()
         # Strip collapsed single-line frontmatter artifact produced when Google Drive
         # converts YAML '---' delimiters into horizontalRule elements.
-        collapsed_fm_re = re.compile(
-            r"^name:\s*\S+[^\n]*\bdescription:\s*[^\n]*\n+",
-            re.IGNORECASE,
-        )
         cleaned_body = collapsed_fm_re.sub("", cleaned_body, count=1).lstrip()
         if canonical_fm:
             accepted_markdown = canonical_fm + cleaned_body
@@ -10293,9 +11159,65 @@ def export_accepted_doc_to_markdown(
         else:
             accepted_markdown = cleaned_body
     else:
-        accepted_markdown = accepted_text
+        accepted_markdown = source_body
 
     parsed_fm = parse_frontmatter(accepted_markdown)
+
+    unresolved_comment_count = 0
+    resolved_comment_count = 0
+    unresolved_comments: list[dict[str, Any]] = []
+    if require_resolved_comments:
+        comments_res = list_doc_comments(
+            document_id,
+            include_resolved=True,
+            tool_context=tool_context,
+            token_source=token_source,
+            quota_project=quota_project,
+            transport=transport,
+        )
+        if comments_res.get("status") != "success":
+            return comments_res
+        unresolved_comment_count = int(
+            comments_res.get("unresolved_comment_count", 0) or 0
+        )
+        resolved_comment_count = int(
+            comments_res.get("resolved_comment_count", 0) or 0
+        )
+        unresolved_comments = list(
+            comments_res.get("unresolved_comments") or []
+        )
+        if unresolved_comment_count > 0:
+            return {
+                "status": "blocked_unresolved_comments",
+                "message": (
+                    f"Export blocked by Unresolved Comment Governance Gate: Google Doc "
+                    f"{document_id!r} has {unresolved_comment_count} unresolved review comment(s). "
+                    "Resolve all review comments in Google Docs before promoting the runbook."
+                ),
+                "document_id": document_id,
+                "title": inspected["title"],
+                "skill_name": effective_skill_name,
+                "suggestion_count": inspected["suggestion_count"],
+                "accepted_suggestion_count": inspected["accepted_suggestion_count"],
+                "suggestions": inspected["suggestions"],
+                "unified_diff": inspected["unified_diff"],
+                "unresolved_comment_count": unresolved_comment_count,
+                "resolved_comment_count": resolved_comment_count,
+                "unresolved_comments": unresolved_comments,
+                "headings_reconstructed_count": headings_reconstructed_count,
+                "list_items_reconstructed_count": list_items_reconstructed_count,
+                "tables_reconstructed_count": tables_reconstructed_count,
+                "italic_regex_wildcards_recovered_count": italic_regex_wildcards_recovered_count,
+                "frontmatter_restored": frontmatter_restored,
+                "frontmatter_valid": bool(parsed_fm.get("name")),
+                "frontmatter": parsed_fm,
+                "accepted_markdown": accepted_markdown,
+                "markdown": accepted_markdown,
+                "char_count": len(accepted_markdown),
+                "output_path": None,
+                "drive": None,
+                "drive_error": None,
+            }
 
     saved_path: str | None = None
     if output_path and output_path.strip():
@@ -10309,7 +11231,11 @@ def export_accepted_doc_to_markdown(
     if publish_to_drive:
         target_title = (
             drive_title.strip()
-            or (f"{skill_name}.md" if skill_name else f"{inspected['title']}.md")
+            or (
+                f"{effective_skill_name}.md"
+                if effective_skill_name
+                else f"{inspected['title']}.md"
+            )
         )
         try:
             drive_result = publish_report_to_drive(
@@ -10325,19 +11251,28 @@ def export_accepted_doc_to_markdown(
         "status": "success",
         "document_id": document_id,
         "title": inspected["title"],
-        "skill_name": skill_name,
+        "skill_name": effective_skill_name,
         "suggestion_count": inspected["suggestion_count"],
         "accepted_suggestion_count": inspected["accepted_suggestion_count"],
         "suggestions": inspected["suggestions"],
         "unified_diff": inspected["unified_diff"],
+        "unresolved_comment_count": unresolved_comment_count,
+        "resolved_comment_count": resolved_comment_count,
+        "unresolved_comments": unresolved_comments,
+        "headings_reconstructed_count": headings_reconstructed_count,
+        "list_items_reconstructed_count": list_items_reconstructed_count,
+        "tables_reconstructed_count": tables_reconstructed_count,
+        "italic_regex_wildcards_recovered_count": italic_regex_wildcards_recovered_count,
         "frontmatter_restored": frontmatter_restored,
         "frontmatter_valid": bool(parsed_fm.get("name")),
         "frontmatter": parsed_fm,
         "accepted_markdown": accepted_markdown,
+        "markdown": accepted_markdown,
         "char_count": len(accepted_markdown),
         "output_path": saved_path,
         "drive": drive_result,
         "drive_error": drive_error,
     }
+
 
 

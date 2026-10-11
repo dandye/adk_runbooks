@@ -5577,3 +5577,595 @@ def test_verify_and_redline_yaral2_rules_in_doc_stages_cidr_conditional_and_thre
     assert res2["edits"]["applied_count"] == 0
     assert len(batch_calls) == 0
 
+
+def test_find_italic_corrupted_regex_spans_recovers_udm_and_yaral2_wildcards():
+    """Verifies that find_italic_corrupted_regex_spans detects paired '*' regex wildcards
+    silently converted into textStyle.italic=True by Google Drive's Markdown importer
+    in both standalone UDM queries and YARA-L 2.0 rules, while ignoring normal italic
+    prose and intact regex literals."""
+    from manager.tools.docs_review_tools import (
+        extract_doc_projections,
+        find_italic_corrupted_regex_spans,
+    )
+
+    # Build a Google Docs AST with:
+    # 1. Normal italic prose ("Note: *verify* host telemetry.\n") -> must NOT trigger
+    # 2. Standalone UDM query where /.*powershell.*/ was imported as '/.' + italic('powershell.') + '/'
+    # 3. Intact UDM query where /.*whoami.*/ has italic=False -> must NOT trigger
+    # 4. YARA-L 2.0 rule where /.*cmd.*/ was imported as '/.' + italic('cmd.') + '/'
+    runs = [
+        ("Note: ", False),
+        ("verify", True),
+        (" host telemetry.\n", False),
+        ('UDM Hunt: `principal.hostname = "wins-d19" AND target.process.command_line = /.', False),
+        ("powershell.", True),
+        ('/ nocase`\n', False),
+        ('Control Hunt: `principal.hostname = "wins-d19" AND target.process.command_line = /.*whoami.*/ nocase`\n', False),
+        (
+            "rule wins_d19_lolbin_execution_case_33280 {\n"
+            "  meta:\n"
+            '    author = "SOC Detection Engineering"\n'
+            "  events:\n"
+            '    $proc.principal.hostname = "wins-d19"\n'
+            "    re.regex($proc.target.process.command_line, /.",
+            False,
+        ),
+        ("cmd.", True),
+        (
+            "/) nocase\n"
+            "  condition:\n"
+            "    $proc\n"
+            "}\n",
+            False,
+        ),
+    ]
+
+    elements: list[dict[str, Any]] = []
+    cursor = 1
+    for text, is_italic in runs:
+        end_cursor = cursor + len(text)
+        elements.append(
+            {
+                "startIndex": cursor,
+                "endIndex": end_cursor,
+                "textRun": {
+                    "content": text,
+                    "textStyle": {"italic": is_italic},
+                },
+            }
+        )
+        cursor = end_cursor
+
+    doc = {
+        "documentId": "doc-italic-regex-unit",
+        "title": "Italic Corrupted Regex Test",
+        "body": {"content": [{"paragraph": {"elements": elements}}]},
+    }
+
+    projections = extract_doc_projections(doc)
+    plain_text = projections["baseline_text"]
+    index_map = projections["baseline_index_map"]
+
+    comments, edits, findings = find_italic_corrupted_regex_spans(
+        doc, plain_text=plain_text, index_map=index_map
+    )
+    assert len(findings) == 2
+    assert len(comments) == 2
+    assert len(edits) == 2
+
+    udm_f = findings[0]
+    assert udm_f["defect_type"] == "italic_corrupted_regex_wildcard"
+    assert udm_f["context_kind"] == "udm"
+    assert udm_f["quote"] == "/.powershell./"
+    assert udm_f["replacement"] == "/.*powershell.*/"
+    assert udm_f["italic_subspans"] == ["powershell."]
+    assert (
+        plain_text[int(udm_f["start_index"]) - 1 : int(udm_f["end_index"]) - 1]
+        == "/.powershell./"
+    )
+    assert (
+        udm_f["query_line"]
+        == 'principal.hostname = "wins-d19" AND target.process.command_line = /.*powershell.*/ nocase'
+    )
+
+    yl2_f = findings[1]
+    assert yl2_f["defect_type"] == "italic_corrupted_regex_wildcard"
+    assert yl2_f["context_kind"] == "yaral2"
+    assert yl2_f["rule_name"] == "wins_d19_lolbin_execution_case_33280"
+    assert yl2_f["quote"] == "/.cmd./"
+    assert yl2_f["replacement"] == "/.*cmd.*/"
+    assert yl2_f["yaral2_backtick_regex"] == "`.*cmd.*`"
+    assert yl2_f["italic_subspans"] == ["cmd."]
+    assert (
+        plain_text[int(yl2_f["start_index"]) - 1 : int(yl2_f["end_index"]) - 1]
+        == "/.cmd./"
+    )
+
+
+def test_verify_and_redline_yaral2_rules_in_doc_stages_italic_corrupted_regex_wildcard():
+    """Replicates the Cycle 3 Google Doc 1m91VxaVhE-28i3Ccfsxmb8-M2IZn29SNOZWMjPdUSYc
+    scenario where strings:, $proc.process.command_line, and $event already have
+    pending suggestions while /.cmd./ has textStyle.italic=True on 'cmd.'. Verifies
+    that verify_and_redline_yaral2_rules_in_doc skips the 3 existing suggestions,
+    stages the /.cmd./ -> /.*cmd.*/ wildcard recovery under writeMode='SUGGEST',
+    compiles the rule, and restores retrohunt hits from 6 to 12."""
+    from manager.tools.docs_review_tools import verify_and_redline_yaral2_rules_in_doc
+
+    # Build AST matching Rule 2 of 1m91VxaVhE-28i3Ccfsxmb8-M2IZn29SNOZWMjPdUSYc
+    raw_segments: list[tuple[str, bool, list[str], list[str]]] = [
+        (
+            "rule wins_d19_lolbin_execution_case_33280 {\n  meta:\n    author = \"SOC Detection Engineering\"\n  ",
+            False,
+            [],
+            [],
+        ),
+        ("strings:", False, ["suggest.c3.strings"], []),
+        ("events:", False, [], ["suggest.c3.strings"]),
+        (
+            '\n    $proc.principal.hostname = "wins-d19"\n    re.regex(',
+            False,
+            [],
+            [],
+        ),
+        ("$proc.process.command_line", False, ["suggest.c3.field"], []),
+        ("$proc.target.process.command_line", False, [], ["suggest.c3.field"]),
+        (", /.", False, [], []),
+        ("cmd.", True, [], []),
+        ("/) nocase\n  condition:\n    ", False, [], []),
+        ("$event", False, ["suggest.c3.cond"], []),
+        ("$proc", False, [], ["suggest.c3.cond"]),
+        ("\n}\n", False, [], []),
+    ]
+
+    elements: list[dict[str, Any]] = []
+    cursor = 1
+    for text, is_italic, del_ids, ins_ids in raw_segments:
+        end_cursor = cursor + len(text)
+        tr: dict[str, Any] = {
+            "content": text,
+            "textStyle": {"italic": is_italic},
+        }
+        if del_ids:
+            tr["suggestedDeletionIds"] = del_ids
+        if ins_ids:
+            tr["suggestedInsertionIds"] = ins_ids
+        elements.append(
+            {
+                "startIndex": cursor,
+                "endIndex": end_cursor,
+                "textRun": tr,
+            }
+        )
+        cursor = end_cursor
+
+    mock_doc = {
+        "documentId": "doc-c3-italic-wildcard",
+        "title": "Cycle 3 Italic Regex Recovery Test",
+        "body": {"content": [{"paragraph": {"elements": elements}}]},
+    }
+
+    def fake_validate(rule_str: str) -> dict[str, Any]:
+        assert "events:" in rule_str
+        assert "re.regex($proc.target.process.command_line, `.*cmd.*`) nocase" in rule_str
+        return {"success": True, "message": "Rule validation passed."}
+
+    def fake_search(query: str, **kwargs: Any) -> dict[str, Any]:
+        if "/.*cmd.*/" in query:
+            return {"events": [{"id": i} for i in range(12)], "total_events": 12}
+        if "/.cmd./" in query:
+            return {"events": [{"id": i} for i in range(6)], "total_events": 6}
+        return {"events": [], "total_events": 0}
+
+    batch_calls: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=mock_doc)
+        if request.method == "POST" and request.url.path.endswith(":batchUpdate"):
+            body = json.loads(request.content.decode("utf-8"))
+            batch_calls.append(body)
+            if "writeControl" not in body:
+                return httpx.Response(
+                    200,
+                    json={"replies": [{"insertComment": {"commentId": "c-italic-1"}}]},
+                )
+            return httpx.Response(200, json={"replies": []})
+        return httpx.Response(404)
+
+    res = verify_and_redline_yaral2_rules_in_doc(
+        "doc-c3-italic-wildcard",
+        run_live_siem_check=True,
+        diagnose_zero_hit_retrohunt=False,
+        siem_validate_fn=fake_validate,
+        siem_search_fn=fake_search,
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(handler),
+    )
+    assert res["status"] == "success"
+    assert res["skipped_existing_suggestion_count"] == 3
+    assert res["yaral2_findings_count"] == 1
+    finding = res["findings"][0]
+    assert finding["defect_type"] == "italic_corrupted_regex_wildcard"
+    assert finding["quote"] == "/.cmd./"
+    assert finding["replacement"] == "/.*cmd.*/"
+    assert (
+        finding["retrohunt_udm_query"]
+        == 'principal.hostname = "wins-d19" AND target.process.command_line = /.*cmd.*/ nocase'
+    )
+    assert res["siem_rule_checks"][0]["compiler_verified"] is True
+    assert res["siem_rule_checks"][0]["retrohunt_event_count"] == 12
+    assert (
+        "events_matched=12"
+        in batch_calls[0]["requests"][0]["insertComment"]["content"]
+    )
+    assert batch_calls[1]["writeControl"] == {"writeMode": "SUGGEST"}
+
+
+def test_reconstruct_markdown_from_doc_ast_headings_lists_tables_and_italic_regex():
+    """Verifies that reconstruct_markdown_from_doc_ast reconstructs #, ##, ### headings,
+    nested bullet and numbered lists, pipe-delimited Markdown tables, accepted Suggested
+    Edits, and italic-corrupted regex wildcards from a Google Docs AST."""
+    from manager.tools.docs_review_tools import reconstruct_markdown_from_doc_ast
+
+    doc = {
+        "documentId": "doc-ast-markdown",
+        "title": "AST Markdown Reconstructor Test",
+        "lists": {
+            "kix.ordered1": {
+                "listProperties": {
+                    "nestingLevels": [
+                        {"glyphType": "DECIMAL", "glyphFormat": "%0."},
+                        {"glyphType": "ALPHA", "glyphFormat": "%1."},
+                    ]
+                }
+            },
+            "kix.bullet1": {
+                "listProperties": {
+                    "nestingLevels": [
+                        {"glyphSymbol": "-"},
+                        {"glyphSymbol": "-"},
+                    ]
+                }
+            },
+        },
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "paragraphStyle": {"namedStyleType": "HEADING_1"},
+                        "elements": [
+                            {"textRun": {"content": "Compromised User Account Runbook\n"}}
+                        ],
+                    }
+                },
+                {
+                    "paragraph": {
+                        "paragraphStyle": {"namedStyleType": "HEADING_2"},
+                        "elements": [{"textRun": {"content": "Triage Steps\n"}}],
+                    }
+                },
+                {
+                    "paragraph": {
+                        "bullet": {"listId": "kix.ordered1", "nestingLevel": 0},
+                        "elements": [
+                            {"textRun": {"content": "Verify SIEM alert for "}},
+                            {
+                                "textRun": {
+                                    "content": "user.email",
+                                    "suggestedDeletionIds": ["suggest.1"],
+                                }
+                            },
+                            {
+                                "textRun": {
+                                    "content": "principal.user.email_addresses",
+                                    "suggestedInsertionIds": ["suggest.1"],
+                                }
+                            },
+                            {"textRun": {"content": "\n"}},
+                        ],
+                    }
+                },
+                {
+                    "paragraph": {
+                        "bullet": {"listId": "kix.ordered1", "nestingLevel": 0},
+                        "elements": [
+                            {"textRun": {"content": "Run endpoint regex hunt `target.process.command_line = /."}},
+                            {
+                                "textRun": {
+                                    "content": "cmd.",
+                                    "textStyle": {"italic": True},
+                                }
+                            },
+                            {"textRun": {"content": "/ nocase`\n"}},
+                        ],
+                    }
+                },
+                {
+                    "paragraph": {
+                        "paragraphStyle": {"namedStyleType": "HEADING_3"},
+                        "elements": [{"textRun": {"content": "Containment Checklist\n"}}],
+                    }
+                },
+                {
+                    "paragraph": {
+                        "bullet": {"listId": "kix.bullet1", "nestingLevel": 0},
+                        "elements": [{"textRun": {"content": "Revoke active OAuth tokens\n"}}],
+                    }
+                },
+                {
+                    "paragraph": {
+                        "bullet": {"listId": "kix.bullet1", "nestingLevel": 1},
+                        "elements": [{"textRun": {"content": "Confirm IdP session termination\n"}}],
+                    }
+                },
+                {
+                    "table": {
+                        "tableRows": [
+                            {
+                                "tableCells": [
+                                    {
+                                        "content": [
+                                            {
+                                                "paragraph": {
+                                                    "elements": [{"textRun": {"content": "Phase\n"}}]
+                                                }
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "content": [
+                                            {
+                                                "paragraph": {
+                                                    "elements": [{"textRun": {"content": "SLA\n"}}]
+                                                }
+                                            }
+                                        ]
+                                    },
+                                ]
+                            },
+                            {
+                                "tableCells": [
+                                    {
+                                        "content": [
+                                            {
+                                                "paragraph": {
+                                                    "elements": [{"textRun": {"content": "Containment\n"}}]
+                                                }
+                                            }
+                                        ]
+                                    },
+                                    {
+                                        "content": [
+                                            {
+                                                "paragraph": {
+                                                    "elements": [{"textRun": {"content": "15m\n"}}]
+                                                }
+                                            }
+                                        ]
+                                    },
+                                ]
+                            },
+                        ]
+                    }
+                },
+            ]
+        },
+    }
+
+    recon = reconstruct_markdown_from_doc_ast(doc, view_mode="accepted")
+    md = recon["markdown"]
+    assert recon["headings_reconstructed_count"] == 3
+    assert recon["list_items_reconstructed_count"] == 4
+    assert recon["tables_reconstructed_count"] == 1
+    assert recon["italic_regex_wildcards_recovered_count"] == 1
+    assert "# Compromised User Account Runbook" in md
+    assert "## Triage Steps" in md
+    assert "1. Verify SIEM alert for principal.user.email_addresses" in md
+    assert "2. Run endpoint regex hunt `target.process.command_line = /.*cmd.*/ nocase`" in md
+    assert "### Containment Checklist" in md
+    assert "- Revoke active OAuth tokens" in md
+    assert "  - Confirm IdP session termination" in md
+    assert "| Phase | SLA |\n| --- | --- |\n| Containment | 15m |" in md
+
+
+def test_list_doc_comments_and_export_governance_gate_blocks_unresolved(tmp_path: Path):
+    """Verifies list_doc_comments against Google Drive API v3 files.comments and
+    confirms that export_accepted_doc_to_markdown(..., require_resolved_comments=True)
+    returns status='blocked_unresolved_comments' without writing output_path when open
+    comments remain, and succeeds once all comments are resolved."""
+    from google.adk.tools.function_tool import FunctionTool
+    from manager.tools import tools as tools_module
+    from manager.tools.docs_review_tools import (
+        export_accepted_doc_to_markdown,
+        list_doc_comments,
+    )
+
+    mock_doc = _make_single_paragraph_doc(
+        "doc-gov-gate",
+        "Runbook Governance Gate Test",
+        "# Compromised User Account Runbook\n1. Check principal.user.email_addresses\n",
+    )
+    comments_state = [
+        {
+            "id": "c-resolved-1",
+            "content": "Verified UDM field path.",
+            "resolved": True,
+            "deleted": False,
+            "author": {"displayName": "Analyst One"},
+            "quotedFileContent": {"value": "principal.user.email_addresses"},
+            "createdTime": "2026-10-11T08:00:00Z",
+        },
+        {
+            "id": "c-open-2",
+            "content": "Confirm SLA before promoting to production runbooks.",
+            "resolved": False,
+            "deleted": False,
+            "author": {"displayName": "Detection Lead"},
+            "quotedFileContent": {"value": "Compromised User Account Runbook"},
+            "createdTime": "2026-10-11T08:05:00Z",
+        },
+    ]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET" and "/comments" in request.url.path:
+            return httpx.Response(200, json={"comments": comments_state})
+        if request.method == "GET":
+            return httpx.Response(200, json=mock_doc)
+        return httpx.Response(404)
+
+    transport = httpx.MockTransport(handler)
+    listed = list_doc_comments(
+        "doc-gov-gate",
+        token_source=StaticTokenSource("adc-token"),
+        transport=transport,
+    )
+    assert listed["status"] == "success"
+    assert listed["total_comment_count"] == 2
+    assert listed["unresolved_comment_count"] == 1
+    assert listed["resolved_comment_count"] == 1
+    assert listed["unresolved_comments"][0]["id"] == "c-open-2"
+
+    out_file = tmp_path / "blocked_export.md"
+    blocked = export_accepted_doc_to_markdown(
+        "doc-gov-gate",
+        skill_name="compromised-user-account-response",
+        require_resolved_comments=True,
+        output_path=str(out_file),
+        skill_content_override=(
+            "---\n"
+            "name: compromised-user-account-response\n"
+            "description: Compromised account IRP\n"
+            "---\n\n"
+            "# Compromised User Account Runbook\n"
+        ),
+        token_source=StaticTokenSource("adc-token"),
+        transport=transport,
+    )
+    assert blocked["status"] == "blocked_unresolved_comments"
+    assert blocked["unresolved_comment_count"] == 1
+    assert blocked["output_path"] is None
+    assert not out_file.exists()
+
+    # Resolve the open comment and verify export succeeds
+    comments_state[1]["resolved"] = True
+    allowed = export_accepted_doc_to_markdown(
+        "doc-gov-gate",
+        skill_name="compromised-user-account-response",
+        require_resolved_comments=True,
+        output_path=str(out_file),
+        skill_content_override=(
+            "---\n"
+            "name: compromised-user-account-response\n"
+            "description: Compromised account IRP\n"
+            "---\n\n"
+            "# Compromised User Account Runbook\n"
+        ),
+        token_source=StaticTokenSource("adc-token"),
+        transport=transport,
+    )
+    assert allowed["status"] == "success"
+    assert allowed["unresolved_comment_count"] == 0
+    assert allowed["resolved_comment_count"] == 2
+    assert out_file.exists()
+
+    wrapped = tools_module.instrument_tool(tools_module.list_doc_comments)
+    ft = FunctionTool(wrapped)
+    decl = ft._get_declaration()
+    assert decl is not None
+    assert decl.name == "list_doc_comments"
+
+
+def test_export_accepted_doc_to_markdown_reconstructs_structure_and_frontmatter(tmp_path: Path):
+    """Verifies that export_accepted_doc_to_markdown strips Google Drive's collapsed
+    single-line YAML frontmatter artifact, restores canonical YAML frontmatter, and
+    reconstructs headings, lists, and tables from the Google Docs AST."""
+    from manager.tools.docs_review_tools import export_accepted_doc_to_markdown
+    from skills.drive_registry import parse_frontmatter
+
+    doc = {
+        "documentId": "doc-export-struct",
+        "title": "Runbook_Redline_compromised-user-account-response_Case_33278",
+        "lists": {
+            "kix.list1": {
+                "listProperties": {
+                    "nestingLevels": [{"glyphType": "DECIMAL", "glyphFormat": "%0."}]
+                }
+            }
+        },
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "paragraphStyle": {"namedStyleType": "NORMAL_TEXT"},
+                        "elements": [
+                            {
+                                "textRun": {
+                                    "content": (
+                                        "name: compromised-user-account-response "
+                                        "description: Steps for compromised user account\n"
+                                    )
+                                }
+                            }
+                        ],
+                    }
+                },
+                {
+                    "paragraph": {
+                        "paragraphStyle": {"namedStyleType": "HEADING_1"},
+                        "elements": [
+                            {
+                                "textRun": {
+                                    "content": "IRP: Compromised User Account Response\n"
+                                }
+                            }
+                        ],
+                    }
+                },
+                {
+                    "paragraph": {
+                        "bullet": {"listId": "kix.list1", "nestingLevel": 0},
+                        "elements": [
+                            {
+                                "textRun": {
+                                    "content": "Query `principal.user.email_addresses` in Chronicle SIEM\n"
+                                }
+                            }
+                        ],
+                    }
+                },
+            ]
+        },
+    }
+
+    out_file = tmp_path / "exported_runbook.md"
+    res = export_accepted_doc_to_markdown(
+        "doc-export-struct",
+        skill_name="compromised-user-account-response",
+        reconstruct_markdown_structure=True,
+        output_path=str(out_file),
+        skill_content_override=(
+            "---\n"
+            "name: compromised-user-account-response\n"
+            "description: Steps for compromised user account\n"
+            "category: irps\n"
+            "version: 1.0.0\n"
+            "---\n\n"
+            "# IRP: Compromised User Account Response\n"
+        ),
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(lambda req: httpx.Response(200, json=doc)),
+    )
+    assert res["status"] == "success"
+    assert res["frontmatter_restored"] is True
+    assert res["frontmatter_valid"] is True
+    assert res["headings_reconstructed_count"] == 1
+    assert res["list_items_reconstructed_count"] == 1
+    md = res["accepted_markdown"]
+    assert md.startswith("---\nname: compromised-user-account-response\n")
+    assert "# IRP: Compromised User Account Response" in md
+    assert "1. Query `principal.user.email_addresses` in Chronicle SIEM" in md
+    assert "name: compromised-user-account-response description:" not in md
+    fm = parse_frontmatter(md)
+    assert fm["name"] == "compromised-user-account-response"
+
+

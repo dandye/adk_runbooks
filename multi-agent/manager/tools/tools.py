@@ -38,6 +38,7 @@ from .docs_review_tools import (
     export_accepted_doc_to_markdown as _export_accepted_doc_to_markdown,
     insert_doc_comments as _insert_doc_comments,
     inspect_doc_suggestions as _inspect_doc_suggestions,
+    list_doc_comments as _list_doc_comments,
     propose_doc_suggested_edits as _propose_doc_suggested_edits,
     read_google_doc as _read_google_doc,
     sanitize_and_redline_telemetry_in_doc as _sanitize_and_redline_telemetry_in_doc,
@@ -711,10 +712,38 @@ def inspect_doc_suggestions(
   )
 
 
+def list_doc_comments(
+    document_id: str,
+    include_resolved: bool = True,
+    tool_context: ToolContext = None,
+) -> dict:
+  """Lists native review comments on a Google Doc via Google Drive API v3 `files.comments`.
+
+  Classifies comments into resolved and unresolved sets so runbook promotion
+  workflows can enforce an Unresolved Comment Governance Gate before overwriting
+  production runbooks in `SOC Runbooks`.
+
+  Args:
+      document_id (str): The Google Docs documentId.
+      include_resolved (bool): Whether to include resolved comments in the returned `comments` list.
+
+  Returns:
+      dict: {"status", "document_id", "total_comment_count", "unresolved_comment_count",
+             "resolved_comment_count", "unresolved_comments", "comments"}.
+  """
+  return _list_doc_comments(
+      document_id=document_id,
+      include_resolved=include_resolved,
+      tool_context=tool_context,
+  )
+
+
 def export_accepted_doc_to_markdown(
     document_id: str,
     skill_name: str = "",
     accept_suggestion_ids: str = "",
+    reconstruct_markdown_structure: bool = True,
+    require_resolved_comments: bool = False,
     output_path: str = "",
     publish_to_drive: bool = False,
     drive_title: str = "",
@@ -723,15 +752,22 @@ def export_accepted_doc_to_markdown(
 ) -> dict:
   """Exports a red-lined Google Doc with accepted Suggested Edits back to a canonical Markdown runbook.
 
-  Applies all or selected `accept_suggestion_ids` without text fusion, restores
-  canonical YAML frontmatter (`--- ... ---`) from the source `skill_name` when
-  Google Docs horizontal-rule conversion stripped the frontmatter delimiters, and
-  optionally writes the exported Markdown to `output_path` or publishes it to Drive.
+  Applies all or selected `accept_suggestion_ids` without text fusion, reconstructs
+  structural Markdown (`#` headings, ordered/unordered lists, Markdown tables, and
+  recovered `*` regex wildcards) from the Google Docs AST when
+  `reconstruct_markdown_structure=True`, restores canonical YAML frontmatter
+  (`--- ... ---`) from the source `skill_name` when Google Docs horizontal-rule
+  conversion stripped the frontmatter delimiters, enforces the Unresolved Comment
+  Governance Gate (`status="blocked_unresolved_comments"`) when
+  `require_resolved_comments=True` and open comments exist, and optionally writes
+  the exported Markdown to `output_path` or publishes it to Drive.
 
   Args:
       document_id (str): The Google Docs documentId.
       skill_name (str): Optional runbook skill name in SOC Runbooks (e.g. 'compromised-user-account-response').
       accept_suggestion_ids (str): Optional JSON array or comma-separated list of `suggest.*` IDs to accept.
+      reconstruct_markdown_structure (bool): Whether to reconstruct `#` headings, lists, tables, and italic-stripped regex wildcards from the Google Docs AST.
+      require_resolved_comments (bool): Whether to block export (`status="blocked_unresolved_comments"`) when unresolved review comments remain on the Google Doc.
       output_path (str): Optional local file path to save the exported Markdown.
       publish_to_drive (bool): Whether to publish the exported Markdown to Google Drive.
       drive_title (str): Optional Drive filename override when publishing to Drive.
@@ -739,13 +775,19 @@ def export_accepted_doc_to_markdown(
 
   Returns:
       dict: {"status", "document_id", "title", "skill_name", "suggestion_count",
-             "accepted_suggestion_count", "frontmatter_restored", "frontmatter_valid",
-             "frontmatter", "accepted_markdown", "unified_diff", "output_path", "drive"}.
+             "accepted_suggestion_count", "unresolved_comment_count", "resolved_comment_count",
+             "unresolved_comments", "headings_reconstructed_count",
+             "list_items_reconstructed_count", "tables_reconstructed_count",
+             "italic_regex_wildcards_recovered_count", "frontmatter_restored",
+             "frontmatter_valid", "frontmatter", "accepted_markdown", "unified_diff",
+             "output_path", "drive"}.
   """
   return _export_accepted_doc_to_markdown(
       document_id=document_id,
       skill_name=skill_name,
       accept_suggestion_ids=accept_suggestion_ids or None,
+      reconstruct_markdown_structure=reconstruct_markdown_structure,
+      require_resolved_comments=require_resolved_comments,
       output_path=output_path,
       publish_to_drive=publish_to_drive,
       drive_title=drive_title,
@@ -770,7 +812,9 @@ def verify_and_redline_yaral2_rules_in_doc(
   (`$e.resource.name`, `$e.ip`, `re.regex($e.process.command_line, ...)`),
   non-YARA-L network CIDR functions (`invalid_cidr_function_syntax`:
   `cidrmatch(...)`, `ipv4_is_in_range(...)`, `in_cidr(...)` normalized to
-  `net.ip_in_range_cidr($var.<field>, "<cidr>")`), cross-event join semantic
+  `net.ip_in_range_cidr($var.<field>, "<cidr>")`), Google Drive Markdown-imported
+  italic-corrupted regex wildcards (`italic_corrupted_regex_wildcard`: `/.cmd./`
+  with `textStyle.italic=True` restored to `/.*cmd.*/`), cross-event join semantic
   type contradictions (`cross_event_join_type_mismatch`), `match:` placeholder
   variable mismatches (`match_placeholder_mismatch`), invalid `match:` time
   window syntax (`invalid_match_window_syntax`, normalized to
@@ -931,6 +975,7 @@ def get_agent_tools():
       sanitize_and_redline_telemetry_in_doc
   )
   wrapped_inspect_doc_suggestions = instrument_tool(inspect_doc_suggestions)
+  wrapped_list_doc_comments = instrument_tool(list_doc_comments)
   wrapped_export_accepted_doc_to_markdown = instrument_tool(
       export_accepted_doc_to_markdown
   )
@@ -964,6 +1009,7 @@ def get_agent_tools():
       wrapped_verify_and_redline_mitre_and_cve_in_doc,
       wrapped_sanitize_and_redline_telemetry_in_doc,
       wrapped_inspect_doc_suggestions,
+      wrapped_list_doc_comments,
       wrapped_export_accepted_doc_to_markdown,
       wrapped_get_current_time,
       wrapped_read_file_content,
