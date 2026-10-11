@@ -401,6 +401,8 @@ def test_adk_function_tool_declarations_for_docs_review_tools():
         "stage_runbook_update_as_google_doc",
         "post_reviewed_doc_to_soar_case",
         "verify_and_redline_udm_queries_in_doc",
+        "inspect_doc_suggestions",
+        "export_accepted_doc_to_markdown",
     ):
         fn = getattr(tools_module, fn_name)
         ft = FunctionTool(fn)
@@ -414,6 +416,7 @@ def test_adk_function_tool_declarations_for_docs_review_tools():
         assert "token_source" not in props
         assert "client" not in props
         assert "siem_search_fn" not in props
+        assert "skill_content_override" not in props
 
 
 def test_sanitize_telemetry_text_redacts_encoded_blobs_and_memdump_args():
@@ -1070,6 +1073,529 @@ def test_review_google_doc_with_stage_a_deduplicates_udm_and_semantic_spans():
     # 1 deduplicated Stage A UDM edit (file.sha256) + 1 Stage B semantic edit (process.command_line) = 2
     assert res["comments"]["inserted_count"] == 2
     assert res["edits"]["applied_count"] == 2
+
+
+# ---------------------------------------------------------------------------
+# Cycle 2 (H3): Bidirectional Google Docs Suggestion Inspector, Multi-Pass
+# Idempotency & Markdown Runbook Sync
+# ---------------------------------------------------------------------------
+
+
+def _make_inline_suggestions_doc_payload() -> dict[str, Any]:
+    """Builds a realistic Google Docs API v1 ``SUGGESTIONS_INLINE`` payload.
+
+    Mirrors the exact wire structure returned by Docs API v1 after
+    ``writeMode="SUGGEST"`` edits:
+    - Paragraph 1 has a replacement (`suggest.rep1`: `ip` -> `principal.ip`).
+    - Paragraph 2 is untouched after the shift (`resource.name = "projects/base-production"\n`).
+    """
+    pre = 'Query: `metadata.log_type = "GCP_CLOUDAUDIT" AND '  # len 49 -> 1..50
+    ins = "principal.ip"  # len 12 -> 50..62
+    dele = "ip"  # len 2 -> 62..64
+    post = ' = "104.198.226.161"`\n'  # len 22 -> 64..86
+    p2 = 'Next: `resource.name = "projects/base-production"`\n'  # len 51 -> 86..137
+    return {
+        "documentId": "doc-inline-sugg",
+        "title": "Inline Suggestion Projection Test",
+        "tabs": [
+            {
+                "documentTab": {
+                    "body": {
+                        "content": [
+                            {
+                                "paragraph": {
+                                    "elements": [
+                                        {
+                                            "startIndex": 1,
+                                            "endIndex": 50,
+                                            "textRun": {"content": pre},
+                                        },
+                                        {
+                                            "startIndex": 50,
+                                            "endIndex": 62,
+                                            "textRun": {
+                                                "content": ins,
+                                                "suggestedInsertionIds": ["suggest.rep1"],
+                                            },
+                                        },
+                                        {
+                                            "startIndex": 62,
+                                            "endIndex": 64,
+                                            "textRun": {
+                                                "content": dele,
+                                                "suggestedDeletionIds": ["suggest.rep1"],
+                                            },
+                                        },
+                                        {
+                                            "startIndex": 64,
+                                            "endIndex": 86,
+                                            "textRun": {"content": post},
+                                        },
+                                    ]
+                                }
+                            },
+                            {
+                                "paragraph": {
+                                    "elements": [
+                                        {
+                                            "startIndex": 86,
+                                            "endIndex": 137,
+                                            "textRun": {"content": p2},
+                                        }
+                                    ]
+                                }
+                            },
+                        ]
+                    }
+                }
+            }
+        ],
+    }
+
+
+def test_extract_text_and_index_map_handles_inline_suggestions_without_text_fusion():
+    from manager.tools.docs_review_tools import (
+        _extract_text_and_index_map,
+        _find_quote_indices,
+        extract_doc_projections,
+    )
+
+    doc = _make_inline_suggestions_doc_payload()
+
+    baseline_text, baseline_map = _extract_text_and_index_map(doc, view_mode="baseline")
+    accepted_text, accepted_map = _extract_text_and_index_map(doc, view_mode="accepted")
+    inline_text, _ = _extract_text_and_index_map(doc, view_mode="inline")
+
+    # Baseline excludes suggestedInsertionIds so 'principal.ip' and 'ip' never fuse
+    assert "principal.ipip" not in baseline_text
+    assert "ipprincipal.ip" not in baseline_text
+    assert 'AND ip = "104.198.226.161"' in baseline_text
+    assert "principal.ip" not in baseline_text
+
+    # Accepted excludes suggestedDeletionIds and includes suggestedInsertionIds
+    assert 'AND principal.ip = "104.198.226.161"' in accepted_text
+    assert "principal.ipip" not in accepted_text
+    assert len(accepted_text) == len(accepted_map)
+
+    # Inline preserves the raw concatenation
+    assert "principal.ipip" in inline_text
+
+    # Subsequent untouched paragraph still maps to its exact post-suggestion UTF-16 indices (93..106)
+    res_span = _find_quote_indices(baseline_text, baseline_map, "resource.name")
+    assert res_span == (93, 106)
+
+    projections = extract_doc_projections(doc)
+    assert len(projections["suggestions"]) == 1
+    s0 = projections["suggestions"][0]
+    assert s0["suggestion_id"] == "suggest.rep1"
+    assert s0["kind"] == "replace"
+    assert s0["deleted_text"] == "ip"
+    assert s0["inserted_text"] == "principal.ip"
+    assert s0["start_index"] == 50
+    assert s0["end_index"] == 64
+    assert projections["pending_suggestion_spans"] == [(50, 64)]
+
+
+def test_inspect_doc_suggestions_returns_structured_pairs_and_unified_diff():
+    from manager.tools.docs_review_tools import inspect_doc_suggestions
+
+    doc = {
+        "documentId": "doc-inspect-1",
+        "title": "Runbook Redline Diff Test",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": 15,
+                                "textRun": {"content": "Containment: `"},
+                            },
+                            {
+                                "startIndex": 15,
+                                "endIndex": 50,
+                                "textRun": {
+                                    "content": "gcloud iam service-accounts disable",
+                                    "suggestedInsertionIds": ["suggest.sa_fix"],
+                                },
+                            },
+                            {
+                                "startIndex": 50,
+                                "endIndex": 84,
+                                "textRun": {
+                                    "content": "gcloud iam service-accounts delete",
+                                    "suggestedDeletionIds": ["suggest.sa_fix"],
+                                },
+                            },
+                            {
+                                "startIndex": 84,
+                                "endIndex": 86,
+                                "textRun": {"content": "`\n"},
+                            },
+                        ]
+                    }
+                },
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 86,
+                                "endIndex": 108,
+                                "textRun": {
+                                    "content": "Note: verify scope.\n",
+                                    "suggestedInsertionIds": ["suggest.pure_ins"],
+                                },
+                            }
+                        ]
+                    }
+                },
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 108,
+                                "endIndex": 126,
+                                "textRun": {
+                                    "content": "Deprecated step.\n",
+                                    "suggestedDeletionIds": ["suggest.pure_del"],
+                                },
+                            }
+                        ]
+                    }
+                },
+            ]
+        },
+    }
+
+    transport = httpx.MockTransport(lambda req: httpx.Response(200, json=doc))
+    token_source = StaticTokenSource("adc-token")
+
+    res_all = inspect_doc_suggestions(
+        "doc-inspect-1",
+        token_source=token_source,
+        transport=transport,
+    )
+    assert res_all["status"] == "success"
+    assert res_all["suggestion_count"] == 3
+    assert res_all["accepted_suggestion_count"] == 3
+    by_id = {s["suggestion_id"]: s for s in res_all["suggestions"]}
+    assert by_id["suggest.sa_fix"]["kind"] == "replace"
+    assert by_id["suggest.pure_ins"]["kind"] == "insert"
+    assert by_id["suggest.pure_del"]["kind"] == "delete"
+    assert "-Containment: `gcloud iam service-accounts delete`" in res_all["unified_diff"]
+    assert "+Containment: `gcloud iam service-accounts disable`" in res_all["unified_diff"]
+    assert "Deprecated step." not in res_all["accepted_text"]
+    assert "Note: verify scope." in res_all["accepted_text"]
+
+    # Selective acceptance: accept only suggest.sa_fix, reject pure_ins and pure_del
+    res_partial = inspect_doc_suggestions(
+        "doc-inspect-1",
+        accept_suggestion_ids=["suggest.sa_fix"],
+        token_source=token_source,
+        transport=transport,
+    )
+    assert res_partial["accepted_suggestion_count"] == 1
+    assert "gcloud iam service-accounts disable" in res_partial["accepted_text"]
+    assert "Note: verify scope." not in res_partial["accepted_text"]
+    assert "Deprecated step." in res_partial["accepted_text"]
+
+
+def test_multi_pass_review_skips_spans_with_existing_pending_suggestions():
+    from manager.tools.docs_review_tools import (
+        review_google_doc_with_stage_a,
+        verify_and_redline_udm_queries_in_doc,
+    )
+
+    # Doc has 1 already-suggested UDM fix ('ip' -> 'principal.ip' at 50..64)
+    # and 1 untouched UDM defect ('resource.name' at 93..106)
+    doc = _make_inline_suggestions_doc_payload()
+    batch_calls: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=doc)
+        body = json.loads(request.content.decode("utf-8"))
+        batch_calls.append(body)
+        if "insertComment" in json.dumps(body):
+            return httpx.Response(
+                200,
+                json={
+                    "replies": [
+                        {"insertComment": {"commentId": f"c-mp-{i}"}}
+                        for i in range(len(body.get("requests", [])))
+                    ]
+                },
+            )
+        return httpx.Response(
+            200, json={"replies": [{} for _ in body.get("requests", [])]}
+        )
+
+    transport = httpx.MockTransport(handler)
+    token_source = StaticTokenSource("adc-token")
+
+    # Pass 1 on partially-redlined doc: skips 'ip' (already has suggest.rep1) and only redlines 'resource.name'
+    res = verify_and_redline_udm_queries_in_doc(
+        "doc-inline-sugg",
+        run_live_siem_check=False,
+        token_source=token_source,
+        transport=transport,
+    )
+    assert res["status"] == "success"
+    assert res["skipped_existing_suggestion_count"] == 1
+    assert res["udm_findings_count"] == 1
+    assert res["findings"][0]["invalid_field"] == "resource.name"
+    assert res["edits"]["applied_count"] == 1
+
+    # Now test a fully red-lined doc where all defects already have pending suggestions:
+    fully_redlined_doc = {
+        "documentId": "doc-fully-redlined",
+        "title": "Fully Redlined Doc",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": 50,
+                                "textRun": {
+                                    "content": 'Query: `metadata.log_type = "GCP_CLOUDAUDIT" AND '
+                                },
+                            },
+                            {
+                                "startIndex": 50,
+                                "endIndex": 62,
+                                "textRun": {
+                                    "content": "principal.ip",
+                                    "suggestedInsertionIds": ["suggest.rep1"],
+                                },
+                            },
+                            {
+                                "startIndex": 62,
+                                "endIndex": 64,
+                                "textRun": {
+                                    "content": "ip",
+                                    "suggestedDeletionIds": ["suggest.rep1"],
+                                },
+                            },
+                            {
+                                "startIndex": 64,
+                                "endIndex": 86,
+                                "textRun": {"content": ' = "104.198.226.161"`\n'},
+                            },
+                        ]
+                    }
+                }
+            ]
+        },
+    }
+    batch_calls.clear()
+    transport_full = httpx.MockTransport(
+        lambda req: httpx.Response(200, json=fully_redlined_doc)
+    )
+
+    res_idempotent = verify_and_redline_udm_queries_in_doc(
+        "doc-fully-redlined",
+        run_live_siem_check=False,
+        token_source=token_source,
+        transport=transport_full,
+    )
+    assert res_idempotent["status"] == "success"
+    assert res_idempotent["skipped_existing_suggestion_count"] == 1
+    assert res_idempotent["udm_findings_count"] == 0
+    assert res_idempotent["comments"]["inserted_count"] == 0
+    assert res_idempotent["edits"]["applied_count"] == 0
+
+    res_stage_a_idempotent = review_google_doc_with_stage_a(
+        "doc-fully-redlined",
+        semantic_comments=[{"quote": "ip", "comment": "Duplicate comment"}],
+        semantic_edits=[{"quote": "ip", "replacement": "principal.ip"}],
+        token_source=token_source,
+        transport=transport_full,
+    )
+    assert res_stage_a_idempotent["status"] == "success"
+    assert res_stage_a_idempotent["skipped_existing_suggestion_count"] == 1
+    assert res_stage_a_idempotent["comments"]["inserted_count"] == 0
+    assert res_stage_a_idempotent["edits"]["applied_count"] == 0
+
+
+def test_export_accepted_doc_to_markdown_restores_frontmatter_and_applies_edits(
+    tmp_path,
+    fake_drive: FakeDriveMcpServer,
+):
+    from manager.tools.docs_review_tools import export_accepted_doc_to_markdown
+    from skills.drive_registry import parse_frontmatter
+    from skills.registry import SkillRegistry
+
+    reports_folder = fake_drive.store.add_folder("SOC Reports")
+    drive_client = DriveMcpClient(
+        url=fake_drive.url,
+        token_source=StaticTokenSource("drive-tok"),
+        quota_project="dandye-0324-chronicle",
+    )
+
+    source_skill_md = (
+        "---\n"
+        "name: compromised-user-account-response\n"
+        "description: Use when executing containment for compromised user credentials.\n"
+        "category: irps\n"
+        "version: 1.0.0\n"
+        "---\n\n"
+        "# Compromised User Account IRP\n"
+    )
+
+    # Simulate a converted Google Doc where YAML frontmatter '---' was collapsed into a single line
+    # and 3 Suggested Edits are pending:
+    collapsed_fm = (
+        "name: compromised-user-account-response description: Use when executing "
+        "containment for compromised user credentials. category: irps version: 1.0.0\n"
+    )
+    doc = {
+        "documentId": "doc-export-rb",
+        "title": "Runbook_Redline_compromised-user-account-response_Case_33278",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {"startIndex": 1, "endIndex": 2, "textRun": {"content": "\n"}}
+                        ]
+                    }
+                },
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 2,
+                                "endIndex": 2 + len(collapsed_fm),
+                                "textRun": {"content": collapsed_fm},
+                            }
+                        ]
+                    }
+                },
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 200,
+                                "endIndex": 235,
+                                "textRun": {
+                                    "content": "# Compromised User Account IRP\n\nRun "
+                                },
+                            },
+                            {
+                                "startIndex": 235,
+                                "endIndex": 270,
+                                "textRun": {
+                                    "content": "gcloud iam service-accounts disable",
+                                    "suggestedInsertionIds": ["suggest.1"],
+                                },
+                            },
+                            {
+                                "startIndex": 270,
+                                "endIndex": 304,
+                                "textRun": {
+                                    "content": "gcloud iam service-accounts delete",
+                                    "suggestedDeletionIds": ["suggest.1"],
+                                },
+                            },
+                            {
+                                "startIndex": 304,
+                                "endIndex": 318,
+                                "textRun": {"content": " and query `"},
+                            },
+                            {
+                                "startIndex": 318,
+                                "endIndex": 338,
+                                "textRun": {
+                                    "content": "target.resource.name",
+                                    "suggestedInsertionIds": ["suggest.2"],
+                                },
+                            },
+                            {
+                                "startIndex": 338,
+                                "endIndex": 351,
+                                "textRun": {
+                                    "content": "resource.name",
+                                    "suggestedDeletionIds": ["suggest.2"],
+                                },
+                            },
+                            {
+                                "startIndex": 351,
+                                "endIndex": 370,
+                                "textRun": {"content": '` for beacon URL '},
+                            },
+                            {
+                                "startIndex": 370,
+                                "endIndex": 413,
+                                "textRun": {
+                                    "content": "hxxps://c2[.]badactor-example[.]com/beacon",
+                                    "suggestedInsertionIds": ["suggest.3"],
+                                },
+                            },
+                            {
+                                "startIndex": 413,
+                                "endIndex": 452,
+                                "textRun": {
+                                    "content": "https://c2.badactor-example.com/beacon",
+                                    "suggestedDeletionIds": ["suggest.3"],
+                                },
+                            },
+                            {
+                                "startIndex": 452,
+                                "endIndex": 454,
+                                "textRun": {"content": ".\n"},
+                            },
+                        ]
+                    }
+                },
+            ]
+        },
+    }
+
+    transport = httpx.MockTransport(lambda req: httpx.Response(200, json=doc))
+    token_source = StaticTokenSource("adc-token")
+    out_file = tmp_path / "exported_runbook" / "SKILL.md"
+
+    with patch.dict(os.environ, {"DRIVE_REPORTS_FOLDER_ID": reports_folder}, clear=False):
+        res = export_accepted_doc_to_markdown(
+            "doc-export-rb",
+            skill_name="compromised-user-account-response",
+            output_path=str(out_file),
+            publish_to_drive=True,
+            skill_content_override=source_skill_md,
+            client=drive_client,
+            token_source=token_source,
+            transport=transport,
+        )
+
+    assert res["status"] == "success"
+    assert res["suggestion_count"] == 3
+    assert res["accepted_suggestion_count"] == 3
+    assert res["frontmatter_restored"] is True
+    assert res["frontmatter_valid"] is True
+    assert res["frontmatter"]["name"] == "compromised-user-account-response"
+
+    exported_md = res["accepted_markdown"]
+    assert exported_md.startswith("---\nname: compromised-user-account-response\n")
+    assert "gcloud iam service-accounts disable" in exported_md
+    assert "gcloud iam service-accounts delete" not in exported_md
+    assert "target.resource.name" in exported_md
+    assert "hxxps://c2[.]badactor-example[.]com/beacon" in exported_md
+    assert "https://c2.badactor-example.com/beacon" not in exported_md
+
+    # Verify written file on disk parses cleanly through SkillRegistry
+    assert out_file.exists()
+    parsed_fm = parse_frontmatter(out_file.read_text(encoding="utf-8"))
+    assert parsed_fm["name"] == "compromised-user-account-response"
+    temp_reg = SkillRegistry(skills_dir=tmp_path)
+    meta = temp_reg.get_skill("compromised-user-account-response")
+    assert meta is not None
+    assert meta.category == "irps"
+    assert res["drive"] is not None
+    assert res["drive"]["parentId"] == reports_folder
+
 
 
 

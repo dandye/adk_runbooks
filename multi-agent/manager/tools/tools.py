@@ -35,7 +35,9 @@ from .grounding_tools import (
 )
 from .docs_review_tools import (
     create_google_doc as _create_google_doc,
+    export_accepted_doc_to_markdown as _export_accepted_doc_to_markdown,
     insert_doc_comments as _insert_doc_comments,
+    inspect_doc_suggestions as _inspect_doc_suggestions,
     propose_doc_suggested_edits as _propose_doc_suggested_edits,
     read_google_doc as _read_google_doc,
     verify_and_redline_udm_queries_in_doc as _verify_and_redline_udm_queries_in_doc,
@@ -671,6 +673,78 @@ def verify_and_redline_udm_queries_in_doc(
   )
 
 
+def inspect_doc_suggestions(
+    document_id: str,
+    accept_suggestion_ids: str = "",
+    tool_context: ToolContext = None,
+) -> dict:
+  """Inspects pending Suggested Edits (`suggest.*`) in a Google Doc and returns a unified diff.
+
+  Extracts clean `baseline_text` (excluding `suggestedInsertionIds` so deleted
+  and inserted strings never fuse) and `accepted_text` (applying all or selected
+  `accept_suggestion_ids`), groups paired `suggestedDeletionIds` and
+  `suggestedInsertionIds` by `suggestion_id`, and computes a unified diff.
+
+  Args:
+      document_id (str): The Google Docs documentId.
+      accept_suggestion_ids (str): Optional JSON array or comma-separated list of
+                                   `suggest.*` IDs to accept. Defaults to empty string
+                                   (accept all suggestions).
+
+  Returns:
+      dict: {"status", "document_id", "title", "suggestion_count", "accepted_suggestion_count",
+             "suggestions", "baseline_text", "accepted_text", "unified_diff"}.
+  """
+  return _inspect_doc_suggestions(
+      document_id=document_id,
+      accept_suggestion_ids=accept_suggestion_ids or None,
+      tool_context=tool_context,
+  )
+
+
+def export_accepted_doc_to_markdown(
+    document_id: str,
+    skill_name: str = "",
+    accept_suggestion_ids: str = "",
+    output_path: str = "",
+    publish_to_drive: bool = False,
+    drive_title: str = "",
+    folder_id: str = "",
+    tool_context: ToolContext = None,
+) -> dict:
+  """Exports a red-lined Google Doc with accepted Suggested Edits back to a canonical Markdown runbook.
+
+  Applies all or selected `accept_suggestion_ids` without text fusion, restores
+  canonical YAML frontmatter (`--- ... ---`) from the source `skill_name` when
+  Google Docs horizontal-rule conversion stripped the frontmatter delimiters, and
+  optionally writes the exported Markdown to `output_path` or publishes it to Drive.
+
+  Args:
+      document_id (str): The Google Docs documentId.
+      skill_name (str): Optional runbook skill name in SOC Runbooks (e.g. 'compromised-user-account-response').
+      accept_suggestion_ids (str): Optional JSON array or comma-separated list of `suggest.*` IDs to accept.
+      output_path (str): Optional local file path to save the exported Markdown.
+      publish_to_drive (bool): Whether to publish the exported Markdown to Google Drive.
+      drive_title (str): Optional Drive filename override when publishing to Drive.
+      folder_id (str): Optional target Drive folder ID when publishing to Drive.
+
+  Returns:
+      dict: {"status", "document_id", "title", "skill_name", "suggestion_count",
+             "accepted_suggestion_count", "frontmatter_restored", "frontmatter_valid",
+             "frontmatter", "accepted_markdown", "unified_diff", "output_path", "drive"}.
+  """
+  return _export_accepted_doc_to_markdown(
+      document_id=document_id,
+      skill_name=skill_name,
+      accept_suggestion_ids=accept_suggestion_ids or None,
+      output_path=output_path,
+      publish_to_drive=publish_to_drive,
+      drive_title=drive_title,
+      folder_id=folder_id or None,
+      tool_context=tool_context,
+  )
+
+
 def get_agent_tools():
   """Initializes and returns MCP toolsets and progressive discovery tools.
 
@@ -707,6 +781,10 @@ def get_agent_tools():
   wrapped_verify_and_redline_udm_queries_in_doc = instrument_tool(
       verify_and_redline_udm_queries_in_doc
   )
+  wrapped_inspect_doc_suggestions = instrument_tool(inspect_doc_suggestions)
+  wrapped_export_accepted_doc_to_markdown = instrument_tool(
+      export_accepted_doc_to_markdown
+  )
 
   # Wrap progressive MCP discovery meta-tools
   wrapped_search_mcp_tools = instrument_tool(search_mcp_tools)
@@ -733,6 +811,8 @@ def get_agent_tools():
       wrapped_stage_runbook_update_as_google_doc,
       wrapped_post_reviewed_doc_to_soar_case,
       wrapped_verify_and_redline_udm_queries_in_doc,
+      wrapped_inspect_doc_suggestions,
+      wrapped_export_accepted_doc_to_markdown,
       wrapped_get_current_time,
       wrapped_read_file_content,
       wrapped_load_skill,

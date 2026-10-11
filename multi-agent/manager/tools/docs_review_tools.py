@@ -28,6 +28,7 @@ New Google Docs Comments & Suggested Edits API*):
 
 from __future__ import annotations
 
+import difflib
 import hashlib
 import json
 import logging
@@ -52,10 +53,12 @@ from skills.drive_registry import (  # noqa: E402
     DriveMcpError,
     DriveRegistryConfigError,
     TokenSource,
+    parse_frontmatter,
 )
 from .drive_tools import (  # noqa: E402
     drive_quota_project,
     get_drive_client,
+    publish_report_to_drive,
     reports_folder_id,
     runbooks_folder_id,
 )
@@ -142,14 +145,18 @@ _UDM_COMPARISON_RE = re.compile(
     r"(?:\"[^\r\n\"]*\"|'[^\r\n']*'|“[^\r\n”]*”|/[^\r\n/]+/(?:\s*nocase)?)"
 )
 
+_FRONTMATTER_BLOCK_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n(.*)$", re.DOTALL)
+
 _cache_lock = threading.Lock()
 _DOC_INDEX_CACHE: dict[str, tuple[str, list[int]]] = {}
+_DOC_SUGGESTION_CACHE: dict[str, list[tuple[int, int]]] = {}
 
 
 def clear_doc_index_cache() -> None:
     """Clears the in-process fallback index cache (used by tests)."""
     with _cache_lock:
         _DOC_INDEX_CACHE.clear()
+        _DOC_SUGGESTION_CACHE.clear()
 
 
 def _short_sha256(value: str) -> str:
@@ -215,12 +222,62 @@ def _utf16_code_unit_len(ch: str) -> int:
     return len(ch.encode("utf-16-le")) // 2
 
 
-def _extract_text_and_index_map(doc: dict[str, Any]) -> tuple[str, list[int]]:
+def _normalize_suggestion_ids(
+    accept_suggestion_ids: str | list[str] | set[str] | tuple[str, ...] | None,
+) -> set[str] | None:
+    """Normalizes optional suggestion ID filters into a set of IDs (or ``None`` for all)."""
+    if accept_suggestion_ids is None:
+        return None
+    if isinstance(accept_suggestion_ids, str):
+        stripped = accept_suggestion_ids.strip()
+        if not stripped or stripped.lower() in ("all", "*"):
+            return None
+        if stripped.startswith("["):
+            try:
+                parsed = json.loads(stripped)
+                if isinstance(parsed, list):
+                    return {str(x).strip() for x in parsed if str(x).strip()}
+            except json.JSONDecodeError:
+                pass
+        return {part.strip() for part in stripped.split(",") if part.strip()}
+    if isinstance(accept_suggestion_ids, (list, set, tuple)):
+        return {str(x).strip() for x in accept_suggestion_ids if str(x).strip()}
+    return None
+
+
+def _extract_text_and_index_map(
+    doc: dict[str, Any],
+    *,
+    view_mode: str = "baseline",
+    accept_suggestion_ids: str | list[str] | set[str] | tuple[str, ...] | None = None,
+) -> tuple[str, list[int]]:
     """Extracts plain text and a 1-based UTF-16 index map from a Docs API payload.
 
     Recurses into ``tabs[0].documentTab.body.content`` (or top-level ``body.content``)
     across both ``paragraph`` elements and ``table.tableRows[].tableCells[]``.
+
+    Args:
+        doc: Google Docs API v1 ``documents.get`` response payload.
+        view_mode: One of:
+            - ``"baseline"`` (default): includes untouched ``textRun``s and
+              ``suggestedDeletionIds`` ``textRun``s while excluding
+              ``suggestedInsertionIds`` ``textRun``s so pending replacements
+              never fuse ``deleted_text + inserted_text`` in ``plain_text``,
+              while still mapping every character to its exact 1-based UTF-16
+              index in the live Google Doc coordinate space.
+            - ``"accepted"``: includes untouched ``textRun``s and accepted
+              ``suggestedInsertionIds`` ``textRun``s while excluding accepted
+              ``suggestedDeletionIds`` ``textRun``s (honoring
+              ``accept_suggestion_ids`` when provided).
+            - ``"inline"``: raw concatenation of all ``textRun``s.
+        accept_suggestion_ids: Optional collection or JSON/comma-separated string
+            of ``suggest.*`` IDs to accept when ``view_mode="accepted"``. When
+            ``None`` or ``""``, all pending suggestions are accepted.
     """
+    if view_mode not in ("baseline", "accepted", "inline"):
+        raise ValueError(f"Unsupported view_mode: {view_mode!r}")
+
+    accepted_set = _normalize_suggestion_ids(accept_suggestion_ids)
     tabs = doc.get("tabs", [])
     if tabs:
         body = tabs[0].get("documentTab", {}).get("body", {})
@@ -230,12 +287,34 @@ def _extract_text_and_index_map(doc: dict[str, Any]) -> tuple[str, list[int]]:
     chars: list[str] = []
     index_map: list[int] = []
 
+    def _should_include_text_run(del_ids: list[str], ins_ids: list[str]) -> bool:
+        if view_mode == "inline":
+            return True
+        if view_mode == "baseline":
+            return not bool(ins_ids)
+        # view_mode == "accepted"
+        if accepted_set is None:
+            return not bool(del_ids)
+        if ins_ids and not any(sid in accepted_set for sid in ins_ids):
+            return False
+        if del_ids and any(sid in accepted_set for sid in del_ids):
+            return False
+        return True
+
     def _walk_elements(elements: list[dict[str, Any]]) -> None:
         for element in elements:
             if "paragraph" in element:
                 for pe in element["paragraph"].get("elements", []):
                     text_run = pe.get("textRun")
                     if not text_run:
+                        continue
+                    del_ids = [
+                        str(x) for x in (text_run.get("suggestedDeletionIds") or []) if x
+                    ]
+                    ins_ids = [
+                        str(x) for x in (text_run.get("suggestedInsertionIds") or []) if x
+                    ]
+                    if not _should_include_text_run(del_ids, ins_ids):
                         continue
                     content = text_run.get("content", "")
                     start_idx = pe.get("startIndex", 0)
@@ -251,6 +330,154 @@ def _extract_text_and_index_map(doc: dict[str, Any]) -> tuple[str, list[int]]:
 
     _walk_elements(body.get("content", []))
     return "".join(chars), index_map
+
+
+def extract_doc_projections(
+    doc: dict[str, Any],
+    *,
+    accept_suggestion_ids: str | list[str] | set[str] | tuple[str, ...] | None = None,
+) -> dict[str, Any]:
+    """Extracts baseline, accepted, and inline projections plus structured suggestion spans.
+
+    Groups paired ``suggestedDeletionIds`` and ``suggestedInsertionIds`` across
+    paragraphs and nested table cells by ``suggestion_id`` in document encounter
+    order.
+    """
+    accepted_set = _normalize_suggestion_ids(accept_suggestion_ids)
+    tabs = doc.get("tabs", [])
+    if tabs:
+        body = tabs[0].get("documentTab", {}).get("body", {})
+    else:
+        body = doc.get("body", {})
+
+    suggestions_by_id: dict[str, dict[str, Any]] = {}
+
+    def _ensure_rec(sid: str, start_idx: int, end_idx: int) -> dict[str, Any]:
+        rec = suggestions_by_id.get(sid)
+        if rec is None:
+            rec = {
+                "suggestion_id": sid,
+                "deleted_parts": [],
+                "inserted_parts": [],
+                "start_index": start_idx,
+                "end_index": end_idx,
+                "del_start": None,
+                "del_end": None,
+                "ins_start": None,
+                "ins_end": None,
+            }
+            suggestions_by_id[sid] = rec
+        else:
+            rec["start_index"] = min(rec["start_index"], start_idx)
+            rec["end_index"] = max(rec["end_index"], end_idx)
+        return rec
+
+    def _walk_suggestions(elements: list[dict[str, Any]]) -> None:
+        for element in elements:
+            if "paragraph" in element:
+                for pe in element["paragraph"].get("elements", []):
+                    text_run = pe.get("textRun")
+                    if not text_run:
+                        continue
+                    content = text_run.get("content", "")
+                    start_idx = int(pe.get("startIndex", 0) or 0)
+                    utf16_len = sum(_utf16_code_unit_len(ch) for ch in content)
+                    end_idx = int(pe.get("endIndex", start_idx + utf16_len) or (start_idx + utf16_len))
+                    del_ids = [
+                        str(x) for x in (text_run.get("suggestedDeletionIds") or []) if x
+                    ]
+                    ins_ids = [
+                        str(x) for x in (text_run.get("suggestedInsertionIds") or []) if x
+                    ]
+                    for sid in del_ids:
+                        rec = _ensure_rec(sid, start_idx, end_idx)
+                        rec["deleted_parts"].append(content)
+                        rec["del_start"] = (
+                            start_idx
+                            if rec["del_start"] is None
+                            else min(rec["del_start"], start_idx)
+                        )
+                        rec["del_end"] = (
+                            end_idx
+                            if rec["del_end"] is None
+                            else max(rec["del_end"], end_idx)
+                        )
+                    for sid in ins_ids:
+                        rec = _ensure_rec(sid, start_idx, end_idx)
+                        rec["inserted_parts"].append(content)
+                        rec["ins_start"] = (
+                            start_idx
+                            if rec["ins_start"] is None
+                            else min(rec["ins_start"], start_idx)
+                        )
+                        rec["ins_end"] = (
+                            end_idx
+                            if rec["ins_end"] is None
+                            else max(rec["ins_end"], end_idx)
+                        )
+            elif "table" in element:
+                for row in element["table"].get("tableRows", []):
+                    for cell in row.get("tableCells", []):
+                        _walk_suggestions(cell.get("content", []))
+
+    _walk_suggestions(body.get("content", []))
+
+    suggestions: list[dict[str, Any]] = []
+    pending_suggestion_spans: list[tuple[int, int]] = []
+    for sid, rec in suggestions_by_id.items():
+        deleted_text = "".join(rec["deleted_parts"])
+        inserted_text = "".join(rec["inserted_parts"])
+        if deleted_text and inserted_text:
+            kind = "replace"
+        elif inserted_text:
+            kind = "insert"
+        else:
+            kind = "delete"
+        is_accepted = (accepted_set is None) or (sid in accepted_set)
+        start_idx = int(rec["start_index"])
+        end_idx = int(rec["end_index"])
+        pending_suggestion_spans.append((start_idx, end_idx))
+        suggestions.append(
+            {
+                "suggestion_id": sid,
+                "kind": kind,
+                "deleted_text": deleted_text,
+                "inserted_text": inserted_text,
+                "start_index": start_idx,
+                "end_index": end_idx,
+                "deletion_span": (
+                    [rec["del_start"], rec["del_end"]]
+                    if rec["del_start"] is not None
+                    else None
+                ),
+                "insertion_span": (
+                    [rec["ins_start"], rec["ins_end"]]
+                    if rec["ins_start"] is not None
+                    else None
+                ),
+                "accepted": is_accepted,
+            }
+        )
+
+    baseline_text, baseline_index_map = _extract_text_and_index_map(
+        doc, view_mode="baseline"
+    )
+    accepted_text, accepted_index_map = _extract_text_and_index_map(
+        doc, view_mode="accepted", accept_suggestion_ids=accept_suggestion_ids
+    )
+    inline_text, inline_index_map = _extract_text_and_index_map(
+        doc, view_mode="inline"
+    )
+    return {
+        "baseline_text": baseline_text,
+        "baseline_index_map": baseline_index_map,
+        "accepted_text": accepted_text,
+        "accepted_index_map": accepted_index_map,
+        "inline_text": inline_text,
+        "inline_index_map": inline_index_map,
+        "suggestions": suggestions,
+        "pending_suggestion_spans": pending_suggestion_spans,
+    }
 
 
 def _find_quote_indices(
@@ -342,14 +569,19 @@ def _store_doc_index_state(
     plain_text: str,
     index_map: list[int],
     tool_context: Any = None,
+    *,
+    pending_suggestion_spans: list[tuple[int, int]] | None = None,
 ) -> None:
+    spans = list(pending_suggestion_spans or [])
     with _cache_lock:
         _DOC_INDEX_CACHE[document_id] = (plain_text, index_map)
+        _DOC_SUGGESTION_CACHE[document_id] = spans
     if tool_context is not None:
         state = getattr(tool_context, "state", None)
         if isinstance(state, dict):
             state["doc_plain_text"] = plain_text
             state["doc_index_map"] = index_map
+            state["doc_pending_suggestion_spans"] = spans
             state["doc_id"] = document_id
 
 
@@ -369,6 +601,24 @@ def _load_doc_index_state(
         if cached is not None:
             return cached
     return None, None
+
+
+def _load_doc_pending_suggestion_spans(
+    document_id: str,
+    tool_context: Any = None,
+) -> list[tuple[int, int]]:
+    if tool_context is not None:
+        state = getattr(tool_context, "state", None)
+        if isinstance(state, dict) and state.get("doc_id") == document_id:
+            raw_spans = state.get("doc_pending_suggestion_spans")
+            if isinstance(raw_spans, list):
+                return [
+                    (int(sp[0]), int(sp[1]))
+                    for sp in raw_spans
+                    if isinstance(sp, (list, tuple)) and len(sp) == 2
+                ]
+    with _cache_lock:
+        return list(_DOC_SUGGESTION_CACHE.get(document_id, []))
 
 
 def create_google_doc(
@@ -450,7 +700,10 @@ def read_google_doc(
     """Reads a Google Doc via Docs API v1 and caches its 1-based UTF-16 index map.
 
     Always call ``read_google_doc`` before calling ``insert_doc_comments`` or
-    ``propose_doc_suggested_edits``.
+    ``propose_doc_suggested_edits``. Extracts the ``"baseline"`` text projection
+    (excluding ``suggestedInsertionIds`` so pending replacements never fuse
+    ``deleted_text + inserted_text``) while caching ``pending_suggestion_spans``
+    for multi-pass review idempotency.
 
     Args:
         document_id: The Google Docs ``documentId``.
@@ -458,7 +711,7 @@ def read_google_doc(
 
     Returns:
         dict containing ``status``, ``document_id``, ``title``, ``content``,
-        and ``char_count``.
+        ``char_count``, ``pending_suggestions_count``, and ``suggestions``.
     """
     try:
         token = resolve_docs_token(tool_context, token_source=token_source)
@@ -483,8 +736,18 @@ def read_google_doc(
 
     doc = resp.json()
     title = doc.get("title", "Untitled")
-    plain_text, index_map = _extract_text_and_index_map(doc)
-    _store_doc_index_state(document_id, plain_text, index_map, tool_context=tool_context)
+    projections = extract_doc_projections(doc)
+    plain_text = projections["baseline_text"]
+    index_map = projections["baseline_index_map"]
+    suggestions = projections["suggestions"]
+    pending_spans = projections["pending_suggestion_spans"]
+    _store_doc_index_state(
+        document_id,
+        plain_text,
+        index_map,
+        tool_context=tool_context,
+        pending_suggestion_spans=pending_spans,
+    )
 
     return {
         "status": "success",
@@ -492,6 +755,8 @@ def read_google_doc(
         "title": title,
         "content": plain_text,
         "char_count": len(plain_text),
+        "pending_suggestions_count": len(suggestions),
+        "suggestions": suggestions,
     }
 
 
@@ -1073,8 +1338,11 @@ def verify_and_redline_udm_queries_in_doc(
 ) -> dict[str, Any]:
     """Lints UDM queries in a Google Doc, optionally dry-runs them in Chronicle SIEM, and stages red-lines.
 
-    1. Calls :func:`read_google_doc` to build the 1-based UTF-16 character index map.
-    2. Calls :func:`find_udm_field_spans` to locate unprefixed or hallucinated UDM fields.
+    1. Calls :func:`read_google_doc` to build the 1-based UTF-16 character index map
+       and cache ``pending_suggestion_spans``.
+    2. Calls :func:`find_udm_field_spans` to locate unprefixed or hallucinated UDM fields,
+       automatically skipping any span that overlaps an existing pending suggestion
+       (ensuring 100% multi-pass idempotency).
     3. When ``run_live_siem_check=True`` (or ``siem_search_fn`` is provided), executes
        :func:`verify_udm_query_with_siem` on each defective query and enriches the
        anchored Google Docs comment with live SIEM verification metadata.
@@ -1098,9 +1366,25 @@ def verify_and_redline_udm_queries_in_doc(
             "message": "Failed to load UTF-16 index map after read_google_doc.",
         }
 
-    comments, edits, findings = find_udm_field_spans(
+    raw_comments, raw_edits, raw_findings = find_udm_field_spans(
         plain_text, index_map, udm_doc_url=udm_doc_url
     )
+    pending_spans = _load_doc_pending_suggestion_spans(
+        document_id, tool_context=tool_context
+    )
+
+    comments: list[dict[str, Any]] = []
+    edits: list[dict[str, Any]] = []
+    findings: list[dict[str, Any]] = []
+    skipped_existing_suggestion_count = 0
+    for c_item, e_item, f_item in zip(raw_comments, raw_edits, raw_findings):
+        f_span = (int(f_item["start_index"]), int(f_item["end_index"]))
+        if any(_spans_overlap(f_span, p_span) for p_span in pending_spans):
+            skipped_existing_suggestion_count += 1
+            continue
+        comments.append(c_item)
+        edits.append(e_item)
+        findings.append(f_item)
 
     siem_checks: list[dict[str, Any]] = []
     if (run_live_siem_check or siem_search_fn is not None) and findings:
@@ -1168,6 +1452,7 @@ def verify_and_redline_udm_queries_in_doc(
         "title": read_res.get("title", ""),
         "char_count": read_res.get("char_count", 0),
         "udm_findings_count": len(findings),
+        "skipped_existing_suggestion_count": skipped_existing_suggestion_count,
         "findings": findings,
         "siem_checks": siem_checks,
         "comments": comments_res,
@@ -1219,17 +1504,18 @@ def review_google_doc_with_stage_a(
 ) -> dict[str, Any]:
     """Executes the two-stage non-destructive review pipeline on a Google Doc.
 
-    1. Calls :func:`read_google_doc` to populate the 1-based UTF-16 index map.
+    1. Calls :func:`read_google_doc` to populate the 1-based UTF-16 index map
+       and ``pending_suggestion_spans``.
     2. Runs Stage A (:func:`find_deterministic_indicator_spans` and, when
        ``include_udm_stage_a=True``, :func:`find_udm_field_spans`) to locate any
        live untrusted URLs and unprefixed/hallucinated Chronicle UDM fields by
        numeric UTF-16 span without echoing them through an LLM.
     3. Deduplicates Stage A UDM spans against overlapping Stage B
-       ``semantic_comments`` and ``semantic_edits`` so explicit caller red-lines
-       take precedence without causing overlapping-range errors.
+       ``semantic_comments`` and ``semantic_edits`` and skips any span that
+       overlaps an existing pending suggestion (multi-pass idempotency).
     4. Anchors all comments first via :func:`insert_doc_comments`.
     5. Stages all Suggested Edits second via :func:`propose_doc_suggested_edits`
-      (sorted descending by ``startIndex`` under ``writeMode="SUGGEST"``).
+       (sorted descending by ``startIndex`` under ``writeMode="SUGGEST"``).
     """
     read_res = read_google_doc(
         document_id,
@@ -1247,6 +1533,10 @@ def review_google_doc_with_stage_a(
             "status": "error",
             "message": "Failed to load UTF-16 index map after read_google_doc.",
         }
+
+    pending_spans = _load_doc_pending_suggestion_spans(
+        document_id, tool_context=tool_context
+    )
 
     stage_a_comments, stage_a_edits = find_deterministic_indicator_spans(
         plain_text, index_map
@@ -1287,8 +1577,28 @@ def review_google_doc_with_stage_a(
                 deduped_udm_edits.append(e_item)
                 existing_edit_spans.append(e_span)
 
-    all_comments = stage_a_comments + deduped_udm_comments + stage_b_comments
-    all_edits = stage_a_edits + deduped_udm_edits + stage_b_edits
+    raw_all_comments = stage_a_comments + deduped_udm_comments + stage_b_comments
+    raw_all_edits = stage_a_edits + deduped_udm_edits + stage_b_edits
+
+    all_comments: list[dict[str, Any]] = []
+    for c_item in raw_all_comments:
+        c_span = _resolve_item_span(plain_text, index_map, c_item)
+        if c_span is not None and any(
+            _spans_overlap(c_span, p_span) for p_span in pending_spans
+        ):
+            continue
+        all_comments.append(c_item)
+
+    all_edits: list[dict[str, Any]] = []
+    skipped_existing_suggestion_count = 0
+    for e_item in raw_all_edits:
+        e_span = _resolve_item_span(plain_text, index_map, e_item)
+        if e_span is not None and any(
+            _spans_overlap(e_span, p_span) for p_span in pending_spans
+        ):
+            skipped_existing_suggestion_count += 1
+            continue
+        all_edits.append(e_item)
 
     comments_res: dict[str, Any] = {"status": "skipped", "inserted_count": 0, "comment_ids": []}
     if all_comments:
@@ -1332,6 +1642,7 @@ def review_google_doc_with_stage_a(
         "char_count": read_res.get("char_count", 0),
         "stage_a_url_count": len(stage_a_edits),
         "stage_a_udm_count": stage_a_udm_count,
+        "skipped_existing_suggestion_count": skipped_existing_suggestion_count,
         "comments": comments_res,
         "edits": edits_res,
     }
@@ -1494,4 +1805,254 @@ def post_reviewed_doc_to_soar_case(
         "comment": comment_text,
         "soar_response": raw_res,
     }
+
+
+def inspect_doc_suggestions(
+    document_id: str,
+    *,
+    accept_suggestion_ids: str | list[str] | set[str] | tuple[str, ...] | None = None,
+    suggestions_view_mode: str = "SUGGESTIONS_INLINE",
+    context_lines: int = 3,
+    tool_context: Any = None,
+    token_source: TokenSource | None = None,
+    quota_project: str | None = None,
+    transport: httpx.BaseTransport | None = None,
+) -> dict[str, Any]:
+    """Inspects pending Suggested Edits in a Google Doc and computes a unified diff.
+
+    Fetches the Google Doc via Docs API v1, extracts clean ``baseline_text``
+    (excluding ``suggestedInsertionIds`` so deleted+inserted strings never fuse)
+    and ``accepted_text`` (applying all or selected ``accept_suggestion_ids``),
+    groups paired ``suggestedDeletionIds`` and ``suggestedInsertionIds`` by
+    ``suggestion_id``, and generates a standard unified diff.
+    """
+    try:
+        token = resolve_docs_token(tool_context, token_source=token_source)
+    except (DriveRegistryConfigError, DriveMcpError) as err:
+        return {"status": "error", "message": str(err)}
+
+    url = f"{DOCS_API_BASE_URL}/{document_id}"
+    headers = _build_docs_headers(token, quota_project=quota_project)
+    params: dict[str, str] = {"includeTabsContent": "true"}
+    if suggestions_view_mode and suggestions_view_mode != "DEFAULT_FOR_CURRENT_ACCESS":
+        params["suggestionsViewMode"] = suggestions_view_mode
+
+    try:
+        with httpx.Client(
+            timeout=DEFAULT_DOCS_TIMEOUT_SECONDS, transport=transport
+        ) as http:
+            resp = http.get(url, params=params, headers=headers)
+    except httpx.HTTPError as err:
+        return {"status": "error", "message": f"HTTP transport error reading doc: {err}"}
+
+    if resp.status_code != 200:
+        return {
+            "status": "error",
+            "message": f"Google Docs API returned HTTP {resp.status_code}: {resp.text[:300]}",
+        }
+
+    doc = resp.json()
+    title = doc.get("title", "Untitled")
+    projections = extract_doc_projections(
+        doc, accept_suggestion_ids=accept_suggestion_ids
+    )
+    baseline_text = projections["baseline_text"]
+    baseline_index_map = projections["baseline_index_map"]
+    accepted_text = projections["accepted_text"]
+    suggestions = projections["suggestions"]
+    pending_spans = projections["pending_suggestion_spans"]
+
+    _store_doc_index_state(
+        document_id,
+        baseline_text,
+        baseline_index_map,
+        tool_context=tool_context,
+        pending_suggestion_spans=pending_spans,
+    )
+
+    diff_lines = list(
+        difflib.unified_diff(
+            baseline_text.splitlines(keepends=True),
+            accepted_text.splitlines(keepends=True),
+            fromfile=f"{title} (baseline)",
+            tofile=f"{title} (accepted)",
+            n=context_lines,
+        )
+    )
+    unified_diff = "".join(diff_lines)
+    accepted_count = sum(1 for item in suggestions if item.get("accepted"))
+
+    return {
+        "status": "success",
+        "document_id": document_id,
+        "title": title,
+        "suggestion_count": len(suggestions),
+        "accepted_suggestion_count": accepted_count,
+        "suggestions": suggestions,
+        "pending_suggestion_spans": [
+            {"start_index": start_idx, "end_index": end_idx}
+            for start_idx, end_idx in pending_spans
+        ],
+        "baseline_text": baseline_text,
+        "accepted_text": accepted_text,
+        "unified_diff": unified_diff,
+    }
+
+
+def _extract_canonical_frontmatter_header(
+    skill_name: str,
+    *,
+    skill_content_override: str | None = None,
+) -> str:
+    """Extracts or builds the canonical YAML frontmatter header for ``skill_name``."""
+    raw_source = ""
+    meta = None
+    if skill_content_override is not None:
+        raw_source = skill_content_override
+    elif skill_name:
+        from .drive_tools import build_skill_registry
+
+        registry = build_skill_registry()
+        meta = registry.get_skill(skill_name)
+        candidate = registry.get_skill_content(skill_name)
+        if candidate and not candidate.startswith("Error:"):
+            raw_source = candidate
+
+    if raw_source:
+        match = _FRONTMATTER_BLOCK_RE.match(raw_source.lstrip())
+        if match:
+            return f"---\n{match.group(1).strip()}\n---\n\n"
+
+    if meta is not None:
+        return (
+            "---\n"
+            f"name: {meta.name}\n"
+            f"description: {meta.description}\n"
+            f"category: {meta.category or 'irps'}\n"
+            f"version: {meta.version or '1.0.0'}\n"
+            "---\n\n"
+        )
+    if skill_name:
+        return (
+            "---\n"
+            f"name: {skill_name}\n"
+            f"description: Runbook for {skill_name}\n"
+            "category: irps\n"
+            "version: 1.0.0\n"
+            "---\n\n"
+        )
+    return ""
+
+
+def export_accepted_doc_to_markdown(
+    document_id: str,
+    *,
+    skill_name: str = "",
+    accept_suggestion_ids: str | list[str] | set[str] | tuple[str, ...] | None = None,
+    output_path: str = "",
+    publish_to_drive: bool = False,
+    drive_title: str = "",
+    folder_id: str | None = None,
+    skill_content_override: str | None = None,
+    client: DriveMcpClient | None = None,
+    tool_context: Any = None,
+    token_source: TokenSource | None = None,
+    quota_project: str | None = None,
+    transport: httpx.BaseTransport | None = None,
+) -> dict[str, Any]:
+    """Exports a red-lined Google Doc with accepted Suggested Edits back to Markdown.
+
+    1. Calls :func:`inspect_doc_suggestions` to obtain the clean ``accepted_text``
+       (with all or selected ``accept_suggestion_ids`` applied and zero fused
+       inline suggestion artifacts).
+    2. When ``skill_name`` (or ``skill_content_override``) is provided, checks
+       whether the exported text begins with YAML frontmatter (``--- ... ---``).
+       If Google Docs horizontal-rule conversion stripped the frontmatter
+       delimiter lines, reconstructs the canonical YAML frontmatter header from
+       the source skill so the exported Markdown remains a valid
+       :class:`SkillRegistry` / :class:`DriveSkillRegistry` runbook.
+    3. Optionally writes the accepted Markdown to ``output_path`` and/or publishes
+       it to Google Drive via :func:`publish_report_to_drive`.
+    """
+    inspected = inspect_doc_suggestions(
+        document_id,
+        accept_suggestion_ids=accept_suggestion_ids,
+        tool_context=tool_context,
+        token_source=token_source,
+        quota_project=quota_project,
+        transport=transport,
+    )
+    if inspected.get("status") != "success":
+        return inspected
+
+    accepted_text = str(inspected.get("accepted_text") or "")
+    frontmatter_restored = False
+
+    if _FRONTMATTER_BLOCK_RE.match(accepted_text.lstrip()):
+        accepted_markdown = accepted_text.lstrip()
+    elif skill_name or skill_content_override:
+        canonical_fm = _extract_canonical_frontmatter_header(
+            skill_name, skill_content_override=skill_content_override
+        )
+        cleaned_body = accepted_text.lstrip()
+        # Strip collapsed single-line frontmatter artifact produced when Google Drive
+        # converts YAML '---' delimiters into horizontalRule elements.
+        collapsed_fm_re = re.compile(
+            r"^name:\s*\S+[^\n]*\bdescription:\s*[^\n]*\n+",
+            re.IGNORECASE,
+        )
+        cleaned_body = collapsed_fm_re.sub("", cleaned_body, count=1).lstrip()
+        if canonical_fm:
+            accepted_markdown = canonical_fm + cleaned_body
+            frontmatter_restored = True
+        else:
+            accepted_markdown = cleaned_body
+    else:
+        accepted_markdown = accepted_text
+
+    parsed_fm = parse_frontmatter(accepted_markdown)
+
+    saved_path: str | None = None
+    if output_path and output_path.strip():
+        out_file = Path(output_path.strip()).resolve()
+        out_file.parent.mkdir(parents=True, exist_ok=True)
+        out_file.write_text(accepted_markdown, encoding="utf-8")
+        saved_path = str(out_file)
+
+    drive_result: dict[str, Any] | None = None
+    drive_error: str | None = None
+    if publish_to_drive:
+        target_title = (
+            drive_title.strip()
+            or (f"{skill_name}.md" if skill_name else f"{inspected['title']}.md")
+        )
+        try:
+            drive_result = publish_report_to_drive(
+                target_title,
+                accepted_markdown,
+                folder_id=folder_id,
+                client=client,
+            )
+        except (DriveMcpError, DriveRegistryConfigError) as err:
+            drive_error = str(err)
+
+    return {
+        "status": "success",
+        "document_id": document_id,
+        "title": inspected["title"],
+        "skill_name": skill_name,
+        "suggestion_count": inspected["suggestion_count"],
+        "accepted_suggestion_count": inspected["accepted_suggestion_count"],
+        "suggestions": inspected["suggestions"],
+        "unified_diff": inspected["unified_diff"],
+        "frontmatter_restored": frontmatter_restored,
+        "frontmatter_valid": bool(parsed_fm.get("name")),
+        "frontmatter": parsed_fm,
+        "accepted_markdown": accepted_markdown,
+        "char_count": len(accepted_markdown),
+        "output_path": saved_path,
+        "drive": drive_result,
+        "drive_error": drive_error,
+    }
+
 
