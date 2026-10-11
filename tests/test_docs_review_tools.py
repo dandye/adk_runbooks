@@ -7192,3 +7192,556 @@ def test_verify_and_redline_yaral2_rules_in_doc_with_meta_runbook_and_severity_a
     assert res2["edits"]["applied_count"] == 0
 
 
+def test_yaral2_in_tuple_and_reference_list_repair() -> None:
+    """H18 Suite 1: Verifies inline ``in (...)`` and ``in [...]`` expansion to parenthesized
+    ``or`` disjunctions with UDM field canonicalization, Reference List repairs
+    (``$e.ip in suspicious_ips`` -> ``$e.principal.ip in %suspicious_ips``,
+    ``$e.target.hostname in regex allowed_host_patterns`` -> ``$e.target.hostname in regex %allowed_host_patterns``,
+    ``$e.principal.ip = %Suspicious_IPs`` -> ``$e.principal.ip in %suspicious_ips``,
+    ``$e.principal.ip != %corp_cidrs`` -> ``not $e.principal.ip in %corp_cidrs``), and zero
+    false positives on valid Reference List predicates.
+    """
+    from manager.tools.docs_review_tools import (
+        _build_utf16_index_map,
+        find_yaral2_rule_spans,
+    )
+
+    doc_text = (
+        'rule h18_in_tuple_and_ref_lists {\n'
+        '  meta:\n'
+        '    author = "SecOps"\n'
+        '  events:\n'
+        '    $e.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $e.ip in ("104.198.226.161", "34.135.255.85")\n'
+        '    not $e.hostname in ["wins-d19", "wins-d20"]\n'
+        '    $e.ip in suspicious_ips\n'
+        '    $e.target.hostname in regex allowed_host_patterns\n'
+        '    $e.principal.ip = %Suspicious_IPs\n'
+        '    $e.principal.ip != %corp_cidrs\n'
+        '  condition:\n'
+        '    $e\n'
+        '}\n\n'
+        'rule h18_valid_ref_list_control {\n'
+        '  meta:\n'
+        '    author = "SecOps"\n'
+        '  events:\n'
+        '    $e.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $e.principal.ip in %suspicious_ips\n'
+        '    $e.principal.ip in cidr %corp_cidrs\n'
+        '  condition:\n'
+        '    $e\n'
+        '}\n'
+    )
+    idx_map = _build_utf16_index_map(doc_text)
+    comments, edits, findings = find_yaral2_rule_spans(doc_text, idx_map)
+
+    assert len(findings) == 6
+    assert all(f["rule_name"] == "h18_in_tuple_and_ref_lists" for f in findings)
+    assert [(f["defect_type"], f["quote"], f["replacement"]) for f in findings] == [
+        (
+            "invalid_in_membership_syntax",
+            '$e.ip in ("104.198.226.161", "34.135.255.85")',
+            '($e.principal.ip = "104.198.226.161" or $e.principal.ip = "34.135.255.85")',
+        ),
+        (
+            "invalid_in_membership_syntax",
+            'not $e.hostname in ["wins-d19", "wins-d20"]',
+            'not ($e.principal.hostname = "wins-d19" or $e.principal.hostname = "wins-d20")',
+        ),
+        (
+            "invalid_reference_list_syntax",
+            "$e.ip in suspicious_ips",
+            "$e.principal.ip in %suspicious_ips",
+        ),
+        (
+            "invalid_reference_list_syntax",
+            "$e.target.hostname in regex allowed_host_patterns",
+            "$e.target.hostname in regex %allowed_host_patterns",
+        ),
+        (
+            "invalid_reference_list_syntax",
+            "$e.principal.ip = %Suspicious_IPs",
+            "$e.principal.ip in %suspicious_ips",
+        ),
+        (
+            "invalid_reference_list_syntax",
+            "$e.principal.ip != %corp_cidrs",
+            "not $e.principal.ip in %corp_cidrs",
+        ),
+    ]
+    for f in findings:
+        assert doc_text[f["start_index"] - 1 : f["end_index"] - 1] == f["quote"]
+    assert findings[0]["reference_lists"] == [
+        "%suspicious_ips",
+        "%allowed_host_patterns",
+        "%corp_cidrs",
+    ]
+
+    # Also verify Google Drive single-line collapsed events section
+    collapsed_doc = (
+        'rule h18_collapsed { meta: author = "SecOps" events: '
+        '$e.principal.hostname = "wins-d19" $e.principal.hostname in suspicious_windows_hosts '
+        're.regex($e.target.process.command_line, `.*powershell.*`) nocase '
+        'condition: $e }'
+    )
+    _, _, collapsed_findings = find_yaral2_rule_spans(
+        collapsed_doc, _build_utf16_index_map(collapsed_doc)
+    )
+    assert len(collapsed_findings) == 1
+    assert collapsed_findings[0]["defect_type"] == "invalid_reference_list_syntax"
+    assert (
+        collapsed_findings[0]["quote"]
+        == "$e.principal.hostname in suspicious_windows_hosts"
+    )
+    assert (
+        collapsed_findings[0]["replacement"]
+        == "$e.principal.hostname in %suspicious_windows_hosts"
+    )
+
+
+
+def test_yaral2_strings_coalesce_concat_and_case_functions_repair() -> None:
+    """H18 Suite 2: Verifies ``coalesce(...)``, ``ifnull(...)``, ``nvl(...)``,
+    ``concat(...)``, ``lower(...)``, and ``upper(...)`` in ``events:`` and ``outcome:``,
+    including inner UDM field canonicalization and automatic ``array_distinct(...)``
+    wrapping when ``match:`` is present.
+    """
+    from manager.tools.docs_review_tools import (
+        _build_utf16_index_map,
+        find_yaral2_rule_spans,
+    )
+
+    doc_text = (
+        'rule h18_strings_functions_match {\n'
+        '  meta:\n'
+        '    author = "SecOps"\n'
+        '  events:\n'
+        '    $e.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    lower($e.hostname) = "wins-d19"\n'
+        '    $e.principal.ip = $ip\n'
+        '  match:\n'
+        '    $ip over 15m\n'
+        '  outcome:\n'
+        '    $actor = coalesce($e.user.userid, $e.ip, "unknown")\n'
+        '    $fallback_user = ifnull($e.target.user.userid, "none")\n'
+        '    $summary = concat($e.hostname, ":", $e.user.userid)\n'
+        '    $upper_host = upper($e.hostname)\n'
+        '  condition:\n'
+        '    $e\n'
+        '}\n'
+    )
+    idx_map = _build_utf16_index_map(doc_text)
+    comments, edits, findings = find_yaral2_rule_spans(doc_text, idx_map)
+
+    assert len(findings) == 5
+    assert [(f["defect_type"], f["quote"], f["replacement"]) for f in findings] == [
+        (
+            "invalid_strings_function_syntax",
+            "lower($e.hostname)",
+            "strings.to_lower($e.principal.hostname)",
+        ),
+        (
+            "invalid_strings_function_syntax",
+            'coalesce($e.user.userid, $e.ip, "unknown")',
+            'array_distinct(strings.coalesce($e.principal.user.userid, $e.principal.ip, "unknown"))',
+        ),
+        (
+            "invalid_strings_function_syntax",
+            'ifnull($e.target.user.userid, "none")',
+            'array_distinct(strings.coalesce($e.target.user.userid, "none"))',
+        ),
+        (
+            "invalid_strings_function_syntax",
+            'concat($e.hostname, ":", $e.user.userid)',
+            'array_distinct(strings.concat($e.principal.hostname, ":", $e.principal.user.userid))',
+        ),
+        (
+            "invalid_strings_function_syntax",
+            "upper($e.hostname)",
+            "array_distinct(strings.to_upper($e.principal.hostname))",
+        ),
+    ]
+    for f in findings:
+        assert doc_text[f["start_index"] - 1 : f["end_index"] - 1] == f["quote"]
+
+
+def test_yaral2_re_capture_function_repair() -> None:
+    """H18 Suite 3: Verifies ``regex_extract(...)``, ``regexp_extract(...)``,
+    ``re.extract(...)``, ``extract(...)``, ``rex(...)``, slash-delimited ``/pattern/``
+    arguments, patterns without capturing groups ``(...)``, and
+    ``array_distinct(re.capture(...))`` wrapping in ``match:`` rules.
+    """
+    from manager.tools.docs_review_tools import (
+        _build_utf16_index_map,
+        find_yaral2_rule_spans,
+    )
+
+    doc_text = (
+        'rule h18_re_capture_match {\n'
+        '  meta:\n'
+        '    author = "SecOps"\n'
+        '  events:\n'
+        '    $e.principal.hostname = "wins-d19"\n'
+        '    $e.principal.hostname = $host\n'
+        '  match:\n'
+        '    $host over 15m\n'
+        '  outcome:\n'
+        '    $ps_flag = regex_extract($e.process.command_line, /-(?:enc|encodedcommand|nop|e)\\b/)\n'
+        '    $domain = regexp_extract($e.command_line, "https?://([^/\\s]+)")\n'
+        '    $service = re.capture($e.process.command_line, "DERPService\\.exe")\n'
+        '  condition:\n'
+        '    $e\n'
+        '}\n'
+    )
+    idx_map = _build_utf16_index_map(doc_text)
+    comments, edits, findings = find_yaral2_rule_spans(doc_text, idx_map)
+
+    assert len(findings) == 3
+    assert [(f["defect_type"], f["quote"], f["replacement"]) for f in findings] == [
+        (
+            "invalid_re_capture_syntax",
+            r"regex_extract($e.process.command_line, /-(?:enc|encodedcommand|nop|e)\b/)",
+            r'array_distinct(re.capture($e.target.process.command_line, "(-(?:enc|encodedcommand|nop|e)\\b)"))',
+        ),
+        (
+            "invalid_re_capture_syntax",
+            r'regexp_extract($e.command_line, "https?://([^/\s]+)")',
+            r'array_distinct(re.capture($e.target.process.command_line, "https?://([^/\\s]+)"))',
+        ),
+        (
+            "invalid_re_capture_syntax",
+            r're.capture($e.process.command_line, "DERPService\.exe")',
+            r'array_distinct(re.capture($e.target.process.command_line, "(DERPService\\.exe)"))',
+        ),
+    ]
+    for f in findings:
+        assert doc_text[f["start_index"] - 1 : f["end_index"] - 1] == f["quote"]
+
+
+def test_extract_yaral2_event_predicates_disjunctions_and_reference_lists() -> None:
+    """H18 Suite 4: Verifies that ``extract_yaral2_event_predicates()`` and
+    ``extract_yaral2_event_streams()`` preserve ``(principal.ip = "104.198.226.161" OR principal.ip = "34.135.255.85")``
+    in the synthesized retrohunt UDM query while recording and cleanly stripping
+    ``%<list_name>`` reference list predicates so Chronicle ``search_udm`` succeeds.
+    """
+    from manager.tools.docs_review_tools import (
+        extract_yaral2_event_predicates,
+        extract_yaral2_event_streams,
+        extract_yaral2_multi_event_spec,
+    )
+
+    rule_text = (
+        'rule gcp_sa_disjunction_and_ref_list {\n'
+        '  meta:\n'
+        '    author = "SecOps"\n'
+        '  events:\n'
+        '    $e.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    ($e.principal.ip = "104.198.226.161" or $e.principal.ip = "34.135.255.85")\n'
+        '    $e.target.resource.name = "projects/base-production"\n'
+        '    $e.principal.ip in %suspicious_ips\n'
+        '    not $e.principal.ip in cidr %corp_cidrs\n'
+        '  condition:\n'
+        '    $e\n'
+        '}'
+    )
+    preds = extract_yaral2_event_predicates(rule_text)
+    clauses = [p["udm_clause"] for p in preds]
+    assert clauses == [
+        'metadata.log_type = "GCP_CLOUDAUDIT"',
+        '(principal.ip = "104.198.226.161" OR principal.ip = "34.135.255.85")',
+        'target.resource.name = "projects/base-production"',
+    ]
+    spec = extract_yaral2_multi_event_spec(rule_text)
+    assert spec["reference_lists"] == ["%suspicious_ips", "%corp_cidrs"]
+    streams = extract_yaral2_event_streams(rule_text)
+    assert streams["reference_lists"] == ["%suspicious_ips", "%corp_cidrs"]
+    assert (
+        streams["per_event_udm_queries"]["$e"]
+        == 'metadata.log_type = "GCP_CLOUDAUDIT" AND (principal.ip = "104.198.226.161" OR principal.ip = "34.135.255.85") AND target.resource.name = "projects/base-production"'
+    )
+
+
+def test_evaluate_yaral2_outcome_thresholds_with_strings_coalesce_and_re_capture() -> None:
+    """H18 Suite 5: Verifies empirical computation of ``strings.coalesce(...)``,
+    ``strings.concat(...)``, ``strings.to_lower(...)``, and ``re.capture(...)``
+    against sample UDM events (both single-event and multi-event ``array_distinct(...)``).
+    """
+    from manager.tools.docs_review_tools import evaluate_yaral2_outcome_thresholds
+
+    rule_text = (
+        'rule wins_d19_outcome_functions {\n'
+        '  meta:\n'
+        '    author = "SecOps"\n'
+        '  events:\n'
+        '    $e.principal.hostname = "wins-d19"\n'
+        '    $e.principal.hostname = $host\n'
+        '  match:\n'
+        '    $host over 15m\n'
+        '  outcome:\n'
+        '    $risk_score = max(95)\n'
+        '    $actor_user = array_distinct(strings.coalesce($e.principal.user.userid, $e.target.user.userid, "unknown"))\n'
+        '    $host_actor = array_distinct(strings.concat(strings.to_lower($e.principal.hostname), ":", $e.principal.user.userid))\n'
+        '    $ps_flag = array_distinct(re.capture($e.target.process.command_line, "(-(?:enc|encodedcommand|nop|e)\\\\b)"))\n'
+        '  condition:\n'
+        '    $e and $risk_score >= 80\n'
+        '}'
+    )
+    retrohunt_res = {
+        "events": [
+            {
+                "udm": {
+                    "principal": {
+                        "hostname": "WINS-D19",
+                        "user": {"userid": "lisawalker"},
+                    },
+                    "target": {
+                        "process": {
+                            "command_line": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -NoP -sta -w 1 -enc SQBFAFgA"
+                        }
+                    },
+                }
+            },
+            {
+                "udm": {
+                    "principal": {
+                        "hostname": "wins-d19",
+                        "user": {"userid": ""},
+                    },
+                    "target": {
+                        "user": {"userid": "administrator"},
+                        "process": {
+                            "command_line": "powershell.exe -e JABzAD0A"
+                        },
+                    },
+                }
+            },
+        ],
+        "total_events": 2,
+    }
+    eval_res = evaluate_yaral2_outcome_thresholds(rule_text, retrohunt_res)
+    assert eval_res["threshold_suppressed"] is False
+    assert eval_res["outcome_values"]["$risk_score"] == 95
+    computed = eval_res["computed_string_outcomes"]
+    assert computed["$actor_user"] == ["lisawalker", "administrator"]
+    assert computed["$host_actor"] == ["wins-d19:lisawalker", "wins-d19:"]
+    assert computed["$ps_flag"] == ["-enc", "-e"]
+
+
+def test_verify_and_repair_yaral2_rules_in_doc_h18_end_to_end() -> None:
+    """H18 Suite 6: End-to-end test via ``httpx.MockTransport`` verifying UTF-16 span
+    accuracy, comment-first ordering, descending ``startIndex`` ``writeMode="SUGGEST"``
+    batching, summary counters (``yaral2_in_membership_repaired``,
+    ``yaral2_reference_lists_repaired``, ``yaral2_strings_functions_repaired``,
+    ``yaral2_re_capture_repaired``), and Pass 2 idempotency
+    (``skipped_existing_suggestion_count``).
+    """
+    from manager.tools.docs_review_tools import (
+        clear_doc_index_cache,
+        verify_and_repair_yaral2_rules_in_doc,
+    )
+
+    clear_doc_index_cache()
+
+    doc_text = (
+        'rule gcp_sa_in_tuple_and_coalesce_case_33278 {\n'
+        '  meta:\n'
+        '    author = "SecOps Autonomous Agent"\n'
+        '    severity = "HIGH"\n'
+        '    runbook_skill = "compromised-user-account-response"\n'
+        '  events:\n'
+        '    $e.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $e.ip in ("104.198.226.161", "34.135.255.85")\n'
+        '    $e.target.resource.name = "projects/base-production"\n'
+        '    $e.principal.ip = $src_ip\n'
+        '  match:\n'
+        '    $src_ip over 15m\n'
+        '  outcome:\n'
+        '    $risk_score = max(85)\n'
+        '    $actor_identity = coalesce($e.user.userid, $e.ip, "unknown")\n'
+        '  condition:\n'
+        '    $e\n'
+        '}\n\n'
+        'rule wins_d19_ref_list_and_re_capture_case_33269 {\n'
+        '  meta:\n'
+        '    author = "SecOps Autonomous Agent"\n'
+        '    severity = "CRITICAL"\n'
+        '    runbook_skill = "malware-incident-response"\n'
+        '  events:\n'
+        '    $e.principal.hostname = "wins-d19"\n'
+        '    $e.principal.hostname in suspicious_windows_hosts\n'
+        '    re.regex($e.target.process.command_line, `.*powershell.*`) nocase\n'
+        '    $e.principal.hostname = $host\n'
+        '  match:\n'
+        '    $host over 15m\n'
+        '  outcome:\n'
+        '    $risk_score = max(95)\n'
+        '    $ps_flag = regex_extract($e.process.command_line, /-(?:enc|encodedcommand|nop|e)\\b/)\n'
+        '  condition:\n'
+        '    $e\n'
+        '}\n\n'
+        'rule wins_d19_derpservice_lower_concat_case_33269 {\n'
+        '  meta:\n'
+        '    author = "SecOps Autonomous Agent"\n'
+        '    severity = "CRITICAL"\n'
+        '    runbook_skill = "malware-incident-response"\n'
+        '  events:\n'
+        '    lower($e.hostname) = "wins-d19"\n'
+        '    $e.principal.ip = %active_directory_tier0_hosts\n'
+        '    re.regex($e.target.process.command_line, `.*DERPService.*`) nocase\n'
+        '    $e.principal.hostname = $host\n'
+        '  match:\n'
+        '    $host over 15m\n'
+        '  outcome:\n'
+        '    $risk_score = max(90)\n'
+        '    $actor_summary = concat($e.hostname, ":", $e.user.userid)\n'
+        '  condition:\n'
+        '    $e\n'
+        '}\n'
+    )
+
+    mock_doc = _make_single_paragraph_doc(
+        "doc-h18-e2e", "Cycle 14 H18 E2E", doc_text
+    )
+    batch_calls: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=mock_doc)
+        payload = json.loads(request.content.decode("utf-8"))
+        batch_calls.append(payload)
+        if any("insertComment" in r for r in payload.get("requests", [])):
+            return httpx.Response(
+                200,
+                json={
+                    "replies": [
+                        {"insertComment": {"commentId": f"c-h18-{i}"}}
+                        for i in range(len(payload.get("requests", [])))
+                    ]
+                },
+            )
+        return httpx.Response(
+            200,
+            json={"replies": [{} for _ in payload.get("requests", [])]},
+        )
+
+    def fake_search(query: str, start_time: str, end_time: str, max_events: int) -> dict[str, Any]:
+        if "GCP_CLOUDAUDIT" in query:
+            return {
+                "events": [
+                    {
+                        "udm": {
+                            "metadata": {"log_type": "GCP_CLOUDAUDIT"},
+                            "principal": {
+                                "ip": ["104.198.226.161"],
+                                "user": {
+                                    "userid": "294955789222-compute@developer.gserviceaccount.com"
+                                },
+                            },
+                            "target": {"resource": {"name": "projects/base-production"}},
+                        }
+                    }
+                ],
+                "total_events": 1,
+            }
+        if "powershell" in query:
+            return {
+                "events": [
+                    {
+                        "udm": {
+                            "principal": {
+                                "hostname": "wins-d19",
+                                "user": {"userid": "lisawalker"},
+                            },
+                            "target": {
+                                "process": {
+                                    "command_line": "powershell.exe -NoP -enc SQBFAFgA"
+                                }
+                            },
+                        }
+                    }
+                ],
+                "total_events": 5,
+            }
+        return {
+            "events": [
+                {
+                    "udm": {
+                        "principal": {
+                            "hostname": "wins-d19",
+                            "user": {"userid": "lisawalker"},
+                        },
+                        "target": {
+                            "process": {
+                                "command_line": "C:\\Users\\Administrator\\DERPService.exe"
+                            }
+                        },
+                    }
+                }
+            ],
+            "total_events": 1,
+        }
+
+    res = verify_and_repair_yaral2_rules_in_doc(
+        "doc-h18-e2e",
+        run_live_siem_check=True,
+        siem_validate_fn=lambda rule_str: {"success": True, "message": "OK"},
+        siem_search_fn=fake_search,
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(handler),
+    )
+    assert res["status"] == "success"
+    assert res["yaral2_findings_count"] == 7
+    assert res["yaral2_in_membership_repaired"] == 1
+    assert res["yaral2_reference_lists_repaired"] == 2
+    assert res["yaral2_strings_functions_repaired"] == 3
+    assert res["yaral2_re_capture_repaired"] == 1
+    assert res["comments"]["inserted_count"] == 7
+    assert res["edits"]["applied_count"] == 7
+    assert len(batch_calls) == 2
+    assert "writeControl" not in batch_calls[0]
+    assert batch_calls[1]["writeControl"] == {"writeMode": "SUGGEST"}
+    delete_starts = [
+        req["deleteContentRange"]["range"]["startIndex"]
+        for req in batch_calls[1]["requests"]
+        if "deleteContentRange" in req
+    ]
+    assert delete_starts == sorted(delete_starts, reverse=True)
+
+    # Pass 2 idempotency
+    mock_doc_pass2 = {
+        "documentId": "doc-h18-e2e",
+        "title": "Cycle 14 H18 E2E",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": len(doc_text) + 1,
+                                "textRun": {
+                                    "content": doc_text,
+                                    "suggestedDeletionIds": ["suggest.h18.existing"],
+                                },
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+    }
+    res2 = verify_and_repair_yaral2_rules_in_doc(
+        "doc-h18-e2e",
+        run_live_siem_check=True,
+        siem_validate_fn=lambda rule_str: {"success": True, "message": "OK"},
+        siem_search_fn=fake_search,
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(lambda req: httpx.Response(200, json=mock_doc_pass2)),
+    )
+    assert res2["yaral2_findings_count"] == 0
+    assert res2["skipped_existing_suggestion_count"] == 7
+    assert res2["comments"]["inserted_count"] == 0
+    assert res2["edits"]["applied_count"] == 0
+
+
+

@@ -815,22 +815,35 @@ def verify_and_redline_yaral2_rules_in_doc(
   blocks and identifies standard-YARA `strings:` sections used instead of
   YARA-L 2.0 `events:`, event-variable-prefixed invalid UDM fields
   (`$e.resource.name`, `$e.ip`, `re.regex($e.process.command_line, ...)`),
-  non-YARA-L network CIDR functions (`invalid_cidr_function_syntax`:
-  `cidrmatch(...)`, `ipv4_is_in_range(...)`, `in_cidr(...)` normalized to
-  `net.ip_in_range_cidr($var.<field>, "<cidr>")`), Google Drive Markdown-imported
-  italic-corrupted regex wildcards (`italic_corrupted_regex_wildcard`: `/.cmd./`
-  with `textStyle.italic=True` restored to `/.*cmd.*/`), cross-event join semantic
-  type contradictions (`cross_event_join_type_mismatch`), `match:` placeholder
-  variable mismatches (`match_placeholder_mismatch`), invalid `match:` time
-  window syntax (`invalid_match_window_syntax`, normalized to
-  `over <N><s|m|h|d>`), non-YARA-L SQL/Splunk aggregation functions in
-  `outcome:` (`invalid_outcome_aggregation_function`: `distinct_count` ->
-  `count_distinct`, `collect_set` -> `array_distinct`, `avg` -> `max`),
-  SQL/Splunk conditional scoring expressions in `outcome:`
-  (`invalid_outcome_conditional_syntax`: `CASE WHEN ... THEN ... ELSE ... END`
-  and `iff(...)` normalized to `if(...)` or `max(if(...))`), unaggregated event
-  fields in `outcome:` when `match:` is present
-  (`unaggregated_outcome_in_match_rule`), `condition:` outcome threshold
+  SQL/SPL/KQL inline `in (...)` / `in [...]` tuple membership in `events:`
+  (`invalid_in_membership_syntax`, expanded to parenthesized `or` disjunctions),
+  malformed Chronicle Reference Lists in `events:`
+  (`invalid_reference_list_syntax`: missing `%` sigil, `= %list` / `!= %list`
+  instead of `in %list` / `not ... in %list`, or non-snake_case `%ListName`),
+  non-canonical SQL/SPL string functions in `events:` and `outcome:`
+  (`invalid_strings_function_syntax`: `coalesce`, `ifnull`, `nvl`, `concat`,
+  `lower`, `upper` normalized to `strings.coalesce`, `strings.concat`,
+  `strings.to_lower`, `strings.to_upper` with `array_distinct(...)` wrapping in
+  `match:`-windowed `outcome:`), non-canonical regex extraction calls in
+  `events:` and `outcome:` (`invalid_re_capture_syntax`: `regex_extract`,
+  `regexp_extract`, `re.extract`, `extract`, `rex`, slash-delimited `/pattern/`,
+  or patterns missing a capturing group `(...)` normalized to
+  `re.capture($var.<field>, "(...)")`), non-YARA-L network CIDR functions
+  (`invalid_cidr_function_syntax`: `cidrmatch(...)`, `ipv4_is_in_range(...)`,
+  `in_cidr(...)` normalized to `net.ip_in_range_cidr($var.<field>, "<cidr>")`),
+  Google Drive Markdown-imported italic-corrupted regex wildcards
+  (`italic_corrupted_regex_wildcard`: `/.cmd./` with `textStyle.italic=True`
+  restored to `/.*cmd.*/`), cross-event join semantic type contradictions
+  (`cross_event_join_type_mismatch`), `match:` placeholder variable mismatches
+  (`match_placeholder_mismatch`), invalid `match:` time window syntax
+  (`invalid_match_window_syntax`, normalized to `over <N><s|m|h|d>`),
+  non-YARA-L SQL/Splunk aggregation functions in `outcome:`
+  (`invalid_outcome_aggregation_function`: `distinct_count` -> `count_distinct`,
+  `collect_set` -> `array_distinct`, `avg` -> `max`), SQL/Splunk conditional
+  scoring expressions in `outcome:` (`invalid_outcome_conditional_syntax`:
+  `CASE WHEN ... THEN ... ELSE ... END` and `iff(...)` normalized to `if(...)`
+  or `max(if(...))`), unaggregated event fields in `outcome:` when `match:` is
+  present (`unaggregated_outcome_in_match_rule`), `condition:` outcome threshold
   variable mismatches (`condition_outcome_variable_mismatch`), `not $e2`
   negation syntax (`invalid_condition_negation_syntax`, normalized to `!$e2`),
   single-event or multi-event `condition:` variable binding errors, optional
@@ -845,7 +858,8 @@ def verify_and_redline_yaral2_rules_in_doc(
   single-event, multi-event intersection, or non-existence (`$e1 and !$e2`
   set-difference) UDM correlation retrohunts (`search_udm`), evaluates empirical
   `outcome:` aggregations (`count_distinct`, `count`, `max`, `min`, `sum`,
-  `if(...)`) against `condition:` outcome thresholds, diagnoses 0-hit retrohunt
+  `if(...)`, `strings.coalesce(...)`, `strings.concat(...)`, `re.capture(...)`)
+  against `condition:` outcome thresholds, diagnoses 0-hit retrohunt
   predicates, cross-event join entity-role swaps, and suppressing outcome
   thresholds (`exact_match_on_command_line`, `entity_role_swap`,
   `value_format_mismatch`, `cross_event_join_entity_role_swap`,
@@ -868,6 +882,8 @@ def verify_and_redline_yaral2_rules_in_doc(
 
   Returns:
       dict: {"status", "document_id", "title", "char_count", "yaral2_findings_count",
+             "yaral2_in_membership_repaired", "yaral2_reference_lists_repaired",
+             "yaral2_strings_functions_repaired", "yaral2_re_capture_repaired",
              "zero_hit_yaral2_findings_count", "skipped_existing_suggestion_count",
              "findings", "siem_rule_checks", "zero_hit_yaral2_diagnoses", "comments", "edits"}.
   """
@@ -880,7 +896,7 @@ def verify_and_redline_yaral2_rules_in_doc(
       verify_meta_runbook=verify_meta_runbook,
       verify_meta_severity=verify_meta_severity,
       synthesize_missing_runbook=synthesize_missing_runbook,
-      skill_registry=skill_registry,
+      skill_registry=global_skill_registry,
       start_time=start_time,
       end_time=end_time,
       tool_context=tool_context,

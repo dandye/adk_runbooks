@@ -374,6 +374,8 @@ VALID_UDM_TOP_LEVEL_PREFIXES: tuple[str, ...] = (
 )
 
 CANONICAL_UDM_FIELD_CORRECTIONS: dict[str, str] = {
+    "command_line": "target.process.command_line",
+    "cmd_line": "target.process.command_line",
     "process.command_line": "target.process.command_line",
     "process.cmd_line": "target.process.command_line",
     "principal.process.cmd_line": "principal.process.command_line",
@@ -3769,6 +3771,746 @@ def _normalize_yaral2_re_regex_calls(rule_text: str) -> str:
     return _YARAL2_RE_REGEX_SLASH_NORM_RE.sub(_replace_call, rule_text)
 
 
+_YARAL2_STRINGS_FUNCTION_ALIASES: dict[str, str] = {
+    "coalesce": "strings.coalesce",
+    "ifnull": "strings.coalesce",
+    "nvl": "strings.coalesce",
+    "strings.ifnull": "strings.coalesce",
+    "strings.nvl": "strings.coalesce",
+    "strings.coalesce": "strings.coalesce",
+    "concat": "strings.concat",
+    "strings.concat": "strings.concat",
+    "lower": "strings.to_lower",
+    "to_lower": "strings.to_lower",
+    "strings.lower": "strings.to_lower",
+    "strings.to_lower": "strings.to_lower",
+    "upper": "strings.to_upper",
+    "to_upper": "strings.to_upper",
+    "strings.upper": "strings.to_upper",
+    "strings.to_upper": "strings.to_upper",
+}
+
+_YARAL2_RE_CAPTURE_FUNCTION_ALIASES: dict[str, str] = {
+    "regex_extract": "re.capture",
+    "regexp_extract": "re.capture",
+    "re.extract": "re.capture",
+    "extract": "re.capture",
+    "rex": "re.capture",
+    "re.capture": "re.capture",
+}
+
+_YARAL2_RESERVED_KEYWORDS: frozenset[str] = frozenset(
+    {
+        "and",
+        "or",
+        "not",
+        "nocase",
+        "over",
+        "before",
+        "after",
+        "events",
+        "strings",
+        "match",
+        "outcome",
+        "condition",
+        "meta",
+        "options",
+        "regex",
+        "cidr",
+        "in",
+        "true",
+        "false",
+    }
+)
+
+_YARAL2_IN_TUPLE_RE = re.compile(
+    r"(?i)(?:(?P<lead_not>\bnot)\s+)?\$(?P<var>[A-Za-z_][A-Za-z0-9_]*)\.(?P<field>[A-Za-z_][A-Za-z0-9_.]*)"
+    r"\s+(?:(?P<mid_not>not)\s+)?in\s*(?P<container>\([^()\r\n]+\)|\[[^\[\]\r\n]+\])(?P<trail_nocase>\s+nocase)?"
+)
+
+_YARAL2_REF_LIST_IN_RE = re.compile(
+    r"(?i)(?:(?P<lead_not>\bnot)\s+)?\$(?P<var>[A-Za-z_][A-Za-z0-9_]*)\.(?P<field>[A-Za-z_][A-Za-z0-9_.]*)"
+    r"\s+(?:(?P<mid_not>not)\s+)?in\s+(?:(?P<mode>regex|cidr)\s+)?(?P<pct>%?)(?P<list_id>[A-Za-z_][A-Za-z0-9_-]*)"
+    r"(?=\s*(?:\r|\n|//|$|\band\b|\bor\b|\bnot\b|\)|\}|\$[A-Za-z_]|\(|[A-Za-z_][A-Za-z0-9_.]*\s*\())"
+)
+
+_YARAL2_REF_LIST_EQ_RE = re.compile(
+    r"(?i)(?:(?P<lead_not>\bnot)\s+)?\$(?P<var>[A-Za-z_][A-Za-z0-9_]*)\.(?P<field>[A-Za-z_][A-Za-z0-9_.]*)"
+    r"\s*(?P<op>!=|==|=)\s*(?:(?P<mode>regex|cidr)\s+)?%(?P<list_id>[A-Za-z_][A-Za-z0-9_-]*)"
+    r"(?=\s*(?:\r|\n|//|$|\band\b|\bor\b|\bnot\b|\)|\}|\$[A-Za-z_]|\(|[A-Za-z_][A-Za-z0-9_.]*\s*\())"
+)
+
+_YARAL2_PAREN_OR_DISJUNCTION_RE = re.compile(
+    r"(?i)(?:(?P<lead_not>\bnot)\s+)?\(\s*(?P<body>\$[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_.]*\s*(?:!=|==|=)\s*[^\r\n()]+"
+    r"(?:\s+or\s+\$[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_.]*\s*(?:!=|==|=)\s*[^\r\n()]+)+)\s*\)"
+)
+
+
+def _find_matching_paren(text: str, open_paren_idx: int) -> int:
+    """Returns the index of the matching ``)`` for ``text[open_paren_idx] == '('``, or ``-1``."""
+    if open_paren_idx < 0 or open_paren_idx >= len(text) or text[open_paren_idx] != "(":
+        return -1
+    depth = 0
+    in_quote = False
+    quote_ch = ""
+    escape = False
+    for idx in range(open_paren_idx, len(text)):
+        ch = text[idx]
+        if escape:
+            escape = False
+            continue
+        if ch == "\\":
+            escape = True
+            continue
+        if in_quote:
+            if ch == quote_ch:
+                in_quote = False
+            continue
+        if ch in ('"', "'", "`"):
+            in_quote = True
+            quote_ch = ch
+            continue
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                return idx
+    return -1
+
+
+def _has_capturing_group(pattern_str: str) -> bool:
+    """Returns True if ``pattern_str`` contains at least one parenthesized capturing group ``(...)``
+    (excluding non-capturing ``(?:...)`` and inline flag groups ``(?i)``)."""
+    escape = False
+    in_char_class = False
+    n = len(pattern_str)
+    idx = 0
+    while idx < n:
+        ch = pattern_str[idx]
+        if escape:
+            escape = False
+            idx += 1
+            continue
+        if ch == "\\":
+            escape = True
+            idx += 1
+            continue
+        if in_char_class:
+            if ch == "]":
+                in_char_class = False
+            idx += 1
+            continue
+        if ch == "[":
+            in_char_class = True
+            idx += 1
+            continue
+        if ch == "(":
+            if idx + 1 < n and pattern_str[idx + 1] == "?":
+                # Named capture (?P<name>...) or (?<name>...) is capturing; (?:...) and (?i) are not
+                if idx + 2 < n and pattern_str[idx + 2] in ("P", "<"):
+                    return True
+                idx += 1
+                continue
+            return True
+        idx += 1
+    return False
+
+
+def _ensure_re_capture_group(pattern_str: str) -> tuple[str, bool]:
+    """Ensures ``pattern_str`` has at least one parenthesized capturing group for ``re.capture()``.
+    Returns ``(updated_pattern, added_capture_group)``."""
+    if _has_capturing_group(pattern_str):
+        return pattern_str, False
+    flag_m = re.match(r"^(\(\?[a-zA-Z]+\))(.*)$", pattern_str, flags=re.DOTALL)
+    if flag_m is not None:
+        return f"{flag_m.group(1)}({flag_m.group(2)})", True
+    return f"({pattern_str})", True
+
+
+def _normalize_yaral2_reference_list_name(raw_name: str) -> str:
+    """Normalizes a Chronicle YARA-L 2.0 Reference List identifier to lowercase snake_case."""
+    cleaned = str(raw_name or "").strip().lstrip("%")
+    norm = re.sub(r"[^a-z0-9_]+", "_", cleaned.lower()).strip("_")
+    return norm or "reference_list"
+
+
+def _rewrite_single_strings_call(
+    fn_raw: str, args_str: str
+) -> tuple[str, str, str]:
+    """Rewrites a single ``strings.*`` function call and canonicalizes its arguments."""
+    fn_lower = fn_raw.strip().lower()
+    canonical_fn = _YARAL2_STRINGS_FUNCTION_ALIASES.get(fn_lower, fn_raw.strip())
+    parts = _split_top_level_comma_args(args_str)
+    repaired_parts: list[str] = []
+    for part in parts:
+        p_strip = part.strip()
+        # Recursively repair nested strings.* calls if present
+        sub_repairs = _inspect_and_repair_yaral2_strings_functions(
+            p_strip, has_match_section=False, is_outcome=False
+        )
+        if sub_repairs:
+            p_repaired = p_strip
+            for sr in sorted(
+                sub_repairs, key=lambda item: int(item["local_start"]), reverse=True
+            ):
+                s_i = int(sr["local_start"])
+                e_i = int(sr["local_end"])
+                p_repaired = p_repaired[:s_i] + str(sr["replacement"]) + p_repaired[e_i:]
+            p_strip = p_repaired
+        p_canon = _canonicalize_yaral2_expr_fields(p_strip)
+        if len(p_canon) >= 2 and p_canon[0] == "'" and p_canon[-1] == "'":
+            p_canon = f'"{p_canon[1:-1]}"'
+        repaired_parts.append(p_canon)
+    return canonical_fn, f"{canonical_fn}({', '.join(repaired_parts)})", fn_raw.strip()
+
+
+def _inspect_and_repair_yaral2_strings_functions(
+    expr_text: str,
+    event_vars: list[str] | set[str] | None = None,
+    has_match_section: bool = False,
+    is_outcome: bool = False,
+) -> list[dict[str, Any]]:
+    """Detects and deterministically repairs SQL/SPL/KQL string functions in YARA-L 2.0 (``YL2``)
+    ``events:`` and ``outcome:`` expressions (`coalesce`, `ifnull`, `nvl`, `concat`, `lower`,
+    `upper`, `strings.lower`, `strings.upper`, `strings.ifnull`), canonicalizing inner UDM field
+    shorthands and wrapping unaggregated ``outcome:`` assignments in ``array_distinct(...)``
+    when ``has_match_section=True``."""
+    if not expr_text or not expr_text.strip():
+        return []
+
+    repairs: list[dict[str, Any]] = []
+    call_head_re = re.compile(r"(?<![A-Za-z0-9_.$%])([A-Za-z_][A-Za-z0-9_.]*)\s*\(")
+
+    if is_outcome:
+        lead_ws = len(expr_text) - len(expr_text.lstrip())
+        trail_end = len(expr_text.rstrip())
+        stripped = expr_text[lead_ws:trail_end]
+        if not stripped:
+            return []
+
+        outer_agg: str | None = None
+        inner_expr = stripped
+        m_outer = call_head_re.match(stripped)
+        if m_outer is not None:
+            close_idx = _find_matching_paren(stripped, m_outer.end() - 1)
+            if close_idx == len(stripped) - 1:
+                cand_fn = m_outer.group(1)
+                cand_lower = cand_fn.lower()
+                if cand_lower in VALID_YARAL2_OUTCOME_AGG_FUNCS:
+                    outer_agg = cand_lower
+                    inner_expr = stripped[m_outer.end() : close_idx].strip()
+                elif cand_lower in CANONICAL_YARAL2_OUTCOME_AGG_CORRECTIONS:
+                    outer_agg = CANONICAL_YARAL2_OUTCOME_AGG_CORRECTIONS[cand_lower]
+                    inner_expr = stripped[m_outer.end() : close_idx].strip()
+
+        m_inner = call_head_re.match(inner_expr)
+        if m_inner is not None:
+            close_inner = _find_matching_paren(inner_expr, m_inner.end() - 1)
+            if close_inner == len(inner_expr) - 1:
+                fn_raw = m_inner.group(1)
+                fn_lower = fn_raw.lower()
+                if fn_lower in _YARAL2_STRINGS_FUNCTION_ALIASES:
+                    args_str = inner_expr[m_inner.end() : close_inner]
+                    canonical_fn, canonical_inner_call, orig_fn = (
+                        _rewrite_single_strings_call(fn_raw, args_str)
+                    )
+                    wrapped_in_agg = False
+                    if outer_agg:
+                        replacement = f"{outer_agg}({canonical_inner_call})"
+                    elif has_match_section:
+                        replacement = f"array_distinct({canonical_inner_call})"
+                        wrapped_in_agg = True
+                    else:
+                        replacement = canonical_inner_call
+                    if replacement != stripped:
+                        repairs.append(
+                            {
+                                "defect_type": "invalid_strings_function_syntax",
+                                "local_start": lead_ws,
+                                "local_end": trail_end,
+                                "quote": stripped,
+                                "replacement": replacement,
+                                "invalid_field": orig_fn,
+                                "canonical_field": canonical_fn,
+                                "raw_function_name": orig_fn,
+                                "canonical_function_name": canonical_fn,
+                                "canonical_inner_call": canonical_inner_call,
+                                "wrapped_in_aggregation": wrapped_in_agg,
+                            }
+                        )
+                    return repairs
+
+    comment_spans = [
+        (cm.start(), cm.end())
+        for cm in re.finditer(r"(?m)^[ \t]*//[^\r\n]*", expr_text)
+    ]
+    pos = 0
+    while pos < len(expr_text):
+        m = call_head_re.search(expr_text, pos)
+        if m is None:
+            break
+        if any(_spans_overlap((m.start(), m.end()), cs) for cs in comment_spans):
+            pos = m.end()
+            continue
+        fn_raw = m.group(1)
+        fn_lower = fn_raw.lower()
+        open_paren = m.end() - 1
+        close_paren = _find_matching_paren(expr_text, open_paren)
+        if close_paren == -1:
+            pos = m.end()
+            continue
+        if fn_lower in _YARAL2_STRINGS_FUNCTION_ALIASES:
+            args_str = expr_text[open_paren + 1 : close_paren]
+            canonical_fn, canonical_call, orig_fn = _rewrite_single_strings_call(
+                fn_raw, args_str
+            )
+            call_start = m.start(1)
+            call_end = close_paren + 1
+            orig_slice = expr_text[call_start:call_end]
+            if canonical_call != orig_slice:
+                repairs.append(
+                    {
+                        "defect_type": "invalid_strings_function_syntax",
+                        "local_start": call_start,
+                        "local_end": call_end,
+                        "quote": orig_slice,
+                        "replacement": canonical_call,
+                        "invalid_field": orig_fn,
+                        "canonical_field": canonical_fn,
+                        "raw_function_name": orig_fn,
+                        "canonical_function_name": canonical_fn,
+                        "canonical_inner_call": canonical_call,
+                        "wrapped_in_aggregation": False,
+                    }
+                )
+            pos = call_end
+        else:
+            pos = open_paren + 1
+
+    return repairs
+
+
+def _rewrite_single_re_capture_call(
+    fn_raw: str, args_str: str
+) -> tuple[str, str, bool] | None:
+    """Rewrites a single ``re.capture`` / ``regex_extract`` / ``regexp_extract`` / ``re.extract`` /
+    ``extract`` / ``rex`` call into canonical ``re.capture($<var>.<canonical_field>, "<pattern>")``."""
+    fn_lower = fn_raw.strip().lower()
+    if fn_lower not in _YARAL2_RE_CAPTURE_FUNCTION_ALIASES:
+        return None
+    parts = _split_top_level_comma_args(args_str)
+    if len(parts) < 2:
+        return None
+    target_arg = _canonicalize_yaral2_expr_fields(parts[0].strip())
+    pat_arg_raw = parts[1].strip()
+    has_nocase = False
+    if re.search(r"(?i)\s+nocase$", pat_arg_raw):
+        has_nocase = True
+        pat_arg_raw = re.sub(r"(?i)\s+nocase$", "", pat_arg_raw).strip()
+
+    was_slash = False
+    was_backtick = False
+    if len(pat_arg_raw) >= 2 and pat_arg_raw[0] == "/" and pat_arg_raw[-1] == "/":
+        was_slash = True
+        inner_pat = pat_arg_raw[1:-1]
+    elif len(pat_arg_raw) >= 2 and pat_arg_raw[0] == "`" and pat_arg_raw[-1] == "`":
+        was_backtick = True
+        inner_pat = pat_arg_raw[1:-1]
+    elif (
+        len(pat_arg_raw) >= 2
+        and pat_arg_raw[0] in ('"', "'")
+        and pat_arg_raw[-1] == pat_arg_raw[0]
+    ):
+        inner_pat = pat_arg_raw[1:-1]
+    else:
+        inner_pat = pat_arg_raw
+
+    if has_nocase and not inner_pat.startswith("(?i)"):
+        inner_pat = f"(?i){inner_pat}"
+
+    inner_pat, added_group = _ensure_re_capture_group(inner_pat)
+
+    if was_slash:
+        # Escape single backslashes and double quotes for double-quoted YARA-L 2.0 string literal
+        escaped_inner = inner_pat.replace("\\", "\\\\").replace('"', '\\"')
+        formatted_pat = f'"{escaped_inner}"'
+    elif was_backtick:
+        formatted_pat = f"`{inner_pat}`"
+    else:
+        escaped_inner = re.sub(r'(?<!\\)\\(?![\\"])', r"\\\\", inner_pat)
+        formatted_pat = f'"{escaped_inner}"'
+
+    canonical_call = f"re.capture({target_arg}, {formatted_pat})"
+    return "re.capture", canonical_call, added_group
+
+
+def _inspect_and_repair_yaral2_re_capture_functions(
+    expr_text: str,
+    event_vars: list[str] | set[str] | None = None,
+    has_match_section: bool = False,
+    is_outcome: bool = False,
+) -> list[dict[str, Any]]:
+    """Detects and deterministically repairs non-canonical regex extraction calls in YARA-L 2.0
+    (``YL2``) ``events:`` and ``outcome:`` expressions (``regex_extract``, ``regexp_extract``,
+    ``re.extract``, ``extract``, ``rex``, or ``re.capture`` with ``/pattern/`` delimiters,
+    shorthand UDM fields, missing parenthesized capture groups ``(...)``, or missing
+    ``array_distinct(...)`` aggregation in ``match:``-windowed rules)."""
+    if not expr_text or not expr_text.strip():
+        return []
+
+    repairs: list[dict[str, Any]] = []
+    call_head_re = re.compile(r"(?<![A-Za-z0-9_.$%])([A-Za-z_][A-Za-z0-9_.]*)\s*\(")
+
+    if is_outcome:
+        lead_ws = len(expr_text) - len(expr_text.lstrip())
+        trail_end = len(expr_text.rstrip())
+        stripped = expr_text[lead_ws:trail_end]
+        if not stripped:
+            return []
+
+        outer_agg: str | None = None
+        inner_expr = stripped
+        m_outer = call_head_re.match(stripped)
+        if m_outer is not None:
+            close_idx = _find_matching_paren(stripped, m_outer.end() - 1)
+            if close_idx == len(stripped) - 1:
+                cand_fn = m_outer.group(1)
+                cand_lower = cand_fn.lower()
+                if cand_lower in VALID_YARAL2_OUTCOME_AGG_FUNCS:
+                    outer_agg = cand_lower
+                    inner_expr = stripped[m_outer.end() : close_idx].strip()
+                elif cand_lower in CANONICAL_YARAL2_OUTCOME_AGG_CORRECTIONS:
+                    outer_agg = CANONICAL_YARAL2_OUTCOME_AGG_CORRECTIONS[cand_lower]
+                    inner_expr = stripped[m_outer.end() : close_idx].strip()
+
+        m_inner = call_head_re.match(inner_expr)
+        if m_inner is not None:
+            close_inner = _find_matching_paren(inner_expr, m_inner.end() - 1)
+            # Allow optional trailing `nocase` outside `)`
+            rem_after = inner_expr[close_inner + 1 :].strip() if close_inner != -1 else "x"
+            if close_inner != -1 and (not rem_after or rem_after.lower() == "nocase"):
+                fn_raw = m_inner.group(1)
+                args_str = inner_expr[m_inner.end() : close_inner]
+                if rem_after.lower() == "nocase":
+                    args_str = f"{args_str} nocase"
+                rewritten = _rewrite_single_re_capture_call(fn_raw, args_str)
+                if rewritten is not None:
+                    canonical_fn, canonical_inner_call, added_group = rewritten
+                    wrapped_in_agg = False
+                    if outer_agg:
+                        replacement = f"{outer_agg}({canonical_inner_call})"
+                    elif has_match_section:
+                        replacement = f"array_distinct({canonical_inner_call})"
+                        wrapped_in_agg = True
+                    else:
+                        replacement = canonical_inner_call
+                    if replacement != stripped:
+                        repairs.append(
+                            {
+                                "defect_type": "invalid_re_capture_syntax",
+                                "local_start": lead_ws,
+                                "local_end": trail_end,
+                                "quote": stripped,
+                                "replacement": replacement,
+                                "invalid_field": fn_raw.strip(),
+                                "canonical_field": canonical_fn,
+                                "raw_function_name": fn_raw.strip(),
+                                "canonical_function_name": canonical_fn,
+                                "canonical_inner_call": canonical_inner_call,
+                                "added_capture_group": added_group,
+                                "wrapped_in_aggregation": wrapped_in_agg,
+                            }
+                        )
+                    return repairs
+
+    comment_spans = [
+        (cm.start(), cm.end())
+        for cm in re.finditer(r"(?m)^[ \t]*//[^\r\n]*", expr_text)
+    ]
+    pos = 0
+    while pos < len(expr_text):
+        m = call_head_re.search(expr_text, pos)
+        if m is None:
+            break
+        if any(_spans_overlap((m.start(), m.end()), cs) for cs in comment_spans):
+            pos = m.end()
+            continue
+        fn_raw = m.group(1)
+        fn_lower = fn_raw.lower()
+        open_paren = m.end() - 1
+        close_paren = _find_matching_paren(expr_text, open_paren)
+        if close_paren == -1:
+            pos = m.end()
+            continue
+        if fn_lower in _YARAL2_RE_CAPTURE_FUNCTION_ALIASES:
+            args_str = expr_text[open_paren + 1 : close_paren]
+            call_end = close_paren + 1
+            nocase_m = re.match(r"^[ \t]+nocase\b", expr_text[call_end:], flags=re.IGNORECASE)
+            if nocase_m is not None:
+                args_str = f"{args_str} nocase"
+                call_end += nocase_m.end()
+            rewritten = _rewrite_single_re_capture_call(fn_raw, args_str)
+            if rewritten is not None:
+                canonical_fn, canonical_call, added_group = rewritten
+                call_start = m.start(1)
+                orig_slice = expr_text[call_start:call_end]
+                if canonical_call != orig_slice:
+                    repairs.append(
+                        {
+                            "defect_type": "invalid_re_capture_syntax",
+                            "local_start": call_start,
+                            "local_end": call_end,
+                            "quote": orig_slice,
+                            "replacement": canonical_call,
+                            "invalid_field": fn_raw.strip(),
+                            "canonical_field": canonical_fn,
+                            "raw_function_name": fn_raw.strip(),
+                            "canonical_function_name": canonical_fn,
+                            "canonical_inner_call": canonical_call,
+                            "added_capture_group": added_group,
+                            "wrapped_in_aggregation": False,
+                        }
+                    )
+            pos = call_end
+        else:
+            pos = open_paren + 1
+
+    return repairs
+
+
+def _inspect_and_repair_yaral2_in_and_reference_lists(
+    events_body: str,
+    event_vars: list[str] | set[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Detects and deterministically repairs SQL/SPL/KQL inline ``in (...)`` / ``in [...]``
+    value tuples (`invalid_in_membership_syntax`) and malformed Chronicle YARA-L 2.0 (``YL2``)
+    Reference List predicates (`invalid_reference_list_syntax`: missing ``%`` sigil, ``= %list``
+    or ``!= %list`` instead of ``in %list``, post-field ``not in %list``, or unnormalized list
+    identifiers)."""
+    if not events_body or not events_body.strip():
+        return []
+
+    comment_spans = [
+        (cm.start(), cm.end())
+        for cm in re.finditer(r"(?m)^[ \t]*//[^\r\n]*", events_body)
+    ]
+    repairs: list[dict[str, Any]] = []
+    handled_spans: list[tuple[int, int]] = []
+
+    # 1. Inline tuple/array membership: $e.field in ("v1", "v2") or $e.field in ["v1", "v2"]
+    for m in _YARAL2_IN_TUPLE_RE.finditer(events_body):
+        m_span = (m.start(), m.end())
+        if any(_spans_overlap(m_span, cs) for cs in comment_spans):
+            continue
+        var_name = m.group("var")
+        event_var = f"${var_name}"
+        field_token = m.group("field")
+        canonical_field = CANONICAL_UDM_FIELD_CORRECTIONS.get(
+            field_token, field_token
+        )
+        is_negated = bool(m.group("lead_not") or m.group("mid_not"))
+        container = m.group("container")
+        nocase_suffix = " nocase" if m.group("trail_nocase") else ""
+        raw_items = [
+            it.strip()
+            for it in _split_top_level_comma_args(container[1:-1])
+            if it.strip()
+        ]
+        if not raw_items:
+            continue
+        normalized_items: list[str] = []
+        for it in raw_items:
+            if len(it) >= 2 and it[0] == "'" and it[-1] == "'":
+                normalized_items.append(f'"{it[1:-1]}"')
+            else:
+                normalized_items.append(it)
+        yaral2_branches = [
+            f"{event_var}.{canonical_field} = {lit}{nocase_suffix}"
+            for lit in normalized_items
+        ]
+        disj_expr = (
+            f"({' or '.join(yaral2_branches)})"
+            if len(yaral2_branches) > 1
+            else yaral2_branches[0]
+        )
+        replacement = f"not {disj_expr}" if is_negated else disj_expr
+        udm_branches = [
+            f"{canonical_field} = {lit}{nocase_suffix}"
+            for lit in normalized_items
+        ]
+        udm_inner = (
+            f"({' OR '.join(udm_branches)})"
+            if len(udm_branches) > 1
+            else udm_branches[0]
+        )
+        udm_clause = f"NOT {udm_inner}" if is_negated else udm_inner
+        quote = events_body[m.start() : m.end()]
+        handled_spans.append(m_span)
+        repairs.append(
+            {
+                "defect_type": "invalid_in_membership_syntax",
+                "local_start": m.start(),
+                "local_end": m.end(),
+                "quote": quote,
+                "replacement": replacement,
+                "event_var": event_var,
+                "field_token": field_token,
+                "canonical_field": f"{event_var}.{canonical_field}",
+                "invalid_field": f"{event_var}.{field_token}",
+                "values": normalized_items,
+                "is_negated": is_negated,
+                "udm_clause": udm_clause,
+            }
+        )
+
+    # 2a. Reference list with `=` or `!=` instead of `in`: $e.field = %list_name
+    for m in _YARAL2_REF_LIST_EQ_RE.finditer(events_body):
+        m_span = (m.start(), m.end())
+        if any(_spans_overlap(m_span, cs) for cs in comment_spans):
+            continue
+        if any(_spans_overlap(m_span, hs) for hs in handled_spans):
+            continue
+        var_name = m.group("var")
+        event_var = f"${var_name}"
+        field_token = m.group("field")
+        canonical_field = CANONICAL_UDM_FIELD_CORRECTIONS.get(
+            field_token, field_token
+        )
+        op = m.group("op")
+        is_negated = bool(m.group("lead_not") or op == "!=")
+        mode_raw = m.group("mode")
+        mode_str = f"{mode_raw.lower()} " if mode_raw else ""
+        list_id_raw = m.group("list_id")
+        norm_list = _normalize_yaral2_reference_list_name(list_id_raw)
+        prefix_not = "not " if is_negated else ""
+        replacement = (
+            f"{prefix_not}{event_var}.{canonical_field} in {mode_str}%{norm_list}"
+        )
+        quote = events_body[m.start() : m.end()]
+        handled_spans.append(m_span)
+        repairs.append(
+            {
+                "defect_type": "invalid_reference_list_syntax",
+                "local_start": m.start(),
+                "local_end": m.end(),
+                "quote": quote,
+                "replacement": replacement,
+                "event_var": event_var,
+                "field_token": field_token,
+                "invalid_field": f"{op} %{list_id_raw}",
+                "canonical_field": f"%{norm_list}",
+                "reference_list_name": norm_list,
+                "reference_list_token": f"%{norm_list}",
+                "match_mode": mode_raw.lower() if mode_raw else "exact",
+                "is_negated": is_negated,
+            }
+        )
+
+    # 2b. Reference list with `in [regex|cidr] <bare_id>` or `$e.field not in %list` or unnormalized `%List-Name`
+    for m in _YARAL2_REF_LIST_IN_RE.finditer(events_body):
+        m_span = (m.start(), m.end())
+        if any(_spans_overlap(m_span, cs) for cs in comment_spans):
+            continue
+        if any(_spans_overlap(m_span, hs) for hs in handled_spans):
+            continue
+        list_id_raw = m.group("list_id")
+        if list_id_raw.lower() in _YARAL2_RESERVED_KEYWORDS:
+            continue
+        var_name = m.group("var")
+        event_var = f"${var_name}"
+        field_token = m.group("field")
+        canonical_field = CANONICAL_UDM_FIELD_CORRECTIONS.get(
+            field_token, field_token
+        )
+        pct = m.group("pct") or ""
+        mid_not = m.group("mid_not")
+        lead_not = m.group("lead_not")
+        is_negated = bool(lead_not or mid_not)
+        mode_raw = m.group("mode")
+        mode_str = f"{mode_raw.lower()} " if mode_raw else ""
+        norm_list = _normalize_yaral2_reference_list_name(list_id_raw)
+        has_ref_list_syntax_defect = bool(
+            pct != "%"
+            or mid_not is not None
+            or list_id_raw != norm_list
+            or (mode_raw and mode_raw != mode_raw.lower())
+        )
+        if not has_ref_list_syntax_defect:
+            continue
+        prefix_not = "not " if is_negated else ""
+        replacement = (
+            f"{prefix_not}{event_var}.{canonical_field} in {mode_str}%{norm_list}"
+        )
+        quote = events_body[m.start() : m.end()]
+        handled_spans.append(m_span)
+        repairs.append(
+            {
+                "defect_type": "invalid_reference_list_syntax",
+                "local_start": m.start(),
+                "local_end": m.end(),
+                "quote": quote,
+                "replacement": replacement,
+                "event_var": event_var,
+                "field_token": field_token,
+                "invalid_field": f"{pct}{list_id_raw}",
+                "canonical_field": f"%{norm_list}",
+                "reference_list_name": norm_list,
+                "reference_list_token": f"%{norm_list}",
+                "match_mode": mode_raw.lower() if mode_raw else "exact",
+                "is_negated": is_negated,
+            }
+        )
+
+    repairs.sort(key=lambda item: int(item["local_start"]))
+    return repairs
+
+
+def _extract_yaral2_reference_lists(rule_text: str) -> list[str]:
+    """Extracts ordered, deduplicated canonical ``%<list_name>`` Reference List tokens
+    referenced in a YARA-L 2.0 rule's ``events:`` section."""
+    if not rule_text:
+        return []
+    sec_matches = list(_YARAL2_SECTION_HEADER_RE.finditer(rule_text))
+    ref_lists: list[str] = []
+    for i, sm in enumerate(sec_matches):
+        sec_name = sm.group(1).lower()
+        if sec_name not in ("events", "strings"):
+            continue
+        b_start = sm.end()
+        b_end = (
+            sec_matches[i + 1].start()
+            if i + 1 < len(sec_matches)
+            else max(b_start, rule_text.rfind("}"))
+        )
+        sec_body = rule_text[b_start:b_end]
+        comment_spans = [
+            (cm.start(), cm.end())
+            for cm in re.finditer(r"(?m)^[ \t]*//[^\r\n]*", sec_body)
+        ]
+        for m in _YARAL2_REF_LIST_IN_RE.finditer(sec_body):
+            if any(
+                _spans_overlap((m.start(), m.end()), cs) for cs in comment_spans
+            ):
+                continue
+            list_id = m.group("list_id")
+            if list_id.lower() in _YARAL2_RESERVED_KEYWORDS:
+                continue
+            token = f"%{_normalize_yaral2_reference_list_name(list_id)}"
+            if token not in ref_lists:
+                ref_lists.append(token)
+        for m in _YARAL2_REF_LIST_EQ_RE.finditer(sec_body):
+            if any(
+                _spans_overlap((m.start(), m.end()), cs) for cs in comment_spans
+            ):
+                continue
+            list_id = m.group("list_id")
+            token = f"%{_normalize_yaral2_reference_list_name(list_id)}"
+            if token not in ref_lists:
+                ref_lists.append(token)
+    return ref_lists
+
+
 def extract_yaral2_event_predicates(
     rule_text: str,
     rule_char_start: int = 0,
@@ -3780,6 +4522,9 @@ def extract_yaral2_event_predicates(
     Supports both multi-line YARA-L 2.0 (``YL2``) rules and single-line paragraphs
     collapsed by Google Drive Markdown import, returning predicate records that
     map 1-to-1 with :func:`_extract_retrohunt_udm_query_from_yaral2`.
+    Preserves parenthesized multi-value ``OR`` disjunctions (and inline ``in (...)``
+    tuples) as disjunctive UDM clauses ``(field = "v1" OR field = "v2")`` and
+    gracefully strips ``%<list_name>`` Reference List predicates from raw UDM search.
     """
     if not rule_text:
         return []
@@ -3811,6 +4556,159 @@ def extract_yaral2_event_predicates(
         ]
         re_spans: list[tuple[int, int]] = []
         cidr_spans: list[tuple[int, int]] = []
+        disj_spans: list[tuple[int, int]] = []
+        ref_list_spans: list[tuple[int, int]] = []
+        func_cmp_spans: list[tuple[int, int]] = []
+
+        # Record Reference List spans so _YARAL2_EVENT_COMPARISON_RE does not emit
+        # `%<list_name>` into raw UDM search queries.
+        for rl_m in _YARAL2_REF_LIST_IN_RE.finditer(sec_body):
+            m_span = (rl_m.start(), rl_m.end())
+            if any(_spans_overlap(m_span, c_span) for c_span in comment_spans):
+                continue
+            if rl_m.group("list_id").lower() in _YARAL2_RESERVED_KEYWORDS:
+                continue
+            ref_list_spans.append(m_span)
+        for rl_eq_m in _YARAL2_REF_LIST_EQ_RE.finditer(sec_body):
+            m_span = (rl_eq_m.start(), rl_eq_m.end())
+            if any(_spans_overlap(m_span, c_span) for c_span in comment_spans):
+                continue
+            ref_list_spans.append(m_span)
+
+        # Record inline `in (...)` / `in [...]` tuple membership spans and expand to UDM OR disjunctions
+        for in_m in _YARAL2_IN_TUPLE_RE.finditer(sec_body):
+            m_span = (in_m.start(), in_m.end())
+            if any(_spans_overlap(m_span, c_span) for c_span in comment_spans):
+                continue
+            disj_spans.append(m_span)
+            var_name = in_m.group("var")
+            event_var = f"${var_name}"
+            field_token = in_m.group("field")
+            var_field_token = f"{event_var}.{field_token}"
+            canonical_field = CANONICAL_UDM_FIELD_CORRECTIONS.get(
+                field_token, field_token
+            )
+            is_negated = bool(in_m.group("lead_not") or in_m.group("mid_not"))
+            container = in_m.group("container")
+            nocase_suffix = " nocase" if in_m.group("trail_nocase") else ""
+            raw_vals = [
+                it.strip()
+                for it in _split_top_level_comma_args(container[1:-1])
+                if it.strip()
+            ]
+            norm_vals = [
+                f'"{it[1:-1]}"'
+                if (len(it) >= 2 and it[0] == "'" and it[-1] == "'")
+                else it
+                for it in raw_vals
+            ]
+            udm_branches = [
+                f"{canonical_field} = {lit}{nocase_suffix}" for lit in norm_vals
+            ]
+            udm_inner = (
+                f"({' OR '.join(udm_branches)})"
+                if len(udm_branches) > 1
+                else (udm_branches[0] if udm_branches else "")
+            )
+            udm_clause = f"NOT {udm_inner}" if is_negated else udm_inner
+            local_predicate_start = b_start + in_m.start(0)
+            local_predicate_end = b_start + in_m.end(0)
+            local_var_field_start = b_start + in_m.start("var") - 1
+            local_var_field_end = b_start + in_m.end("field")
+            local_rhs_start = b_start + in_m.start("container")
+            local_rhs_end = b_start + in_m.end("container")
+            if udm_clause:
+                raw_items.append(
+                    {
+                        "predicate_kind": "or_disjunction",
+                        "predicate_text": rule_text[
+                            local_predicate_start:local_predicate_end
+                        ],
+                        "event_var": event_var,
+                        "var_field_token": var_field_token,
+                        "field_token": field_token,
+                        "canonical_field": canonical_field,
+                        "operator": "not in" if is_negated else "in",
+                        "operator_raw": "not in" if is_negated else "in",
+                        "rhs_raw": container,
+                        "regex_pattern": None,
+                        "has_nocase": bool(nocase_suffix),
+                        "udm_clause": udm_clause,
+                        "local_predicate_start": local_predicate_start,
+                        "local_predicate_end": local_predicate_end,
+                        "local_var_field_start": local_var_field_start,
+                        "local_var_field_end": local_var_field_end,
+                        "local_rhs_start": local_rhs_start,
+                        "local_rhs_end": local_rhs_end,
+                    }
+                )
+
+        # Record parenthesized `($e.f = "v1" or $e.f = "v2")` disjunctions
+        for disj_m in _YARAL2_PAREN_OR_DISJUNCTION_RE.finditer(sec_body):
+            m_span = (disj_m.start(), disj_m.end())
+            if any(_spans_overlap(m_span, c_span) for c_span in comment_spans):
+                continue
+            if any(_spans_overlap(m_span, d_span) for d_span in disj_spans):
+                continue
+            body_text = disj_m.group("body")
+            branch_matches = list(_YARAL2_EVENT_COMPARISON_RE.finditer(body_text))
+            if len(branch_matches) < 2:
+                continue
+            disj_spans.append(m_span)
+            is_negated = bool(disj_m.group("lead_not"))
+            first_bm = branch_matches[0]
+            var_name = first_bm.group(1)
+            event_var = f"${var_name}"
+            field_token = first_bm.group(2)
+            var_field_token = f"{event_var}.{field_token}"
+            canonical_field = CANONICAL_UDM_FIELD_CORRECTIONS.get(
+                field_token, field_token
+            )
+            udm_branches: list[str] = []
+            for bm in branch_matches:
+                b_field_tok = bm.group(2)
+                b_canon = CANONICAL_UDM_FIELD_CORRECTIONS.get(
+                    b_field_tok, b_field_tok
+                )
+                b_op = bm.group(3).strip()
+                b_rhs = bm.group(4).strip()
+                udm_branches.append(f"{b_canon} {b_op} {b_rhs}")
+            udm_inner = f"({' OR '.join(udm_branches)})"
+            udm_clause = f"NOT {udm_inner}" if is_negated else udm_inner
+            local_predicate_start = b_start + disj_m.start(0)
+            local_predicate_end = b_start + disj_m.end(0)
+            body_offset = b_start + disj_m.start("body")
+            local_var_field_start = body_offset + first_bm.start(1) - 1
+            local_var_field_end = body_offset + first_bm.end(2)
+            local_rhs_start = body_offset + first_bm.start(4)
+            local_rhs_end = body_offset + branch_matches[-1].end(4)
+            raw_items.append(
+                {
+                    "predicate_kind": "or_disjunction",
+                    "predicate_text": rule_text[
+                        local_predicate_start:local_predicate_end
+                    ],
+                    "event_var": event_var,
+                    "var_field_token": var_field_token,
+                    "field_token": field_token,
+                    "canonical_field": canonical_field,
+                    "operator": "or",
+                    "operator_raw": "or",
+                    "rhs_raw": body_text,
+                    "regex_pattern": None,
+                    "has_nocase": any(
+                        bool(re.search(r"(?i)\bnocase\s*$", bm.group(4).strip()))
+                        for bm in branch_matches
+                    ),
+                    "udm_clause": udm_clause,
+                    "local_predicate_start": local_predicate_start,
+                    "local_predicate_end": local_predicate_end,
+                    "local_var_field_start": local_var_field_start,
+                    "local_var_field_end": local_var_field_end,
+                    "local_rhs_start": local_rhs_start,
+                    "local_rhs_end": local_rhs_end,
+                }
+            )
 
         for cidr_match in _YARAL2_CIDR_CALL_RE.finditer(sec_body):
             m_span = (cidr_match.start(), cidr_match.end())
@@ -3956,11 +4854,67 @@ def extract_yaral2_event_predicates(
                 }
             )
 
+        # Support strings.to_lower / strings.to_upper / lower / upper comparisons in events:
+        str_cmp_re = re.compile(
+            r"(?i)\b(?:strings\.(?:to_lower|to_upper|lower|upper)|to_lower|to_upper|lower|upper)\s*\(\s*\$([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_.]*)\s*\)\s*(!=|==|=)\s*(\"[^\r\n\"]*\"|'[^\r\n']*'|`[^\r\n`]*`)(?:\s+nocase)?"
+        )
+        for sc_m in str_cmp_re.finditer(sec_body):
+            m_span = (sc_m.start(), sc_m.end())
+            if any(_spans_overlap(m_span, c_span) for c_span in comment_spans):
+                continue
+            func_cmp_spans.append(m_span)
+            var_name = sc_m.group(1)
+            event_var = f"${var_name}"
+            field_token = sc_m.group(2)
+            var_field_token = f"{event_var}.{field_token}"
+            canonical_field = CANONICAL_UDM_FIELD_CORRECTIONS.get(
+                field_token, field_token
+            )
+            op = sc_m.group(3).strip()
+            rhs_raw = sc_m.group(4).strip()
+            udm_clause = f"{canonical_field} {op} {rhs_raw}"
+            local_predicate_start = b_start + sc_m.start(0)
+            local_predicate_end = b_start + sc_m.end(0)
+            local_var_field_start = b_start + sc_m.start(1) - 1
+            local_var_field_end = b_start + sc_m.end(2)
+            local_rhs_start = b_start + sc_m.start(4)
+            local_rhs_end = b_start + sc_m.end(4)
+            raw_items.append(
+                {
+                    "predicate_kind": "comparison",
+                    "predicate_text": rule_text[
+                        local_predicate_start:local_predicate_end
+                    ],
+                    "event_var": event_var,
+                    "var_field_token": var_field_token,
+                    "field_token": field_token,
+                    "canonical_field": canonical_field,
+                    "operator": op,
+                    "operator_raw": op,
+                    "rhs_raw": rhs_raw,
+                    "regex_pattern": None,
+                    "has_nocase": True,
+                    "udm_clause": udm_clause,
+                    "local_predicate_start": local_predicate_start,
+                    "local_predicate_end": local_predicate_end,
+                    "local_var_field_start": local_var_field_start,
+                    "local_var_field_end": local_var_field_end,
+                    "local_rhs_start": local_rhs_start,
+                    "local_rhs_end": local_rhs_end,
+                }
+            )
+
         for cmp_match in _YARAL2_EVENT_COMPARISON_RE.finditer(sec_body):
             c_span = (cmp_match.start(), cmp_match.end())
             if any(_spans_overlap(c_span, r_span) for r_span in re_spans):
                 continue
             if any(_spans_overlap(c_span, cd_span) for cd_span in cidr_spans):
+                continue
+            if any(_spans_overlap(c_span, d_span) for d_span in disj_spans):
+                continue
+            if any(_spans_overlap(c_span, rl_span) for rl_span in ref_list_spans):
+                continue
+            if any(_spans_overlap(c_span, fc_span) for fc_span in func_cmp_spans):
                 continue
             if any(_spans_overlap(c_span, cm_span) for cm_span in comment_spans):
                 continue
@@ -3974,6 +4928,8 @@ def extract_yaral2_event_predicates(
             operator_raw = cmp_match.group(3)
             operator = operator_raw.strip()
             rhs_raw = cmp_match.group(4).strip()
+            if rhs_raw.startswith("%"):
+                continue
             has_nocase = bool(re.search(r"(?i)\bnocase\s*$", rhs_raw))
             udm_clause = f"{canonical_field} {operator} {rhs_raw}"
 
@@ -5008,6 +5964,7 @@ def extract_yaral2_multi_event_spec(
         ev: " AND ".join(str(p["udm_clause"]) for p in preds)
         for ev, preds in per_event_predicates.items()
     }
+    reference_lists = _extract_yaral2_reference_lists(rule_text)
 
     return {
         "event_vars": event_vars,
@@ -5019,6 +5976,7 @@ def extract_yaral2_multi_event_spec(
         "predicates": predicates,
         "per_event_predicates": per_event_predicates,
         "per_event_udm_queries": per_event_udm_queries,
+        "reference_lists": reference_lists,
         "join_bindings": join_bindings,
         "join_placeholders": join_placeholders,
         "match_clauses": match_clauses,
@@ -5030,6 +5988,39 @@ def extract_yaral2_multi_event_spec(
         "condition_negation_spans": condition_negation_spans,
         "condition_outcome_comparisons": condition_outcome_comparisons,
         "condition_span": condition_span,
+    }
+
+
+def extract_yaral2_event_streams(
+    rule_text: str,
+    rule_char_start: int = 0,
+    full_plain_text: str | None = None,
+    index_map: list[int] | None = None,
+) -> dict[str, Any]:
+    """Extracts per-event-stream UDM queries, predicates, and Reference List metadata
+    (``reference_lists``) from a single-event or multi-event YARA-L 2.0 (``YL2``) rule."""
+    spec = extract_yaral2_multi_event_spec(
+        rule_text,
+        rule_char_start=rule_char_start,
+        full_plain_text=full_plain_text,
+        index_map=index_map,
+    )
+    retrohunt_query, retrohunt_clauses = _extract_retrohunt_udm_query_from_yaral2(
+        rule_text
+    )
+    return {
+        "event_vars": spec["event_vars"],
+        "positive_event_vars": spec["positive_event_vars"],
+        "negated_event_vars": spec["negated_event_vars"],
+        "is_multi_event": spec["is_multi_event"],
+        "is_non_existence": spec["is_non_existence"],
+        "predicates": spec["predicates"],
+        "per_event_predicates": spec["per_event_predicates"],
+        "per_event_udm_queries": spec["per_event_udm_queries"],
+        "retrohunt_udm_query": retrohunt_query,
+        "retrohunt_clauses": retrohunt_clauses,
+        "reference_lists": spec["reference_lists"],
+        "join_bindings": spec["join_bindings"],
     }
 
 
@@ -7274,6 +8265,193 @@ def find_yaral2_rule_spans(
                 }
             )
 
+        in_membership_repairs: list[dict[str, Any]] = []
+        strings_function_repairs: list[dict[str, Any]] = []
+        re_capture_repairs: list[dict[str, Any]] = []
+
+        # (b4) SQL/SPL/KQL inline `in (...)` / `in [...]` tuple membership, Reference List `%<list_name>`,
+        # `strings.*` functions, and `re.capture()` calls in `events:` / `strings:` sections
+        for sec in sections:
+            if sec["name"] not in ("events", "strings"):
+                continue
+            b_offset = int(sec["body_start"])
+            sec_body = str(sec["body"])
+
+            for in_rep in _inspect_and_repair_yaral2_in_and_reference_lists(
+                sec_body, event_vars=declared_event_vars
+            ):
+                local_start = b_offset + int(in_rep["local_start"])
+                local_end = b_offset + int(in_rep["local_end"])
+                quote = str(in_rep["quote"])
+                replacement = str(in_rep["replacement"])
+                d_type = str(in_rep["defect_type"])
+                rule_defects = [
+                    d
+                    for d in rule_defects
+                    if not _spans_overlap(
+                        (int(d["local_start"]), int(d["local_end"])),
+                        (local_start, local_end),
+                    )
+                ]
+                if d_type == "invalid_in_membership_syntax":
+                    in_membership_repairs.append(
+                        {
+                            "quote": quote,
+                            "replacement": replacement,
+                            "event_var": in_rep["event_var"],
+                            "invalid_field": in_rep["invalid_field"],
+                            "canonical_field": in_rep["canonical_field"],
+                            "values": in_rep["values"],
+                            "is_negated": in_rep["is_negated"],
+                            "udm_clause": in_rep["udm_clause"],
+                        }
+                    )
+                    comment_msg = (
+                        f"Deterministic YARA-L 2.0 (YL2) IN-Tuple Membership Check in rule '{rule_name}': "
+                        f"'{quote}' uses SQL/SPL/KQL inline tuple/array membership syntax, whereas "
+                        f"Chronicle YARA-L 2.0 reserves 'in' for Reference Lists ('%<list_name>') and "
+                        f"requires parenthesized boolean disjunctions for inline value lists. Replace "
+                        f"'{quote}' with '{replacement}' ({yaral2_doc_url})."
+                    )
+                else:
+                    comment_msg = (
+                        f"Deterministic YARA-L 2.0 (YL2) Reference List Syntax Check in rule '{rule_name}': "
+                        f"'{quote}' uses non-canonical Reference List syntax ('{in_rep['invalid_field']}'). "
+                        f"Chronicle YARA-L 2.0 Reference Lists require 'in [regex |cidr ]%<list_name>' "
+                        f"with a leading '%' sigil; replace '{quote}' with '{replacement}' ({yaral2_doc_url})."
+                    )
+                defect_entry: dict[str, Any] = {
+                    "local_start": local_start,
+                    "local_end": local_end,
+                    "defect_type": d_type,
+                    "event_var": str(in_rep["event_var"]),
+                    "quote": quote,
+                    "replacement": replacement,
+                    "invalid_field": str(in_rep["invalid_field"]),
+                    "canonical_field": str(in_rep["canonical_field"]),
+                    "comment": comment_msg,
+                }
+                if "reference_list_name" in in_rep:
+                    defect_entry["reference_list_name"] = in_rep[
+                        "reference_list_name"
+                    ]
+                    defect_entry["reference_list_token"] = in_rep[
+                        "reference_list_token"
+                    ]
+                rule_defects.append(defect_entry)
+
+            for str_rep in _inspect_and_repair_yaral2_strings_functions(
+                sec_body,
+                event_vars=declared_event_vars,
+                has_match_section=False,
+                is_outcome=False,
+            ):
+                local_start = b_offset + int(str_rep["local_start"])
+                local_end = b_offset + int(str_rep["local_end"])
+                if any(
+                    _spans_overlap(
+                        (int(d["local_start"]), int(d["local_end"])),
+                        (local_start, local_end),
+                    )
+                    and d.get("defect_type") != "invalid_udm_field"
+                    for d in rule_defects
+                ):
+                    continue
+                rule_defects = [
+                    d
+                    for d in rule_defects
+                    if not _spans_overlap(
+                        (int(d["local_start"]), int(d["local_end"])),
+                        (local_start, local_end),
+                    )
+                ]
+                quote = str(str_rep["quote"])
+                replacement = str(str_rep["replacement"])
+                strings_function_repairs.append(
+                    {
+                        "section": "events",
+                        "quote": quote,
+                        "replacement": replacement,
+                        "raw_function_name": str_rep["raw_function_name"],
+                        "canonical_function_name": str_rep[
+                            "canonical_function_name"
+                        ],
+                    }
+                )
+                rule_defects.append(
+                    {
+                        "local_start": local_start,
+                        "local_end": local_end,
+                        "defect_type": "invalid_strings_function_syntax",
+                        "quote": quote,
+                        "replacement": replacement,
+                        "invalid_field": str(str_rep["invalid_field"]),
+                        "canonical_field": str(str_rep["canonical_field"]),
+                        "comment": (
+                            f"Deterministic YARA-L 2.0 (YL2) Strings Function Check in rule '{rule_name}': "
+                            f"'{quote}' uses non-canonical string function syntax '{str_rep['raw_function_name']}(...)'. "
+                            f"Chronicle YARA-L 2.0 requires the 'strings.' namespace ('{str_rep['canonical_function_name']}(...)') "
+                            f"and canonical UDM field paths; replace '{quote}' with '{replacement}' ({yaral2_doc_url})."
+                        ),
+                    }
+                )
+
+            for cap_rep in _inspect_and_repair_yaral2_re_capture_functions(
+                sec_body,
+                event_vars=declared_event_vars,
+                has_match_section=False,
+                is_outcome=False,
+            ):
+                local_start = b_offset + int(cap_rep["local_start"])
+                local_end = b_offset + int(cap_rep["local_end"])
+                if any(
+                    _spans_overlap(
+                        (int(d["local_start"]), int(d["local_end"])),
+                        (local_start, local_end),
+                    )
+                    and d.get("defect_type") != "invalid_udm_field"
+                    for d in rule_defects
+                ):
+                    continue
+                rule_defects = [
+                    d
+                    for d in rule_defects
+                    if not _spans_overlap(
+                        (int(d["local_start"]), int(d["local_end"])),
+                        (local_start, local_end),
+                    )
+                ]
+                quote = str(cap_rep["quote"])
+                replacement = str(cap_rep["replacement"])
+                re_capture_repairs.append(
+                    {
+                        "section": "events",
+                        "quote": quote,
+                        "replacement": replacement,
+                        "raw_function_name": cap_rep["raw_function_name"],
+                        "canonical_function_name": cap_rep[
+                            "canonical_function_name"
+                        ],
+                    }
+                )
+                rule_defects.append(
+                    {
+                        "local_start": local_start,
+                        "local_end": local_end,
+                        "defect_type": "invalid_re_capture_syntax",
+                        "quote": quote,
+                        "replacement": replacement,
+                        "invalid_field": str(cap_rep["invalid_field"]),
+                        "canonical_field": str(cap_rep["canonical_field"]),
+                        "comment": (
+                            f"Deterministic YARA-L 2.0 (YL2) Regex Capture Function Check in rule '{rule_name}': "
+                            f"'{quote}' uses non-canonical regex extraction syntax '{cap_rep['raw_function_name']}(...)'. "
+                            f"Chronicle YARA-L 2.0 requires 're.capture(<udm_field>, \"<capture_group_regex>\")'; "
+                            f"replace '{quote}' with '{replacement}' ({yaral2_doc_url})."
+                        ),
+                    }
+                )
+
         # (c) Cross-event join semantic type mismatch ($e1.principal.ip = $ip vs $e2.principal.hostname = $ip)
         if multi_spec["is_multi_event"]:
             bindings_by_ph: dict[str, list[dict[str, Any]]] = {}
@@ -7409,18 +8587,31 @@ def find_yaral2_rule_spans(
                         }
                     )
 
-        # (d2) 'outcome:' section non-canonical conditionals, aggregation functions, and unaggregated fields in match rules
+        # (d2) 'outcome:' section non-canonical conditionals, strings.*, re.capture(), aggregation functions, and unaggregated fields in match rules
         if multi_spec["outcome_bindings"]:
             has_match_section = bool(multi_spec["match_clauses"])
             for ob in multi_spec["outcome_bindings"]:
                 cond_spec = ob.get("conditional_spec")
+                ob_rhs_text = str(ob["rhs_text"])
+                ob_str_repairs = _inspect_and_repair_yaral2_strings_functions(
+                    ob_rhs_text,
+                    event_vars=declared_event_vars,
+                    has_match_section=has_match_section,
+                    is_outcome=True,
+                )
+                ob_cap_repairs = _inspect_and_repair_yaral2_re_capture_functions(
+                    ob_rhs_text,
+                    event_vars=declared_event_vars,
+                    has_match_section=has_match_section,
+                    is_outcome=True,
+                )
                 if (
                     isinstance(cond_spec, dict)
                     and not cond_spec.get("is_valid_conditional_syntax", True)
                 ):
                     local_start = int(ob["local_rhs_start"])
                     local_end = int(ob["local_rhs_end"])
-                    quote = str(ob["rhs_text"])
+                    quote = ob_rhs_text
                     canon_if = str(cond_spec["canonical_if_expr"])
                     if ob.get("canonical_func_name"):
                         agg_fn = str(ob["canonical_func_name"])
@@ -7473,6 +8664,109 @@ def find_yaral2_rule_spans(
                             ),
                         }
                     )
+                elif ob_str_repairs:
+                    sr = ob_str_repairs[0]
+                    local_start = int(ob["local_rhs_start"]) + int(
+                        sr["local_start"]
+                    )
+                    local_end = int(ob["local_rhs_start"]) + int(
+                        sr["local_end"]
+                    )
+                    quote = str(sr["quote"])
+                    replacement = str(sr["replacement"])
+                    strings_function_repairs.append(
+                        {
+                            "section": "outcome",
+                            "outcome_var": str(ob["outcome_var"]),
+                            "quote": quote,
+                            "replacement": replacement,
+                            "raw_function_name": sr["raw_function_name"],
+                            "canonical_function_name": sr[
+                                "canonical_function_name"
+                            ],
+                            "wrapped_in_aggregation": sr.get(
+                                "wrapped_in_aggregation", False
+                            ),
+                        }
+                    )
+                    rule_defects = [
+                        d
+                        for d in rule_defects
+                        if not _spans_overlap(
+                            (int(d["local_start"]), int(d["local_end"])),
+                            (local_start, local_end),
+                        )
+                    ]
+                    rule_defects.append(
+                        {
+                            "local_start": local_start,
+                            "local_end": local_end,
+                            "defect_type": "invalid_strings_function_syntax",
+                            "quote": quote,
+                            "replacement": replacement,
+                            "invalid_field": str(sr["invalid_field"]),
+                            "canonical_field": str(sr["canonical_field"]),
+                            "comment": (
+                                f"Deterministic YARA-L 2.0 (YL2) Strings Function Check in rule '{rule_name}': "
+                                f"outcome variable '{ob['outcome_var']}' uses non-canonical string function "
+                                f"'{quote}'. Replace with canonical Chronicle YARA-L 2.0 expression "
+                                f"'{replacement}' ({yaral2_doc_url})."
+                            ),
+                        }
+                    )
+                elif ob_cap_repairs:
+                    cr = ob_cap_repairs[0]
+                    local_start = int(ob["local_rhs_start"]) + int(
+                        cr["local_start"]
+                    )
+                    local_end = int(ob["local_rhs_start"]) + int(
+                        cr["local_end"]
+                    )
+                    quote = str(cr["quote"])
+                    replacement = str(cr["replacement"])
+                    re_capture_repairs.append(
+                        {
+                            "section": "outcome",
+                            "outcome_var": str(ob["outcome_var"]),
+                            "quote": quote,
+                            "replacement": replacement,
+                            "raw_function_name": cr["raw_function_name"],
+                            "canonical_function_name": cr[
+                                "canonical_function_name"
+                            ],
+                            "added_capture_group": cr.get(
+                                "added_capture_group", False
+                            ),
+                            "wrapped_in_aggregation": cr.get(
+                                "wrapped_in_aggregation", False
+                            ),
+                        }
+                    )
+                    rule_defects = [
+                        d
+                        for d in rule_defects
+                        if not _spans_overlap(
+                            (int(d["local_start"]), int(d["local_end"])),
+                            (local_start, local_end),
+                        )
+                    ]
+                    rule_defects.append(
+                        {
+                            "local_start": local_start,
+                            "local_end": local_end,
+                            "defect_type": "invalid_re_capture_syntax",
+                            "quote": quote,
+                            "replacement": replacement,
+                            "invalid_field": str(cr["invalid_field"]),
+                            "canonical_field": str(cr["canonical_field"]),
+                            "comment": (
+                                f"Deterministic YARA-L 2.0 (YL2) Regex Capture Function Check in rule '{rule_name}': "
+                                f"outcome variable '{ob['outcome_var']}' uses non-canonical regex extraction "
+                                f"'{quote}'. Replace with canonical Chronicle YARA-L 2.0 expression "
+                                f"'{replacement}' ({yaral2_doc_url})."
+                            ),
+                        }
+                    )
                 elif (
                     ob["is_non_canonical_agg_func"]
                     and ob.get("local_func_start") is not None
@@ -7507,7 +8801,7 @@ def find_yaral2_rule_spans(
                 ):
                     local_start = int(ob["local_rhs_start"])
                     local_end = int(ob["local_rhs_end"])
-                    quote = str(ob["rhs_text"])
+                    quote = ob_rhs_text
                     canonical_rhs = _canonicalize_yaral2_expr_fields(quote)
                     first_canon_field = str(
                         ob["referenced_event_field_specs"][0]["canonical_field"]
@@ -7867,6 +9161,12 @@ def find_yaral2_rule_spans(
                 ],
                 "retrohunt_udm_query": retrohunt_query,
                 "retrohunt_clauses": retrohunt_clauses,
+                "reference_lists": list(
+                    repaired_multi_spec.get("reference_lists") or []
+                ),
+                "in_membership_repairs": list(in_membership_repairs),
+                "strings_function_repairs": list(strings_function_repairs),
+                "re_capture_repairs": list(re_capture_repairs),
             }
             for extra_key in (
                 "meta_key",
@@ -7888,6 +9188,8 @@ def find_yaral2_rule_spans(
                 "allowed_skills",
                 "skill_verified",
                 "evidence_reason",
+                "reference_list_name",
+                "reference_list_token",
             ):
                 if extra_key in defect:
                     f_record[extra_key] = defect[extra_key]
@@ -7945,23 +9247,45 @@ def _validate_yaral2_rule_with_compiler(
     siem_validate_fn: Any = None,
 ) -> tuple[bool, str]:
     """Compiles a YARA-L 2.0 (``YL2``) rule via Chronicle's ``validate_rule`` endpoint."""
-    try:
+
+    def _call_validate(rule_str: str) -> tuple[bool, str]:
         if siem_validate_fn is not None:
             try:
-                raw_val = siem_validate_fn(rule_text=candidate_rule_text)
+                raw_val = siem_validate_fn(rule_text=rule_str)
             except TypeError:
-                raw_val = siem_validate_fn(candidate_rule_text)
+                raw_val = siem_validate_fn(rule_str)
         else:
             from .tools import execute_mcp_tool
 
             raw_val = execute_mcp_tool(
                 "secops-mcp_validate_rule",
-                {"rule_text": candidate_rule_text},
+                {"rule_text": rule_str},
             )
         parsed_val = _parse_siem_validate_output(raw_val)
         return bool(parsed_val["compiler_verified"]), str(
             parsed_val["compiler_output"]
         )
+
+    try:
+        comp_ok, comp_out = _call_validate(candidate_rule_text)
+        if (
+            not comp_ok
+            and "reference list version fetching: metadata unavailable for reference list"
+            in comp_out.lower()
+        ):
+            probe_rule = re.sub(
+                r"(?i)(?:\bnot\s+)?(\$[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_.]*)\s+in\s+(?:(?:regex|cidr)\s+)?%([A-Za-z_][A-Za-z0-9_]*)",
+                r'\1 != "__yaral2_ref_list_probe_\2__"',
+                candidate_rule_text,
+            )
+            if probe_rule != candidate_rule_text:
+                probe_ok, probe_out = _call_validate(probe_rule)
+                if probe_ok:
+                    return (
+                        True,
+                        f"{probe_out} (reference list syntax verified; tenant metadata probe bypassed)",
+                    )
+        return comp_ok, comp_out
     except Exception as err:
         return False, f"Chronicle validate_rule call failed: {err}"
 
@@ -8544,6 +9868,224 @@ def _evaluate_yaral2_condition_on_event_map(
     return _evaluate_yaral2_atomic_cond_on_event_map(expr, em)
 
 
+def _normalize_event_map_for_outcome_eval(
+    em_or_event: dict[str, Any],
+) -> dict[str, list[str]]:
+    """Normalizes either a raw UDM event dict or a flattened ``dict[str, list[str]]``
+    into a canonical flattened UDM field map."""
+    if not isinstance(em_or_event, dict):
+        return {}
+    flat: dict[str, list[str]] = {}
+    has_nested = any(isinstance(v, dict) for v in em_or_event.values()) or any(
+        k in em_or_event
+        for k in (
+            "udm",
+            "metadata",
+            "principal",
+            "target",
+            "src",
+            "observer",
+            "network",
+            "security_result",
+            "about",
+        )
+    )
+    if has_nested:
+        flat.update(_extract_udm_event_field_values(em_or_event))
+    for k, v in em_or_event.items():
+        if isinstance(v, list):
+            strs = [str(x) for x in v if x is not None and str(x) != ""]
+            if strs:
+                flat.setdefault(str(k), []).extend(
+                    x for x in strs if x not in flat.get(str(k), [])
+                )
+        elif isinstance(v, (str, int, float)) and str(v) != "":
+            flat.setdefault(str(k), [])
+            if str(v) not in flat[str(k)]:
+                flat[str(k)].append(str(v))
+    return flat
+
+
+def _evaluate_single_event_outcome_row(
+    first_arg: str | dict[str, Any],
+    second_arg: dict[str, Any] | str,
+) -> Any:
+    """Evaluates a YARA-L 2.0 (``YL2``) ``outcome:`` expression (including ``strings.coalesce``,
+    ``strings.concat``, ``strings.to_lower``, ``strings.to_upper``, ``re.capture``, ``if(...)``,
+    and UDM field references) against a single UDM event dict or flattened event map."""
+    if isinstance(first_arg, dict) and isinstance(second_arg, str):
+        expr_raw = second_arg
+        em = _normalize_event_map_for_outcome_eval(first_arg)
+    else:
+        expr_raw = str(first_arg or "")
+        em = _normalize_event_map_for_outcome_eval(
+            second_arg if isinstance(second_arg, dict) else {}
+        )
+
+    expr = expr_raw.strip()
+    if not expr:
+        return ""
+
+    # 1. Conditional expression (if / iff / CASE WHEN)
+    cond_spec = _parse_yaral2_conditional_expr(expr)
+    if isinstance(cond_spec, dict):
+        canon_cond = str(cond_spec["canonical_condition_expr"])
+        cond_ok = _evaluate_yaral2_condition_on_event_map(canon_cond, em)
+        branch_expr = (
+            str(cond_spec["canonical_true_expr"])
+            if cond_ok
+            else str(cond_spec["canonical_false_expr"])
+        )
+        branch_num = (
+            cond_spec.get("true_value")
+            if cond_ok
+            else cond_spec.get("false_value")
+        )
+        if branch_num is not None:
+            return branch_num
+        return _evaluate_single_event_outcome_row(branch_expr, em)
+
+    # 2. Unwrap outer aggregation function if present (array_distinct, array, max, min, count, etc.)
+    call_head_re = re.compile(r"^([A-Za-z_][A-Za-z0-9_.]*)\s*\(")
+    m_call = call_head_re.match(expr)
+    if m_call is not None:
+        open_p = m_call.end() - 1
+        close_p = _find_matching_paren(expr, open_p)
+        rem_tail = expr[close_p + 1 :].strip() if close_p != -1 else "x"
+        if close_p != -1 and (not rem_tail or rem_tail.lower() == "nocase"):
+            fn_name = m_call.group(1).strip()
+            fn_lower = fn_name.lower()
+            inner_args_str = expr[open_p + 1 : close_p].strip()
+            if (
+                fn_lower in VALID_YARAL2_OUTCOME_AGG_FUNCS
+                or fn_lower in CANONICAL_YARAL2_OUTCOME_AGG_CORRECTIONS
+            ):
+                return _evaluate_single_event_outcome_row(inner_args_str, em)
+
+            if fn_lower in _YARAL2_STRINGS_FUNCTION_ALIASES:
+                canon_fn = _YARAL2_STRINGS_FUNCTION_ALIASES[fn_lower]
+                parts = _split_top_level_comma_args(inner_args_str)
+                if canon_fn == "strings.coalesce":
+                    for part in parts:
+                        val = _evaluate_single_event_outcome_row(part, em)
+                        if val is not None and str(val) != "":
+                            return val
+                    return ""
+                if canon_fn == "strings.concat":
+                    ref_fields = list(_YARAL2_EVENT_FIELD_RE.finditer(inner_args_str))
+                    if ref_fields:
+                        any_field_populated = False
+                        for rf in ref_fields:
+                            cf = CANONICAL_UDM_FIELD_CORRECTIONS.get(
+                                rf.group(2), rf.group(2)
+                            )
+                            if em.get(cf):
+                                any_field_populated = True
+                                break
+                        if not any_field_populated:
+                            return ""
+                    pieces: list[str] = []
+                    for part in parts:
+                        val = _evaluate_single_event_outcome_row(part, em)
+                        pieces.append("" if val is None else str(val))
+                    return "".join(pieces)
+                if canon_fn == "strings.to_lower":
+                    if not parts:
+                        return ""
+                    val = _evaluate_single_event_outcome_row(parts[0], em)
+                    return str(val).lower() if val is not None and str(val) != "" else ""
+                if canon_fn == "strings.to_upper":
+                    if not parts:
+                        return ""
+                    val = _evaluate_single_event_outcome_row(parts[0], em)
+                    return str(val).upper() if val is not None and str(val) != "" else ""
+
+            if fn_lower in _YARAL2_RE_CAPTURE_FUNCTION_ALIASES:
+                parts = _split_top_level_comma_args(inner_args_str)
+                if len(parts) < 2:
+                    return ""
+                target_expr = parts[0].strip()
+                pat_raw = parts[1].strip()
+                has_nocase = bool(rem_tail.lower() == "nocase")
+                if re.search(r"(?i)\s+nocase$", pat_raw):
+                    has_nocase = True
+                    pat_raw = re.sub(r"(?i)\s+nocase$", "", pat_raw).strip()
+
+                vf_m = _YARAL2_EVENT_FIELD_RE.match(target_expr)
+                if vf_m is not None:
+                    f_tok = vf_m.group(2)
+                    canon_f = CANONICAL_UDM_FIELD_CORRECTIONS.get(f_tok, f_tok)
+                    candidate_strs = list(em.get(canon_f, []))
+                else:
+                    ev_val = _evaluate_single_event_outcome_row(target_expr, em)
+                    candidate_strs = (
+                        [str(ev_val)]
+                        if ev_val is not None and str(ev_val) != ""
+                        else []
+                    )
+                if not candidate_strs:
+                    return ""
+
+                was_double_quoted = bool(
+                    len(pat_raw) >= 2 and pat_raw[0] in ('"', "'") and pat_raw[-1] == pat_raw[0]
+                )
+                if (
+                    len(pat_raw) >= 2
+                    and pat_raw[0] in ('"', "'", "`", "/")
+                    and pat_raw[-1] == pat_raw[0]
+                ):
+                    inner_pat = pat_raw[1:-1]
+                else:
+                    inner_pat = pat_raw
+                if has_nocase and not inner_pat.startswith("(?i)"):
+                    inner_pat = f"(?i){inner_pat}"
+                inner_pat, _ = _ensure_re_capture_group(inner_pat)
+
+                pat_candidates: list[str] = []
+                if was_double_quoted and "\\\\" in inner_pat:
+                    pat_candidates.append(
+                        inner_pat.replace("\\\\", "\\").replace('\\"', '"')
+                    )
+                if inner_pat not in pat_candidates:
+                    pat_candidates.append(inner_pat)
+
+                flags = re.IGNORECASE if has_nocase else 0
+                for cand_pat in pat_candidates:
+                    try:
+                        cre = re.compile(cand_pat, flags)
+                    except re.error:
+                        continue
+                    for s_val in candidate_strs:
+                        m_rx = cre.search(s_val)
+                        if m_rx is not None:
+                            if m_rx.groups():
+                                for g_val in m_rx.groups():
+                                    if g_val is not None:
+                                        return str(g_val)
+                            return str(m_rx.group(0))
+                return ""
+
+    # 3. Bare event field `$var.field`
+    vf_m = _YARAL2_EVENT_FIELD_RE.match(expr)
+    if vf_m is not None and vf_m.end() == len(expr):
+        f_tok = vf_m.group(2)
+        canon_f = CANONICAL_UDM_FIELD_CORRECTIONS.get(f_tok, f_tok)
+        vals = em.get(canon_f, [])
+        return vals[0] if vals else ""
+
+    # 4. Numeric or quoted string literal
+    num_val = _try_parse_numeric(expr)
+    if num_val is not None:
+        return num_val
+    if (
+        len(expr) >= 2
+        and expr[0] in ('"', "'", "`", "“", "”")
+        and expr[-1] in ('"', "'", "`", "“", "”")
+    ):
+        return expr[1:-1]
+    return expr
+
+
 def _resolve_yaral2_branch_value_on_event_map(
     branch_expr: str,
     numeric_val: int | float | None,
@@ -8554,7 +10096,7 @@ def _resolve_yaral2_branch_value_on_event_map(
         return numeric_val
     expr = str(branch_expr or "").strip()
     vf_m = _YARAL2_EVENT_FIELD_RE.match(expr)
-    if vf_m is not None:
+    if vf_m is not None and vf_m.end() == len(expr):
         f_tok = vf_m.group(2)
         canon_f = CANONICAL_UDM_FIELD_CORRECTIONS.get(f_tok, f_tok)
         vals = em.get(canon_f, [])
@@ -8562,6 +10104,10 @@ def _resolve_yaral2_branch_value_on_event_map(
             parsed_n = _try_parse_numeric(vals[0])
             return parsed_n if parsed_n is not None else vals[0]
         return 0
+    row_val = _evaluate_single_event_outcome_row(expr, em)
+    if row_val is not None and str(row_val) != "":
+        parsed_n = _try_parse_numeric(str(row_val))
+        return parsed_n if parsed_n is not None else row_val
     return expr.strip("\"'“”`")
 
 
@@ -8586,6 +10132,21 @@ def _compare_outcome_threshold(
     return False
 
 
+def _outcome_rhs_uses_strings_or_re_capture(rhs_text: str) -> bool:
+    """Returns True if an ``outcome:`` RHS expression invokes a ``strings.*`` or ``re.capture()`` function."""
+    if not rhs_text:
+        return False
+    call_head_re = re.compile(r"(?<![A-Za-z0-9_.$%])([A-Za-z_][A-Za-z0-9_.]*)\s*\(")
+    for m in call_head_re.finditer(rhs_text):
+        fn_l = m.group(1).lower()
+        if (
+            fn_l in _YARAL2_STRINGS_FUNCTION_ALIASES
+            or fn_l in _YARAL2_RE_CAPTURE_FUNCTION_ALIASES
+        ):
+            return True
+    return False
+
+
 def evaluate_yaral2_outcome_thresholds(
     rule_text: str,
     siem_events_or_retrohunt: Any = None,
@@ -8596,10 +10157,12 @@ def evaluate_yaral2_outcome_thresholds(
     _orig_rule_text: str | None = None,
 ) -> dict[str, Any]:
     """Evaluates YARA-L 2.0 (``YL2``) ``outcome:`` aggregations (``count_distinct``, ``count``,
-    ``max``, ``min``, ``sum``, ``array_distinct``, ``array``, and ``if(...)`` conditionals)
-    against matched single-event or multi-event/non-existence SIEM UDM events and verifies
-    whether ``condition:`` outcome thresholds (e.g. ``$event_count >= 5``, ``$risk_score >= 95``)
-    are satisfied or suppress rule detections (``uncalibrated_outcome_threshold``).
+    ``max``, ``min``, ``sum``, ``array_distinct``, ``array``, ``if(...)`` conditionals,
+    ``strings.coalesce(...)``, ``strings.concat(...)``, ``strings.to_lower(...)``,
+    ``strings.to_upper(...)``, and ``re.capture(...)``) against matched single-event or
+    multi-event/non-existence SIEM UDM events and verifies whether ``condition:`` outcome
+    thresholds (e.g. ``$event_count >= 5``, ``$risk_score >= 95``) are satisfied or suppress
+    rule detections (``uncalibrated_outcome_threshold``).
     """
     orig_rule = _orig_rule_text if _orig_rule_text is not None else rule_text
     orig_map = _build_utf16_index_map(orig_rule)
@@ -8669,7 +10232,9 @@ def evaluate_yaral2_outcome_thresholds(
             if not ev_maps and ev in raw_ev_events:
                 for ev_obj in raw_ev_events[ev]:
                     if isinstance(ev_obj, dict):
-                        ev_maps.append(_extract_udm_event_field_values(ev_obj))
+                        ev_maps.append(
+                            _normalize_event_map_for_outcome_eval(ev_obj)
+                        )
             if not ev_maps and ev in raw_ev_resps:
                 resp_events = (
                     (raw_ev_resps[ev].get("siem_response") or {}).get("events")
@@ -8680,7 +10245,7 @@ def evaluate_yaral2_outcome_thresholds(
                     for ev_obj in resp_events:
                         if isinstance(ev_obj, dict):
                             ev_maps.append(
-                                _extract_udm_event_field_values(ev_obj)
+                                _normalize_event_map_for_outcome_eval(ev_obj)
                             )
             j_field = join_field_by_ev.get(ev)
             if shared_lower and j_field and ev_maps:
@@ -8726,7 +10291,7 @@ def evaluate_yaral2_outcome_thresholds(
             elif any(
                 k in source
                 for k in ("udm", "metadata", "principal", "target", "src")
-            ):
+            ) or any("." in str(k) for k in source):
                 raw_events_list = [source]
             if "event_count" in source:
                 explicit_count = int(source.get("event_count", 0) or 0)
@@ -8736,7 +10301,7 @@ def evaluate_yaral2_outcome_thresholds(
                 )
 
         ev_maps = [
-            _extract_udm_event_field_values(ev_obj)
+            _normalize_event_map_for_outcome_eval(ev_obj)
             for ev_obj in raw_events_list
         ]
         events_matched = (
@@ -8749,11 +10314,13 @@ def evaluate_yaral2_outcome_thresholds(
             per_event_filtered_counts[ev] = events_matched
 
     outcome_values: dict[str, Any] = {}
+    computed_string_outcomes: dict[str, Any] = {}
     outcome_evaluations: list[dict[str, Any]] = []
 
     for ob in rep_spec["outcome_bindings"]:
         out_var = str(ob["outcome_var"])
         out_var_name = str(ob["outcome_var_name"])
+        rhs_text = str(ob.get("rhs_text") or "").strip()
         agg_fn = (
             str(ob["canonical_func_name"]).lower()
             if ob.get("canonical_func_name")
@@ -8764,6 +10331,7 @@ def evaluate_yaral2_outcome_thresholds(
         target_ev = ref_evs[0] if ref_evs else event_vars[0]
         ev_maps = per_event_filtered_maps.get(target_ev, [])
         ev_cnt = per_event_filtered_counts.get(target_ev, len(ev_maps))
+        uses_str_or_cap = _outcome_rhs_uses_strings_or_re_capture(rhs_text)
 
         computed_val: Any = 0
         per_event_samples: list[Any] = []
@@ -8816,16 +10384,74 @@ def evaluate_yaral2_outcome_thresholds(
                 )
             elif eff_agg == "array_distinct":
                 computed_val = list(
-                    dict.fromkeys(str(v) for v in per_event_samples)
+                    dict.fromkeys(
+                        str(v)
+                        for v in per_event_samples
+                        if v is not None and str(v) != ""
+                    )
                 )
             elif eff_agg == "array":
-                computed_val = [str(v) for v in per_event_samples]
+                computed_val = [
+                    str(v)
+                    for v in per_event_samples
+                    if v is not None and str(v) != ""
+                ]
             else:
                 computed_val = (
                     max(num_samples)
                     if num_samples
                     else (per_event_samples[0] if per_event_samples else 0)
                 )
+        elif uses_str_or_cap:
+            for em in ev_maps:
+                row_val = _evaluate_single_event_outcome_row(rhs_text, em)
+                if row_val is not None and str(row_val) != "":
+                    per_event_samples.append(row_val)
+            if agg_fn == "count_distinct":
+                computed_val = len({str(v) for v in per_event_samples})
+            elif agg_fn == "count":
+                computed_val = len(per_event_samples)
+            elif agg_fn in ("max", "min", "sum"):
+                nums = [
+                    n
+                    for n in (
+                        _try_parse_numeric(str(v)) for v in per_event_samples
+                    )
+                    if n is not None
+                ]
+                if agg_fn == "max":
+                    computed_val = (
+                        max(nums)
+                        if nums
+                        else (
+                            max(str(v) for v in per_event_samples)
+                            if per_event_samples
+                            else ""
+                        )
+                    )
+                elif agg_fn == "min":
+                    computed_val = (
+                        min(nums)
+                        if nums
+                        else (
+                            min(str(v) for v in per_event_samples)
+                            if per_event_samples
+                            else ""
+                        )
+                    )
+                else:
+                    computed_val = sum(nums) if nums else 0
+            elif agg_fn == "array_distinct":
+                computed_val = list(
+                    dict.fromkeys(str(v) for v in per_event_samples)
+                )
+            elif agg_fn == "array":
+                computed_val = [str(v) for v in per_event_samples]
+            else:
+                computed_val = (
+                    per_event_samples[0] if per_event_samples else ""
+                )
+            computed_string_outcomes[out_var] = computed_val
         else:
             ref_specs = list(ob.get("referenced_event_field_specs") or [])
             first_field = (
@@ -8846,7 +10472,7 @@ def evaluate_yaral2_outcome_thresholds(
                     f"__event_{target_ev}_{i}" for i in range(ev_cnt)
                 ]
             if not per_event_samples and not ref_specs and ev_cnt > 0:
-                rhs_stripped = str(ob.get("rhs_text") or "").strip()
+                rhs_stripped = rhs_text
                 fn_m = _YARAL2_OUTCOME_FUNC_CALL_RE.match(rhs_stripped)
                 inner_const = (
                     fn_m.group(2).strip() if fn_m is not None else rhs_stripped
@@ -8896,6 +10522,8 @@ def evaluate_yaral2_outcome_thresholds(
 
         if isinstance(computed_val, float) and computed_val.is_integer():
             computed_val = int(computed_val)
+        if isinstance(computed_val, (str, list)) and out_var not in computed_string_outcomes:
+            computed_string_outcomes[out_var] = computed_val
         outcome_values[out_var] = computed_val
         outcome_evaluations.append(
             {
@@ -8904,6 +10532,7 @@ def evaluate_yaral2_outcome_thresholds(
                 "event_var": target_ev,
                 "canonical_func_name": agg_fn,
                 "is_conditional": bool(isinstance(cond_spec, dict)),
+                "uses_strings_or_re_capture": uses_str_or_cap,
                 "empirical_value": computed_val,
                 "sample_values": per_event_samples[:10],
             }
@@ -9006,6 +10635,7 @@ def evaluate_yaral2_outcome_thresholds(
         "events_matched": events_matched,
         "has_outcome_thresholds": has_outcome_thresholds,
         "outcome_values": outcome_values,
+        "computed_string_outcomes": computed_string_outcomes,
         "outcome_evaluations": outcome_evaluations,
         "condition_comparisons": condition_comparisons,
         "uncalibrated_comparisons": uncalibrated_comparisons,
@@ -10202,6 +11832,7 @@ def verify_yaral2_rule_with_siem(
         "findings": findings,
         "is_multi_event": is_multi_event,
         "is_non_existence": bool(repaired_spec.get("is_non_existence")),
+        "reference_lists": list(repaired_spec.get("reference_lists") or []),
         "compiler_verified": compiler_verified,
         "compiler_output": compiler_output,
         "retrohunt_udm_query": retrohunt_udm_query,
@@ -10212,6 +11843,9 @@ def verify_yaral2_rule_with_siem(
     if outcome_evaluation is not None:
         result["outcome_evaluation"] = outcome_evaluation
         result["outcome_values"] = outcome_evaluation.get("outcome_values", {})
+        result["computed_string_outcomes"] = outcome_evaluation.get(
+            "computed_string_outcomes", {}
+        )
     if multi_event_retrohunt is not None:
         result["multi_event_retrohunt"] = multi_event_retrohunt
     if retrohunt_initial_zero_hit_query is not None:
@@ -10734,6 +12368,16 @@ def verify_and_redline_yaral2_rules_in_doc(
             )
             if rule_check.get("compiler_verified"):
                 me_info = rule_check.get("multi_event_retrohunt")
+                computed_outcomes_part = ""
+                if rule_check.get("computed_string_outcomes"):
+                    computed_outcomes_part = (
+                        f", computed_outcomes={rule_check['computed_string_outcomes']}"
+                    )
+                ref_lists_part = ""
+                if rule_check.get("reference_lists"):
+                    ref_lists_part = (
+                        f", reference_lists={rule_check['reference_lists']}"
+                    )
                 if isinstance(me_info, dict) and me_info.get("is_multi_event"):
                     if me_info.get("is_non_existence"):
                         comments[idx]["comment"] = (
@@ -10742,7 +12386,8 @@ def verify_and_redline_yaral2_rules_in_doc(
                             f"Non-Existence Retrohunt Set-Difference: "
                             f"shared_join_values={me_info.get('shared_join_values', [])}, "
                             f"suppressed_join_values={me_info.get('suppressed_join_values', [])}, "
-                            f"events_matched={rule_check['retrohunt_event_count']}]"
+                            f"events_matched={rule_check['retrohunt_event_count']}"
+                            f"{computed_outcomes_part}{ref_lists_part}]"
                         )
                     else:
                         comments[idx]["comment"] = (
@@ -10750,14 +12395,16 @@ def verify_and_redline_yaral2_rules_in_doc(
                             f"[Chronicle YARA-L 2.0 Compiler Verified: PASSED | "
                             f"Multi-Event Retrohunt Correlation: "
                             f"shared_join_values={me_info.get('shared_join_values', [])}, "
-                            f"events_matched={rule_check['retrohunt_event_count']}]"
+                            f"events_matched={rule_check['retrohunt_event_count']}"
+                            f"{computed_outcomes_part}{ref_lists_part}]"
                         )
                 else:
                     comments[idx]["comment"] = (
                         f"{comments[idx]['comment']} "
                         f"[Chronicle YARA-L 2.0 Compiler Verified: PASSED | "
                         f"Retrohunt Dry-Run: query='{rule_check['retrohunt_udm_query']}', "
-                        f"events_matched={rule_check['retrohunt_event_count']}]"
+                        f"events_matched={rule_check['retrohunt_event_count']}"
+                        f"{computed_outcomes_part}{ref_lists_part}]"
                     )
 
         if diagnose_zero_hit_retrohunt:
@@ -11264,12 +12911,37 @@ def verify_and_redline_yaral2_rules_in_doc(
                 "edits": edits_res,
             }
 
+    yaral2_in_membership_repaired = sum(
+        1
+        for f in findings
+        if f.get("defect_type") == "invalid_in_membership_syntax"
+    )
+    yaral2_reference_lists_repaired = sum(
+        1
+        for f in findings
+        if f.get("defect_type") == "invalid_reference_list_syntax"
+    )
+    yaral2_strings_functions_repaired = sum(
+        1
+        for f in findings
+        if f.get("defect_type") == "invalid_strings_function_syntax"
+    )
+    yaral2_re_capture_repaired = sum(
+        1
+        for f in findings
+        if f.get("defect_type") == "invalid_re_capture_syntax"
+    )
+
     return {
         "status": "success",
         "document_id": document_id,
         "title": read_res.get("title", ""),
         "char_count": read_res.get("char_count", 0),
         "yaral2_findings_count": len(findings),
+        "yaral2_in_membership_repaired": yaral2_in_membership_repaired,
+        "yaral2_reference_lists_repaired": yaral2_reference_lists_repaired,
+        "yaral2_strings_functions_repaired": yaral2_strings_functions_repaired,
+        "yaral2_re_capture_repaired": yaral2_re_capture_repaired,
         "zero_hit_yaral2_findings_count": zero_hit_yaral2_findings_count,
         "skipped_existing_suggestion_count": skipped_existing_suggestion_count,
         "findings": findings,
@@ -11278,6 +12950,9 @@ def verify_and_redline_yaral2_rules_in_doc(
         "comments": comments_res,
         "edits": edits_res,
     }
+
+
+verify_and_repair_yaral2_rules_in_doc = verify_and_redline_yaral2_rules_in_doc
 
 
 def _extract_mitre_cve_clause_context(
