@@ -34,6 +34,7 @@ from .grounding_tools import (
     init_web_search_agent_tool,
 )
 from .docs_review_tools import (
+    analyze_and_redline_detection_coverage_gaps_in_doc as _analyze_and_redline_detection_coverage_gaps_in_doc,
     audit_and_redline_claim_evidence_and_campaign_in_doc as _audit_and_redline_claim_evidence_and_campaign_in_doc,
     create_google_doc as _create_google_doc,
     export_accepted_doc_to_markdown as _export_accepted_doc_to_markdown,
@@ -1062,6 +1063,52 @@ def audit_and_redline_claim_evidence_and_campaign_in_doc(
   )
 
 
+def analyze_and_redline_detection_coverage_gaps_in_doc(
+    document_id: str,
+    run_live_siem_check: bool = False,
+    synthesize_missing_tdo_rules: bool = True,
+    start_time: str = "2026-02-07T00:00:00Z",
+    end_time: str = "2026-02-08T00:00:00Z",
+    tool_context: ToolContext | None = None,
+) -> dict[str, Any]:
+  """Computes a Detection Coverage Gap Matrix for a Google Doc and red-lines TDO coverage gaps.
+
+  Cross-references the attacker techniques and UDM actions in a document's
+  referenced SOAR campaigns (`CAMP-GCP-CONTROL-PLANE-33278`,
+  `CAMP-WORKSPACE-SUPERADMIN-TAKEOVER`, `CAMP-WINS-D19-ENDPOINT`) against the
+  YARA-L 2.0 (`YL2` — Chronicle SIEM UDM event detection rules, distinct from
+  standard YARA file/payload pattern matching) rules present in the Google Doc,
+  repairs overclaimed coverage assertions (`overclaimed_detection_coverage`) and
+  wrong TDO telemetry log sources (`tdo_log_source_mismatch`), synthesizes
+  compiler-verified (`validate_rule`), SIEM-retrohunted (`search_udm`),
+  SkillRegistry-routed (`runbook_skill`) YARA-L 2.0 rules for uncovered TDOs
+  (`uncovered_tdo_rule_synthesis`), and stages non-destructive Suggested Edits
+  (`writeMode="SUGGEST"`).
+
+  Args:
+      document_id (str): The Google Docs document ID.
+      run_live_siem_check (bool): Whether to compile synthesized YARA-L 2.0 rules via
+          Chronicle SIEM (`validate_rule`) and execute UDM retrohunts (`search_udm`).
+      synthesize_missing_tdo_rules (bool): Whether to stage synthesized YARA-L 2.0 rules
+          for uncovered Threat Detection Opportunities (`uncovered_tdo_rule_synthesis`).
+      start_time (str): ISO-8601 start time for Chronicle SIEM retrohunt verification.
+      end_time (str): ISO-8601 end time for Chronicle SIEM retrohunt verification.
+
+  Returns:
+      dict: {"status", "document_id", "title", "coverage_matrix", "finding_count",
+             "findings", "siem_tdo_results", "skipped_existing_suggestion_count",
+             "comments", "edits"}.
+  """
+  return _analyze_and_redline_detection_coverage_gaps_in_doc(
+      document_id=document_id,
+      run_live_siem_check=run_live_siem_check,
+      synthesize_missing_tdo_rules=synthesize_missing_tdo_rules,
+      start_time=start_time,
+      end_time=end_time,
+      tool_context=tool_context,
+  )
+
+
 def get_agent_tools():
   """Initializes and returns MCP toolsets and progressive discovery tools.
 
@@ -1113,6 +1160,9 @@ def get_agent_tools():
   wrapped_audit_and_redline_claim_evidence_and_campaign_in_doc = instrument_tool(
       audit_and_redline_claim_evidence_and_campaign_in_doc
   )
+  wrapped_analyze_and_redline_detection_coverage_gaps_in_doc = instrument_tool(
+      analyze_and_redline_detection_coverage_gaps_in_doc
+  )
   wrapped_inspect_doc_suggestions = instrument_tool(inspect_doc_suggestions)
   wrapped_list_doc_comments = instrument_tool(list_doc_comments)
   wrapped_export_accepted_doc_to_markdown = instrument_tool(
@@ -1149,6 +1199,7 @@ def get_agent_tools():
       wrapped_sanitize_and_redline_telemetry_in_doc,
       wrapped_triage_and_redline_leaked_credentials_in_doc,
       wrapped_audit_and_redline_claim_evidence_and_campaign_in_doc,
+      wrapped_analyze_and_redline_detection_coverage_gaps_in_doc,
       wrapped_inspect_doc_suggestions,
       wrapped_list_doc_comments,
       wrapped_export_accepted_doc_to_markdown,

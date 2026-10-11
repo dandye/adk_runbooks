@@ -335,6 +335,31 @@ CANONICAL_MITRE_TECHNIQUES: dict[str, dict[str, str]] = {
         "short_name": "PowerShell Profile",
         "tactic": "Persistence",
     },
+    "T1485": {
+        "canonical_name": "Data Destruction",
+        "short_name": "Data Destruction",
+        "tactic": "Impact",
+    },
+    "T1556": {
+        "canonical_name": "Modify Authentication Process",
+        "short_name": "Modify Authentication Process",
+        "tactic": "Defense Evasion / Persistence",
+    },
+    "T1556.006": {
+        "canonical_name": "Modify Authentication Process: Multi-Factor Authentication",
+        "short_name": "Multi-Factor Authentication",
+        "tactic": "Defense Evasion / Persistence",
+    },
+    "T1567": {
+        "canonical_name": "Exfiltration Over Web Service",
+        "short_name": "Exfiltration Over Web Service",
+        "tactic": "Exfiltration",
+    },
+    "T1567.002": {
+        "canonical_name": "Exfiltration Over Web Service: Exfiltration to Cloud Storage",
+        "short_name": "Exfiltration to Cloud Storage",
+        "tactic": "Exfiltration",
+    },
 }
 
 CANONICAL_CISA_KEV_CATALOG: dict[str, dict[str, Any]] = {
@@ -2281,7 +2306,12 @@ def verify_udm_query_with_siem(
         event_count = (
             len(events)
             if isinstance(events, list)
-            else int(parsed.get("event_count", 0) or 0)
+            else int(
+                parsed.get("event_count")
+                or parsed.get("events_matched")
+                or parsed.get("total_events")
+                or 0
+            )
         )
         return {
             "status": "success",
@@ -6421,6 +6451,48 @@ def infer_yaral2_mitre_from_events(rule_text: str) -> dict[str, Any] | None:
         canonical_id = "T1098.001"
         evidence_reason = "cloud credential or service account key creation predicates in events:"
 
+    # 7b. Data Destruction (T1485)
+    elif any(
+        kw in ev_text
+        for kw in (
+            "cloudsql.instances.delete",
+            "deletedataset",
+            "prod-customers",
+            "storage.buckets.delete",
+        )
+    ):
+        canonical_id = "T1485"
+        evidence_reason = (
+            "destructive cloud resource deletion predicates in events: (cloudsql.instances.delete / DeleteDataset / RESOURCE_DELETION)"
+        )
+
+    # 7c. Modify Authentication Process: Multi-Factor Authentication (T1556.006)
+    elif any(
+        kw in ev_text
+        for kw in (
+            "delete_saml2_service_provider_config",
+            "change_allowed_two_step_verification_methods",
+            "authorize_api_client_access",
+        )
+    ):
+        canonical_id = "T1556.006"
+        evidence_reason = (
+            "Google Workspace SAML2 IdP deletion or 2SV weakening predicates in events: (DELETE_SAML2_SERVICE_PROVIDER_CONFIG / CHANGE_ALLOWED_TWO_STEP_VERIFICATION_METHODS)"
+        )
+
+    # 7d. Exfiltration Over Web Service: Exfiltration to Cloud Storage (T1567.002)
+    elif any(
+        kw in ev_text
+        for kw in (
+            "create_data_transfer_request",
+            "transfer_ownership",
+        )
+    ):
+        canonical_id = "T1567.002"
+        evidence_reason = (
+            "Google Workspace bulk Drive data transfer predicates in events: (CREATE_DATA_TRANSFER_REQUEST / transfer_ownership)"
+        )
+
     # 8. Account Manipulation: Additional Cloud Roles (T1098.003)
     elif any(
         kw in ev_text
@@ -7098,6 +7170,43 @@ CANONICAL_MITRE_TO_RUNBOOK_SKILL: dict[str, dict[str, Any]] = {
             "guided-ttp-hunt-credential-access",
         ),
         "supporting_skills": ("guided-ttp-hunt-credential-access",),
+    },
+    "T1485": {
+        "canonical_skill": "compromised-user-account-response",
+        "allowed_skills": ("compromised-user-account-response",),
+        "supporting_skills": (),
+    },
+    "T1556": {
+        "canonical_skill": "suspicious-login-triage",
+        "allowed_skills": (
+            "suspicious-login-triage",
+            "compromised-user-account-response",
+        ),
+        "supporting_skills": ("compromised-user-account-response",),
+    },
+    "T1556.006": {
+        "canonical_skill": "suspicious-login-triage",
+        "allowed_skills": (
+            "suspicious-login-triage",
+            "compromised-user-account-response",
+        ),
+        "supporting_skills": ("compromised-user-account-response",),
+    },
+    "T1567": {
+        "canonical_skill": "suspicious-login-triage",
+        "allowed_skills": (
+            "suspicious-login-triage",
+            "compromised-user-account-response",
+        ),
+        "supporting_skills": ("compromised-user-account-response",),
+    },
+    "T1567.002": {
+        "canonical_skill": "suspicious-login-triage",
+        "allowed_skills": (
+            "suspicious-login-triage",
+            "compromised-user-account-response",
+        ),
+        "supporting_skills": ("compromised-user-account-response",),
     },
 }
 
@@ -9245,8 +9354,18 @@ def _parse_siem_validate_output(raw_res: Any) -> dict[str, Any]:
                         or "appears to be valid" in text.lower()
                     )
                     return {"compiler_verified": passed, "compiler_output": text}
-        if "success" in raw_res or "isValid" in raw_res:
-            passed = bool(raw_res.get("success") or raw_res.get("isValid"))
+        if (
+            "success" in raw_res
+            or "isValid" in raw_res
+            or "valid" in raw_res
+            or "compiler_verified" in raw_res
+        ):
+            passed = bool(
+                raw_res.get("success")
+                or raw_res.get("isValid")
+                or raw_res.get("valid")
+                or raw_res.get("compiler_verified")
+            )
             msg = _strip_non_ascii_symbols(
                 str(raw_res.get("message") or raw_res.get("compiler_output") or raw_res)
             )
@@ -13880,6 +13999,7 @@ def review_google_doc_with_stage_a(
     include_yaral2_stage_a: bool = True,
     include_mitre_cve_stage_a: bool = True,
     include_claim_campaign_stage_a: bool = False,
+    include_tdo_coverage_stage_a: bool = False,
     token_source: TokenSource | None = None,
     quota_project: str | None = None,
     transport: httpx.BaseTransport | None = None,
@@ -13896,13 +14016,16 @@ def review_google_doc_with_stage_a(
        :func:`find_udm_field_spans` when ``include_udm_stage_a=True``,
        :func:`find_yaral2_rule_spans` when ``include_yaral2_stage_a=True``,
        :func:`find_mitre_and_cve_spans` when ``include_mitre_cve_stage_a=True``,
-       and :func:`find_claim_evidence_and_campaign_spans` when
-       ``include_claim_campaign_stage_a=True``)
+       :func:`find_claim_evidence_and_campaign_spans` when
+       ``include_claim_campaign_stage_a=True``, and
+       :func:`find_detection_coverage_and_tdo_spans` when
+       ``include_tdo_coverage_stage_a=True``)
        to locate leaked credentials, destructive/ineffective containment CLIs,
        unredacted telemetry payloads/secrets, live untrusted URLs,
        standalone Chronicle UDM field defects, YARA-L 2.0 rule defects,
-       MITRE ATT&CK / CVE defects, and narrative claim/campaign defects by
-       numeric UTF-16 span without echoing them through an LLM.
+       MITRE ATT&CK / CVE defects, narrative claim/campaign defects, and
+       Detection Coverage / TDO defects by numeric UTF-16 span without echoing
+       them through an LLM.
     3. Deduplicates Stage A spans against overlapping Stage B
        ``semantic_comments`` and ``semantic_edits`` and skips any span that
        overlaps an existing pending suggestion (multi-pass idempotency).
@@ -14099,6 +14222,25 @@ def review_google_doc_with_stage_a(
                 deduped_claim_campaign_edits.append(e_item)
                 existing_edit_spans.append(e_span)
 
+    stage_a_tdo_coverage_count = 0
+    deduped_tdo_coverage_comments: list[dict[str, Any]] = []
+    deduped_tdo_coverage_edits: list[dict[str, Any]] = []
+    if include_tdo_coverage_stage_a:
+        tdo_comments, tdo_edits, tdo_findings = (
+            find_detection_coverage_and_tdo_spans(plain_text, index_map)
+        )
+        stage_a_tdo_coverage_count = len(tdo_findings)
+        for c_item in tdo_comments:
+            c_span = (c_item["start_index"], c_item["end_index"])
+            if not any(_spans_overlap(c_span, ex) for ex in existing_comment_spans):
+                deduped_tdo_coverage_comments.append(c_item)
+                existing_comment_spans.append(c_span)
+        for e_item in tdo_edits:
+            e_span = (e_item["start_index"], e_item["end_index"])
+            if not any(_spans_overlap(e_span, ex) for ex in existing_edit_spans):
+                deduped_tdo_coverage_edits.append(e_item)
+                existing_edit_spans.append(e_span)
+
     raw_all_comments = (
         deduped_credential_containment_comments
         + deduped_telemetry_comments
@@ -14107,6 +14249,7 @@ def review_google_doc_with_stage_a(
         + deduped_yaral2_comments
         + deduped_mitre_cve_comments
         + deduped_claim_campaign_comments
+        + deduped_tdo_coverage_comments
         + stage_b_comments
     )
     raw_all_edits = (
@@ -14117,6 +14260,7 @@ def review_google_doc_with_stage_a(
         + deduped_yaral2_edits
         + deduped_mitre_cve_edits
         + deduped_claim_campaign_edits
+        + deduped_tdo_coverage_edits
         + stage_b_edits
     )
 
@@ -14187,6 +14331,7 @@ def review_google_doc_with_stage_a(
         "stage_a_yaral2_count": stage_a_yaral2_count,
         "stage_a_mitre_cve_count": stage_a_mitre_cve_count,
         "stage_a_claim_campaign_count": stage_a_claim_campaign_count,
+        "stage_a_tdo_coverage_count": stage_a_tdo_coverage_count,
         "stage_a_italic_regex_count": stage_a_italic_regex_count,
         "skipped_existing_suggestion_count": skipped_existing_suggestion_count,
         "comments": comments_res,
@@ -14205,6 +14350,7 @@ def stage_runbook_update_as_google_doc(
     *,
     include_credential_containment_stage_a: bool = True,
     include_claim_campaign_stage_a: bool = False,
+    include_tdo_coverage_stage_a: bool = False,
     skill_content_override: str | None = None,
     client: DriveMcpClient | None = None,
     token_source: TokenSource | None = None,
@@ -14258,6 +14404,7 @@ def stage_runbook_update_as_google_doc(
         tool_context=tool_context,
         include_credential_containment_stage_a=include_credential_containment_stage_a,
         include_claim_campaign_stage_a=include_claim_campaign_stage_a,
+        include_tdo_coverage_stage_a=include_tdo_coverage_stage_a,
         token_source=token_source,
         quota_project=quota_project,
         transport=transport,
@@ -14279,6 +14426,7 @@ def stage_runbook_update_as_google_doc(
         "stage_a_yaral2_count": review_res.get("stage_a_yaral2_count", 0),
         "stage_a_mitre_cve_count": review_res.get("stage_a_mitre_cve_count", 0),
         "stage_a_claim_campaign_count": review_res.get("stage_a_claim_campaign_count", 0),
+        "stage_a_tdo_coverage_count": review_res.get("stage_a_tdo_coverage_count", 0),
         "stage_a_italic_regex_count": review_res.get("stage_a_italic_regex_count", 0),
         "comments": review_res.get("comments", {}),
         "edits": review_res.get("edits", {}),
@@ -17320,4 +17468,1345 @@ def audit_and_redline_claim_evidence_and_campaign_in_doc(
         "comments": comments_res,
         "edits": edits_res,
     }
+
+
+# ---------------------------------------------------------------------------
+# Cycle 17 (Horizon H8): Detection Coverage Gap Matrix & Automated Threat
+# Detection Opportunity (TDO) Red-Liner in Google Docs
+# ---------------------------------------------------------------------------
+
+CANONICAL_TDO_CATALOG: dict[str, dict[str, Any]] = {
+    "TDO-GCP-IAM-SETIAMPOLICY": {
+        "tdo_id": "TDO-GCP-IAM-SETIAMPOLICY",
+        "title": "GCP Cloud Audit IAM Policy Escalation Detection (SetIamPolicy)",
+        "campaign_id": "CAMP-GCP-CONTROL-PLANE-33278",
+        "case_ids": ("33278",),
+        "mitre_technique": "T1098.003",
+        "mitre_tactic": "Persistence / Privilege Escalation",
+        "log_type": "GCP_CLOUDAUDIT",
+        "allowed_log_types": ("GCP_CLOUDAUDIT",),
+        "wrong_log_types": (
+            "AWS_CLOUDTRAIL",
+            "WINDOWS_SYSMON",
+            "WORKSPACE_ACTIVITY",
+            "AZURE_AD",
+            "OKTA",
+        ),
+        "event_type": "RESOURCE_PERMISSIONS_CHANGE",
+        "key_indicators": (
+            "SetIamPolicy",
+            "projects/base-production",
+            "104.198.226.161",
+        ),
+        "detection_keywords": (
+            "setiampolicy",
+            "resource_permissions_change",
+            "tdo_gcp_iam_setiampolicy",
+        ),
+        "line_match_keywords": (
+            "tdo-gcp-iam-setiampolicy",
+            "setiampolicy",
+        ),
+        "include_by_default_for_campaign": True,
+        "runbook_skill": "compromised-user-account-response",
+        "severity": "HIGH",
+        "risk_score": 85,
+        "udm_retrohunt_query": (
+            'metadata.log_type = "GCP_CLOUDAUDIT" AND '
+            'target.resource.name = "projects/base-production" AND '
+            'principal.ip = "104.198.226.161"'
+        ),
+        "rule_name": "tdo_gcp_iam_setiampolicy_case_33278",
+        "yaral2_rule_text": (
+            "rule tdo_gcp_iam_setiampolicy_case_33278 {\n"
+            "  meta:\n"
+            '    author = "SecOps Detection Engineering"\n'
+            '    description = "Detects external GCP Cloud Audit SetIamPolicy privilege escalation on projects/base-production (TDO-GCP-IAM-SETIAMPOLICY, Case 33278)."\n'
+            '    severity = "HIGH"\n'
+            '    mitre_attack_technique = "T1098.003"\n'
+            '    mitre_attack_tactic = "Persistence / Privilege Escalation"\n'
+            '    mitre_attack_url = "https://attack.mitre.org/techniques/T1098/003/"\n'
+            '    runbook_skill = "compromised-user-account-response"\n'
+            "  events:\n"
+            '    $e.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+            '    $e.metadata.event_type = "RESOURCE_PERMISSIONS_CHANGE"\n'
+            '    $e.metadata.product_event_type = "SetIamPolicy"\n'
+            '    $e.target.resource.name = "projects/base-production"\n'
+            '    $e.principal.ip = "104.198.226.161"\n'
+            "  outcome:\n"
+            "    $risk_score = max(85)\n"
+            "  condition:\n"
+            "    $e\n"
+            "}"
+        ),
+    },
+    "TDO-GCP-CLOUDSQL-DELETE": {
+        "tdo_id": "TDO-GCP-CLOUDSQL-DELETE",
+        "title": "GCP Cloud Audit Destructive Cloud SQL Instance Deletion Detection (cloudsql.instances.delete)",
+        "campaign_id": "CAMP-GCP-CONTROL-PLANE-33278",
+        "case_ids": ("33278",),
+        "mitre_technique": "T1485",
+        "mitre_tactic": "Impact",
+        "log_type": "GCP_CLOUDAUDIT",
+        "allowed_log_types": ("GCP_CLOUDAUDIT",),
+        "wrong_log_types": (
+            "AWS_CLOUDTRAIL",
+            "WINDOWS_SYSMON",
+            "WORKSPACE_ACTIVITY",
+            "AZURE_AD",
+            "OKTA",
+        ),
+        "event_type": "RESOURCE_DELETION",
+        "key_indicators": (
+            "cloudsql.instances.delete",
+            "prod-customers",
+            "DeleteDataset",
+        ),
+        "detection_keywords": (
+            "cloudsql.instances.delete",
+            "prod-customers",
+            "deletedataset",
+            "tdo_gcp_cloudsql_destructive_delete",
+        ),
+        "line_match_keywords": (
+            "tdo-gcp-cloudsql-delete",
+            "cloudsql.instances.delete",
+            "prod-customers",
+            "deletedataset",
+        ),
+        "include_by_default_for_campaign": True,
+        "runbook_skill": "compromised-user-account-response",
+        "severity": "CRITICAL",
+        "risk_score": 95,
+        "udm_retrohunt_query": (
+            'metadata.log_type = "GCP_CLOUDAUDIT" AND '
+            'metadata.product_event_type = "cloudsql.instances.delete" AND '
+            'principal.ip = "104.198.226.161"'
+        ),
+        "rule_name": "tdo_gcp_cloudsql_destructive_delete_case_33278",
+        "yaral2_rule_text": (
+            "rule tdo_gcp_cloudsql_destructive_delete_case_33278 {\n"
+            "  meta:\n"
+            '    author = "SecOps Detection Engineering"\n'
+            '    description = "Detects destructive GCP Cloud SQL instance deletion cloudsql.instances.delete from external attacker IP 104.198.226.161 (TDO-GCP-CLOUDSQL-DELETE, Case 33278)."\n'
+            '    severity = "CRITICAL"\n'
+            '    mitre_attack_technique = "T1485"\n'
+            '    mitre_attack_tactic = "Impact"\n'
+            '    mitre_attack_url = "https://attack.mitre.org/techniques/T1485/"\n'
+            '    runbook_skill = "compromised-user-account-response"\n'
+            "  events:\n"
+            '    $e.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+            '    $e.metadata.event_type = "RESOURCE_DELETION"\n'
+            '    $e.metadata.product_event_type = "cloudsql.instances.delete"\n'
+            '    $e.principal.ip = "104.198.226.161"\n'
+            "  outcome:\n"
+            "    $risk_score = max(95)\n"
+            "  condition:\n"
+            "    $e\n"
+            "}"
+        ),
+    },
+    "TDO-WORKSPACE-SAML-2SV-TAMPER": {
+        "tdo_id": "TDO-WORKSPACE-SAML-2SV-TAMPER",
+        "title": "Google Workspace Super-Admin SAML2 IdP Deletion & 2SV Weakening Detection",
+        "campaign_id": "CAMP-WORKSPACE-SUPERADMIN-TAKEOVER",
+        "case_ids": ("33281", "33283", "33287"),
+        "mitre_technique": "T1556.006",
+        "mitre_tactic": "Defense Evasion / Persistence",
+        "log_type": "WORKSPACE_ACTIVITY",
+        "allowed_log_types": ("WORKSPACE_ACTIVITY",),
+        "wrong_log_types": (
+            "GCP_CLOUDAUDIT",
+            "AWS_CLOUDTRAIL",
+            "WINDOWS_SYSMON",
+            "AZURE_AD",
+            "OKTA",
+        ),
+        "event_type": "USER_UNCATEGORIZED",
+        "key_indicators": (
+            "DELETE_SAML2_SERVICE_PROVIDER_CONFIG",
+            "CHANGE_ALLOWED_TWO_STEP_VERIFICATION_METHODS",
+            "AUTHORIZE_API_CLIENT_ACCESS",
+            "79.154.246.114",
+        ),
+        "detection_keywords": (
+            "delete_saml2_service_provider_config",
+            "change_allowed_two_step_verification_methods",
+            "authorize_api_client_access",
+            "tdo_workspace_saml_and_2sv_tampering",
+        ),
+        "line_match_keywords": (
+            "tdo-workspace-saml-2sv-tamper",
+            "delete_saml2_service_provider_config",
+            "change_allowed_two_step_verification_methods",
+            "authorize_api_client_access",
+        ),
+        "include_by_default_for_campaign": True,
+        "runbook_skill": "suspicious-login-triage",
+        "severity": "CRITICAL",
+        "risk_score": 95,
+        "udm_retrohunt_query": (
+            'metadata.log_type = "WORKSPACE_ACTIVITY" AND '
+            'principal.ip = "79.154.246.114"'
+        ),
+        "rule_name": "tdo_workspace_saml_and_2sv_tampering_case_33287",
+        "yaral2_rule_text": (
+            "rule tdo_workspace_saml_and_2sv_tampering_case_33287 {\n"
+            "  meta:\n"
+            '    author = "SecOps Detection Engineering"\n'
+            '    description = "Detects Google Workspace Super-Admin SAML2 IdP deletion and 2SV weakening from 79.154.246.114 (TDO-WORKSPACE-SAML-2SV-TAMPER, Cases 33281/33283/33287)."\n'
+            '    severity = "CRITICAL"\n'
+            '    mitre_attack_technique = "T1556.006"\n'
+            '    mitre_attack_tactic = "Defense Evasion / Persistence"\n'
+            '    mitre_attack_url = "https://attack.mitre.org/techniques/T1556/006/"\n'
+            '    runbook_skill = "suspicious-login-triage"\n'
+            "  events:\n"
+            '    $e.metadata.log_type = "WORKSPACE_ACTIVITY"\n'
+            '    $e.principal.ip = "79.154.246.114"\n'
+            "    re.regex($e.metadata.product_event_type, `DELETE_SAML2_SERVICE_PROVIDER_CONFIG|CHANGE_ALLOWED_TWO_STEP_VERIFICATION_METHODS|AUTHORIZE_API_CLIENT_ACCESS`) nocase\n"
+            "  outcome:\n"
+            "    $risk_score = max(95)\n"
+            "  condition:\n"
+            "    $e\n"
+            "}"
+        ),
+    },
+    "TDO-WORKSPACE-DRIVE-EXFIL": {
+        "tdo_id": "TDO-WORKSPACE-DRIVE-EXFIL",
+        "title": "Google Workspace Data Transfer & Drive Ownership Exfiltration Detection (CREATE_DATA_TRANSFER_REQUEST)",
+        "campaign_id": "CAMP-WORKSPACE-SUPERADMIN-TAKEOVER",
+        "case_ids": ("33281", "33283", "33287"),
+        "mitre_technique": "T1567.002",
+        "mitre_tactic": "Exfiltration",
+        "log_type": "WORKSPACE_ACTIVITY",
+        "allowed_log_types": ("WORKSPACE_ACTIVITY",),
+        "wrong_log_types": (
+            "GCP_CLOUDAUDIT",
+            "AWS_CLOUDTRAIL",
+            "WINDOWS_SYSMON",
+            "AZURE_AD",
+            "OKTA",
+        ),
+        "event_type": "USER_UNCATEGORIZED",
+        "key_indicators": (
+            "CREATE_DATA_TRANSFER_REQUEST",
+            "transfer_ownership",
+        ),
+        "detection_keywords": (
+            "create_data_transfer_request",
+            "transfer_ownership",
+            "tdo_workspace_drive_transfer_exfil",
+        ),
+        "line_match_keywords": (
+            "tdo-workspace-drive-exfil",
+            "create_data_transfer_request",
+            "transfer_ownership",
+        ),
+        "include_by_default_for_campaign": False,
+        "runbook_skill": "suspicious-login-triage",
+        "severity": "HIGH",
+        "risk_score": 85,
+        "udm_retrohunt_query": (
+            'metadata.log_type = "WORKSPACE_ACTIVITY" AND '
+            'metadata.product_event_type = "CREATE_DATA_TRANSFER_REQUEST"'
+        ),
+        "rule_name": "tdo_workspace_drive_transfer_exfil_case_33283",
+        "yaral2_rule_text": (
+            "rule tdo_workspace_drive_transfer_exfil_case_33283 {\n"
+            "  meta:\n"
+            '    author = "SecOps Detection Engineering"\n'
+            '    description = "Detects Google Workspace bulk Drive data transfer request CREATE_DATA_TRANSFER_REQUEST (TDO-WORKSPACE-DRIVE-EXFIL, Cases 33281/33283/33287)."\n'
+            '    severity = "HIGH"\n'
+            '    mitre_attack_technique = "T1567.002"\n'
+            '    mitre_attack_tactic = "Exfiltration"\n'
+            '    mitre_attack_url = "https://attack.mitre.org/techniques/T1567/002/"\n'
+            '    runbook_skill = "suspicious-login-triage"\n'
+            "  events:\n"
+            '    $e.metadata.log_type = "WORKSPACE_ACTIVITY"\n'
+            '    $e.metadata.product_event_type = "CREATE_DATA_TRANSFER_REQUEST"\n'
+            "  outcome:\n"
+            "    $risk_score = max(85)\n"
+            "  condition:\n"
+            "    $e\n"
+            "}"
+        ),
+    },
+    "TDO-WINS-D19-POWERSHELL-EMPIRE": {
+        "tdo_id": "TDO-WINS-D19-POWERSHELL-EMPIRE",
+        "title": "Windows Endpoint Encoded PowerShell Empire Stager Detection (wins-d19)",
+        "campaign_id": "CAMP-WINS-D19-ENDPOINT",
+        "case_ids": ("33269",),
+        "mitre_technique": "T1059.001",
+        "mitre_tactic": "Execution",
+        "log_type": "WINDOWS_SYSMON",
+        "allowed_log_types": (
+            "WINDOWS_SYSMON",
+            "PROCESS_LAUNCH",
+            "CS_EDR",
+            "MICROSOFT_DEFENDER_ENDPOINT",
+        ),
+        "wrong_log_types": (
+            "GCP_CLOUDAUDIT",
+            "AWS_CLOUDTRAIL",
+            "WORKSPACE_ACTIVITY",
+            "AZURE_AD",
+            "OKTA",
+        ),
+        "event_type": "PROCESS_LAUNCH",
+        "key_indicators": (
+            "powershell",
+            "-enc",
+            "-encodedcommand",
+            "wins-d19",
+        ),
+        "detection_keywords": (
+            "powershell",
+            "-enc",
+            "-encodedcommand",
+            "tdo_wins_d19_powershell_empire",
+        ),
+        "line_match_keywords": (
+            "tdo-wins-d19-powershell-empire",
+            "powershell empire",
+        ),
+        "include_by_default_for_campaign": True,
+        "runbook_skill": "malware-incident-response",
+        "severity": "CRITICAL",
+        "risk_score": 95,
+        "udm_retrohunt_query": (
+            'principal.hostname = "wins-d19" AND '
+            "target.process.command_line = /.*powershell.*/ nocase"
+        ),
+        "rule_name": "tdo_wins_d19_powershell_empire_case_33269",
+        "yaral2_rule_text": (
+            "rule tdo_wins_d19_powershell_empire_case_33269 {\n"
+            "  meta:\n"
+            '    author = "SecOps Detection Engineering"\n'
+            '    description = "Detects encoded PowerShell Empire stager execution on endpoint wins-d19 (TDO-WINS-D19-POWERSHELL-EMPIRE, Case 33269)."\n'
+            '    severity = "CRITICAL"\n'
+            '    mitre_attack_technique = "T1059.001"\n'
+            '    mitre_attack_tactic = "Execution"\n'
+            '    mitre_attack_url = "https://attack.mitre.org/techniques/T1059/001/"\n'
+            '    runbook_skill = "malware-incident-response"\n'
+            "  events:\n"
+            '    $e.metadata.event_type = "PROCESS_LAUNCH"\n'
+            '    $e.principal.hostname = "wins-d19"\n'
+            "    re.regex($e.target.process.command_line, `.*powershell.*`) nocase\n"
+            "  outcome:\n"
+            "    $risk_score = max(95)\n"
+            "  condition:\n"
+            "    $e\n"
+            "}"
+        ),
+    },
+    "TDO-WINS-D19-DERPSERVICE-PERSISTENCE": {
+        "tdo_id": "TDO-WINS-D19-DERPSERVICE-PERSISTENCE",
+        "title": "Windows Endpoint DERPService Service Persistence Detection (wins-d19)",
+        "campaign_id": "CAMP-WINS-D19-ENDPOINT",
+        "case_ids": ("33280",),
+        "mitre_technique": "T1543.003",
+        "mitre_tactic": "Persistence / Privilege Escalation",
+        "log_type": "WINDOWS_SYSMON",
+        "allowed_log_types": (
+            "WINDOWS_SYSMON",
+            "PROCESS_LAUNCH",
+            "CS_EDR",
+            "MICROSOFT_DEFENDER_ENDPOINT",
+        ),
+        "wrong_log_types": (
+            "GCP_CLOUDAUDIT",
+            "AWS_CLOUDTRAIL",
+            "WORKSPACE_ACTIVITY",
+            "AZURE_AD",
+            "OKTA",
+        ),
+        "event_type": "PROCESS_LAUNCH",
+        "key_indicators": (
+            "DERPService",
+            r"C:\Users\Public\DERPService.exe",
+            "wins-d19",
+        ),
+        "detection_keywords": (
+            "derpservice",
+            "tdo_wins_d19_derpservice_persistence",
+        ),
+        "line_match_keywords": (
+            "tdo-wins-d19-derpservice-persistence",
+            "derpservice",
+        ),
+        "include_by_default_for_campaign": True,
+        "runbook_skill": "malware-incident-response",
+        "severity": "HIGH",
+        "risk_score": 85,
+        "udm_retrohunt_query": (
+            'principal.hostname = "wins-d19" AND '
+            "target.process.command_line = /.*DERPService.*/ nocase"
+        ),
+        "rule_name": "tdo_wins_d19_derpservice_persistence_case_33280",
+        "yaral2_rule_text": (
+            "rule tdo_wins_d19_derpservice_persistence_case_33280 {\n"
+            "  meta:\n"
+            '    author = "SecOps Detection Engineering"\n'
+            '    description = "Detects DERPService Windows service persistence execution on endpoint wins-d19 (TDO-WINS-D19-DERPSERVICE-PERSISTENCE, Case 33280)."\n'
+            '    severity = "HIGH"\n'
+            '    mitre_attack_technique = "T1543.003"\n'
+            '    mitre_attack_tactic = "Persistence / Privilege Escalation"\n'
+            '    mitre_attack_url = "https://attack.mitre.org/techniques/T1543/003/"\n'
+            '    runbook_skill = "malware-incident-response"\n'
+            "  events:\n"
+            '    $e.metadata.event_type = "PROCESS_LAUNCH"\n'
+            '    $e.principal.hostname = "wins-d19"\n'
+            "    re.regex($e.target.process.command_line, `.*DERPService.*`) nocase\n"
+            "  outcome:\n"
+            "    $risk_score = max(85)\n"
+            "  condition:\n"
+            "    $e\n"
+            "}"
+        ),
+    },
+}
+
+
+def _rule_covers_tdo(
+    rule_block: dict[str, Any],
+    tdo_spec: dict[str, Any],
+) -> bool:
+    """Returns True if a parsed YARA-L 2.0 (``YL2``) rule block covers ``tdo_spec``."""
+    rule_name = str(rule_block.get("rule_name") or "").lower()
+    rule_text = str(rule_block.get("rule_text") or "")
+    if not rule_text.strip():
+        return False
+
+    sec_matches = list(_YARAL2_SECTION_HEADER_RE.finditer(rule_text))
+    event_bodies: list[str] = []
+    for i, sm in enumerate(sec_matches):
+        sec_name = sm.group(1).lower()
+        if sec_name not in ("events", "strings"):
+            continue
+        b_start = sm.end()
+        b_end = (
+            sec_matches[i + 1].start()
+            if i + 1 < len(sec_matches)
+            else max(b_start, rule_text.rfind("}"))
+        )
+        event_bodies.append(rule_text[b_start:b_end])
+    ev_lower = "\n".join(event_bodies).lower()
+    combined = f"{rule_name}\n{ev_lower}"
+
+    for kw in tdo_spec.get("detection_keywords", ()):
+        if str(kw).lower() in combined:
+            return True
+
+    inferred_mitre = infer_yaral2_mitre_from_events(rule_text)
+    inferred_id = (
+        str(inferred_mitre["canonical_id"])
+        if isinstance(inferred_mitre, dict) and inferred_mitre.get("canonical_id")
+        else ""
+    )
+    if inferred_id and inferred_id == str(tdo_spec.get("mitre_technique") or ""):
+        return True
+
+    return False
+
+
+def build_detection_coverage_gap_matrix(
+    plain_text: str,
+    *,
+    skill_registry: Any = None,
+    include_all_catalog_tdos: bool = False,
+) -> dict[str, Any]:
+    """Cross-references a document's referenced SOAR campaigns and Threat Detection
+    Opportunities (TDOs) against the YARA-L 2.0 (``YL2``) detection rules actually
+    present in ``plain_text`` to compute an empirical Detection Coverage Gap Matrix.
+    """
+    text = plain_text or ""
+    text_lower = text.lower()
+    registry = (
+        skill_registry
+        if skill_registry is not None
+        else _get_default_skill_registry()
+    )
+
+    rule_blocks = _iter_yaral2_rule_blocks(text)
+    existing_rules: list[dict[str, Any]] = []
+    for rb in rule_blocks:
+        r_name = str(rb["rule_name"])
+        r_text = str(rb["rule_text"])
+        inferred_mitre = infer_yaral2_mitre_from_events(r_text)
+        meta_spec = extract_yaral2_meta_spec(r_text)
+        entries_by_key = meta_spec.get("entries_by_key") or {}
+        meta_skill = (
+            str(entries_by_key["runbook_skill"]["value"])
+            if "runbook_skill" in entries_by_key
+            else (
+                str(entries_by_key["runbook"]["value"])
+                if "runbook" in entries_by_key
+                else ""
+            )
+        )
+        existing_rules.append(
+            {
+                "rule_name": r_name,
+                "char_start": int(rb["char_start"]),
+                "char_end": int(rb["char_end"]),
+                "inferred_mitre_technique": (
+                    str(inferred_mitre["canonical_id"])
+                    if isinstance(inferred_mitre, dict)
+                    else ""
+                ),
+                "meta_runbook_skill": meta_skill,
+            }
+        )
+
+    campaign_graph = build_cross_case_campaign_graph(text)
+    referenced_campaigns: set[str] = set(
+        campaign_graph.get("referenced_campaign_ids")
+        or campaign_graph.get("referenced_campaigns")
+        or []
+    )
+    for camp_id in CANONICAL_SOAR_CAMPAIGN_CATALOG:
+        if camp_id.lower() in text_lower:
+            referenced_campaigns.add(camp_id)
+
+    in_scope_tdo_ids: list[str] = []
+    for tdo_id, tdo_spec in CANONICAL_TDO_CATALOG.items():
+        camp_id = str(tdo_spec["campaign_id"])
+        explicitly_mentioned = any(
+            str(kw).lower() in text_lower
+            for kw in tdo_spec.get("line_match_keywords", ())
+        ) or (tdo_id.lower() in text_lower)
+        covered_by_any = any(_rule_covers_tdo(rb, tdo_spec) for rb in rule_blocks)
+        included_by_campaign = (
+            camp_id in referenced_campaigns
+            and bool(tdo_spec.get("include_by_default_for_campaign", True))
+        )
+        if (
+            include_all_catalog_tdos
+            or explicitly_mentioned
+            or covered_by_any
+            or included_by_campaign
+        ):
+            in_scope_tdo_ids.append(tdo_id)
+
+    if not in_scope_tdo_ids:
+        in_scope_tdo_ids = [
+            tdo_id
+            for tdo_id, spec in CANONICAL_TDO_CATALOG.items()
+            if spec.get("include_by_default_for_campaign", True)
+        ]
+
+    tdo_records: list[dict[str, Any]] = []
+    tdo_by_id: dict[str, dict[str, Any]] = {}
+    covered_tdo_ids: list[str] = []
+    uncovered_tdo_ids: list[str] = []
+
+    for tdo_id in in_scope_tdo_ids:
+        tdo_spec = CANONICAL_TDO_CATALOG[tdo_id]
+        covering_rules = [
+            str(rb["rule_name"])
+            for rb in rule_blocks
+            if _rule_covers_tdo(rb, tdo_spec)
+        ]
+        is_covered = bool(covering_rules)
+        coverage_status = "COVERED" if is_covered else "UNCOVERED_GAP"
+        if is_covered:
+            covered_tdo_ids.append(tdo_id)
+        else:
+            uncovered_tdo_ids.append(tdo_id)
+
+        rb_skill = str(tdo_spec["runbook_skill"])
+        skill_verified = False
+        if registry is not None and hasattr(registry, "get_skill"):
+            skill_verified = registry.get_skill(rb_skill) is not None
+
+        rec: dict[str, Any] = {
+            "tdo_id": tdo_id,
+            "title": str(tdo_spec["title"]),
+            "campaign_id": str(tdo_spec["campaign_id"]),
+            "case_ids": list(tdo_spec["case_ids"]),
+            "mitre_technique": str(tdo_spec["mitre_technique"]),
+            "mitre_tactic": str(tdo_spec["mitre_tactic"]),
+            "mitre_url": mitre_technique_url(str(tdo_spec["mitre_technique"])),
+            "log_type": str(tdo_spec["log_type"]),
+            "event_type": str(tdo_spec["event_type"]),
+            "key_indicators": list(tdo_spec["key_indicators"]),
+            "runbook_skill": rb_skill,
+            "skill_verified": skill_verified,
+            "runbook_skill_valid": skill_verified,
+            "severity": str(tdo_spec["severity"]),
+            "risk_score": int(tdo_spec["risk_score"]),
+            "coverage_status": coverage_status,
+            "covering_rules": covering_rules,
+            "synthesized_rule_name": str(tdo_spec["rule_name"]),
+            "yaral2_rule_text": str(tdo_spec["yaral2_rule_text"]),
+            "udm_retrohunt_query": str(tdo_spec["udm_retrohunt_query"]),
+        }
+        tdo_records.append(rec)
+        tdo_by_id[tdo_id] = rec
+
+    total_cnt = len(tdo_records)
+    covered_cnt = len(covered_tdo_ids)
+    uncovered_cnt = len(uncovered_tdo_ids)
+    coverage_pct = round((covered_cnt / total_cnt) * 100.0, 1) if total_cnt > 0 else 100.0
+
+    md_lines = [
+        "| TDO ID | Campaign | SOAR Cases | MITRE ATT&CK | Required Log Type | Coverage Status | Covering Rules | Runbook Skill |",
+        "|---|---|---|---|---|---|---|---|",
+    ]
+    for rec in tdo_records:
+        rule_col = (
+            ", ".join(f"`{r}`" for r in rec["covering_rules"])
+            if rec["covering_rules"]
+            else f"MISSING (`{rec['synthesized_rule_name']}`)"
+        )
+        cases_str = ", ".join(rec["case_ids"])
+        md_lines.append(
+            f"| `{rec['tdo_id']}` | `{rec['campaign_id']}` | `{cases_str}` | "
+            f"`{rec['mitre_technique']}` ({rec['mitre_tactic']}) | `{rec['log_type']}` | "
+            f"`{rec['coverage_status']}` | {rule_col} | `{rec['runbook_skill']}` |"
+        )
+
+    return {
+        "total_tdo_count": total_cnt,
+        "covered_tdo_count": covered_cnt,
+        "uncovered_tdo_count": uncovered_cnt,
+        "coverage_percentage": coverage_pct,
+        "covered_tdo_ids": covered_tdo_ids,
+        "uncovered_tdo_ids": uncovered_tdo_ids,
+        "in_scope_tdo_ids": in_scope_tdo_ids,
+        "referenced_campaigns": sorted(referenced_campaigns),
+        "existing_rules": existing_rules,
+        "tdo_records": tdo_records,
+        "tdo_by_id": tdo_by_id,
+        "coverage_matrix_markdown": "\n".join(md_lines),
+    }
+
+
+_OVERCLAIMED_CAMPAIGN_COVERAGE_RE = re.compile(
+    r"(?:"
+    r"(?:100%|full|complete)\s+(?:YARA-L\s+2\.0\s+|YL2\s+|SIEM\s+)?(?:detection\s+)?coverage(?:\s+across\s+all\s+(?:campaign|attacker|documented)\s+techniques)?"
+    r"|"
+    r"all\s+(?:campaign|attacker|documented)\s+techniques\s+are\s+(?:100%\s+|fully\s+)?covered(?:\s+by\s+YARA-L\s+2\.0\s+rules)?"
+    r"|"
+    r"(?:Detection\s+|Coverage\s+|YARA-L\s+2\.0\s+)Status\s*:\s*100%\s*COVERED"
+    r")",
+    re.IGNORECASE,
+)
+
+_TDO_LINE_COVERED_BADGE_RE = re.compile(
+    r"(?:Coverage\s+Status|Detection\s+Status|YARA-L\s+2\.0\s+Status)\s*:\s*(?:100%\s*)?COVERED\b",
+    re.IGNORECASE,
+)
+
+
+def _identify_line_tdo_id(
+    line_text: str,
+    in_scope_tdo_ids: list[str],
+) -> str | None:
+    """Identifies which canonical TDO ID a prose line outside a ``rule`` block describes."""
+    l_lower = line_text.lower()
+    for tdo_id in in_scope_tdo_ids:
+        if tdo_id.lower() in l_lower:
+            return tdo_id
+    for tdo_id in in_scope_tdo_ids:
+        spec = CANONICAL_TDO_CATALOG[tdo_id]
+        for kw in spec.get("line_match_keywords", ()):
+            if str(kw).lower() in l_lower:
+                return tdo_id
+    return None
+
+
+def find_detection_coverage_and_tdo_spans(
+    plain_text: str,
+    index_map: list[int],
+    *,
+    synthesize_missing_tdo_rules: bool = True,
+    skill_registry: Any = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Scans lines outside YARA-L 2.0 ``rule <name> { ... }`` blocks and computes
+    non-overlapping 1-based UTF-16 spans for three Detection Coverage & Threat
+    Detection Opportunity (TDO) defect classes:
+    1. ``overclaimed_detection_coverage``
+    2. ``tdo_log_source_mismatch``
+    3. ``uncovered_tdo_rule_synthesis``
+    """
+    comments: list[dict[str, Any]] = []
+    edits: list[dict[str, Any]] = []
+    findings: list[dict[str, Any]] = []
+    if not plain_text or not index_map:
+        return comments, edits, findings
+
+    matrix = build_detection_coverage_gap_matrix(
+        plain_text, skill_registry=skill_registry
+    )
+    in_scope_tdo_ids: list[str] = list(matrix["in_scope_tdo_ids"])
+    covered_tdo_ids: list[str] = list(matrix["covered_tdo_ids"])
+    uncovered_tdo_ids: list[str] = list(matrix["uncovered_tdo_ids"])
+    tdo_by_id: dict[str, dict[str, Any]] = dict(matrix["tdo_by_id"])
+    total_cnt = int(matrix["total_tdo_count"])
+    covered_cnt = int(matrix["covered_tdo_count"])
+    cov_pct = float(matrix["coverage_percentage"])
+
+    rule_blocks = _iter_yaral2_rule_blocks(plain_text)
+    rule_char_ranges: list[tuple[int, int]] = [
+        (int(rb["char_start"]), int(rb["char_end"])) for rb in rule_blocks
+    ]
+
+    def _in_rule_block(c_start: int, c_end: int) -> bool:
+        return any(
+            max(c_start, r_s) < min(c_end, r_e)
+            for r_s, r_e in rule_char_ranges
+        )
+
+    def _char_span_to_utf16(c_start: int, c_end: int) -> tuple[int, int]:
+        s_idx = index_map[c_start]
+        e_idx = index_map[c_end - 1] + _utf16_code_unit_len(plain_text[c_end - 1])
+        return s_idx, e_idx
+
+    claimed_char_spans: list[tuple[int, int]] = []
+    raw_items: list[tuple[int, dict[str, Any], dict[str, Any], dict[str, Any]]] = []
+    tdo_prose_lines: dict[str, list[tuple[int, int, str]]] = {
+        tid: [] for tid in in_scope_tdo_ids
+    }
+
+    cursor = 0
+    for raw_line in plain_text.splitlines(keepends=True):
+        line_start = cursor
+        cursor += len(raw_line)
+        line_stripped_nl = raw_line.rstrip("\r\n")
+        line_end = line_start + len(line_stripped_nl)
+        if line_end <= line_start or not line_stripped_nl.strip():
+            continue
+        if _in_rule_block(line_start, line_end):
+            continue
+
+        line_tdo_id = _identify_line_tdo_id(line_stripped_nl, in_scope_tdo_ids)
+        if line_tdo_id is not None:
+            tdo_prose_lines.setdefault(line_tdo_id, []).append(
+                (line_start, line_end, line_stripped_nl)
+            )
+
+        # (1) Check for overclaimed_detection_coverage
+        if uncovered_tdo_ids:
+            if line_tdo_id is not None:
+                if line_tdo_id in uncovered_tdo_ids:
+                    badge_m = _TDO_LINE_COVERED_BADGE_RE.search(line_stripped_nl)
+                    if badge_m is not None:
+                        c_s = line_start + badge_m.start(0)
+                        c_e = line_start + badge_m.end(0)
+                        if not any(
+                            max(c_s, ex_s) < min(c_e, ex_e)
+                            for ex_s, ex_e in claimed_char_spans
+                        ):
+                            claimed_char_spans.append((c_s, c_e))
+                            u_s, u_e = _char_span_to_utf16(c_s, c_e)
+                            quote = plain_text[c_s:c_e]
+                            t_rec = tdo_by_id[line_tdo_id]
+                            rep_text = (
+                                f"Coverage Status: UNCOVERED GAP "
+                                f"({line_tdo_id} / {t_rec['mitre_technique']})"
+                            )
+                            c_body = (
+                                f"Deterministic Detection Coverage Gap Check "
+                                f"(overclaimed_detection_coverage): Document marks "
+                                f"{line_tdo_id} (MITRE ATT&CK {t_rec['mitre_technique']} - "
+                                f"{t_rec['mitre_url']}) as '{quote}', but no YARA-L 2.0 (YL2) "
+                                f"detection rule in this document covers indicators "
+                                f"{t_rec['key_indicators']} on {t_rec['log_type']}. "
+                                f"Mark as UNCOVERED GAP and stage rule '{t_rec['synthesized_rule_name']}' "
+                                f"(runbook_skill='{t_rec['runbook_skill']}')."
+                            )
+                            raw_items.append(
+                                (
+                                    c_s,
+                                    {
+                                        "start_index": u_s,
+                                        "end_index": u_e,
+                                        "quote": quote,
+                                        "comment": c_body,
+                                    },
+                                    {
+                                        "start_index": u_s,
+                                        "end_index": u_e,
+                                        "quote": quote,
+                                        "replacement": rep_text,
+                                        "replacement_text": rep_text,
+                                    },
+                                    {
+                                        "defect_type": "overclaimed_detection_coverage",
+                                        "tdo_id": line_tdo_id,
+                                        "campaign_id": t_rec["campaign_id"],
+                                        "case_ids": t_rec["case_ids"],
+                                        "mitre_technique": t_rec["mitre_technique"],
+                                        "runbook_skill": t_rec["runbook_skill"],
+                                        "skill_verified": t_rec["skill_verified"],
+                                        "runbook_skill_valid": t_rec["skill_verified"],
+                                        "expected_log_type": t_rec["log_type"],
+                                        "quote": quote,
+                                        "replacement": rep_text,
+                                        "replacement_text": rep_text,
+                                        "start_index": u_s,
+                                        "end_index": u_e,
+                                    },
+                                )
+                            )
+            else:
+                overclaim_m = _OVERCLAIMED_CAMPAIGN_COVERAGE_RE.search(line_stripped_nl)
+                if overclaim_m is None:
+                    overclaim_m = _TDO_LINE_COVERED_BADGE_RE.search(line_stripped_nl)
+                if overclaim_m is not None:
+                    c_s = line_start + overclaim_m.start(0)
+                    c_e = line_start + overclaim_m.end(0)
+                    if not any(
+                        max(c_s, ex_s) < min(c_e, ex_e)
+                        for ex_s, ex_e in claimed_char_spans
+                    ):
+                        claimed_char_spans.append((c_s, c_e))
+                        u_s, u_e = _char_span_to_utf16(c_s, c_e)
+                        quote = plain_text[c_s:c_e]
+                        cov_list_str = (
+                            ", ".join(covered_tdo_ids) if covered_tdo_ids else "none"
+                        )
+                        uncov_list_str = ", ".join(uncovered_tdo_ids)
+                        rep_text = (
+                            f"Coverage Status: PARTIAL ({covered_cnt}/{total_cnt} TDOs covered, "
+                            f"{cov_pct:.1f}%) — Covered: [{cov_list_str}]; "
+                            f"Uncovered Gaps: [{uncov_list_str}]"
+                        )
+                        c_body = (
+                            f"Deterministic Detection Coverage Gap Check "
+                            f"(overclaimed_detection_coverage): Narrative claim '{quote}' "
+                            f"overstates YARA-L 2.0 (YL2) detection coverage. Empirical AST "
+                            f"verification shows only {covered_cnt}/{total_cnt} TDOs ({cov_pct:.1f}%) "
+                            f"have YARA-L 2.0 rules in the document (Covered: [{cov_list_str}]; "
+                            f"Uncovered Gaps: [{uncov_list_str}]). Replace with exact empirical "
+                            f"coverage summary ({DEFAULT_YARAL2_DOC_URL})."
+                        )
+                        first_uncov = tdo_by_id[uncovered_tdo_ids[0]]
+                        raw_items.append(
+                            (
+                                c_s,
+                                {
+                                    "start_index": u_s,
+                                    "end_index": u_e,
+                                    "quote": quote,
+                                    "comment": c_body,
+                                },
+                                {
+                                    "start_index": u_s,
+                                    "end_index": u_e,
+                                    "quote": quote,
+                                    "replacement": rep_text,
+                                    "replacement_text": rep_text,
+                                },
+                                {
+                                    "defect_type": "overclaimed_detection_coverage",
+                                    "tdo_id": ",".join(uncovered_tdo_ids),
+                                    "campaign_id": first_uncov["campaign_id"],
+                                    "case_ids": first_uncov["case_ids"],
+                                    "mitre_technique": first_uncov["mitre_technique"],
+                                    "runbook_skill": first_uncov["runbook_skill"],
+                                    "skill_verified": first_uncov["skill_verified"],
+                                    "runbook_skill_valid": first_uncov["skill_verified"],
+                                    "expected_log_type": first_uncov["log_type"],
+                                    "covered_tdo_ids": covered_tdo_ids,
+                                    "uncovered_tdo_ids": uncovered_tdo_ids,
+                                    "coverage_percentage": cov_pct,
+                                    "quote": quote,
+                                    "replacement": rep_text,
+                                    "replacement_text": rep_text,
+                                    "start_index": u_s,
+                                    "end_index": u_e,
+                                },
+                            )
+                        )
+
+        # (2) Check for tdo_log_source_mismatch
+        if line_tdo_id is not None:
+            t_spec = CANONICAL_TDO_CATALOG[line_tdo_id]
+            t_rec = tdo_by_id[line_tdo_id]
+            expected_lt = str(t_spec["log_type"])
+            for wrong_lt in t_spec.get("wrong_log_types", ()):
+                w_pat = re.compile(rf"\b({re.escape(str(wrong_lt))})\b")
+                for w_m in w_pat.finditer(line_stripped_nl):
+                    c_s = line_start + w_m.start(1)
+                    c_e = line_start + w_m.end(1)
+                    if any(
+                        max(c_s, ex_s) < min(c_e, ex_e)
+                        for ex_s, ex_e in claimed_char_spans
+                    ):
+                        continue
+                    claimed_char_spans.append((c_s, c_e))
+                    u_s, u_e = _char_span_to_utf16(c_s, c_e)
+                    quote = plain_text[c_s:c_e]
+                    c_body = (
+                        f"Deterministic TDO Telemetry Log-Source Check "
+                        f"(tdo_log_source_mismatch): Threat Detection Opportunity "
+                        f"{line_tdo_id} (Campaign {t_rec['campaign_id']}, Case(s) "
+                        f"{', '.join(t_rec['case_ids'])}, MITRE ATT&CK {t_rec['mitre_technique']}) "
+                        f"specifies Chronicle UDM metadata.log_type '{quote}', which does not "
+                        f"ingest {t_rec['key_indicators']}. Replace '{quote}' with canonical "
+                        f"Chronicle log source '{expected_lt}' ({DEFAULT_UDM_FIELD_LIST_URL})."
+                    )
+                    raw_items.append(
+                        (
+                            c_s,
+                            {
+                                "start_index": u_s,
+                                "end_index": u_e,
+                                "quote": quote,
+                                "comment": c_body,
+                            },
+                            {
+                                "start_index": u_s,
+                                "end_index": u_e,
+                                "quote": quote,
+                                "replacement": expected_lt,
+                                "replacement_text": expected_lt,
+                            },
+                            {
+                                "defect_type": "tdo_log_source_mismatch",
+                                "tdo_id": line_tdo_id,
+                                "campaign_id": t_rec["campaign_id"],
+                                "case_ids": t_rec["case_ids"],
+                                "mitre_technique": t_rec["mitre_technique"],
+                                "runbook_skill": t_rec["runbook_skill"],
+                                "skill_verified": t_rec["skill_verified"],
+                                "runbook_skill_valid": t_rec["skill_verified"],
+                                "wrong_log_type": quote,
+                                "expected_log_type": expected_lt,
+                                "quote": quote,
+                                "replacement": expected_lt,
+                                "replacement_text": expected_lt,
+                                "start_index": u_s,
+                                "end_index": u_e,
+                            },
+                        )
+                    )
+                    break
+
+    # (3) Unimplemented Threat Detection Opportunities (uncovered_tdo_rule_synthesis)
+    if synthesize_missing_tdo_rules and uncovered_tdo_ids:
+        for tdo_id in uncovered_tdo_ids:
+            t_spec = CANONICAL_TDO_CATALOG[tdo_id]
+            t_rec = tdo_by_id[tdo_id]
+            candidate_lines = tdo_prose_lines.get(tdo_id) or []
+            target_span: tuple[int, int] | None = None
+
+            # Prefer a candidate line that has an explicit Action Item / Rule Synthesis suffix
+            # after any claimed spans on that line, or a line with no claimed spans at all.
+            for l_s, l_e, l_txt in reversed(candidate_lines):
+                line_claims = [
+                    (cs, ce)
+                    for cs, ce in claimed_char_spans
+                    if max(l_s, cs) < min(l_e, ce)
+                ]
+                if not line_claims:
+                    target_span = (l_s, l_e)
+                    break
+                max_claim_end = max(ce for _, ce in line_claims)
+                if max_claim_end < l_e:
+                    tail_rel = plain_text[max_claim_end:l_e]
+                    action_m = re.search(
+                        r"(?:Action\s+Item|TDO\s+Action|Rule\s+Synthesis|Follow-up|Remediation)\s*:.*$",
+                        tail_rel,
+                        re.IGNORECASE,
+                    )
+                    if action_m is not None:
+                        cand_s = max_claim_end + action_m.start(0)
+                        cand_e = l_e
+                        if cand_e > cand_s:
+                            target_span = (cand_s, cand_e)
+                            break
+                    # Otherwise use the non-overlapping trailing segment after max_claim_end
+                    lead_trim = len(tail_rel) - len(tail_rel.lstrip(" \t|,-;:"))
+                    cand_s = max_claim_end + lead_trim
+                    if cand_s >= l_e:
+                        cand_s = max_claim_end
+                    if l_e > cand_s:
+                        target_span = (cand_s, l_e)
+                        break
+
+            if target_span is None:
+                continue
+
+            c_s, c_e = target_span
+            if any(
+                max(c_s, ex_s) < min(c_e, ex_e)
+                for ex_s, ex_e in claimed_char_spans
+            ):
+                continue
+
+            claimed_char_spans.append((c_s, c_e))
+            u_s, u_e = _char_span_to_utf16(c_s, c_e)
+            quote = plain_text[c_s:c_e]
+            rule_text = str(t_spec["yaral2_rule_text"])
+            rep_text = f"{quote}\n\n{rule_text}"
+            c_body = (
+                f"Automated Threat Detection Opportunity (TDO) YARA-L 2.0 Rule Synthesis "
+                f"(uncovered_tdo_rule_synthesis): {tdo_id} ({t_rec['title']}, Campaign "
+                f"{t_rec['campaign_id']}, Case(s) {', '.join(t_rec['case_ids'])}, "
+                f"MITRE ATT&CK {t_rec['mitre_technique']} - {t_rec['mitre_url']}) is "
+                f"currently an UNCOVERED GAP with no YARA-L 2.0 (YL2 — Chronicle SIEM UDM "
+                f"event detection rule, distinct from standard YARA file/payload pattern "
+                f"matching) rule in the document. Stage compiler-verified rule "
+                f"'{t_rec['synthesized_rule_name']}' targeting {t_rec['log_type']} "
+                f"with runbook_skill='{t_rec['runbook_skill']}' "
+                f"(SkillRegistry verified={t_rec['skill_verified']}) and retrohunt query "
+                f"'{t_rec['udm_retrohunt_query']}' ({DEFAULT_YARAL2_DOC_URL})."
+            )
+            raw_items.append(
+                (
+                    c_s,
+                    {
+                        "start_index": u_s,
+                        "end_index": u_e,
+                        "quote": quote,
+                        "comment": c_body,
+                    },
+                    {
+                        "start_index": u_s,
+                        "end_index": u_e,
+                        "quote": quote,
+                        "replacement": rep_text,
+                        "replacement_text": rep_text,
+                    },
+                    {
+                        "defect_type": "uncovered_tdo_rule_synthesis",
+                        "tdo_id": tdo_id,
+                        "campaign_id": t_rec["campaign_id"],
+                        "case_ids": t_rec["case_ids"],
+                        "mitre_technique": t_rec["mitre_technique"],
+                        "runbook_skill": t_rec["runbook_skill"],
+                        "skill_verified": t_rec["skill_verified"],
+                        "runbook_skill_valid": t_rec["skill_verified"],
+                        "expected_log_type": t_rec["log_type"],
+                        "synthesized_rule_name": t_rec["synthesized_rule_name"],
+                        "synthesized_yaral2_rule": rule_text,
+                        "synthesized_rule_text": rule_text,
+                        "udm_retrohunt_query": t_rec["udm_retrohunt_query"],
+                        "quote": quote,
+                        "replacement": rep_text,
+                        "replacement_text": rep_text,
+                        "start_index": u_s,
+                        "end_index": u_e,
+                    },
+                )
+            )
+
+    raw_items.sort(key=lambda item: item[0])
+    for _, c_item, e_item, f_item in raw_items:
+        comments.append(c_item)
+        edits.append(e_item)
+        findings.append(f_item)
+
+    return comments, edits, findings
+
+
+def verify_tdo_coverage_gaps_with_siem(
+    coverage_matrix: dict[str, Any],
+    *,
+    siem_validate_fn: Any = None,
+    siem_search_fn: Any = None,
+    start_time: str = "2026-02-07T00:00:00Z",
+    end_time: str = "2026-02-08T00:00:00Z",
+    max_events: int = 20,
+) -> dict[str, Any]:
+    """Compiles each uncovered TDO's synthesized YARA-L 2.0 (``YL2``) rule via Chronicle
+    ``validate_rule`` and executes its ``udm_retrohunt_query`` via ``search_udm`` to
+    confirm historical telemetry hits in Chronicle SIEM.
+    """
+    tdo_records = list(coverage_matrix.get("tdo_records") or [])
+    tdo_verifications: dict[str, dict[str, Any]] = {}
+    uncovered_verifications: list[dict[str, Any]] = []
+    compiler_verified_count = 0
+    retrohunt_verified_count = 0
+    total_retrohunt_events = 0
+
+    for rec in tdo_records:
+        tdo_id = str(rec["tdo_id"])
+        status_label = str(rec["coverage_status"])
+        rule_name = str(rec["synthesized_rule_name"])
+        rule_text = str(rec["yaral2_rule_text"])
+        retro_query = str(rec["udm_retrohunt_query"])
+
+        comp_ok, comp_out = _validate_yaral2_rule_with_compiler(
+            rule_text, siem_validate_fn=siem_validate_fn
+        )
+        siem_res = verify_udm_query_with_siem(
+            retro_query,
+            start_time=start_time,
+            end_time=end_time,
+            max_events=max_events,
+            siem_search_fn=siem_search_fn,
+        )
+        ev_cnt = int(siem_res.get("event_count", 0) or 0)
+        retro_ok = bool(siem_res.get("siem_verified")) and ev_cnt > 0
+        skill_ok = bool(rec.get("skill_verified", False))
+
+        v_entry = {
+            "tdo_id": tdo_id,
+            "campaign_id": str(rec["campaign_id"]),
+            "case_ids": list(rec["case_ids"]),
+            "coverage_status": status_label,
+            "rule_name": rule_name,
+            "yaral2_rule_text": rule_text,
+            "compiler_verified": comp_ok,
+            "compiler_output": comp_out,
+            "udm_retrohunt_query": retro_query,
+            "retrohunt_verified": retro_ok,
+            "retrohunt_event_count": ev_cnt,
+            "mitre_technique": str(rec["mitre_technique"]),
+            "runbook_skill": str(rec["runbook_skill"]),
+            "skill_verified": skill_ok,
+            "runbook_skill_valid": skill_ok,
+        }
+        tdo_verifications[tdo_id] = v_entry
+        if status_label == "UNCOVERED_GAP":
+            uncovered_verifications.append(v_entry)
+            if comp_ok:
+                compiler_verified_count += 1
+            if retro_ok:
+                retrohunt_verified_count += 1
+            total_retrohunt_events += ev_cnt
+
+    all_uncov_comp = (
+        compiler_verified_count == len(uncovered_verifications)
+        if uncovered_verifications
+        else True
+    )
+    all_uncov_retro = (
+        retrohunt_verified_count == len(uncovered_verifications)
+        if uncovered_verifications
+        else True
+    )
+
+    return {
+        "status": "success",
+        "tdo_verifications": tdo_verifications,
+        "uncovered_tdo_verifications": uncovered_verifications,
+        "compiler_verified_count": compiler_verified_count,
+        "retrohunt_verified_count": retrohunt_verified_count,
+        "total_retrohunt_events_matched": total_retrohunt_events,
+        "all_uncovered_compiler_verified": all_uncov_comp,
+        "all_uncovered_retrohunt_verified": all_uncov_retro,
+    }
+
+
+def analyze_and_redline_detection_coverage_gaps_in_doc(
+    document_id: str,
+    *,
+    run_live_siem_check: bool = False,
+    synthesize_missing_tdo_rules: bool = True,
+    start_time: str = "2026-02-07T00:00:00Z",
+    end_time: str = "2026-02-08T00:00:00Z",
+    max_events: int = 20,
+    siem_validate_fn: Any = None,
+    siem_search_fn: Any = None,
+    skill_registry: Any = None,
+    tool_context: Any = None,
+    token_source: TokenSource | None = None,
+    quota_project: str | None = None,
+    transport: httpx.BaseTransport | None = None,
+) -> dict[str, Any]:
+    """End-to-end Detection Coverage Gap Matrix & Automated Threat Detection Opportunity
+    (TDO) Red-Liner for Google Docs incident postmortems, threat briefings, and
+    detection coverage matrices.
+
+    1. Calls :func:`read_google_doc` to load ``(plain_text, index_map)`` and
+       ``pending_suggestion_spans``.
+    2. Builds the empirical Detection Coverage Gap Matrix via
+       :func:`build_detection_coverage_gap_matrix`.
+    3. Computes non-overlapping 1-based UTF-16 spans via
+       :func:`find_detection_coverage_and_tdo_spans` for:
+       - ``overclaimed_detection_coverage``
+       - ``tdo_log_source_mismatch``
+       - ``uncovered_tdo_rule_synthesis``
+       skipping any span overlapping ``pending_suggestion_spans`` for multi-pass
+       idempotency.
+    4. When ``run_live_siem_check=True`` (or ``siem_validate_fn`` / ``siem_search_fn``
+       is provided), compiles synthesized YARA-L 2.0 rules via Chronicle
+       ``validate_rule`` and executes ``search_udm`` retrohunts via
+       :func:`verify_tdo_coverage_gaps_with_siem`, enriching anchored Google Docs
+       comments with live compiler and SIEM retrohunt evidence.
+    5. Anchors comments first via :func:`insert_doc_comments` and stages
+       descending-index Suggested Edits second via :func:`propose_doc_suggested_edits`
+       (``writeMode="SUGGEST"``).
+    """
+    read_res = read_google_doc(
+        document_id,
+        tool_context=tool_context,
+        token_source=token_source,
+        quota_project=quota_project,
+        transport=transport,
+    )
+    if read_res.get("status") != "success":
+        return read_res
+
+    plain_text, index_map = _load_doc_index_state(
+        document_id, tool_context=tool_context
+    )
+    if plain_text is None or index_map is None:
+        return {
+            "status": "error",
+            "message": "Failed to load UTF-16 index map after read_google_doc.",
+        }
+
+    pending_spans = _load_doc_pending_suggestion_spans(
+        document_id, tool_context=tool_context
+    )
+
+    coverage_matrix = build_detection_coverage_gap_matrix(
+        plain_text, skill_registry=skill_registry
+    )
+    raw_comments, raw_edits, raw_findings = find_detection_coverage_and_tdo_spans(
+        plain_text,
+        index_map,
+        synthesize_missing_tdo_rules=synthesize_missing_tdo_rules,
+        skill_registry=skill_registry,
+    )
+
+    siem_verification: dict[str, Any] = {}
+    tdo_verif_map: dict[str, dict[str, Any]] = {}
+    siem_tdo_results: dict[str, dict[str, Any]] = {}
+    if (
+        run_live_siem_check
+        or siem_validate_fn is not None
+        or siem_search_fn is not None
+    ):
+        siem_verification = verify_tdo_coverage_gaps_with_siem(
+            coverage_matrix,
+            siem_validate_fn=siem_validate_fn,
+            siem_search_fn=siem_search_fn,
+            start_time=start_time,
+            end_time=end_time,
+            max_events=max_events,
+        )
+        tdo_verif_map = dict(siem_verification.get("tdo_verifications") or {})
+        siem_tdo_results = {
+            str(v["tdo_id"]): v
+            for v in (siem_verification.get("uncovered_tdo_verifications") or [])
+        }
+
+    filtered_comments: list[dict[str, Any]] = []
+    filtered_edits: list[dict[str, Any]] = []
+    active_findings: list[dict[str, Any]] = []
+    skipped_existing_suggestion_count = 0
+
+    for c_item, e_item, f_item in zip(raw_comments, raw_edits, raw_findings):
+        e_span = (int(e_item["start_index"]), int(e_item["end_index"]))
+        if any(_spans_overlap(e_span, p_span) for p_span in pending_spans):
+            skipped_existing_suggestion_count += 1
+            continue
+
+        tdo_key = str(f_item.get("tdo_id") or "").split(",")[0].strip()
+        v_info = tdo_verif_map.get(tdo_key)
+        if isinstance(v_info, dict):
+            comp_str = "SUCCESS" if v_info.get("compiler_verified") else "UNVERIFIED"
+            retro_cnt = int(v_info.get("retrohunt_event_count", 0) or 0)
+            retro_q = str(v_info.get("udm_retrohunt_query") or "")
+            rb_skill = str(v_info.get("runbook_skill") or "")
+            c_item = dict(c_item)
+            c_item["comment"] = (
+                f"{c_item['comment']} "
+                f"[Chronicle SIEM Verified: validate_rule={comp_str} | "
+                f"SIEM Retrohunt Verified: query='{retro_q}', events_matched={retro_cnt} | "
+                f"SkillRegistry Verified: runbook_skill='{rb_skill}']"
+            )
+            f_item = dict(f_item)
+            f_item["compiler_verified"] = bool(v_info.get("compiler_verified"))
+            f_item["retrohunt_verified"] = bool(v_info.get("retrohunt_verified"))
+            f_item["retrohunt_event_count"] = retro_cnt
+
+        filtered_comments.append(c_item)
+        filtered_edits.append(e_item)
+        active_findings.append(f_item)
+
+    comments_res: dict[str, Any] = {
+        "status": "skipped",
+        "inserted_count": 0,
+        "comment_ids": [],
+    }
+    if filtered_comments:
+        comments_res = insert_doc_comments(
+            document_id,
+            filtered_comments,
+            tool_context=tool_context,
+            token_source=token_source,
+            quota_project=quota_project,
+            transport=transport,
+        )
+        if comments_res.get("status") != "success":
+            return {
+                "status": "error",
+                "message": f"insert_doc_comments failed: {comments_res.get('message')}",
+                "comments": comments_res,
+            }
+
+    edits_res: dict[str, Any] = {"status": "skipped", "applied_count": 0}
+    if filtered_edits:
+        edits_res = propose_doc_suggested_edits(
+            document_id,
+            filtered_edits,
+            tool_context=tool_context,
+            token_source=token_source,
+            quota_project=quota_project,
+            transport=transport,
+        )
+        if edits_res.get("status") != "success":
+            return {
+                "status": "error",
+                "message": f"propose_doc_suggested_edits failed: {edits_res.get('message')}",
+                "comments": comments_res,
+                "edits": edits_res,
+            }
+
+    overclaimed_cnt = sum(
+        1
+        for f in active_findings
+        if f.get("defect_type") == "overclaimed_detection_coverage"
+    )
+    log_source_cnt = sum(
+        1
+        for f in active_findings
+        if f.get("defect_type") == "tdo_log_source_mismatch"
+    )
+    synth_cnt = sum(
+        1
+        for f in active_findings
+        if f.get("defect_type") == "uncovered_tdo_rule_synthesis"
+    )
+
+    return {
+        "status": "success",
+        "document_id": document_id,
+        "title": read_res.get("title", ""),
+        "coverage_matrix": coverage_matrix,
+        "total_tdo_count": int(coverage_matrix["total_tdo_count"]),
+        "covered_tdo_count": int(coverage_matrix["covered_tdo_count"]),
+        "uncovered_tdo_count": int(coverage_matrix["uncovered_tdo_count"]),
+        "coverage_percentage": float(coverage_matrix["coverage_percentage"]),
+        "covered_tdo_ids": list(coverage_matrix["covered_tdo_ids"]),
+        "uncovered_tdo_ids": list(coverage_matrix["uncovered_tdo_ids"]),
+        "finding_count": len(active_findings),
+        "tdo_findings_count": len(active_findings),
+        "overclaimed_coverage_count": overclaimed_cnt,
+        "tdo_log_source_mismatch_count": log_source_cnt,
+        "uncovered_tdo_rule_synthesis_count": synth_cnt,
+        "compiler_verified_count": int(
+            siem_verification.get("compiler_verified_count", 0) or 0
+        ),
+        "retrohunt_verified_count": int(
+            siem_verification.get("retrohunt_verified_count", 0) or 0
+        ),
+        "siem_tdo_results": siem_tdo_results,
+        "siem_verification": siem_verification,
+        "skipped_existing_suggestion_count": skipped_existing_suggestion_count,
+        "findings": active_findings,
+        "comments": comments_res,
+        "edits": edits_res,
+        "comments_inserted": int(comments_res.get("inserted_count", 0) or 0),
+        "edits_proposed": int(edits_res.get("applied_count", 0) or 0),
+    }
+
 

@@ -8799,3 +8799,451 @@ def test_audit_and_redline_claim_evidence_and_campaign_in_doc_end_to_end_and_ide
     assert "run_live_siem_check" in props
     assert "tool_context" not in props
 
+
+def test_build_detection_coverage_gap_matrix_identifies_covered_and_uncovered_tdos() -> None:
+    """Verifies that build_detection_coverage_gap_matrix cross-references in-scope SOAR
+    campaign TDOs against YARA-L 2.0 rules present in the document."""
+    from manager.tools.docs_review_tools import build_detection_coverage_gap_matrix
+
+    doc_text = (
+        "# Incident Postmortem & Detection Coverage Matrix\n"
+        "Scope: SOAR Case 33278, Case 33287, Case 33269, and Case 33280.\n\n"
+        "rule tdo_gcp_iam_setiampolicy_case_33278 {\n"
+        "  meta:\n"
+        '    author = "SecOps Autonomous Agent"\n'
+        '    mitre_attack_technique = "T1098.003"\n'
+        '    runbook_skill = "compromised-user-account-response"\n'
+        "  events:\n"
+        '    $e.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $e.metadata.product_event_type = "SetIamPolicy"\n'
+        '    $e.target.resource.name = "projects/base-production"\n'
+        '    $e.principal.ip = "104.198.226.161"\n'
+        "  condition:\n"
+        "    $e\n"
+        "}\n\n"
+        "rule tdo_wins_d19_powershell_empire_case_33269 {\n"
+        "  meta:\n"
+        '    author = "SecOps Autonomous Agent"\n'
+        '    mitre_attack_technique = "T1059.001"\n'
+        '    runbook_skill = "malware-incident-response"\n'
+        "  events:\n"
+        '    $e.metadata.event_type = "PROCESS_LAUNCH"\n'
+        '    $e.principal.hostname = "wins-d19"\n'
+        "    re.regex($e.target.process.command_line, `.*powershell.*-(e|en|enc|encodedcommand).*`) nocase\n"
+        "  condition:\n"
+        "    $e\n"
+        "}\n"
+    )
+    matrix = build_detection_coverage_gap_matrix(doc_text)
+    assert matrix["total_tdo_count"] == 5
+    assert matrix["covered_tdo_count"] == 2
+    assert matrix["uncovered_tdo_count"] == 3
+    assert matrix["coverage_percentage"] == 40.0
+    assert matrix["covered_tdo_ids"] == [
+        "TDO-GCP-IAM-SETIAMPOLICY",
+        "TDO-WINS-D19-POWERSHELL-EMPIRE",
+    ]
+    assert matrix["uncovered_tdo_ids"] == [
+        "TDO-GCP-CLOUDSQL-DELETE",
+        "TDO-WORKSPACE-SAML-2SV-TAMPER",
+        "TDO-WINS-D19-DERPSERVICE-PERSISTENCE",
+    ]
+    assert "| TDO ID | Campaign | SOAR Cases | MITRE ATT&CK | Required Log Type | Coverage Status | Covering Rules | Runbook Skill |" in matrix["coverage_matrix_markdown"]
+    assert "| `TDO-GCP-IAM-SETIAMPOLICY` |" in matrix["coverage_matrix_markdown"]
+    assert "| `TDO-GCP-CLOUDSQL-DELETE` |" in matrix["coverage_matrix_markdown"]
+    assert "`UNCOVERED_GAP`" in matrix["coverage_matrix_markdown"]
+
+
+def test_find_detection_coverage_and_tdo_spans_flags_overclaimed_coverage_and_wrong_log_types() -> None:
+    """Verifies overclaimed_detection_coverage and tdo_log_source_mismatch span detection
+    with zero false positives on covered TDOs."""
+    from manager.tools.docs_review_tools import (
+        _build_utf16_index_map,
+        find_detection_coverage_and_tdo_spans,
+    )
+
+    doc_text = (
+        "# Detection Coverage Review (SOAR Case 33278, Case 33287, Case 33269, Case 33280)\n"
+        "Executive Summary: We have achieved 100% detection coverage across all campaign techniques.\n\n"
+        "- TDO-GCP-IAM-SETIAMPOLICY (MITRE T1098.003): Log Source: GCP_CLOUDAUDIT | Coverage Status: COVERED by rule tdo_gcp_iam_setiampolicy_case_33278.\n"
+        "- TDO-GCP-CLOUDSQL-DELETE (MITRE T1485): Cloud SQL prod-customers deletion. Log Source: AWS_CLOUDTRAIL | Coverage Status: COVERED | Action Item: Write YARA-L 2.0 rule for cloudsql.instances.delete.\n"
+        "- TDO-WORKSPACE-SAML-2SV-TAMPER (MITRE T1556.006): SAML2 IdP deletion and 2SV weakening. Log Source: GCP_CLOUDAUDIT | Action Item: Implement YARA-L 2.0 rule for DELETE_SAML2_SERVICE_PROVIDER_CONFIG.\n\n"
+        "rule tdo_gcp_iam_setiampolicy_case_33278 {\n"
+        "  meta:\n"
+        '    author = "SecOps Autonomous Agent"\n'
+        '    mitre_attack_technique = "T1098.003"\n'
+        '    runbook_skill = "compromised-user-account-response"\n'
+        "  events:\n"
+        '    $e.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $e.metadata.product_event_type = "SetIamPolicy"\n'
+        '    $e.target.resource.name = "projects/base-production"\n'
+        '    $e.principal.ip = "104.198.226.161"\n'
+        "  condition:\n"
+        "    $e\n"
+        "}\n\n"
+        "rule tdo_wins_d19_powershell_empire_case_33269 {\n"
+        "  meta:\n"
+        '    author = "SecOps Autonomous Agent"\n'
+        '    mitre_attack_technique = "T1059.001"\n'
+        '    runbook_skill = "malware-incident-response"\n'
+        "  events:\n"
+        '    $e.metadata.event_type = "PROCESS_LAUNCH"\n'
+        '    $e.principal.hostname = "wins-d19"\n'
+        "    re.regex($e.target.process.command_line, `.*powershell.*-(e|en|enc|encodedcommand).*`) nocase\n"
+        "  condition:\n"
+        "    $e\n"
+        "}\n"
+    )
+    idx_map = _build_utf16_index_map(doc_text)
+    comments, edits, findings = find_detection_coverage_and_tdo_spans(
+        doc_text, idx_map, synthesize_missing_tdo_rules=False
+    )
+
+    overclaimed = [f for f in findings if f["defect_type"] == "overclaimed_detection_coverage"]
+    assert len(overclaimed) == 2
+    assert overclaimed[0]["quote"] == "100% detection coverage across all campaign techniques"
+    assert "Coverage Status: PARTIAL (2/5 TDOs covered, 40.0%)" in overclaimed[0]["replacement"]
+    assert overclaimed[1]["tdo_id"] == "TDO-GCP-CLOUDSQL-DELETE"
+    assert overclaimed[1]["quote"] == "Coverage Status: COVERED"
+    assert overclaimed[1]["replacement"] == "Coverage Status: UNCOVERED GAP (TDO-GCP-CLOUDSQL-DELETE / T1485)"
+
+    log_mismatches = [f for f in findings if f["defect_type"] == "tdo_log_source_mismatch"]
+    assert len(log_mismatches) == 2
+    assert [(f["tdo_id"], f["quote"], f["replacement"]) for f in log_mismatches] == [
+        ("TDO-GCP-CLOUDSQL-DELETE", "AWS_CLOUDTRAIL", "GCP_CLOUDAUDIT"),
+        ("TDO-WORKSPACE-SAML-2SV-TAMPER", "GCP_CLOUDAUDIT", "WORKSPACE_ACTIVITY"),
+    ]
+
+    # Zero false positives on covered TDO-GCP-IAM-SETIAMPOLICY
+    assert all(f["tdo_id"] != "TDO-GCP-IAM-SETIAMPOLICY" for f in findings)
+
+    # Non-overlapping edit spans
+    sorted_edits = sorted(edits, key=lambda e: e["start_index"])
+    for prev_e, next_e in zip(sorted_edits, sorted_edits[1:]):
+        assert prev_e["end_index"] <= next_e["start_index"]
+
+
+def test_find_detection_coverage_and_tdo_spans_synthesizes_compiler_valid_yaral2_rules() -> None:
+    """Verifies that uncovered_tdo_rule_synthesis stages complete YARA-L 2.0 rules with
+    zero static or meta lint defects."""
+    from manager.tools.docs_review_tools import (
+        _build_utf16_index_map,
+        find_detection_coverage_and_tdo_spans,
+        find_yaral2_rule_spans,
+    )
+
+    doc_text = (
+        "# Detection Coverage Matrix (Case 33278, Case 33287, Case 33269, Case 33280)\n"
+        "- TDO-GCP-CLOUDSQL-DELETE (MITRE T1485): Log Source: AWS_CLOUDTRAIL | Coverage Status: COVERED | Action Item: Write YARA-L 2.0 rule for cloudsql.instances.delete.\n"
+        "- TDO-WORKSPACE-SAML-2SV-TAMPER (MITRE T1556.006): Log Source: GCP_CLOUDAUDIT | Action Item: Write YARA-L 2.0 rule for SAML2 IdP deletion and 2SV weakening.\n"
+        "- TDO-WINS-D19-DERPSERVICE-PERSISTENCE (MITRE T1543.003): Action Item: Write YARA-L 2.0 rule for DERPService.exe service persistence.\n"
+    )
+    idx_map = _build_utf16_index_map(doc_text)
+    comments, edits, findings = find_detection_coverage_and_tdo_spans(
+        doc_text, idx_map, synthesize_missing_tdo_rules=True
+    )
+
+    synth_findings = [
+        f for f in findings if f["defect_type"] == "uncovered_tdo_rule_synthesis"
+    ]
+    assert [f["tdo_id"] for f in synth_findings] == [
+        "TDO-GCP-CLOUDSQL-DELETE",
+        "TDO-WORKSPACE-SAML-2SV-TAMPER",
+        "TDO-WINS-D19-DERPSERVICE-PERSISTENCE",
+    ]
+    for sf in synth_findings:
+        rule_text = sf["synthesized_rule_text"]
+        assert f"rule {sf['synthesized_rule_name']} {{" in rule_text
+        assert "meta:" in rule_text
+        assert "mitre_attack_technique =" in rule_text
+        assert "mitre_attack_tactic =" in rule_text
+        assert "mitre_attack_url =" in rule_text
+        assert "severity =" in rule_text
+        assert "runbook_skill =" in rule_text
+        assert "events:" in rule_text
+        assert "outcome:" in rule_text
+        assert "$risk_score = max(" in rule_text
+        assert "condition:\n    $e" in rule_text
+
+        rule_idx = _build_utf16_index_map(rule_text)
+        _, _, rule_defects = find_yaral2_rule_spans(
+            rule_text,
+            rule_idx,
+            verify_meta_mitre=True,
+            synthesize_missing_meta=True,
+            verify_meta_runbook=True,
+            verify_meta_severity=True,
+            synthesize_missing_runbook=True,
+        )
+        assert rule_defects == []
+
+    # Verify non-overlapping spans even when a single TDO line has 3 defects
+    sorted_edits = sorted(edits, key=lambda e: e["start_index"])
+    for prev_e, next_e in zip(sorted_edits, sorted_edits[1:]):
+        assert prev_e["end_index"] <= next_e["start_index"]
+
+
+def test_analyze_and_redline_detection_coverage_gaps_in_doc_end_to_end_and_idempotency() -> None:
+    """Verifies end-to-end analyze_and_redline_detection_coverage_gaps_in_doc execution,
+    SIEM compilation + retrohunt enrichment, 100% post-accept coverage, Pass 2 idempotency,
+    and ADK FunctionTool schema declaration."""
+    import json
+    import httpx
+    from google.adk.tools.function_tool import FunctionTool
+    from skills.drive_registry import StaticTokenSource
+    from manager.tools.docs_review_tools import (
+        analyze_and_redline_detection_coverage_gaps_in_doc,
+        build_detection_coverage_gap_matrix,
+    )
+    from manager.tools import tools as tools_module
+
+    doc_text = (
+        "# Multi-Campaign Incident Postmortem & Detection Coverage Matrix\n"
+        "Campaign Scope: SOAR Case 33278, Case 33287, Case 33269, and Case 33280.\n"
+        "Executive Coverage Claim: We have achieved 100% detection coverage across all campaign techniques.\n\n"
+        "## Existing YARA-L 2.0 Rules\n"
+        "rule tdo_gcp_iam_setiampolicy_case_33278 {\n"
+        "  meta:\n"
+        '    author = "SecOps Autonomous Agent"\n'
+        '    mitre_attack_technique = "T1098.003"\n'
+        '    runbook_skill = "compromised-user-account-response"\n'
+        "  events:\n"
+        '    $e.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $e.metadata.product_event_type = "SetIamPolicy"\n'
+        '    $e.target.resource.name = "projects/base-production"\n'
+        '    $e.principal.ip = "104.198.226.161"\n'
+        "  condition:\n"
+        "    $e\n"
+        "}\n\n"
+        "rule tdo_wins_d19_powershell_empire_case_33269 {\n"
+        "  meta:\n"
+        '    author = "SecOps Autonomous Agent"\n'
+        '    mitre_attack_technique = "T1059.001"\n'
+        '    runbook_skill = "malware-incident-response"\n'
+        "  events:\n"
+        '    $e.metadata.event_type = "PROCESS_LAUNCH"\n'
+        '    $e.principal.hostname = "wins-d19"\n'
+        "    re.regex($e.target.process.command_line, `.*powershell.*-(e|en|enc|encodedcommand).*`) nocase\n"
+        "  condition:\n"
+        "    $e\n"
+        "}\n\n"
+        "## Threat Detection Opportunities (TDOs)\n"
+        "- TDO-GCP-IAM-SETIAMPOLICY (MITRE T1098.003): Log Source: GCP_CLOUDAUDIT | Coverage Status: COVERED.\n"
+        "- TDO-GCP-CLOUDSQL-DELETE (MITRE T1485): Cloud SQL prod-customers deletion. Log Source: AWS_CLOUDTRAIL | Coverage Status: COVERED | Action Item: Write YARA-L 2.0 rule for cloudsql.instances.delete.\n"
+        "- TDO-WORKSPACE-SAML-2SV-TAMPER (MITRE T1556.006): SAML2 IdP deletion and 2SV weakening. Log Source: GCP_CLOUDAUDIT | Action Item: Write YARA-L 2.0 rule for DELETE_SAML2_SERVICE_PROVIDER_CONFIG.\n"
+        "- TDO-WINS-D19-POWERSHELL-EMPIRE (MITRE T1059.001): Log Source: WINDOWS_SYSMON | Coverage Status: COVERED.\n"
+        "- TDO-WINS-D19-DERPSERVICE-PERSISTENCE (MITRE T1543.003): Windows service persistence on wins-d19. Action Item: Write YARA-L 2.0 rule for DERPService.exe.\n"
+    )
+
+    mock_doc = {
+        "documentId": "doc-h8-e2e",
+        "title": "Cycle 17 H8 E2E Test",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": len(doc_text) + 1,
+                                "textRun": {"content": doc_text},
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+    }
+    batch_calls: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=mock_doc)
+        payload = json.loads(request.content.decode("utf-8"))
+        batch_calls.append(payload)
+        reqs = payload.get("requests", [])
+        if reqs and "insertComment" in reqs[0]:
+            return httpx.Response(
+                200,
+                json={
+                    "replies": [
+                        {"insertComment": {"commentId": f"c-h8-{i+1}"}}
+                        for i in range(len(reqs))
+                    ]
+                },
+            )
+        return httpx.Response(200, json={"replies": [{} for _ in reqs]})
+
+    def fake_validate(rule_text: str) -> dict[str, Any]:
+        return {"status": "success", "valid": True, "message": "SUCCESS"}
+
+    def fake_search(
+        query: str, start_time: str, end_time: str, max_events: int
+    ) -> dict[str, Any]:
+        return {"status": "success", "events_matched": 3, "sample_events": []}
+
+    res1 = analyze_and_redline_detection_coverage_gaps_in_doc(
+        "doc-h8-e2e",
+        run_live_siem_check=True,
+        synthesize_missing_tdo_rules=True,
+        siem_validate_fn=fake_validate,
+        siem_search_fn=fake_search,
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(handler),
+    )
+    assert res1["status"] == "success"
+    assert res1["finding_count"] == 7
+    assert res1["coverage_matrix"]["total_tdo_count"] == 5
+    assert res1["coverage_matrix"]["covered_tdo_count"] == 2
+    assert res1["coverage_matrix"]["uncovered_tdo_count"] == 3
+    assert res1["coverage_matrix"]["coverage_percentage"] == 40.0
+    assert len(res1["siem_tdo_results"]) == 3
+    assert all(r["compiler_verified"] is True for r in res1["siem_tdo_results"].values())
+    assert all(r["retrohunt_event_count"] == 3 for r in res1["siem_tdo_results"].values())
+    assert res1["comments"]["inserted_count"] == 7
+    assert res1["edits"]["applied_count"] == 7
+    assert len(batch_calls) == 2
+
+    comment_bodies = [
+        req["insertComment"]["content"] for req in batch_calls[0]["requests"]
+    ]
+    assert any(
+        "[Chronicle SIEM Verified: validate_rule=SUCCESS" in body
+        for body in comment_bodies
+    )
+
+    delete_starts = [
+        req["deleteContentRange"]["range"]["startIndex"]
+        for req in batch_calls[1]["requests"]
+        if "deleteContentRange" in req
+    ]
+    assert delete_starts == sorted(delete_starts, reverse=True)
+
+    # Simulate accepting all 7 edits on doc_text and verify 100% TDO coverage
+    accepted_text = doc_text
+    for f in sorted(res1["findings"], key=lambda item: item["start_index"], reverse=True):
+        s_pos = f["start_index"] - 1
+        e_pos = f["end_index"] - 1
+        accepted_text = accepted_text[:s_pos] + f["replacement"] + accepted_text[e_pos:]
+    post_matrix = build_detection_coverage_gap_matrix(accepted_text)
+    assert post_matrix["total_tdo_count"] == 5
+    assert post_matrix["covered_tdo_count"] == 5
+    assert post_matrix["uncovered_tdo_count"] == 0
+    assert post_matrix["coverage_percentage"] == 100.0
+
+    # Pass 2 idempotency when suggestions are already pending
+    mock_doc_pass2 = {
+        "documentId": "doc-h8-e2e",
+        "title": "Cycle 17 H8 E2E Test",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": len(doc_text) + 1,
+                                "textRun": {
+                                    "content": doc_text,
+                                    "suggestedDeletionIds": ["suggest.h8.existing"],
+                                },
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+    }
+    res2 = analyze_and_redline_detection_coverage_gaps_in_doc(
+        "doc-h8-e2e",
+        run_live_siem_check=True,
+        synthesize_missing_tdo_rules=True,
+        siem_validate_fn=fake_validate,
+        siem_search_fn=fake_search,
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(
+            lambda req: httpx.Response(200, json=mock_doc_pass2)
+        ),
+    )
+    assert res2["finding_count"] == 0
+    assert res2["skipped_existing_suggestion_count"] == 7
+    assert res2["comments"]["inserted_count"] == 0
+    assert res2["edits"]["applied_count"] == 0
+
+    # Verify ADK FunctionTool schema declaration
+    ft = FunctionTool(
+        tools_module.analyze_and_redline_detection_coverage_gaps_in_doc
+    )
+    decl = ft._get_declaration()
+    assert decl.name == "analyze_and_redline_detection_coverage_gaps_in_doc"
+    props = (decl.parameters_json_schema or {}).get("properties", {})
+    assert "document_id" in props
+    assert "run_live_siem_check" in props
+    assert "synthesize_missing_tdo_rules" in props
+    assert "tool_context" not in props
+
+
+def test_review_google_doc_with_stage_a_includes_tdo_coverage_stage_a() -> None:
+    """Verifies that review_google_doc_with_stage_a(..., include_tdo_coverage_stage_a=True)
+    populates stage_a_tdo_coverage_count without overlapping spans."""
+    import json
+    import httpx
+    from skills.drive_registry import StaticTokenSource
+    from manager.tools.docs_review_tools import review_google_doc_with_stage_a
+
+    doc_text = (
+        "# Detection Coverage Review (SOAR Case 33278)\n"
+        "Executive Summary: We have achieved 100% detection coverage across all campaign techniques.\n"
+        "- TDO-GCP-CLOUDSQL-DELETE (MITRE T1485): Log Source: AWS_CLOUDTRAIL | Action Item: Write YARA-L 2.0 rule for cloudsql.instances.delete.\n\n"
+        "rule tdo_gcp_iam_setiampolicy_case_33278 {\n"
+        "  meta:\n"
+        '    author = "SecOps Autonomous Agent"\n'
+        '    mitre_attack_technique = "T1098.003"\n'
+        '    runbook_skill = "compromised-user-account-response"\n'
+        "  events:\n"
+        '    $e.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $e.metadata.product_event_type = "SetIamPolicy"\n'
+        '    $e.target.resource.name = "projects/base-production"\n'
+        '    $e.principal.ip = "104.198.226.161"\n'
+        "  condition:\n"
+        "    $e\n"
+        "}\n"
+    )
+    mock_doc = {
+        "documentId": "doc-h8-stage-a",
+        "title": "Cycle 17 H8 Stage A Test",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": len(doc_text) + 1,
+                                "textRun": {"content": doc_text},
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=mock_doc)
+        payload = json.loads(request.content.decode("utf-8"))
+        reqs = payload.get("requests", [])
+        return httpx.Response(200, json={"replies": [{} for _ in reqs]})
+
+    res = review_google_doc_with_stage_a(
+        "doc-h8-stage-a",
+        include_tdo_coverage_stage_a=True,
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(handler),
+    )
+    assert res["status"] == "success"
+    assert res["stage_a_tdo_coverage_count"] == 3
+    assert res["edits"]["applied_count"] == 3
+
+
