@@ -28,6 +28,7 @@ New Google Docs Comments & Suggested Edits API*):
 
 from __future__ import annotations
 
+import base64
 import difflib
 import hashlib
 import ipaddress
@@ -72,10 +73,25 @@ GOOGLE_DOC_MIME_TYPE = "application/vnd.google-apps.document"
 MARKDOWN_MIME_TYPE = "text/markdown"
 DEFAULT_DOCS_TIMEOUT_SECONDS = 30.0
 
+DEFAULT_GCP_SA_DISABLE_DOC_URL = (
+    "https://docs.cloud.google.com/iam/docs/service-accounts-disable-enable"
+)
+DEFAULT_GCP_SA_KEYS_DELETE_DOC_URL = (
+    "https://docs.cloud.google.com/iam/docs/keys-create-delete"
+)
+DEFAULT_WORKSPACE_USER_SUSPEND_DOC_URL = (
+    "https://support.google.com/a/answer/33312"
+)
+DEFAULT_AWS_ACCESS_KEY_ROTATE_DOC_URL = (
+    "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html"
+)
+
 DEFAULT_TRUSTED_DOC_DOMAINS: tuple[str, ...] = (
     "docs.cloud.google.com",
     "cloud.google.com",
     "console.cloud.google.com",
+    "support.google.com",
+    "docs.aws.amazon.com",
     "attack.mitre.org",
     "nvd.nist.gov",
     "cisa.gov",
@@ -2178,7 +2194,14 @@ def verify_udm_query_with_siem(
             except TypeError:
                 raw_r = siem_search_fn(q_str)
         else:
-            from .tools import execute_mcp_tool
+            from .tools import (
+                execute_mcp_tool,
+                global_mcp_registry,
+                init_shared_mcp_tools,
+            )
+
+            if not getattr(global_mcp_registry, "_server_map", None):
+                init_shared_mcp_tools()
 
             raw_r = execute_mcp_tool(
                 "secops-mcp_search_udm",
@@ -13852,6 +13875,7 @@ def review_google_doc_with_stage_a(
     tool_context: Any = None,
     *,
     include_telemetry_hazard_stage_a: bool = True,
+    include_credential_containment_stage_a: bool = True,
     include_udm_stage_a: bool = True,
     include_yaral2_stage_a: bool = True,
     include_mitre_cve_stage_a: bool = True,
@@ -13863,13 +13887,16 @@ def review_google_doc_with_stage_a(
 
     1. Calls :func:`read_google_doc` to populate the 1-based UTF-16 index map
        and ``pending_suggestion_spans``.
-    2. Runs Stage A (:func:`find_telemetry_hazard_spans` when
+    2. Runs Stage A (:func:`find_leaked_credential_containment_spans` when
+       ``include_credential_containment_stage_a=True``,
+       :func:`find_telemetry_hazard_spans` when
        ``include_telemetry_hazard_stage_a=True``,
        :func:`find_deterministic_indicator_spans`,
        :func:`find_udm_field_spans` when ``include_udm_stage_a=True``,
        :func:`find_yaral2_rule_spans` when ``include_yaral2_stage_a=True``, and
        :func:`find_mitre_and_cve_spans` when ``include_mitre_cve_stage_a=True``)
-       to locate unredacted telemetry payloads/secrets, live untrusted URLs,
+       to locate leaked credentials, destructive/ineffective containment CLIs,
+       unredacted telemetry payloads/secrets, live untrusted URLs,
        standalone Chronicle UDM field defects, YARA-L 2.0 rule defects, and
        MITRE ATT&CK / CVE defects by numeric UTF-16 span without echoing them
        through an LLM.
@@ -13918,6 +13945,30 @@ def review_google_doc_with_stage_a(
         for item in stage_b_edits
         if (sp := _resolve_item_span(plain_text, index_map, item)) is not None
     ]
+
+    stage_a_credential_containment_count = 0
+    deduped_credential_containment_comments: list[dict[str, Any]] = []
+    deduped_credential_containment_edits: list[dict[str, Any]] = []
+    if include_credential_containment_stage_a:
+        cc_comments, cc_edits, cc_findings = (
+            find_leaked_credential_containment_spans(
+                plain_text,
+                index_map,
+                redact_unredacted_credentials=include_telemetry_hazard_stage_a,
+                synthesize_missing_revocation=False,
+            )
+        )
+        stage_a_credential_containment_count = len(cc_findings)
+        for c_item in cc_comments:
+            c_span = (c_item["start_index"], c_item["end_index"])
+            if not any(_spans_overlap(c_span, ex) for ex in existing_comment_spans):
+                deduped_credential_containment_comments.append(c_item)
+                existing_comment_spans.append(c_span)
+        for e_item in cc_edits:
+            e_span = (e_item["start_index"], e_item["end_index"])
+            if not any(_spans_overlap(e_span, ex) for ex in existing_edit_spans):
+                deduped_credential_containment_edits.append(e_item)
+                existing_edit_spans.append(e_span)
 
     stage_a_telemetry_hazard_count = 0
     deduped_telemetry_comments: list[dict[str, Any]] = []
@@ -14027,7 +14078,8 @@ def review_google_doc_with_stage_a(
                 existing_edit_spans.append(e_span)
 
     raw_all_comments = (
-        deduped_telemetry_comments
+        deduped_credential_containment_comments
+        + deduped_telemetry_comments
         + stage_a_comments
         + deduped_udm_comments
         + deduped_yaral2_comments
@@ -14035,7 +14087,8 @@ def review_google_doc_with_stage_a(
         + stage_b_comments
     )
     raw_all_edits = (
-        deduped_telemetry_edits
+        deduped_credential_containment_edits
+        + deduped_telemetry_edits
         + stage_a_edits
         + deduped_udm_edits
         + deduped_yaral2_edits
@@ -14103,6 +14156,7 @@ def review_google_doc_with_stage_a(
         "document_id": document_id,
         "title": read_res.get("title", ""),
         "char_count": read_res.get("char_count", 0),
+        "stage_a_credential_containment_count": stage_a_credential_containment_count,
         "stage_a_telemetry_hazard_count": stage_a_telemetry_hazard_count,
         "stage_a_url_count": len(stage_a_edits),
         "stage_a_udm_count": stage_a_udm_count,
@@ -14124,6 +14178,7 @@ def stage_runbook_update_as_google_doc(
     folder_id: str | None = None,
     tool_context: Any = None,
     *,
+    include_credential_containment_stage_a: bool = True,
     skill_content_override: str | None = None,
     client: DriveMcpClient | None = None,
     token_source: TokenSource | None = None,
@@ -14175,6 +14230,7 @@ def stage_runbook_update_as_google_doc(
         semantic_comments=semantic_comments,
         semantic_edits=semantic_edits,
         tool_context=tool_context,
+        include_credential_containment_stage_a=include_credential_containment_stage_a,
         token_source=token_source,
         quota_project=quota_project,
         transport=transport,
@@ -14187,6 +14243,9 @@ def stage_runbook_update_as_google_doc(
         "title": doc_title,
         "viewUrl": created.get("viewUrl", f"https://docs.google.com/document/d/{doc_id}/edit"),
         "char_count": review_res.get("char_count", 0),
+        "stage_a_credential_containment_count": review_res.get(
+            "stage_a_credential_containment_count", 0
+        ),
         "stage_a_telemetry_hazard_count": review_res.get("stage_a_telemetry_hazard_count", 0),
         "stage_a_url_count": review_res.get("stage_a_url_count", 0),
         "stage_a_udm_count": review_res.get("stage_a_udm_count", 0),
@@ -15009,4 +15068,1357 @@ def export_accepted_doc_to_markdown(
     }
 
 
+# ---------------------------------------------------------------------------
+# Cycle 15 (H13): Automated Leaked Credential Blast-Radius Triage, Safe JWT
+# Claim Extraction & Emergency Revocation Playbook Stager in Google Docs
+# ---------------------------------------------------------------------------
 
+_SAFE_JWT_HEADER_KEYS: tuple[str, ...] = ("alg", "kid", "typ")
+_SAFE_JWT_PAYLOAD_KEYS: tuple[str, ...] = (
+    "sub",
+    "email",
+    "iss",
+    "aud",
+    "scope",
+    "scp",
+    "client_id",
+    "azp",
+    "hd",
+    "exp",
+    "iat",
+    "nbf",
+    "jti",
+    "name",
+    "service_account",
+    "project_id",
+)
+
+_REDACTED_CREDENTIAL_TOKEN_RE = re.compile(
+    r"<(REDACTED_GCP_TOKEN|REDACTED_JWT|REDACTED_AWS_KEY|REDACTED_PRIVATE_KEY)"
+    r":(?:len=(\d+),)?sha256=([0-9a-fA-F]{6,64})>"
+)
+_REDACTED_LABEL_TO_CREDENTIAL_TYPE: dict[str, tuple[str, str, str]] = {
+    "REDACTED_GCP_TOKEN": (
+        "gcp_oauth_token",
+        "T1528",
+        "Google Cloud OAuth 2.0 ya29.* bearer access token",
+    ),
+    "REDACTED_JWT": (
+        "jwt_bearer_token",
+        "T1528",
+        "JSON Web Token (JWT) bearer token",
+    ),
+    "REDACTED_AWS_KEY": (
+        "aws_access_key_id",
+        "T1552.001",
+        "AWS IAM Access Key ID (AKIA*/ASIA*)",
+    ),
+    "REDACTED_PRIVATE_KEY": (
+        "private_key_block",
+        "T1552.004",
+        "PEM/OpenSSH private key block",
+    ),
+}
+
+_GCP_SA_EMAIL_RE = re.compile(
+    r"\b([A-Za-z0-9._+-]+@[A-Za-z0-9.-]*gserviceaccount\.com)\b"
+)
+_GENERIC_EMAIL_RE = re.compile(
+    r"\b([A-Za-z0-9._+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})\b"
+)
+_IPV4_CANDIDATE_RE = re.compile(
+    r"\b((?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3})\b"
+)
+_GCP_PROJECT_PATH_RE = re.compile(r"\bprojects/([a-z][a-z0-9-]{3,29})\b")
+_AWS_KEY_ID_RE = re.compile(r"\b((?:AKIA|ASIA)[0-9A-Z]{16})\b")
+
+_DESTRUCTIVE_SA_DELETE_RE = re.compile(
+    r"\bgcloud[ \t]+iam[ \t]+service-accounts[ \t]+delete[ \t]+"
+    r"([A-Za-z0-9._+-]+@[A-Za-z0-9.-]*gserviceaccount\.com)"
+    r"(?:[ \t]+--quiet|[ \t]+-q)?\b"
+)
+_LOCAL_GCLOUD_AUTH_REVOKE_RE = re.compile(
+    r"\bgcloud[ \t]+auth[ \t]+revoke"
+    r"(?:[ \t]+(--all|[A-Za-z0-9._+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}))?\b"
+)
+_DESTRUCTIVE_GAM_USER_DELETE_RE = re.compile(
+    r"\bgam[ \t]+user[ \t]+([A-Za-z0-9._+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})[ \t]+delete\b"
+)
+_DESTRUCTIVE_AWS_KEY_DELETE_RE = re.compile(
+    r"\baws[ \t]+iam[ \t]+delete-access-key"
+    r"(?:[ \t]+--user-name[ \t]+([A-Za-z0-9_+=,.@-]+))?"
+    r"[ \t]+--access-key-id[ \t]+([A-Za-z0-9_<>{}:=-]+)"
+    r"(?:[ \t]+--user-name[ \t]+([A-Za-z0-9_+=,.@-]+))?"
+)
+_AWS_IAM_KEY_CLI_SPAN_RE = re.compile(
+    r"\baws[ \t]+iam[ \t]+(?:delete-access-key|update-access-key)\b[^\r\n`]*"
+)
+
+
+def _b64url_decode_json_object(segment: str) -> dict[str, Any]:
+    """Deterministically base64url-decodes a JWT segment into a JSON dict if valid."""
+    cleaned = str(segment or "").strip()
+    if not cleaned or not re.fullmatch(r"[A-Za-z0-9_-]+", cleaned):
+        return {}
+    padded = cleaned + ("=" * ((4 - len(cleaned) % 4) % 4))
+    try:
+        raw_bytes = base64.urlsafe_b64decode(padded.encode("ascii"))
+        decoded_str = raw_bytes.decode("utf-8", errors="strict")
+        parsed = json.loads(decoded_str)
+        return parsed if isinstance(parsed, dict) else {}
+    except Exception:
+        return {}
+
+
+def decode_jwt_safe_claims(token: str) -> dict[str, Any]:
+    """Deterministically decodes non-secret JWT header and payload claims in pure Python.
+
+    Extracts only allowlisted non-secret header metadata (``alg``, ``kid``, ``typ``)
+    and payload identity/scope claims (``sub``, ``email``, ``iss``, ``aud``,
+    ``scope``, ``client_id``, ``azp``, ``hd``, ``exp``, ``iat``) while redacting
+    and never returning the cryptographic signature segment or the raw JWT string.
+    """
+    cleaned = str(token or "").strip().strip("`'\"")
+    if cleaned.lower().startswith("bearer "):
+        cleaned = cleaned[7:].strip()
+    parts = cleaned.split(".")
+    if len(parts) < 2 or not parts[0].startswith("eyJ"):
+        return {
+            "valid_jwt": False,
+            "header": {},
+            "payload": {},
+            "signature_redacted": True,
+        }
+
+    raw_header = _b64url_decode_json_object(parts[0])
+    raw_payload = _b64url_decode_json_object(parts[1])
+    if not raw_header and not raw_payload:
+        return {
+            "valid_jwt": False,
+            "header": {},
+            "payload": {},
+            "signature_redacted": True,
+        }
+
+    safe_header: dict[str, Any] = {}
+    for k in _SAFE_JWT_HEADER_KEYS:
+        if k in raw_header and raw_header[k] is not None:
+            val = raw_header[k]
+            safe_header[k] = (
+                sanitize_telemetry_text(str(val))
+                if isinstance(val, str)
+                else val
+            )
+
+    safe_payload: dict[str, Any] = {}
+    for k in _SAFE_JWT_PAYLOAD_KEYS:
+        if k in raw_payload and raw_payload[k] is not None:
+            val = raw_payload[k]
+            if isinstance(val, str):
+                safe_payload[k] = sanitize_telemetry_text(val)
+            elif isinstance(val, (int, float, bool)):
+                safe_payload[k] = val
+            elif isinstance(val, list):
+                safe_payload[k] = [
+                    sanitize_telemetry_text(str(x)) for x in val[:10]
+                ]
+
+    email_candidate = ""
+    for candidate_key in ("email", "service_account", "sub"):
+        cand = str(safe_payload.get(candidate_key) or "").strip()
+        if "@" in cand and _GENERIC_EMAIL_RE.fullmatch(cand):
+            email_candidate = cand
+            break
+
+    sa_email = (
+        email_candidate
+        if email_candidate.endswith(".gserviceaccount.com")
+        else ""
+    )
+
+    result: dict[str, Any] = {
+        "valid_jwt": True,
+        "header": safe_header,
+        "payload": safe_payload,
+        "signature_redacted": True,
+        "alg": str(safe_header.get("alg") or ""),
+        "kid": str(safe_header.get("kid") or ""),
+        "typ": str(safe_header.get("typ") or ""),
+        "sub": str(safe_payload.get("sub") or ""),
+        "email": str(safe_payload.get("email") or ""),
+        "iss": str(safe_payload.get("iss") or ""),
+        "aud": safe_payload.get("aud") or "",
+        "scope": str(safe_payload.get("scope") or safe_payload.get("scp") or ""),
+        "client_id": str(
+            safe_payload.get("client_id") or safe_payload.get("azp") or ""
+        ),
+        "exp": safe_payload.get("exp"),
+        "principal_email": email_candidate,
+        "service_account_email": sa_email,
+    }
+    return result
+
+
+def _section_bounds_for_offset(plain_text: str, char_pos: int) -> tuple[int, int]:
+    """Returns ``(section_start, section_end)`` bounded by Markdown ``#`` headings or converted Google Docs section headers."""
+    lines = plain_text.splitlines(keepends=True)
+    heading_offsets: list[int] = [0]
+    cursor = 0
+    converted_heading_re = re.compile(
+        r"^\s*(?:#{1,6}\s+\S|(?:Scenario|Finding|Section|Phase|Part)\s+[A-Za-z0-9]+\b|\d+\.\s+[A-Z])"
+    )
+    for line in lines:
+        if converted_heading_re.match(line):
+            heading_offsets.append(cursor)
+        cursor += len(line)
+    heading_offsets.append(len(plain_text))
+    heading_offsets = sorted(set(heading_offsets))
+
+    sec_start = 0
+    sec_end = len(plain_text)
+    for idx in range(len(heading_offsets) - 1):
+        h_s = heading_offsets[idx]
+        h_e = heading_offsets[idx + 1]
+        if h_s <= char_pos < h_e:
+            sec_start, sec_end = h_s, h_e
+            break
+    return sec_start, sec_end
+
+
+def _line_bounds_for_offset(plain_text: str, char_pos: int) -> tuple[int, int]:
+    """Returns ``(line_start, line_end)`` for the line containing ``char_pos``."""
+    line_start = plain_text.rfind("\n", 0, max(0, char_pos))
+    line_start = 0 if line_start == -1 else line_start + 1
+    line_end = plain_text.find("\n", max(0, char_pos))
+    line_end = len(plain_text) if line_end == -1 else line_end
+    return line_start, line_end
+
+
+def _pick_closest_match(
+    pattern: re.Pattern[str],
+    text_slice: str,
+    slice_offset: int,
+    anchor_pos: int,
+    *,
+    group: int = 1,
+    predicate: Any = None,
+) -> str:
+    """Returns the regex match group in ``text_slice`` closest to ``anchor_pos``."""
+    best_val = ""
+    best_dist: int | None = None
+    for m in pattern.finditer(text_slice):
+        val = str(m.group(group) or "").strip()
+        if not val:
+            continue
+        if predicate is not None and not predicate(val):
+            continue
+        abs_mid = slice_offset + (m.start(group) + m.end(group)) // 2
+        dist = abs(abs_mid - anchor_pos)
+        if best_dist is None or dist < best_dist:
+            best_dist = dist
+            best_val = val
+    return best_val
+
+
+def _is_routable_source_ip(ip_str: str) -> bool:
+    """Returns True when ``ip_str`` is a valid IPv4 address excluding 0.0.0.0/127.0.0.1/169.254.169.254."""
+    if ip_str in ("0.0.0.0", "127.0.0.1", "169.254.169.254", "255.255.255.255"):
+        return False
+    try:
+        ip_obj = ipaddress.ip_address(ip_str)
+        return isinstance(ip_obj, ipaddress.IPv4Address) and not ip_obj.is_loopback
+    except ValueError:
+        return False
+
+
+def _derive_project_from_sa_email(sa_email: str) -> str:
+    """Derives ``projects/<project_id>`` from ``<name>@<project_id>.iam.gserviceaccount.com``."""
+    m = re.search(r"@([a-z][a-z0-9-]{3,29})\.iam\.gserviceaccount\.com$", sa_email)
+    if m:
+        return f"projects/{m.group(1)}"
+    return ""
+
+
+def extract_leaked_credential_inventories(
+    plain_text: str,
+    index_map: list[int] | None = None,
+) -> list[dict[str, Any]]:
+    """Extracts an inventory of raw and already-redacted leaked credentials from ``plain_text``.
+
+    Scans for:
+    - Unredacted cloud/API credentials (:data:`TELEMETRY_HAZARD_PATTERNS` with
+      ``hazard_class == "leaked_credential"``: ``gcp_oauth_token`` ``ya29.*``,
+      ``jwt_bearer_token`` ``eyJ*``, ``aws_access_key_id`` ``AKIA*``/``ASIA*``,
+      and ``private_key_block``).
+    - Already-redacted credential tokens (``<REDACTED_GCP_TOKEN:sha256=...>``,
+      ``<REDACTED_JWT:sha256=...>``, ``<REDACTED_AWS_KEY:sha256=...>``,
+      ``<REDACTED_PRIVATE_KEY:sha256=...>``).
+
+    Correlates each credential with its surrounding line and Markdown section
+    context (``principal_email``, ``service_account_email``,
+    ``workspace_user_email``, ``source_ip``, ``gcp_project``,
+    ``aws_key_id_masked``, decoded safe ``jwt_claims``, and the canonical
+    non-destructive ``recommended_revocation_command``). Never exposes raw
+    secret token strings or JWT cryptographic signatures in the returned records.
+    """
+    if not plain_text:
+        return []
+
+    aws_cli_spans = [
+        (m.start(0), m.end(0))
+        for m in _AWS_IAM_KEY_CLI_SPAN_RE.finditer(plain_text)
+    ]
+
+    raw_candidates: list[dict[str, Any]] = []
+    for item in _iter_telemetry_hazard_matches(plain_text):
+        if item.get("hazard_class") != "leaked_credential":
+            continue
+        c_start = int(item["char_start"])
+        c_end = int(item["char_end"])
+        if item.get("name") == "aws_access_key_id" and any(
+            max(c_start, a_s) < min(c_end, a_e) for a_s, a_e in aws_cli_spans
+        ):
+            continue
+        raw_candidates.append(
+            {
+                "credential_type": str(item["name"]),
+                "token_label": str(item["token_label"]),
+                "mitre_technique": str(item["mitre_technique"]),
+                "description": str(item["description"]),
+                "is_redacted": False,
+                "char_start": c_start,
+                "char_end": c_end,
+                "raw_target": str(item["raw_target"]),
+                "sha256_prefix": str(item["sha256_prefix"]),
+                "redacted_token": str(item["replacement"]),
+            }
+        )
+
+    for m in _REDACTED_CREDENTIAL_TOKEN_RE.finditer(plain_text):
+        c_start, c_end = m.start(0), m.end(0)
+        if any(max(c_start, a_s) < min(c_end, a_e) for a_s, a_e in aws_cli_spans):
+            continue
+        label = str(m.group(1))
+        sha_prefix = str(m.group(3))
+        cred_type, mitre_id, desc = _REDACTED_LABEL_TO_CREDENTIAL_TYPE[label]
+        raw_candidates.append(
+            {
+                "credential_type": cred_type,
+                "token_label": label,
+                "mitre_technique": mitre_id,
+                "description": desc,
+                "is_redacted": True,
+                "char_start": c_start,
+                "char_end": c_end,
+                "raw_target": "",
+                "sha256_prefix": sha_prefix,
+                "redacted_token": m.group(0),
+            }
+        )
+
+    raw_candidates.sort(key=lambda r: int(r["char_start"]))
+
+    inventories: list[dict[str, Any]] = []
+    for cand in raw_candidates:
+        c_start = int(cand["char_start"])
+        c_end = int(cand["char_end"])
+        if index_map and c_end - 1 < len(index_map):
+            start_index = index_map[c_start]
+            end_index = index_map[c_end - 1] + _utf16_code_unit_len(
+                plain_text[c_end - 1]
+            )
+        else:
+            start_index = c_start + 1
+            end_index = c_end + 1
+
+        cred_type = str(cand["credential_type"])
+        is_redacted = bool(cand["is_redacted"])
+        raw_target = str(cand["raw_target"])
+
+        jwt_claims: dict[str, Any] = {}
+        if cred_type == "jwt_bearer_token" and not is_redacted and raw_target:
+            jwt_claims = decode_jwt_safe_claims(raw_target)
+
+        line_s, line_e = _line_bounds_for_offset(plain_text, c_start)
+        sec_s, sec_e = _section_bounds_for_offset(plain_text, c_start)
+        near_s = max(sec_s, line_s - 240)
+        near_e = min(sec_e, line_e + 240)
+
+        line_slice = plain_text[line_s:line_e]
+        near_slice = plain_text[near_s:near_e]
+        sec_slice = plain_text[sec_s:sec_e]
+
+        sa_email = str(jwt_claims.get("service_account_email") or "")
+        if not sa_email:
+            sa_email = (
+                _pick_closest_match(
+                    _GCP_SA_EMAIL_RE, line_slice, line_s, c_start
+                )
+                or _pick_closest_match(
+                    _GCP_SA_EMAIL_RE, near_slice, near_s, c_start
+                )
+                or _pick_closest_match(
+                    _GCP_SA_EMAIL_RE, sec_slice, sec_s, c_start
+                )
+            )
+
+        workspace_email = ""
+        jwt_principal = str(jwt_claims.get("principal_email") or "")
+        if jwt_principal and not jwt_principal.endswith(".gserviceaccount.com"):
+            workspace_email = jwt_principal
+        if not workspace_email:
+            non_sa_pred = lambda em: not em.lower().endswith(
+                ".gserviceaccount.com"
+            )
+            workspace_email = (
+                _pick_closest_match(
+                    _GENERIC_EMAIL_RE,
+                    line_slice,
+                    line_s,
+                    c_start,
+                    predicate=non_sa_pred,
+                )
+                or _pick_closest_match(
+                    _GENERIC_EMAIL_RE,
+                    near_slice,
+                    near_s,
+                    c_start,
+                    predicate=non_sa_pred,
+                )
+                or _pick_closest_match(
+                    _GENERIC_EMAIL_RE,
+                    sec_slice,
+                    sec_s,
+                    c_start,
+                    predicate=non_sa_pred,
+                )
+            )
+
+        principal_email = sa_email or workspace_email or jwt_principal
+
+        source_ip = (
+            _pick_closest_match(
+                _IPV4_CANDIDATE_RE,
+                line_slice,
+                line_s,
+                c_start,
+                predicate=_is_routable_source_ip,
+            )
+            or _pick_closest_match(
+                _IPV4_CANDIDATE_RE,
+                near_slice,
+                near_s,
+                c_start,
+                predicate=_is_routable_source_ip,
+            )
+            or _pick_closest_match(
+                _IPV4_CANDIDATE_RE,
+                sec_slice,
+                sec_s,
+                c_start,
+                predicate=_is_routable_source_ip,
+            )
+        )
+
+        proj_id = (
+            _pick_closest_match(
+                _GCP_PROJECT_PATH_RE, line_slice, line_s, c_start
+            )
+            or _pick_closest_match(
+                _GCP_PROJECT_PATH_RE, near_slice, near_s, c_start
+            )
+            or _pick_closest_match(
+                _GCP_PROJECT_PATH_RE, sec_slice, sec_s, c_start
+            )
+        )
+        gcp_project = (
+            f"projects/{proj_id}"
+            if proj_id
+            else _derive_project_from_sa_email(sa_email)
+        )
+
+        aws_key_id = ""
+        aws_key_id_masked = ""
+        if cred_type == "aws_access_key_id":
+            if not is_redacted and raw_target:
+                aws_key_id = raw_target
+            else:
+                aws_key_id = (
+                    _pick_closest_match(
+                        _AWS_KEY_ID_RE, line_slice, line_s, c_start
+                    )
+                    or _pick_closest_match(
+                        _AWS_KEY_ID_RE, sec_slice, sec_s, c_start
+                    )
+                )
+            if aws_key_id and len(aws_key_id) >= 12:
+                aws_key_id_masked = f"{aws_key_id[:8]}...{aws_key_id[-4:]}"
+
+        if cred_type == "aws_access_key_id":
+            target_key_arg = aws_key_id or "<access-key-id>"
+            recommended_cmd = (
+                f"aws iam update-access-key --access-key-id {target_key_arg} --status Inactive"
+            )
+            ref_url = DEFAULT_AWS_ACCESS_KEY_ROTATE_DOC_URL
+        elif sa_email:
+            recommended_cmd = f"gcloud iam service-accounts disable {sa_email}"
+            ref_url = (
+                DEFAULT_GCP_SA_KEYS_DELETE_DOC_URL
+                if cred_type == "private_key_block"
+                else DEFAULT_GCP_SA_DISABLE_DOC_URL
+            )
+        elif workspace_email:
+            recommended_cmd = f"gam user {workspace_email} suspend"
+            ref_url = DEFAULT_WORKSPACE_USER_SUSPEND_DOC_URL
+        else:
+            recommended_cmd = (
+                "gcloud iam service-accounts disable <service-account-email>"
+            )
+            ref_url = DEFAULT_GCP_SA_DISABLE_DOC_URL
+
+        inventories.append(
+            {
+                "credential_type": cred_type,
+                "token_label": str(cand["token_label"]),
+                "mitre_technique": str(cand["mitre_technique"]),
+                "description": str(cand["description"]),
+                "is_redacted": is_redacted,
+                "redacted_token": str(cand["redacted_token"]),
+                "sha256_prefix": str(cand["sha256_prefix"]),
+                "char_start": c_start,
+                "char_end": c_end,
+                "start_index": start_index,
+                "end_index": end_index,
+                "principal_email": principal_email,
+                "service_account_email": sa_email,
+                "workspace_user_email": workspace_email,
+                "source_ip": source_ip,
+                "gcp_project": gcp_project,
+                "aws_key_id_masked": aws_key_id_masked,
+                "jwt_claims": jwt_claims,
+                "recommended_revocation_command": recommended_cmd,
+                "reference_url": ref_url,
+            }
+        )
+
+    return inventories
+
+
+def _has_containment_command_for_credential(
+    plain_text: str,
+    cred: dict[str, Any],
+) -> bool:
+    """Returns True when ``plain_text`` already contains a revocation/containment command for ``cred``."""
+    sec_s, sec_e = _section_bounds_for_offset(plain_text, int(cred["char_start"]))
+    sec_text = plain_text[sec_s:sec_e]
+    sa_email = str(cred.get("service_account_email") or "")
+    ws_email = str(cred.get("workspace_user_email") or "")
+    cred_type = str(cred.get("credential_type") or "")
+
+    if cred_type == "aws_access_key_id":
+        if re.search(
+            r"\baws[ \t]+iam[ \t]+(?:update-access-key|delete-access-key)\b",
+            plain_text,
+        ):
+            return True
+        return False
+
+    if sa_email:
+        escaped_sa = re.escape(sa_email)
+        if re.search(
+            rf"\bgcloud[ \t]+iam[ \t]+service-accounts[ \t]+(?:disable|delete|keys[ \t]+delete)\b[^\r\n]*{escaped_sa}",
+            plain_text,
+        ):
+            return True
+        if re.search(
+            rf"\bgcloud[ \t]+auth[ \t]+revoke\b[^\r\n]*{escaped_sa}",
+            plain_text,
+        ):
+            return True
+        for rev_m in _LOCAL_GCLOUD_AUTH_REVOKE_RE.finditer(sec_text):
+            rev_arg = str(rev_m.group(1) or "").strip()
+            if not rev_arg or rev_arg == "--all" or rev_arg == sa_email:
+                return True
+        return False
+
+    if ws_email:
+        escaped_ws = re.escape(ws_email)
+        if re.search(
+            rf"\bgam[ \t]+user[ \t]+{escaped_ws}[ \t]+(?:suspend|delete)\b",
+            plain_text,
+        ):
+            return True
+        return False
+
+    if re.search(
+        r"\bgcloud[ \t]+(?:iam[ \t]+service-accounts[ \t]+(?:disable|delete)|auth[ \t]+revoke)\b",
+        sec_text,
+    ):
+        return True
+    return False
+
+
+def find_leaked_credential_containment_spans(
+    plain_text: str,
+    index_map: list[int],
+    *,
+    redact_unredacted_credentials: bool = True,
+    synthesize_missing_revocation: bool = False,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Detects leaked credentials and destructive/ineffective containment CLIs by 1-based UTF-16 span.
+
+    Covers 6 deterministic defect categories:
+    1. ``unredacted_leaked_credential``: Redacts raw ``ya29.*``, ``eyJ*`` JWT,
+       ``AKIA*``/``ASIA*`` AWS key, and PEM private key spans to
+       ``<REDACTED_...:sha256=...>``, enriching comments with decoded safe JWT
+       claims (``sub``, ``email``, ``iss``, ``scope``) and principal-grounded
+       emergency revocation CLI commands.
+    2. ``destructive_service_account_delete``: Repairs
+       ``gcloud iam service-accounts delete <sa_email>`` ->
+       ``gcloud iam service-accounts disable <sa_email>``.
+    3. ``local_only_gcloud_auth_revoke``: Repairs
+       ``gcloud auth revoke [<account>]`` (local workstation CLI credential
+       revocation) -> ``gcloud iam service-accounts disable <sa_email>``.
+    4. ``destructive_workspace_user_delete``: Repairs
+       ``gam user <email> delete`` -> ``gam user <email> suspend``.
+    5. ``destructive_aws_access_key_delete``: Repairs
+       ``aws iam delete-access-key --access-key-id <id>`` ->
+       ``aws iam update-access-key --access-key-id <id> --status Inactive``.
+    6. ``missing_credential_revocation_command``: When
+       ``synthesize_missing_revocation=True`` and a leaked credential has no
+       revocation/containment command in the document for its principal, stages
+       a non-overlapping replacement appending
+       ``[Emergency Revocation: `<canonical_cli_command>`]``.
+    """
+    if not plain_text or not index_map:
+        return [], [], []
+
+    inventories = extract_leaked_credential_inventories(plain_text, index_map)
+    comments: list[dict[str, Any]] = []
+    edits: list[dict[str, Any]] = []
+    findings: list[dict[str, Any]] = []
+    claimed_char_spans: list[tuple[int, int]] = []
+
+    def _to_utf16_span(c_start: int, c_end: int) -> tuple[int, int]:
+        s_idx = index_map[c_start]
+        e_idx = index_map[c_end - 1] + _utf16_code_unit_len(plain_text[c_end - 1])
+        return s_idx, e_idx
+
+    # 1. Credential token spans (unredacted redaction and/or missing revocation synthesis)
+    for cred in inventories:
+        c_start = int(cred["char_start"])
+        c_end = int(cred["char_end"])
+        start_index = int(cred["start_index"])
+        end_index = int(cred["end_index"])
+        is_redacted = bool(cred["is_redacted"])
+        redacted_token = str(cred["redacted_token"])
+        revocation_cmd = str(cred["recommended_revocation_command"])
+        ref_url = str(cred["reference_url"])
+        mitre_id = str(cred["mitre_technique"])
+        mitre_url = mitre_technique_url(mitre_id)
+        jwt_claims = cred.get("jwt_claims") or {}
+
+        needs_redaction = (not is_redacted) and redact_unredacted_credentials
+        needs_revocation = synthesize_missing_revocation and (
+            not _has_containment_command_for_credential(plain_text, cred)
+        )
+
+        if not needs_redaction and not needs_revocation:
+            continue
+
+        claimed_char_spans.append((c_start, c_end))
+
+        jwt_summary_parts: list[str] = []
+        if isinstance(jwt_claims, dict) and jwt_claims.get("valid_jwt"):
+            for claim_key in ("sub", "email", "iss", "aud", "scope", "kid"):
+                claim_val = jwt_claims.get(claim_key)
+                if claim_val:
+                    jwt_summary_parts.append(f"{claim_key}={claim_val}")
+        jwt_summary_str = (
+            f" Decoded safe JWT claims (signature redacted): {', '.join(jwt_summary_parts)}."
+            if jwt_summary_parts
+            else ""
+        )
+
+        if needs_redaction and needs_revocation:
+            replacement = (
+                f"{redacted_token} [Emergency Revocation: `{revocation_cmd}`]"
+            )
+            defect_type = "unredacted_leaked_credential"
+            comment_text = (
+                f"Leaked Credential & Emergency Revocation Check ({cred['credential_type']} / "
+                f"MITRE ATT&CK {mitre_id}: {mitre_url}): Unredacted {cred['description']} "
+                f"detected with no corresponding containment command in document.{jwt_summary_str} "
+                f"Redact secret to `{redacted_token}` (SHA-256 prefix `{cred['sha256_prefix']}`) "
+                f"and stage non-destructive revocation `{revocation_cmd}` ({ref_url})."
+            )
+        elif needs_redaction:
+            replacement = redacted_token
+            defect_type = "unredacted_leaked_credential"
+            comment_text = (
+                f"Deterministic Telemetry & Credential Safety Check (leaked_credential / "
+                f"{cred['credential_type']}): Unredacted {cred['description']} detected in "
+                f"shared document.{jwt_summary_str} Redact sensitive payload/secret to "
+                f"`{redacted_token}` (preserving SHA-256 prefix `{cred['sha256_prefix']}` "
+                f"for forensic correlation; MITRE ATT&CK {mitre_id}: {mitre_url}). "
+                f"Recommended non-destructive revocation: `{revocation_cmd}` ({ref_url})."
+            )
+        else:
+            token_in_doc = plain_text[c_start:c_end]
+            replacement = (
+                f"{token_in_doc} [Emergency Revocation: `{revocation_cmd}`]"
+            )
+            defect_type = "missing_credential_revocation_command"
+            comment_text = (
+                f"Missing Emergency Credential Revocation Playbook Step "
+                f"({cred['credential_type']} `{redacted_token}`): Leaked credential token is "
+                f"logged in the incident timeline without a corresponding containment CLI "
+                f"command for principal `{cred.get('principal_email') or 'unknown'}`. "
+                f"Stage non-destructive revocation `{revocation_cmd}` ({ref_url})."
+            )
+
+        comments.append(
+            {
+                "start_index": start_index,
+                "end_index": end_index,
+                "comment": comment_text,
+            }
+        )
+        edits.append(
+            {
+                "start_index": start_index,
+                "end_index": end_index,
+                "replacement": replacement,
+            }
+        )
+        finding_rec: dict[str, Any] = {
+            "defect_type": defect_type,
+            "credential_type": cred["credential_type"],
+            "start_index": start_index,
+            "end_index": end_index,
+            "replacement": replacement,
+            "recommended_revocation_command": revocation_cmd,
+            "principal_email": cred.get("principal_email", ""),
+            "service_account_email": cred.get("service_account_email", ""),
+            "workspace_user_email": cred.get("workspace_user_email", ""),
+            "source_ip": cred.get("source_ip", ""),
+            "gcp_project": cred.get("gcp_project", ""),
+            "jwt_claims": jwt_claims,
+            "revocation_synthesized": bool(needs_revocation),
+            "reference_url": ref_url,
+            "rationale": comment_text,
+        }
+        findings.append(finding_rec)
+        if needs_redaction and needs_revocation:
+            findings.append(
+                {
+                    **finding_rec,
+                    "defect_type": "missing_credential_revocation_command",
+                }
+            )
+
+    # 2. Destructive GCP service account deletion: gcloud iam service-accounts delete <sa> -> disable <sa>
+    for m in _DESTRUCTIVE_SA_DELETE_RE.finditer(plain_text):
+        c_start, c_end = m.start(0), m.end(0)
+        if any(max(c_start, cs) < min(c_end, ce) for cs, ce in claimed_char_spans):
+            continue
+        claimed_char_spans.append((c_start, c_end))
+        sa_email = m.group(1)
+        start_index, end_index = _to_utf16_span(c_start, c_end)
+        replacement = f"gcloud iam service-accounts disable {sa_email}"
+        comment_text = (
+            f"Non-Destructive Cloud IAM Containment Repair (destructive_service_account_delete): "
+            f"`{m.group(0)}` permanently deletes service account `{sa_email}` and its unique "
+            f"UID, breaking dependent production workloads if the alert is a false positive. "
+            f"Prefer reversible `{replacement}` during containment triage "
+            f"({DEFAULT_GCP_SA_DISABLE_DOC_URL})."
+        )
+        comments.append(
+            {
+                "start_index": start_index,
+                "end_index": end_index,
+                "comment": comment_text,
+            }
+        )
+        edits.append(
+            {
+                "start_index": start_index,
+                "end_index": end_index,
+                "replacement": replacement,
+            }
+        )
+        findings.append(
+            {
+                "defect_type": "destructive_service_account_delete",
+                "original_command": m.group(0),
+                "replacement": replacement,
+                "principal_email": sa_email,
+                "service_account_email": sa_email,
+                "start_index": start_index,
+                "end_index": end_index,
+                "reference_url": DEFAULT_GCP_SA_DISABLE_DOC_URL,
+                "rationale": comment_text,
+            }
+        )
+
+    # 3. Local-only gcloud auth revoke -> gcloud iam service-accounts disable <sa>
+    all_doc_sa_emails = [
+        str(c["service_account_email"])
+        for c in inventories
+        if c.get("service_account_email")
+    ]
+    for m in _LOCAL_GCLOUD_AUTH_REVOKE_RE.finditer(plain_text):
+        c_start, c_end = m.start(0), m.end(0)
+        if any(max(c_start, cs) < min(c_end, ce) for cs, ce in claimed_char_spans):
+            continue
+        claimed_char_spans.append((c_start, c_end))
+        arg_token = str(m.group(1) or "").strip()
+        line_s, line_e = _line_bounds_for_offset(plain_text, c_start)
+        sec_s, sec_e = _section_bounds_for_offset(plain_text, c_start)
+
+        sa_email = ""
+        if arg_token.endswith(".gserviceaccount.com"):
+            sa_email = arg_token
+        if not sa_email:
+            sa_email = (
+                _pick_closest_match(
+                    _GCP_SA_EMAIL_RE,
+                    plain_text[line_s:line_e],
+                    line_s,
+                    c_start,
+                )
+                or _pick_closest_match(
+                    _GCP_SA_EMAIL_RE,
+                    plain_text[sec_s:sec_e],
+                    sec_s,
+                    c_start,
+                )
+                or (all_doc_sa_emails[0] if all_doc_sa_emails else "")
+                or _pick_closest_match(
+                    _GCP_SA_EMAIL_RE, plain_text, 0, c_start
+                )
+            )
+        target_sa = sa_email or "<service-account-email>"
+        start_index, end_index = _to_utf16_span(c_start, c_end)
+        replacement = f"gcloud iam service-accounts disable {target_sa}"
+        comment_text = (
+            f"Ineffective Cloud Containment Repair (local_only_gcloud_auth_revoke): "
+            f"`{m.group(0)}` only revokes local gcloud CLI credentials cached on the "
+            f"responder's workstation and does NOT disable the compromised cloud identity "
+            f"or invalidate active bearer tokens in GCP. Use `{replacement}` to disable "
+            f"the service account across Google Cloud ({DEFAULT_GCP_SA_DISABLE_DOC_URL})."
+        )
+        comments.append(
+            {
+                "start_index": start_index,
+                "end_index": end_index,
+                "comment": comment_text,
+            }
+        )
+        edits.append(
+            {
+                "start_index": start_index,
+                "end_index": end_index,
+                "replacement": replacement,
+            }
+        )
+        findings.append(
+            {
+                "defect_type": "local_only_gcloud_auth_revoke",
+                "original_command": m.group(0),
+                "replacement": replacement,
+                "principal_email": target_sa,
+                "service_account_email": sa_email,
+                "start_index": start_index,
+                "end_index": end_index,
+                "reference_url": DEFAULT_GCP_SA_DISABLE_DOC_URL,
+                "rationale": comment_text,
+            }
+        )
+
+    # 4. Destructive Workspace user deletion: gam user <email> delete -> gam user <email> suspend
+    for m in _DESTRUCTIVE_GAM_USER_DELETE_RE.finditer(plain_text):
+        c_start, c_end = m.start(0), m.end(0)
+        if any(max(c_start, cs) < min(c_end, ce) for cs, ce in claimed_char_spans):
+            continue
+        claimed_char_spans.append((c_start, c_end))
+        ws_email = m.group(1)
+        start_index, end_index = _to_utf16_span(c_start, c_end)
+        replacement = f"gam user {ws_email} suspend"
+        comment_text = (
+            f"Non-Destructive Workspace Containment Repair (destructive_workspace_user_delete): "
+            f"`{m.group(0)}` permanently deletes Workspace user `{ws_email}`, orphaning "
+            f"Google Drive files and destroying forensic audit state. Prefer reversible "
+            f"`{replacement}` during incident containment ({DEFAULT_WORKSPACE_USER_SUSPEND_DOC_URL})."
+        )
+        comments.append(
+            {
+                "start_index": start_index,
+                "end_index": end_index,
+                "comment": comment_text,
+            }
+        )
+        edits.append(
+            {
+                "start_index": start_index,
+                "end_index": end_index,
+                "replacement": replacement,
+            }
+        )
+        findings.append(
+            {
+                "defect_type": "destructive_workspace_user_delete",
+                "original_command": m.group(0),
+                "replacement": replacement,
+                "principal_email": ws_email,
+                "workspace_user_email": ws_email,
+                "start_index": start_index,
+                "end_index": end_index,
+                "reference_url": DEFAULT_WORKSPACE_USER_SUSPEND_DOC_URL,
+                "rationale": comment_text,
+            }
+        )
+
+    # 5. Destructive AWS access key deletion: aws iam delete-access-key -> update-access-key --status Inactive
+    for m in _DESTRUCTIVE_AWS_KEY_DELETE_RE.finditer(plain_text):
+        c_start, c_end = m.start(0), m.end(0)
+        if any(max(c_start, cs) < min(c_end, ce) for cs, ce in claimed_char_spans):
+            continue
+        claimed_char_spans.append((c_start, c_end))
+        user_before = str(m.group(1) or "").strip()
+        key_id_arg = str(m.group(2) or "").strip()
+        user_after = str(m.group(3) or "").strip()
+        user_arg = user_before or user_after
+        start_index, end_index = _to_utf16_span(c_start, c_end)
+        if user_arg:
+            replacement = (
+                f"aws iam update-access-key --access-key-id {key_id_arg} "
+                f"--status Inactive --user-name {user_arg}"
+            )
+        else:
+            replacement = (
+                f"aws iam update-access-key --access-key-id {key_id_arg} --status Inactive"
+            )
+        comment_text = (
+            f"Non-Destructive AWS IAM Containment Repair (destructive_aws_access_key_delete): "
+            f"`aws iam delete-access-key` permanently destroys the IAM access key before "
+            f"blast-radius triage confirms whether dependent automation requires cutover. "
+            f"Prefer reversible deactivation `{replacement}` during initial containment "
+            f"({DEFAULT_AWS_ACCESS_KEY_ROTATE_DOC_URL})."
+        )
+        comments.append(
+            {
+                "start_index": start_index,
+                "end_index": end_index,
+                "comment": comment_text,
+            }
+        )
+        edits.append(
+            {
+                "start_index": start_index,
+                "end_index": end_index,
+                "replacement": replacement,
+            }
+        )
+        findings.append(
+            {
+                "defect_type": "destructive_aws_access_key_delete",
+                "original_command": sanitize_telemetry_text(m.group(0)),
+                "replacement": replacement,
+                "aws_access_key_id": key_id_arg,
+                "start_index": start_index,
+                "end_index": end_index,
+                "reference_url": DEFAULT_AWS_ACCESS_KEY_ROTATE_DOC_URL,
+                "rationale": comment_text,
+            }
+        )
+
+    comments.sort(key=lambda item: int(item["start_index"]))
+    edits.sort(key=lambda item: int(item["start_index"]))
+    findings.sort(key=lambda item: int(item["start_index"]))
+    return comments, edits, findings
+
+
+def triage_leaked_credential_with_siem(
+    credential_record: dict[str, Any],
+    *,
+    start_time: str = "2026-02-07T00:00:00Z",
+    end_time: str = "2026-02-08T00:00:00Z",
+    max_events: int = 20,
+    siem_search_fn: Any = None,
+) -> dict[str, Any]:
+    """Queries Chronicle SIEM (`GCP_CLOUDAUDIT`, `WORKSPACE_ACTIVITY`) to quantify the blast radius of a leaked credential.
+
+    Builds targeted UDM queries from ``credential_record``'s correlated
+    ``source_ip``, ``service_account_email`` / ``workspace_user_email`` /
+    ``principal_email``, and ``gcp_project``, executes via
+    :func:`verify_udm_query_with_siem`, and aggregates sanitized empirical
+    ``observed_actions``, ``observed_principals``, ``observed_ips``, and
+    ``target_resources``.
+    """
+    sa_email = str(credential_record.get("service_account_email") or "").strip()
+    ws_email = str(credential_record.get("workspace_user_email") or "").strip()
+    principal_email = str(
+        credential_record.get("principal_email") or sa_email or ws_email
+    ).strip()
+    source_ip = str(credential_record.get("source_ip") or "").strip()
+    gcp_project = str(credential_record.get("gcp_project") or "").strip()
+    if gcp_project and not gcp_project.startswith("projects/"):
+        gcp_project = f"projects/{gcp_project}"
+
+    log_type = (
+        "WORKSPACE_ACTIVITY"
+        if (ws_email and not sa_email)
+        else "GCP_CLOUDAUDIT"
+    )
+
+    candidate_queries: list[str] = []
+    if source_ip and principal_email:
+        candidate_queries.append(
+            f'metadata.log_type = "{log_type}" AND principal.ip = "{source_ip}" '
+            f'AND principal.user.email_addresses = "{principal_email}"'
+        )
+        candidate_queries.append(
+            f'metadata.log_type = "{log_type}" AND principal.ip = "{source_ip}"'
+        )
+        candidate_queries.append(
+            f'metadata.log_type = "{log_type}" AND '
+            f'principal.user.email_addresses = "{principal_email}"'
+        )
+    elif source_ip:
+        candidate_queries.append(
+            f'metadata.log_type = "{log_type}" AND principal.ip = "{source_ip}"'
+        )
+        candidate_queries.append(f'principal.ip = "{source_ip}"')
+    elif principal_email:
+        candidate_queries.append(
+            f'metadata.log_type = "{log_type}" AND '
+            f'principal.user.email_addresses = "{principal_email}"'
+        )
+        if log_type == "GCP_CLOUDAUDIT":
+            candidate_queries.append(
+                f'metadata.log_type = "GCP_CLOUDAUDIT" AND '
+                f'security_result.about.email = "{principal_email}"'
+            )
+    if gcp_project:
+        candidate_queries.append(
+            f'metadata.log_type = "GCP_CLOUDAUDIT" AND '
+            f'target.resource.name = "{gcp_project}"'
+        )
+
+    if not candidate_queries:
+        return {
+            "status": "skipped",
+            "siem_verified": False,
+            "siem_query": "",
+            "events_matched": 0,
+            "observed_actions": [],
+            "observed_principals": [],
+            "observed_ips": [],
+            "target_resources": [],
+            "summary": (
+                "[SIEM Credential Blast-Radius Triage: skipped (no correlated principal, "
+                "source IP, or GCP project found in credential context)]"
+            ),
+        }
+
+    chosen_res: dict[str, Any] | None = None
+    chosen_query = candidate_queries[0]
+    for q in candidate_queries:
+        res = verify_udm_query_with_siem(
+            q,
+            start_time=start_time,
+            end_time=end_time,
+            max_events=max_events,
+            siem_search_fn=siem_search_fn,
+        )
+        if chosen_res is None:
+            chosen_res = res
+            chosen_query = q
+        if res.get("status") == "success" and int(res.get("event_count", 0) or 0) > 0:
+            chosen_res = res
+            chosen_query = q
+            break
+
+    assert chosen_res is not None
+    if chosen_res.get("status") != "success":
+        err_msg = sanitize_telemetry_text(str(chosen_res.get("message") or "SIEM query failed"))
+        return {
+            "status": "error",
+            "siem_verified": False,
+            "siem_query": chosen_query,
+            "events_matched": 0,
+            "observed_actions": [],
+            "observed_principals": [],
+            "observed_ips": [],
+            "target_resources": [],
+            "summary": f"[SIEM Credential Blast-Radius Triage: error ({err_msg})]",
+        }
+
+    events = (
+        chosen_res.get("siem_response", {}).get("events", [])
+        if isinstance(chosen_res.get("siem_response"), dict)
+        else []
+    )
+    events_matched = int(chosen_res.get("event_count", len(events)) or 0)
+
+    observed_actions: list[str] = []
+    observed_principals: list[str] = []
+    observed_ips: list[str] = []
+    target_resources: list[str] = []
+
+    def _add_unique(bucket: list[str], values: list[str]) -> None:
+        for val in values:
+            cleaned_val = sanitize_telemetry_text(str(val).strip())
+            if cleaned_val and cleaned_val not in bucket:
+                bucket.append(cleaned_val)
+
+    for ev in events if isinstance(events, list) else []:
+        if not isinstance(ev, dict):
+            continue
+        flat = _extract_udm_event_field_values(ev)
+        _add_unique(
+            observed_actions,
+            flat.get("metadata.product_event_type", [])
+            + flat.get("security_result.action_details", [])
+            + flat.get("metadata.event_type", []),
+        )
+        _add_unique(
+            observed_principals,
+            flat.get("principal.user.email_addresses", [])
+            + flat.get("principal.user.userid", [])
+            + flat.get("security_result.about.email", [])
+            + flat.get("target.user.email_addresses", []),
+        )
+        _add_unique(
+            observed_ips,
+            flat.get("principal.ip", []) + flat.get("src.ip", []),
+        )
+        _add_unique(
+            target_resources,
+            flat.get("target.resource.name", [])
+            + flat.get("target.application", []),
+        )
+
+    if events_matched > 0:
+        actions_str = ", ".join(observed_actions[:5]) or "activity observed"
+        principals_str = ", ".join(observed_principals[:4]) or principal_email or "n/a"
+        ips_str = ", ".join(observed_ips[:3]) or source_ip or "n/a"
+        targets_str = ", ".join(target_resources[:3]) or gcp_project or "n/a"
+        summary = (
+            f"[SIEM Credential Blast-Radius Triage: {events_matched} event(s) matched "
+            f"via `{chosen_query}` | actions: {actions_str} | principals: {principals_str} "
+            f"| source_ips: {ips_str} | target_resources: {targets_str}]"
+        )
+    else:
+        summary = (
+            f"[SIEM Credential Blast-Radius Triage: 0 events matched via `{chosen_query}` "
+            f"in window {start_time}..{end_time}]"
+        )
+
+    return {
+        "status": "success",
+        "siem_verified": True,
+        "siem_query": chosen_query,
+        "events_matched": events_matched,
+        "observed_actions": observed_actions,
+        "observed_principals": observed_principals,
+        "observed_ips": observed_ips,
+        "target_resources": target_resources,
+        "summary": sanitize_telemetry_text(summary),
+    }
+
+
+def triage_and_redline_leaked_credentials_in_doc(
+    document_id: str,
+    *,
+    run_live_siem_check: bool = False,
+    redact_unredacted_credentials: bool = True,
+    synthesize_missing_revocation: bool = False,
+    start_time: str = "2026-02-07T00:00:00Z",
+    end_time: str = "2026-02-08T00:00:00Z",
+    siem_search_fn: Any = None,
+    tool_context: Any = None,
+    token_source: TokenSource | None = None,
+    quota_project: str | None = None,
+    transport: httpx.BaseTransport | None = None,
+) -> dict[str, Any]:
+    """Triages leaked credentials in a Google Doc against Chronicle SIEM and stages non-destructive containment red-lines.
+
+    1. Calls :func:`read_google_doc` to populate the 1-based UTF-16 index map
+       and ``pending_suggestion_spans``.
+    2. Extracts the leaked credential inventory via
+       :func:`extract_leaked_credential_inventories` (decoding safe pure-Python
+       JWT header/payload claims while redacting signatures and raw secrets).
+    3. Detects unredacted credentials, destructive/ineffective containment CLI
+       commands, and missing emergency revocation playbook commands via
+       :func:`find_leaked_credential_containment_spans`.
+    4. When ``run_live_siem_check=True``, queries Chronicle SIEM
+       (``GCP_CLOUDAUDIT``, ``WORKSPACE_ACTIVITY``) via
+       :func:`triage_leaked_credential_with_siem` and appends
+       ``[SIEM Credential Blast-Radius Triage: ...]`` badges to the anchored
+       review comments.
+    5. Skips any span overlapping an existing pending suggestion
+       (``skipped_existing_suggestion_count``) for multi-pass idempotency.
+    6. Anchors comments first (:func:`insert_doc_comments`) and stages
+       Suggested Edits second (:func:`propose_doc_suggested_edits` sorted
+       descending by ``startIndex`` under ``writeMode="SUGGEST"``).
+    """
+    read_res = read_google_doc(
+        document_id,
+        tool_context=tool_context,
+        token_source=token_source,
+        quota_project=quota_project,
+        transport=transport,
+    )
+    if read_res.get("status") != "success":
+        return read_res
+
+    plain_text, index_map = _load_doc_index_state(
+        document_id, tool_context=tool_context
+    )
+    if plain_text is None or index_map is None:
+        return {
+            "status": "error",
+            "message": "Failed to load UTF-16 index map after read_google_doc.",
+        }
+
+    pending_spans = _load_doc_pending_suggestion_spans(
+        document_id, tool_context=tool_context
+    )
+
+    credentials = extract_leaked_credential_inventories(plain_text, index_map)
+    raw_comments, raw_edits, findings = find_leaked_credential_containment_spans(
+        plain_text,
+        index_map,
+        redact_unredacted_credentials=redact_unredacted_credentials,
+        synthesize_missing_revocation=synthesize_missing_revocation,
+    )
+
+    siem_triage_results: list[dict[str, Any]] = []
+    if run_live_siem_check:
+        siem_cache: dict[tuple[str, str, str, str], dict[str, Any]] = {}
+        span_to_badge: dict[tuple[int, int], str] = {}
+        principal_to_badge: dict[str, str] = {}
+
+        for cred in credentials:
+            cache_key = (
+                str(cred.get("service_account_email") or ""),
+                str(cred.get("workspace_user_email") or ""),
+                str(cred.get("source_ip") or ""),
+                str(cred.get("gcp_project") or ""),
+            )
+            if cache_key not in siem_cache:
+                siem_cache[cache_key] = triage_leaked_credential_with_siem(
+                    cred,
+                    start_time=start_time,
+                    end_time=end_time,
+                    siem_search_fn=siem_search_fn,
+                )
+            siem_res = siem_cache[cache_key]
+            cred["siem_blast_radius"] = siem_res
+            siem_triage_results.append(
+                {
+                    "credential_type": cred["credential_type"],
+                    "redacted_token": cred["redacted_token"],
+                    "principal_email": cred.get("principal_email", ""),
+                    "source_ip": cred.get("source_ip", ""),
+                    "gcp_project": cred.get("gcp_project", ""),
+                    **siem_res,
+                }
+            )
+            badge = str(siem_res.get("summary") or "")
+            if badge:
+                c_span = (int(cred["start_index"]), int(cred["end_index"]))
+                span_to_badge[c_span] = badge
+                p_email = str(cred.get("principal_email") or "")
+                if p_email:
+                    principal_to_badge[p_email] = badge
+
+        for c_item, f_item in zip(raw_comments, findings):
+            c_span = (int(c_item["start_index"]), int(c_item["end_index"]))
+            p_email = str(f_item.get("principal_email") or "")
+            badge = span_to_badge.get(c_span) or principal_to_badge.get(p_email) or ""
+            if badge and badge not in c_item["comment"]:
+                c_item["comment"] = f"{c_item['comment']} {badge}"
+                f_item["rationale"] = c_item["comment"]
+
+    filtered_comments: list[dict[str, Any]] = []
+    for c_item in raw_comments:
+        c_span = (int(c_item["start_index"]), int(c_item["end_index"]))
+        if any(_spans_overlap(c_span, p_span) for p_span in pending_spans):
+            continue
+        filtered_comments.append(c_item)
+
+    filtered_edits: list[dict[str, Any]] = []
+    skipped_existing_suggestion_count = 0
+    for e_item in raw_edits:
+        e_span = (int(e_item["start_index"]), int(e_item["end_index"]))
+        if any(_spans_overlap(e_span, p_span) for p_span in pending_spans):
+            skipped_existing_suggestion_count += 1
+            continue
+        filtered_edits.append(e_item)
+
+    active_findings = [
+        f
+        for f in findings
+        if not any(
+            _spans_overlap(
+                (int(f["start_index"]), int(f["end_index"])), p_span
+            )
+            for p_span in pending_spans
+        )
+    ]
+
+    comments_res: dict[str, Any] = {
+        "status": "skipped",
+        "inserted_count": 0,
+        "comment_ids": [],
+    }
+    if filtered_comments:
+        comments_res = insert_doc_comments(
+            document_id,
+            filtered_comments,
+            tool_context=tool_context,
+            token_source=token_source,
+            quota_project=quota_project,
+            transport=transport,
+        )
+        if comments_res.get("status") != "success":
+            return {
+                "status": "error",
+                "message": f"insert_doc_comments failed: {comments_res.get('message')}",
+                "comments": comments_res,
+            }
+
+    edits_res: dict[str, Any] = {"status": "skipped", "applied_count": 0}
+    if filtered_edits:
+        edits_res = propose_doc_suggested_edits(
+            document_id,
+            filtered_edits,
+            tool_context=tool_context,
+            token_source=token_source,
+            quota_project=quota_project,
+            transport=transport,
+        )
+        if edits_res.get("status") != "success":
+            return {
+                "status": "error",
+                "message": f"propose_doc_suggested_edits failed: {edits_res.get('message')}",
+                "comments": comments_res,
+                "edits": edits_res,
+            }
+
+    return {
+        "status": "success",
+        "document_id": document_id,
+        "title": read_res.get("title", ""),
+        "credential_count": len(credentials),
+        "credentials": credentials,
+        "finding_count": len(active_findings),
+        "findings": active_findings,
+        "siem_triage_results": siem_triage_results,
+        "skipped_existing_suggestion_count": skipped_existing_suggestion_count,
+        "comments": comments_res,
+        "edits": edits_res,
+    }

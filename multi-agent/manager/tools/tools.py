@@ -42,6 +42,7 @@ from .docs_review_tools import (
     propose_doc_suggested_edits as _propose_doc_suggested_edits,
     read_google_doc as _read_google_doc,
     sanitize_and_redline_telemetry_in_doc as _sanitize_and_redline_telemetry_in_doc,
+    triage_and_redline_leaked_credentials_in_doc as _triage_and_redline_leaked_credentials_in_doc,
     verify_and_redline_mitre_and_cve_in_doc as _verify_and_redline_mitre_and_cve_in_doc,
     verify_and_redline_udm_queries_in_doc as _verify_and_redline_udm_queries_in_doc,
     verify_and_redline_yaral2_rules_in_doc as _verify_and_redline_yaral2_rules_in_doc,
@@ -967,6 +968,56 @@ def sanitize_and_redline_telemetry_in_doc(
   )
 
 
+def triage_and_redline_leaked_credentials_in_doc(
+    document_id: str,
+    run_live_siem_check: bool = False,
+    redact_unredacted_credentials: bool = True,
+    synthesize_missing_revocation: bool = False,
+    start_time: str = "2026-02-07T00:00:00Z",
+    end_time: str = "2026-02-08T00:00:00Z",
+    tool_context: ToolContext = None,
+) -> dict:
+  """Triages leaked credentials in a Google Doc against Chronicle SIEM and stages non-destructive containment red-lines.
+
+  Scans the Google Doc for unredacted and already-redacted leaked credentials
+  (`ya29.` GCP OAuth2 tokens, `eyJ` JWT bearer tokens, `AKIA`/`ASIA` AWS access
+  keys, PEM private keys, and `<REDACTED_...:sha256=...>` tokens), decodes safe
+  non-secret JWT header/payload claims (`sub`, `email`, `iss`, `aud`, `scope`,
+  `kid`) without exposing cryptographic signatures, optionally queries Chronicle
+  SIEM (`GCP_CLOUDAUDIT`, `WORKSPACE_ACTIVITY`) to quantify empirical blast
+  radius, repairs destructive or local-only containment CLI commands
+  (`gcloud iam service-accounts delete` -> `disable`, `gcloud auth revoke` ->
+  `gcloud iam service-accounts disable`, `gam user ... delete` -> `suspend`,
+  `aws iam delete-access-key` -> `update-access-key --status Inactive`), and
+  optionally stages missing emergency revocation playbook commands under
+  `writeMode="SUGGEST"`.
+
+  Args:
+      document_id (str): The Google Docs documentId.
+      run_live_siem_check (bool): Whether to query Chronicle SIEM (`search_udm`)
+                                  for empirical credential blast-radius telemetry.
+      redact_unredacted_credentials (bool): Whether to redact raw credential spans.
+      synthesize_missing_revocation (bool): Whether to append missing emergency
+                                            revocation CLI commands.
+      start_time (str): ISO-8601 start time for Chronicle SIEM blast-radius search.
+      end_time (str): ISO-8601 end time for Chronicle SIEM blast-radius search.
+
+  Returns:
+      dict: {"status", "document_id", "title", "credential_count", "credentials",
+             "finding_count", "findings", "siem_triage_results",
+             "skipped_existing_suggestion_count", "comments", "edits"}.
+  """
+  return _triage_and_redline_leaked_credentials_in_doc(
+      document_id=document_id,
+      run_live_siem_check=run_live_siem_check,
+      redact_unredacted_credentials=redact_unredacted_credentials,
+      synthesize_missing_revocation=synthesize_missing_revocation,
+      start_time=start_time,
+      end_time=end_time,
+      tool_context=tool_context,
+  )
+
+
 def get_agent_tools():
   """Initializes and returns MCP toolsets and progressive discovery tools.
 
@@ -1012,6 +1063,9 @@ def get_agent_tools():
   wrapped_sanitize_and_redline_telemetry_in_doc = instrument_tool(
       sanitize_and_redline_telemetry_in_doc
   )
+  wrapped_triage_and_redline_leaked_credentials_in_doc = instrument_tool(
+      triage_and_redline_leaked_credentials_in_doc
+  )
   wrapped_inspect_doc_suggestions = instrument_tool(inspect_doc_suggestions)
   wrapped_list_doc_comments = instrument_tool(list_doc_comments)
   wrapped_export_accepted_doc_to_markdown = instrument_tool(
@@ -1046,6 +1100,7 @@ def get_agent_tools():
       wrapped_verify_and_redline_yaral2_rules_in_doc,
       wrapped_verify_and_redline_mitre_and_cve_in_doc,
       wrapped_sanitize_and_redline_telemetry_in_doc,
+      wrapped_triage_and_redline_leaked_credentials_in_doc,
       wrapped_inspect_doc_suggestions,
       wrapped_list_doc_comments,
       wrapped_export_accepted_doc_to_markdown,

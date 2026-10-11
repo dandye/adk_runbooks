@@ -7744,4 +7744,587 @@ def test_verify_and_repair_yaral2_rules_in_doc_h18_end_to_end() -> None:
     assert res2["edits"]["applied_count"] == 0
 
 
+# ---------------------------------------------------------------------------
+# Cycle 15 (H13): Automated Leaked Credential Blast-Radius Triage, Safe JWT
+# Claim Extraction & Emergency Revocation Playbook Stager in Google Docs
+# ---------------------------------------------------------------------------
 
+
+def _build_test_jwt(header: dict[str, Any], payload: dict[str, Any], signature: str = "FakeSig9876543210abcdef") -> str:
+    """Builds a synthetic 3-segment JWT string for hermetic unit testing."""
+    import base64
+
+    h_b64 = (
+        base64.urlsafe_b64encode(json.dumps(header, separators=(",", ":")).encode("utf-8"))
+        .decode("ascii")
+        .rstrip("=")
+    )
+    p_b64 = (
+        base64.urlsafe_b64encode(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+        .decode("ascii")
+        .rstrip("=")
+    )
+    return f"{h_b64}.{p_b64}.{signature}"
+
+
+def test_decode_jwt_safe_claims_and_extract_leaked_credential_inventories():
+    """Verifies pure-Python Base64URL decoding of non-secret JWT header/payload
+    claims without exposing signatures, and verifies ``extract_leaked_credential_inventories``
+    across raw and ``<REDACTED_...:sha256=...>`` tokens with correlated service
+    accounts, Workspace users, source IPs, and GCP projects."""
+    from manager.tools.docs_review_tools import (
+        DEFAULT_AWS_ACCESS_KEY_ROTATE_DOC_URL,
+        DEFAULT_GCP_SA_DISABLE_DOC_URL,
+        DEFAULT_WORKSPACE_USER_SUSPEND_DOC_URL,
+        decode_jwt_safe_claims,
+        extract_leaked_credential_inventories,
+    )
+
+    secret_sig = "SuperSecretSignatureBytesDoNotLeak1234567890"
+    jwt_token = _build_test_jwt(
+        {"alg": "RS256", "kid": "1a2b3c4d5e", "typ": "JWT"},
+        {
+            "iss": "https://accounts.google.com",
+            "sub": "294955789222-compute@developer.gserviceaccount.com",
+            "email": "294955789222-compute@developer.gserviceaccount.com",
+            "aud": "https://cloudresourcemanager.googleapis.com/",
+            "scope": "https://www.googleapis.com/auth/cloud-platform",
+            "exp": 1770508800,
+            "private_secret_claim": "should_never_be_extracted",
+        },
+        signature=secret_sig,
+    )
+
+    claims = decode_jwt_safe_claims(jwt_token)
+    assert claims["valid_jwt"] is True
+    assert claims["signature_redacted"] is True
+    assert claims["alg"] == "RS256"
+    assert claims["kid"] == "1a2b3c4d5e"
+    assert claims["typ"] == "JWT"
+    assert claims["sub"] == "294955789222-compute@developer.gserviceaccount.com"
+    assert claims["email"] == "294955789222-compute@developer.gserviceaccount.com"
+    assert claims["iss"] == "https://accounts.google.com"
+    assert claims["aud"] == "https://cloudresourcemanager.googleapis.com/"
+    assert claims["scope"] == "https://www.googleapis.com/auth/cloud-platform"
+    assert claims["service_account_email"] == "294955789222-compute@developer.gserviceaccount.com"
+    assert "private_secret_claim" not in json.dumps(claims)
+    assert secret_sig not in json.dumps(claims)
+    assert jwt_token not in json.dumps(claims)
+
+    doc_text = (
+        "# Incident Postmortem: Multi-Cloud & Workspace Credential Exposure\n\n"
+        "## Finding 1: Unredacted OIDC JWT Bearer Token (Case 33278)\n"
+        f"- Captured Authorization header from 104.198.226.161 targeting projects/base-production: Bearer {jwt_token}\n\n"
+        "## Finding 2: Already-Redacted GCP OAuth2 Access Token\n"
+        "- Stolen token `<REDACTED_GCP_TOKEN:sha256=89abcdef0123>` used by hello@base-production.iam.gserviceaccount.com from 104.198.226.161.\n\n"
+        "## Finding 3: Workspace Admin Session Token (Case 33287)\n"
+        "- Compromised Workspace session `<REDACTED_JWT:sha256=fedcba987654>` for admin@mydomain.com from source IP 79.154.246.114.\n\n"
+        "## Finding 4: Leaked AWS IAM Access Key\n"
+        "- Found key AKIAIOSFODNN7EXAMPLE in build log.\n"
+    )
+    mock_doc = _make_single_paragraph_doc("doc-cred-inv", "Credential Inventory", doc_text)
+    plain, idx_map = _extract_text_and_index_map(mock_doc)
+
+    inv = extract_leaked_credential_inventories(plain, idx_map)
+    assert len(inv) == 4
+    serialized_inv = json.dumps(inv)
+    assert secret_sig not in serialized_inv
+    assert jwt_token not in serialized_inv
+
+    c0 = inv[0]
+    assert c0["credential_type"] == "jwt_bearer_token"
+    assert c0["is_redacted"] is False
+    assert c0["service_account_email"] == "294955789222-compute@developer.gserviceaccount.com"
+    assert c0["source_ip"] == "104.198.226.161"
+    assert c0["gcp_project"] == "projects/base-production"
+    assert c0["jwt_claims"]["kid"] == "1a2b3c4d5e"
+    assert (
+        c0["recommended_revocation_command"]
+        == "gcloud iam service-accounts disable 294955789222-compute@developer.gserviceaccount.com"
+    )
+    assert c0["reference_url"] == DEFAULT_GCP_SA_DISABLE_DOC_URL
+
+    c1 = inv[1]
+    assert c1["credential_type"] == "gcp_oauth_token"
+    assert c1["is_redacted"] is True
+    assert c1["service_account_email"] == "hello@base-production.iam.gserviceaccount.com"
+    assert c1["gcp_project"] == "projects/base-production"
+    assert (
+        c1["recommended_revocation_command"]
+        == "gcloud iam service-accounts disable hello@base-production.iam.gserviceaccount.com"
+    )
+
+    c2 = inv[2]
+    assert c2["credential_type"] == "jwt_bearer_token"
+    assert c2["is_redacted"] is True
+    assert c2["workspace_user_email"] == "admin@mydomain.com"
+    assert c2["source_ip"] == "79.154.246.114"
+    assert c2["recommended_revocation_command"] == "gam user admin@mydomain.com suspend"
+    assert c2["reference_url"] == DEFAULT_WORKSPACE_USER_SUSPEND_DOC_URL
+
+    c3 = inv[3]
+    assert c3["credential_type"] == "aws_access_key_id"
+    assert c3["is_redacted"] is False
+    assert c3["aws_key_id_masked"] == "AKIAIOSF...MPLE"
+    assert (
+        c3["recommended_revocation_command"]
+        == "aws iam update-access-key --access-key-id AKIAIOSFODNN7EXAMPLE --status Inactive"
+    )
+    assert c3["reference_url"] == DEFAULT_AWS_ACCESS_KEY_ROTATE_DOC_URL
+
+
+def test_find_leaked_credential_containment_spans_repairs_destructive_and_local_only_cli():
+    """Verifies 1-based UTF-16 span detection and replacement across
+    ``destructive_service_account_delete``, ``local_only_gcloud_auth_revoke``,
+    ``destructive_workspace_user_delete``, and ``destructive_aws_access_key_delete``."""
+    from manager.tools.docs_review_tools import (
+        DEFAULT_AWS_ACCESS_KEY_ROTATE_DOC_URL,
+        DEFAULT_GCP_SA_DISABLE_DOC_URL,
+        DEFAULT_WORKSPACE_USER_SUSPEND_DOC_URL,
+        find_leaked_credential_containment_spans,
+    )
+
+    doc_text = (
+        "# Containment Playbook Draft\n\n"
+        "## 1. GCP Service Account Compromise (Case 33278)\n"
+        "- Principal: 294955789222-compute@developer.gserviceaccount.com\n"
+        "- Step 1a (Destructive SA Delete): `gcloud iam service-accounts delete 294955789222-compute@developer.gserviceaccount.com`\n"
+        "- Step 1b (Local-Only Workstation Revoke): `gcloud auth revoke 294955789222-compute@developer.gserviceaccount.com`\n\n"
+        "## 2. Google Workspace Admin Takeover (Case 33287)\n"
+        "- Step 2a (Destructive User Delete): `gam user admin@mydomain.com delete`\n\n"
+        "## 3. AWS IAM Access Key Exposure\n"
+        "- Step 3a (Destructive Key Delete): `aws iam delete-access-key --access-key-id AKIAIOSFODNN7EXAMPLE --user-name ci-deployer`\n"
+    )
+    mock_doc = _make_single_paragraph_doc("doc-containment-cli", "Containment CLI Test", doc_text)
+    plain, idx_map = _extract_text_and_index_map(mock_doc)
+
+    comments, edits, findings = find_leaked_credential_containment_spans(
+        plain,
+        idx_map,
+        redact_unredacted_credentials=True,
+        synthesize_missing_revocation=False,
+    )
+
+    assert len(findings) == 4
+    assert len(comments) == 4
+    assert len(edits) == 4
+
+    by_type = {f["defect_type"]: f for f in findings}
+    assert set(by_type.keys()) == {
+        "destructive_service_account_delete",
+        "local_only_gcloud_auth_revoke",
+        "destructive_workspace_user_delete",
+        "destructive_aws_access_key_delete",
+    }
+
+    sa_del = by_type["destructive_service_account_delete"]
+    assert (
+        sa_del["replacement"]
+        == "gcloud iam service-accounts disable 294955789222-compute@developer.gserviceaccount.com"
+    )
+    assert sa_del["reference_url"] == DEFAULT_GCP_SA_DISABLE_DOC_URL
+    assert (
+        plain[sa_del["start_index"] - 1 : sa_del["end_index"] - 1]
+        == "gcloud iam service-accounts delete 294955789222-compute@developer.gserviceaccount.com"
+    )
+
+    local_rev = by_type["local_only_gcloud_auth_revoke"]
+    assert (
+        local_rev["replacement"]
+        == "gcloud iam service-accounts disable 294955789222-compute@developer.gserviceaccount.com"
+    )
+    assert local_rev["reference_url"] == DEFAULT_GCP_SA_DISABLE_DOC_URL
+
+    ws_del = by_type["destructive_workspace_user_delete"]
+    assert ws_del["replacement"] == "gam user admin@mydomain.com suspend"
+    assert ws_del["reference_url"] == DEFAULT_WORKSPACE_USER_SUSPEND_DOC_URL
+
+    aws_del = by_type["destructive_aws_access_key_delete"]
+    assert (
+        aws_del["replacement"]
+        == "aws iam update-access-key --access-key-id AKIAIOSFODNN7EXAMPLE --status Inactive --user-name ci-deployer"
+    )
+    assert aws_del["reference_url"] == DEFAULT_AWS_ACCESS_KEY_ROTATE_DOC_URL
+
+
+def test_find_leaked_credential_containment_spans_synthesizes_missing_revocation_without_overlap():
+    """Verifies that when ``synthesize_missing_revocation=True``, credentials
+    lacking a revocation command in the document receive
+    ``[Emergency Revocation: `<canonical_cli_command>`]`` without producing
+    overlapping UTF-16 edit spans."""
+    from manager.tools.docs_review_tools import (
+        _spans_overlap,
+        find_leaked_credential_containment_spans,
+    )
+
+    ya29_raw = "ya29" + ".a0AXooCgv9FakeAccessTokenForTesting1234567890abcdef"
+    doc_text = (
+        "# Incident Timeline\n\n"
+        "## Section A: Unredacted GCP Token without Revocation Command\n"
+        f"- Compromised SA `hello@base-production.iam.gserviceaccount.com` used token `{ya29_raw}` from `104.198.226.161`.\n\n"
+        "## Section B: Already-Redacted Workspace Token without Revocation Command\n"
+        "- Compromised Workspace admin `admin@mydomain.com` session `<REDACTED_JWT:sha256=deadbeef1234>` from `79.154.246.114`.\n"
+    )
+    mock_doc = _make_single_paragraph_doc("doc-synth-rev", "Synthesize Revocation Test", doc_text)
+    plain, idx_map = _extract_text_and_index_map(mock_doc)
+
+    comments, edits, findings = find_leaked_credential_containment_spans(
+        plain,
+        idx_map,
+        redact_unredacted_credentials=True,
+        synthesize_missing_revocation=True,
+    )
+
+    # Exactly 2 non-overlapping edit spans (one for Section A's token, one for Section B's token)
+    assert len(edits) == 2
+    assert len(comments) == 2
+    assert not _spans_overlap(
+        (edits[0]["start_index"], edits[0]["end_index"]),
+        (edits[1]["start_index"], edits[1]["end_index"]),
+    )
+
+    assert "<REDACTED_GCP_TOKEN:sha256=" in edits[0]["replacement"]
+    assert (
+        "[Emergency Revocation: `gcloud iam service-accounts disable hello@base-production.iam.gserviceaccount.com`]"
+        in edits[0]["replacement"]
+    )
+    assert (
+        edits[1]["replacement"]
+        == "<REDACTED_JWT:sha256=deadbeef1234> [Emergency Revocation: `gam user admin@mydomain.com suspend`]"
+    )
+
+    defect_types = {f["defect_type"] for f in findings}
+    assert "unredacted_leaked_credential" in defect_types
+    assert "missing_credential_revocation_command" in defect_types
+
+
+def test_triage_leaked_credential_with_siem_aggregates_cloud_audit_and_workspace_blast_radius():
+    """Verifies Chronicle SIEM UDM query construction and event aggregation
+    (``SetIamPolicy``, ``cloudsql.instances.delete``,
+    ``DELETE_SAML2_SERVICE_PROVIDER_CONFIG``) across ``GCP_CLOUDAUDIT`` and
+    ``WORKSPACE_ACTIVITY`` events while sanitizing telemetry strings."""
+    from manager.tools.docs_review_tools import triage_leaked_credential_with_siem
+
+    executed_queries: list[str] = []
+
+    def fake_siem_search(
+        query: str,
+        start_time: str = "",
+        end_time: str = "",
+        max_events: int = 20,
+    ) -> dict[str, Any]:
+        executed_queries.append(query)
+        if "GCP_CLOUDAUDIT" in query:
+            return {
+                "events": [
+                    {
+                        "udm": {
+                            "metadata": {
+                                "eventType": "USER_RESOURCE_UPDATE_PERMISSIONS",
+                                "logType": "GCP_CLOUDAUDIT",
+                                "productEventType": "SetIamPolicy",
+                            },
+                            "principal": {
+                                "ip": ["104.198.226.161"],
+                                "user": {
+                                    "emailAddresses": [
+                                        "294955789222-compute@developer.gserviceaccount.com"
+                                    ]
+                                },
+                            },
+                            "securityResult": [
+                                {
+                                    "about": {
+                                        "email": [
+                                            "hello@base-production.iam.gserviceaccount.com"
+                                        ]
+                                    }
+                                }
+                            ],
+                            "target": {
+                                "resource": {"name": "projects/base-production"}
+                            },
+                        }
+                    },
+                    {
+                        "udm": {
+                            "metadata": {
+                                "eventType": "USER_RESOURCE_DELETE",
+                                "logType": "GCP_CLOUDAUDIT",
+                                "productEventType": "cloudsql.instances.delete",
+                            },
+                            "principal": {
+                                "ip": ["104.198.226.161"],
+                                "user": {
+                                    "emailAddresses": [
+                                        "294955789222-compute@developer.gserviceaccount.com"
+                                    ]
+                                },
+                            },
+                            "target": {
+                                "resource": {
+                                    "name": "projects/base-production/instances/prod-db-01"
+                                }
+                            },
+                        }
+                    },
+                ]
+            }
+        return {
+            "events": [
+                {
+                    "udm": {
+                        "metadata": {
+                            "eventType": "USER_UNCATEGORIZED",
+                            "logType": "WORKSPACE_ACTIVITY",
+                            "productEventType": "DELETE_SAML2_SERVICE_PROVIDER_CONFIG",
+                        },
+                        "principal": {
+                            "ip": ["79.154.246.114"],
+                            "user": {"emailAddresses": ["admin@mydomain.com"]},
+                        },
+                        "target": {"application": "Admin Console"},
+                    }
+                }
+            ]
+        }
+
+    gcp_res = triage_leaked_credential_with_siem(
+        {
+            "credential_type": "jwt_bearer_token",
+            "service_account_email": "294955789222-compute@developer.gserviceaccount.com",
+            "principal_email": "294955789222-compute@developer.gserviceaccount.com",
+            "source_ip": "104.198.226.161",
+            "gcp_project": "projects/base-production",
+        },
+        siem_search_fn=fake_siem_search,
+    )
+    assert gcp_res["status"] == "success"
+    assert gcp_res["siem_verified"] is True
+    assert gcp_res["events_matched"] == 2
+    assert "SetIamPolicy" in gcp_res["observed_actions"]
+    assert "cloudsql.instances.delete" in gcp_res["observed_actions"]
+    assert (
+        "294955789222-compute@developer.gserviceaccount.com"
+        in gcp_res["observed_principals"]
+    )
+    assert (
+        "hello@base-production.iam.gserviceaccount.com"
+        in gcp_res["observed_principals"]
+    )
+    assert "104.198.226.161" in gcp_res["observed_ips"]
+    assert "projects/base-production" in gcp_res["target_resources"]
+    assert "[SIEM Credential Blast-Radius Triage: 2 event(s) matched" in gcp_res["summary"]
+
+    ws_res = triage_leaked_credential_with_siem(
+        {
+            "credential_type": "jwt_bearer_token",
+            "workspace_user_email": "admin@mydomain.com",
+            "principal_email": "admin@mydomain.com",
+            "source_ip": "79.154.246.114",
+        },
+        siem_search_fn=fake_siem_search,
+    )
+    assert ws_res["status"] == "success"
+    assert ws_res["siem_verified"] is True
+    assert ws_res["events_matched"] == 1
+    assert "DELETE_SAML2_SERVICE_PROVIDER_CONFIG" in ws_res["observed_actions"]
+    assert "admin@mydomain.com" in ws_res["observed_principals"]
+    assert "79.154.246.114" in ws_res["observed_ips"]
+
+
+def test_triage_and_redline_leaked_credentials_in_doc_end_to_end_and_stage_a_integration():
+    """Verifies ``triage_and_redline_leaked_credentials_in_doc`` executes
+    ``insertComment`` before descending-index ``writeMode="SUGGEST"`` batchUpdate,
+    enriches comments with ``[SIEM Credential Blast-Radius Triage: ...]`` badges,
+    enforces Pass 2 suggestion idempotency, integrates with
+    ``review_google_doc_with_stage_a`` (``stage_a_credential_containment_count``),
+    and exposes an ADK ``FunctionTool`` declaration."""
+    from google.adk.tools.function_tool import FunctionTool
+    from manager.tools import tools as tools_module
+    from manager.tools.docs_review_tools import (
+        review_google_doc_with_stage_a,
+        triage_and_redline_leaked_credentials_in_doc,
+    )
+
+    jwt_tok = _build_test_jwt(
+        {"alg": "RS256", "kid": "key-compute-01", "typ": "JWT"},
+        {
+            "iss": "https://accounts.google.com",
+            "sub": "294955789222-compute@developer.gserviceaccount.com",
+            "email": "294955789222-compute@developer.gserviceaccount.com",
+            "scope": "https://www.googleapis.com/auth/cloud-platform",
+        },
+    )
+    doc_text = (
+        "# Incident Response Report: Case 33278 & Case 33287\n\n"
+        "## 1. Compromised GCP Compute Service Account (Case 33278)\n"
+        f"- Captured JWT bearer token from 104.198.226.161 on projects/base-production: {jwt_tok}\n"
+        "- Proposed containment: `gcloud iam service-accounts delete 294955789222-compute@developer.gserviceaccount.com`\n"
+        "- Secondary analyst step: `gcloud auth revoke`\n\n"
+        "## 2. Compromised Workspace Admin Account (Case 33287)\n"
+        "- Redacted token `<REDACTED_JWT:sha256=abcdef012345>` used by admin@mydomain.com from 79.154.246.114.\n"
+        "- Proposed containment: `gam user admin@mydomain.com delete`\n\n"
+        "## 3. Secondary GCP Token Missing Revocation Playbook Step\n"
+        "- Leaked token `<REDACTED_GCP_TOKEN:sha256=112233445566>` for hello@base-production.iam.gserviceaccount.com from 104.198.226.161.\n"
+    )
+    mock_doc = _make_single_paragraph_doc(
+        "doc-h13-e2e", "Cycle 15 H13 E2E Test", doc_text
+    )
+    batch_calls: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=mock_doc)
+        payload = json.loads(request.content.decode("utf-8"))
+        batch_calls.append(payload)
+        if any("insertComment" in r for r in payload.get("requests", [])):
+            return httpx.Response(
+                200,
+                json={
+                    "replies": [
+                        {"insertComment": {"commentId": f"c-h13-{i}"}}
+                        for i in range(len(payload.get("requests", [])))
+                    ]
+                },
+            )
+        return httpx.Response(
+            200,
+            json={"replies": [{} for _ in payload.get("requests", [])]},
+        )
+
+    def fake_siem_search(query: str, **_kwargs: Any) -> dict[str, Any]:
+        if "WORKSPACE_ACTIVITY" in query:
+            return {
+                "events": [
+                    {
+                        "udm": {
+                            "metadata": {
+                                "eventType": "USER_UNCATEGORIZED",
+                                "logType": "WORKSPACE_ACTIVITY",
+                                "productEventType": "DELETE_SAML2_SERVICE_PROVIDER_CONFIG",
+                            },
+                            "principal": {
+                                "ip": ["79.154.246.114"],
+                                "user": {"emailAddresses": ["admin@mydomain.com"]},
+                            },
+                        }
+                    }
+                ]
+            }
+        return {
+            "events": [
+                {
+                    "udm": {
+                        "metadata": {
+                            "eventType": "USER_RESOURCE_UPDATE_PERMISSIONS",
+                            "logType": "GCP_CLOUDAUDIT",
+                            "productEventType": "SetIamPolicy",
+                        },
+                        "principal": {
+                            "ip": ["104.198.226.161"],
+                            "user": {
+                                "emailAddresses": [
+                                    "294955789222-compute@developer.gserviceaccount.com"
+                                ]
+                            },
+                        },
+                        "target": {"resource": {"name": "projects/base-production"}},
+                    }
+                }
+            ]
+        }
+
+    res = triage_and_redline_leaked_credentials_in_doc(
+        "doc-h13-e2e",
+        run_live_siem_check=True,
+        redact_unredacted_credentials=True,
+        synthesize_missing_revocation=True,
+        siem_search_fn=fake_siem_search,
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(handler),
+    )
+
+    assert res["status"] == "success"
+    assert res["credential_count"] == 3
+    # 5 edits: 1 unredacted JWT + 1 SA delete + 1 gcloud auth revoke + 1 gam user delete + 1 missing revocation on hello@...
+    assert res["finding_count"] == 5
+    assert res["comments"]["inserted_count"] == 5
+    assert res["edits"]["applied_count"] == 5
+    assert len(res["siem_triage_results"]) == 3
+    assert len(batch_calls) == 2
+    assert "writeControl" not in batch_calls[0]
+    assert batch_calls[1]["writeControl"] == {"writeMode": "SUGGEST"}
+
+    comment_bodies = [
+        req["insertComment"]["content"] for req in batch_calls[0]["requests"]
+    ]
+    assert any(
+        "[SIEM Credential Blast-Radius Triage:" in body for body in comment_bodies
+    )
+    assert any("key-compute-01" in body for body in comment_bodies)
+
+    delete_starts = [
+        req["deleteContentRange"]["range"]["startIndex"]
+        for req in batch_calls[1]["requests"]
+        if "deleteContentRange" in req
+    ]
+    assert delete_starts == sorted(delete_starts, reverse=True)
+
+    # Pass 2 idempotency
+    mock_doc_pass2 = {
+        "documentId": "doc-h13-e2e",
+        "title": "Cycle 15 H13 E2E Test",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": len(doc_text) + 1,
+                                "textRun": {
+                                    "content": doc_text,
+                                    "suggestedDeletionIds": ["suggest.h13.existing"],
+                                },
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+    }
+    res2 = triage_and_redline_leaked_credentials_in_doc(
+        "doc-h13-e2e",
+        run_live_siem_check=True,
+        redact_unredacted_credentials=True,
+        synthesize_missing_revocation=True,
+        siem_search_fn=fake_siem_search,
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(lambda req: httpx.Response(200, json=mock_doc_pass2)),
+    )
+    assert res2["finding_count"] == 0
+    assert res2["skipped_existing_suggestion_count"] == 5
+    assert res2["comments"]["inserted_count"] == 0
+    assert res2["edits"]["applied_count"] == 0
+
+    # Verify Stage A integration in review_google_doc_with_stage_a
+    batch_calls.clear()
+    stage_a_res = review_google_doc_with_stage_a(
+        "doc-h13-e2e",
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(handler),
+    )
+    assert stage_a_res["status"] == "success"
+    assert stage_a_res["stage_a_credential_containment_count"] == 4
+    assert stage_a_res["edits"]["applied_count"] == 4
+
+    # Verify ADK FunctionTool schema declaration
+    ft = FunctionTool(tools_module.triage_and_redline_leaked_credentials_in_doc)
+    decl = ft._get_declaration()
+    assert decl.name == "triage_and_redline_leaked_credentials_in_doc"
+    props = (decl.parameters_json_schema or {}).get("properties", {})
+    assert "document_id" in props
+    assert "run_live_siem_check" in props
+    assert "synthesize_missing_revocation" in props
+    assert "tool_context" not in props

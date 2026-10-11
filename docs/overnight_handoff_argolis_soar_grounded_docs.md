@@ -4,7 +4,7 @@
 
 - **Worktree Path**: `/usr/local/google/home/dandye/Projects/adk_runbooks__worktrees/drive-mcp-runbooks__grounded-docs`
 - **Git Branch**: `drive-mcp-runbooks__grounded-docs` stacked on `drive-mcp-runbooks`
-- **Unit Test Suite**: `116 passed` across `tests/`
+- **Unit Test Suite**: `186 passed` across `tests/`
 - **Target Tenant**: Argolis `dandye-0324-chronicle`
   - **Account**: `admin@dandye.altostrat.com`
   - **GCP Project**: `dandye-0324-chronicle` with project number `1002894625780`
@@ -36,6 +36,9 @@
 ### Task 3: Direct Drive Runbook Red-Lining via `stage_runbook_update_as_google_doc` (Completed)
 - Implemented `stage_runbook_update_as_google_doc` in `multi-agent/manager/tools/docs_review_tools.py` and executed it live against three Markdown runbooks from `SOC Runbooks` (`compromised-user-account-response`, `suspicious-login-triage`, and `malware-incident-response`).
 
+### Task 4: Autonomous Evolution Cycles 1–15 (`H1`–`H4`, `H6`, `H9`–`H19`) (Completed)
+- Completed 15 autonomous evolution cycles across UDM query verification (`H1`, `H9`), YARA-L 2.0 single-event, multi-event, `outcome:`, non-existence (`!$e2`), threshold calibration, Reference List / `strings.coalesce()` / `re.capture()`, and `meta:` MITRE/severity/`runbook_skill` verification (`H2`, `H14`, `H15`, `H16`, `H17`, `H12`, `H19`, `H18`), bidirectional suggestion inspection and lossless AST-to-Markdown reconstruction with italic regex wildcard recovery and unresolved comment governance (`H3`, `H10`, `H11`), MITRE ATT&CK / CISA KEV attribution (`H4`), adversarial telemetry/secret sanitization (`H6`), and automated leaked credential blast-radius triage, safe JWT claim extraction, and non-destructive emergency revocation playbook staging (`H13`).
+
 ---
 
 ## 3. All 11 Live Google Docs Created and Red-Lined in `SOC Reports`
@@ -61,7 +64,7 @@
 ```bash
 WORKTREE_DIR="/usr/local/google/home/dandye/Projects/adk_runbooks__worktrees/drive-mcp-runbooks__grounded-docs"
 
-# 1. Run full unit test suite (116 tests)
+# 1. Run full unit test suite (186 tests)
 direnv exec "$WORKTREE_DIR" env RUNBOOK_SOURCE=local "$WORKTREE_DIR/.venv/bin/python" -m pytest "$WORKTREE_DIR/tests/"
 
 # 2. Re-run the initial 3-case live Argolis SOAR experiment
@@ -69,4 +72,8 @@ direnv exec "$WORKTREE_DIR" "$WORKTREE_DIR/.venv/bin/python" "$WORKTREE_DIR/scri
 
 # 3. Re-run the expanded overnight Argolis SOAR suite (Tasks 1, 2, and 3)
 direnv exec "$WORKTREE_DIR" "$WORKTREE_DIR/.venv/bin/python" "$WORKTREE_DIR/scripts/overnight_argolis_soar_suite.py"
+
+# 4. Run Cycle 15 (H13) live leaked credential blast-radius triage & containment stager validation (0 new Google Docs allocated)
+direnv exec "$WORKTREE_DIR" "$WORKTREE_DIR/.venv/bin/python" "$WORKTREE_DIR/scripts/verify_cycle15_leaked_credential_blast_radius.py"
 ```
+
