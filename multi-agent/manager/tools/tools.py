@@ -538,6 +538,105 @@ def propose_doc_suggested_edits(
   )
 
 
+def review_google_doc_with_stage_a(
+    document_id: str,
+    semantic_comments: str = "[]",
+    semantic_edits: str = "[]",
+    tool_context: ToolContext = None,
+) -> dict:
+  """Executes the two-stage non-destructive review pipeline on a Google Doc.
+
+  Automatically runs Stage A deterministic untrusted URL defanging by UTF-16
+  span (`start_index`/`end_index`) without echoing URLs through the LLM, merges
+  with Stage B `semantic_comments` and `semantic_edits`, anchors comments first,
+  and stages Suggested Edits (`writeMode="SUGGEST"`) second.
+
+  Args:
+      document_id (str): The Google Docs documentId.
+      semantic_comments (str): JSON array of Stage B comment objects.
+      semantic_edits (str): JSON array of Stage B edit objects.
+
+  Returns:
+      dict: {"status", "document_id", "title", "char_count", "stage_a_url_count", "comments", "edits"}.
+  """
+  from .docs_review_tools import review_google_doc_with_stage_a as _review_stage_a
+
+  return _review_stage_a(
+      document_id=document_id,
+      semantic_comments=semantic_comments,
+      semantic_edits=semantic_edits,
+      tool_context=tool_context,
+  )
+
+
+def stage_runbook_update_as_google_doc(
+    skill_name: str,
+    case_id: str,
+    semantic_comments: str = "[]",
+    semantic_edits: str = "[]",
+    lessons_learned_markdown: str = "",
+    folder_id: str = "",
+    tool_context: ToolContext = None,
+) -> dict:
+  """Loads a Markdown runbook from SOC Runbooks, creates a Google Doc draft, and stages grounded red-lines.
+
+  Args:
+      skill_name (str): Name of the runbook skill in SOC Runbooks (e.g. 'compromised-user-account-response').
+      case_id (str): Originating SOAR case ID (e.g. '33278').
+      semantic_comments (str): JSON array of comment objects citing the SOAR case and authoritative docs.
+      semantic_edits (str): JSON array of non-overlapping replacement objects (`writeMode="SUGGEST"`).
+      lessons_learned_markdown (str): Optional Markdown section to append before reviewing.
+      folder_id (str): Optional target Drive folder ID.
+
+  Returns:
+      dict: {"status", "skill_name", "case_id", "document_id", "title", "viewUrl", "comments", "edits"}.
+  """
+  from .docs_review_tools import stage_runbook_update_as_google_doc as _stage_runbook
+
+  return _stage_runbook(
+      skill_name=skill_name,
+      case_id=case_id,
+      semantic_comments=semantic_comments,
+      semantic_edits=semantic_edits,
+      lessons_learned_markdown=lessons_learned_markdown,
+      folder_id=folder_id or None,
+      tool_context=tool_context,
+  )
+
+
+def post_reviewed_doc_to_soar_case(
+    case_id: str,
+    doc_title: str,
+    doc_url: str,
+    skill_name: str,
+    redline_summary: str,
+    runbook_doc_url: str = "",
+) -> dict:
+  """Posts a sanitized summary of the grounded Google Doc review to a SOAR case timeline.
+
+  Args:
+      case_id (str): SOAR Case ID.
+      doc_title (str): Title of the reviewed Google Doc.
+      doc_url (str): URL of the reviewed Google Doc.
+      skill_name (str): Active runbook skill name.
+      redline_summary (str): JSON array or newline-separated summary of red-lined items.
+      runbook_doc_url (str): Optional URL of the staged Runbook Red-Line Google Doc draft.
+
+  Returns:
+      dict: {"status", "case_id", "comment", "soar_response"}.
+  """
+  from .docs_review_tools import post_reviewed_doc_to_soar_case as _post_soar
+
+  return _post_soar(
+      case_id=case_id,
+      doc_title=doc_title,
+      doc_url=doc_url,
+      skill_name=skill_name,
+      redline_summary=redline_summary,
+      runbook_doc_url=runbook_doc_url,
+  )
+
+
 def get_agent_tools():
   """Initializes and returns MCP toolsets and progressive discovery tools.
 
@@ -568,6 +667,9 @@ def get_agent_tools():
   wrapped_read_google_doc = instrument_tool(read_google_doc)
   wrapped_insert_doc_comments = instrument_tool(insert_doc_comments)
   wrapped_propose_doc_suggested_edits = instrument_tool(propose_doc_suggested_edits)
+  wrapped_review_google_doc_with_stage_a = instrument_tool(review_google_doc_with_stage_a)
+  wrapped_stage_runbook_update_as_google_doc = instrument_tool(stage_runbook_update_as_google_doc)
+  wrapped_post_reviewed_doc_to_soar_case = instrument_tool(post_reviewed_doc_to_soar_case)
 
   # Wrap progressive MCP discovery meta-tools
   wrapped_search_mcp_tools = instrument_tool(search_mcp_tools)
@@ -590,6 +692,9 @@ def get_agent_tools():
       wrapped_read_google_doc,
       wrapped_insert_doc_comments,
       wrapped_propose_doc_suggested_edits,
+      wrapped_review_google_doc_with_stage_a,
+      wrapped_stage_runbook_update_as_google_doc,
+      wrapped_post_reviewed_doc_to_soar_case,
       wrapped_get_current_time,
       wrapped_read_file_content,
       wrapped_load_skill,

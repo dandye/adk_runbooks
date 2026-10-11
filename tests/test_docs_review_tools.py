@@ -397,6 +397,9 @@ def test_adk_function_tool_declarations_for_docs_review_tools():
         "read_google_doc",
         "insert_doc_comments",
         "propose_doc_suggested_edits",
+        "review_google_doc_with_stage_a",
+        "stage_runbook_update_as_google_doc",
+        "post_reviewed_doc_to_soar_case",
     ):
         fn = getattr(tools_module, fn_name)
         ft = FunctionTool(fn)
@@ -423,6 +426,10 @@ def test_sanitize_telemetry_text_redacts_encoded_blobs_and_memdump_args():
     sanitized_dump = sanitize_telemetry_text(raw_dump)
     assert "624 C:\\temp\\out.dmp" not in sanitized_dump
     assert "MiniDump <REDACTED_DUMP_ARGS:sha256=" in sanitized_dump
+
+    sha256_hex = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    with_hash = f"file_sha256={sha256_hex}"
+    assert sanitize_telemetry_text(with_hash) == with_hash
 
 
 def test_find_deterministic_indicator_spans_and_span_based_edits():
@@ -513,5 +520,245 @@ def test_find_deterministic_indicator_spans_and_span_based_edits():
     assert edit_res["status"] == "success"
     assert edit_res["applied_count"] == 1
     assert batch_calls[1]["writeControl"] == {"writeMode": "SUGGEST"}
+
+
+def test_review_google_doc_with_stage_a_combines_span_and_semantic_reviews():
+    from manager.tools.docs_review_tools import review_google_doc_with_stage_a
+
+    p1 = "Callback to https://c2.badactor-example.com/stage2.ps1 observed.\n"
+    p2 = "Containment: gcloud iam service-accounts delete compromised-sa@proj.iam.gserviceaccount.com\n"
+    doc = {
+        "documentId": "doc-stage-ab",
+        "title": "Combined Review Test",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": 1 + len(p1),
+                                "textRun": {"content": p1},
+                            }
+                        ]
+                    }
+                },
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1 + len(p1),
+                                "endIndex": 1 + len(p1) + len(p2),
+                                "textRun": {"content": p2},
+                            }
+                        ]
+                    }
+                },
+            ]
+        },
+    }
+    batch_calls: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=doc)
+        body = json.loads(request.content.decode("utf-8"))
+        batch_calls.append(body)
+        if "insertComment" in json.dumps(body):
+            return httpx.Response(
+                200,
+                json={
+                    "replies": [
+                        {"insertComment": {"commentId": f"c-{i}"}}
+                        for i in range(len(body.get("requests", [])))
+                    ]
+                },
+            )
+        return httpx.Response(
+            200, json={"replies": [{} for _ in body.get("requests", [])]}
+        )
+
+    transport = httpx.MockTransport(handler)
+    token_source = StaticTokenSource("adc-token")
+
+    res = review_google_doc_with_stage_a(
+        "doc-stage-ab",
+        semantic_comments=[
+            {
+                "quote": "gcloud iam service-accounts delete",
+                "comment": "Use reversible disable instead of delete (https://docs.cloud.google.com/iam/docs/service-accounts-disable-enable).",
+            }
+        ],
+        semantic_edits=[
+            {
+                "quote": "gcloud iam service-accounts delete",
+                "replacement": "gcloud iam service-accounts disable",
+            }
+        ],
+        token_source=token_source,
+        transport=transport,
+    )
+    assert res["status"] == "success"
+    assert res["stage_a_url_count"] == 1
+    assert res["comments"]["inserted_count"] == 2
+    assert res["edits"]["applied_count"] == 2
+    assert len(batch_calls) == 2
+    assert "insertComment" in batch_calls[0]["requests"][0]
+    assert batch_calls[1]["writeControl"] == {"writeMode": "SUGGEST"}
+    # Verify back-to-front ordering: paragraph 2 edit (higher startIndex) comes before paragraph 1 URL edit
+    first_del_start = batch_calls[1]["requests"][0]["deleteContentRange"]["range"]["startIndex"]
+    second_del_start = batch_calls[1]["requests"][2]["deleteContentRange"]["range"]["startIndex"]
+    assert first_del_start > second_del_start
+
+
+def test_stage_runbook_update_as_google_doc_creates_and_redlines_runbook_draft(
+    fake_drive: FakeDriveMcpServer,
+):
+    from manager.tools.docs_review_tools import stage_runbook_update_as_google_doc
+
+    reports_folder = fake_drive.store.add_folder("SOC Reports")
+    client = DriveMcpClient(
+        url=fake_drive.url,
+        token_source=StaticTokenSource("drive-tok"),
+        quota_project="dandye-0324-chronicle",
+    )
+
+    runbook_md = (
+        "# Compromised User Account Response\n\n"
+        "## Containment\n"
+        "- Execute `gcloud iam service-accounts delete` on affected service accounts.\n"
+    )
+    appended_lessons = (
+        "## Lessons Learned from SOAR Case 33278\n"
+        "- Attacker callback URL: https://c2.badactor-example.com/beacon\n"
+        "- Query UDM field: `resource.name = \"projects/base-analytics/instances/prod-customers\"`\n"
+    )
+    combined_text = runbook_md.rstrip() + "\n\n" + appended_lessons.strip() + "\n"
+    doc_payload = {
+        "documentId": "doc-runbook-1",
+        "title": "Runbook_Redline_compromised-user-account-response_Case_33278",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": 1 + len(combined_text),
+                                "textRun": {"content": combined_text},
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=doc_payload)
+        body = json.loads(request.content.decode("utf-8"))
+        if "insertComment" in json.dumps(body):
+            return httpx.Response(
+                200,
+                json={
+                    "replies": [
+                        {"insertComment": {"commentId": f"c-rb-{i}"}}
+                        for i in range(len(body.get("requests", [])))
+                    ]
+                },
+            )
+        return httpx.Response(
+            200, json={"replies": [{} for _ in body.get("requests", [])]}
+        )
+
+    transport = httpx.MockTransport(handler)
+    token_source = StaticTokenSource("adc-token")
+
+    with patch.dict(os.environ, {"DRIVE_REPORTS_FOLDER_ID": reports_folder}, clear=False):
+        res = stage_runbook_update_as_google_doc(
+            skill_name="compromised-user-account-response",
+            case_id="33278",
+            semantic_comments=[
+                {
+                    "quote": "gcloud iam service-accounts delete",
+                    "comment": "Case 33278 Lesson Learned: Use reversible disable instead of delete (https://docs.cloud.google.com/iam/docs/service-accounts-disable-enable).",
+                },
+                {
+                    "quote": "resource.name",
+                    "comment": "Case 33278 Lesson Learned: Prefix UDM field with target.resource.name (https://docs.cloud.google.com/chronicle/docs/reference/udm-field-list).",
+                },
+            ],
+            semantic_edits=[
+                {
+                    "quote": "gcloud iam service-accounts delete",
+                    "replacement": "gcloud iam service-accounts disable",
+                },
+                {
+                    "quote": "resource.name",
+                    "replacement": "target.resource.name",
+                },
+            ],
+            lessons_learned_markdown=appended_lessons,
+            skill_content_override=runbook_md,
+            client=client,
+            token_source=token_source,
+            transport=transport,
+        )
+
+    assert res["status"] == "success"
+    assert res["skill_name"] == "compromised-user-account-response"
+    assert res["case_id"] == "33278"
+    assert res["stage_a_url_count"] == 1
+    assert res["comments"]["inserted_count"] == 3
+    assert res["edits"]["applied_count"] == 3
+
+
+def test_post_reviewed_doc_to_soar_case_sanitizes_and_posts_comment():
+    from manager.tools.docs_review_tools import post_reviewed_doc_to_soar_case
+
+    recorded_soar_calls: list[tuple[str, str]] = []
+
+    def fake_soar_post(case_id: str, comment: str) -> dict[str, Any]:
+        recorded_soar_calls.append((case_id, comment))
+        return {"id": 99901, "comment": comment, "case_id": case_id}
+
+    res = post_reviewed_doc_to_soar_case(
+        case_id="33288",
+        doc_title="SOAR_Case_33288_Sanitized_3Stage_Intrusion_Review",
+        doc_url="https://docs.google.com/document/d/doc-33288/edit",
+        skill_name="phishing-response",
+        redline_summary=[
+            "Defanged live phishing URL via Stage A span-based addressing",
+            "Corrected LSASS MiniDump 624 C:\\temp\\lsass.dmp full technique to T1003.001",
+            "Sanitized stager -Enc aGVsbG8gd29ybGQgdGVzdCBwYXlsb2Fk",
+        ],
+        runbook_doc_url="https://docs.google.com/document/d/rb-33288/edit",
+        soar_comment_fn=fake_soar_post,
+    )
+    assert res["status"] == "success"
+    assert len(recorded_soar_calls) == 1
+    posted_case_id, posted_comment = recorded_soar_calls[0]
+    assert posted_case_id == "33288"
+    assert "https://docs.google.com/document/d/doc-33288/edit" in posted_comment
+    assert "https://docs.google.com/document/d/rb-33288/edit" in posted_comment
+    # Verify raw base64 and raw MiniDump args were sanitized before hitting SOAR
+    assert "aGVsbG8gd29ybGQgdGVzdCBwYXlsb2Fk" not in posted_comment
+    assert "<REDACTED_B64:len=32,sha256=" in posted_comment
+    assert "<REDACTED_DUMP_ARGS:sha256=" in posted_comment
+
+
+def test_grounded_soar_review_workflow_executes_end_to_end():
+    from manager.tools.workflow_tools import run_grounded_soar_review_workflow
+
+    out = run_grounded_soar_review_workflow(
+        case_id="33278",
+        skill_name="compromised-user-account-response",
+        raw_telemetry_summary="powershell.exe -NoP -Enc aGVsbG8gd29ybGQgdGVzdCBwYXlsb2Fk",
+    )
+    assert "33278" in out
+    assert "compromised-user-account-response" in out
+    assert "aGVsbG8gd29ybGQgdGVzdCBwYXlsb2Fk" not in out
+    assert "<REDACTED_B64:len=32,sha256=" in out
 
 

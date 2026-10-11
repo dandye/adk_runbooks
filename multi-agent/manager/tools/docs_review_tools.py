@@ -127,6 +127,8 @@ def sanitize_telemetry_text(text: str) -> str:
 
     def _replace_standalone_b64(match: re.Match[str]) -> str:
         blob = match.group(1)
+        if re.fullmatch(r"[0-9a-fA-F]+", blob):
+            return blob
         return f"<REDACTED_B64:len={len(blob)},sha256={_short_sha256(blob)}>"
 
     def _replace_memdump(match: re.Match[str]) -> str:
@@ -788,4 +790,274 @@ def find_deterministic_indicator_spans(
         )
 
     return comments, edits
+
+
+def _parse_json_or_list(items: str | list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    if items is None:
+        return []
+    if isinstance(items, str):
+        stripped = items.strip()
+        if not stripped:
+            return []
+        parsed = json.loads(stripped)
+        return parsed if isinstance(parsed, list) else []
+    if isinstance(items, list):
+        return [x for x in items if isinstance(x, dict)]
+    return []
+
+
+def review_google_doc_with_stage_a(
+    document_id: str,
+    semantic_comments: str | list[dict[str, Any]] | None = None,
+    semantic_edits: str | list[dict[str, Any]] | None = None,
+    tool_context: Any = None,
+    *,
+    token_source: TokenSource | None = None,
+    quota_project: str | None = None,
+    transport: httpx.BaseTransport | None = None,
+) -> dict[str, Any]:
+    """Executes the two-stage non-destructive review pipeline on a Google Doc.
+
+    1. Calls :func:`read_google_doc` to populate the 1-based UTF-16 index map.
+    2. Runs Stage A (:func:`find_deterministic_indicator_spans`) to locate any
+       live untrusted URLs by numeric UTF-16 span without echoing them through
+       an LLM.
+    3. Merges Stage A comments and edits with Stage B ``semantic_comments`` and
+       ``semantic_edits``.
+    4. Anchors all comments first via :func:`insert_doc_comments`.
+    5. Stages all Suggested Edits second via :func:`propose_doc_suggested_edits`
+       (sorted descending by ``startIndex`` under ``writeMode="SUGGEST"``).
+    """
+    read_res = read_google_doc(
+        document_id,
+        tool_context=tool_context,
+        token_source=token_source,
+        quota_project=quota_project,
+        transport=transport,
+    )
+    if read_res.get("status") != "success":
+        return read_res
+
+    plain_text, index_map = _load_doc_index_state(document_id, tool_context=tool_context)
+    if plain_text is None or index_map is None:
+        return {
+            "status": "error",
+            "message": "Failed to load UTF-16 index map after read_google_doc.",
+        }
+
+    stage_a_comments, stage_a_edits = find_deterministic_indicator_spans(
+        plain_text, index_map
+    )
+
+    try:
+        stage_b_comments = _parse_json_or_list(semantic_comments)
+        stage_b_edits = _parse_json_or_list(semantic_edits)
+    except json.JSONDecodeError as err:
+        return {"status": "error", "message": f"Invalid semantic review JSON: {err}"}
+
+    all_comments = stage_a_comments + stage_b_comments
+    all_edits = stage_a_edits + stage_b_edits
+
+    comments_res: dict[str, Any] = {"status": "skipped", "inserted_count": 0, "comment_ids": []}
+    if all_comments:
+        comments_res = insert_doc_comments(
+            document_id,
+            all_comments,
+            tool_context=tool_context,
+            token_source=token_source,
+            quota_project=quota_project,
+            transport=transport,
+        )
+        if comments_res.get("status") != "success":
+            return {
+                "status": "error",
+                "message": f"insert_doc_comments failed: {comments_res.get('message')}",
+                "comments": comments_res,
+            }
+
+    edits_res: dict[str, Any] = {"status": "skipped", "applied_count": 0}
+    if all_edits:
+        edits_res = propose_doc_suggested_edits(
+            document_id,
+            all_edits,
+            tool_context=tool_context,
+            token_source=token_source,
+            quota_project=quota_project,
+            transport=transport,
+        )
+        if edits_res.get("status") != "success":
+            return {
+                "status": "error",
+                "message": f"propose_doc_suggested_edits failed: {edits_res.get('message')}",
+                "comments": comments_res,
+                "edits": edits_res,
+            }
+
+    return {
+        "status": "success",
+        "document_id": document_id,
+        "title": read_res.get("title", ""),
+        "char_count": read_res.get("char_count", 0),
+        "stage_a_url_count": len(stage_a_edits),
+        "comments": comments_res,
+        "edits": edits_res,
+    }
+
+
+def stage_runbook_update_as_google_doc(
+    skill_name: str,
+    case_id: str,
+    semantic_comments: str | list[dict[str, Any]] | None = None,
+    semantic_edits: str | list[dict[str, Any]] | None = None,
+    lessons_learned_markdown: str = "",
+    folder_id: str | None = None,
+    tool_context: Any = None,
+    *,
+    skill_content_override: str | None = None,
+    client: DriveMcpClient | None = None,
+    token_source: TokenSource | None = None,
+    quota_project: str | None = None,
+    transport: httpx.BaseTransport | None = None,
+) -> dict[str, Any]:
+    """Stages a non-destructive Google Doc red-line draft of a Drive runbook.
+
+    Loads the Markdown runbook ``skill_name`` from ``SOC Runbooks``, optionally
+    appends sanitized ``lessons_learned_markdown`` from SOAR case ``case_id``,
+    creates a collaborative Google Doc draft, and executes
+    :func:`review_google_doc_with_stage_a` so a human detection engineer can
+    Accept or Reject each proposed update in Google Docs.
+    """
+    if skill_content_override is not None:
+        base_markdown = skill_content_override
+    else:
+        from .drive_tools import build_skill_registry
+
+        registry = build_skill_registry()
+        base_markdown = registry.get_skill_content(skill_name)
+        if not base_markdown or base_markdown.startswith("Skill '"):
+            return {
+                "status": "error",
+                "message": f"Could not load runbook skill {skill_name!r}: {base_markdown}",
+            }
+
+    sanitized_lessons = sanitize_telemetry_text(lessons_learned_markdown or "")
+    if sanitized_lessons.strip():
+        full_markdown = base_markdown.rstrip() + "\n\n" + sanitized_lessons.strip() + "\n"
+    else:
+        full_markdown = base_markdown
+
+    safe_case = re.sub(r"[^A-Za-z0-9_-]+", "_", str(case_id).strip()) or "general"
+    doc_title = f"Runbook_Redline_{skill_name}_Case_{safe_case}"
+
+    created = create_google_doc(
+        title=doc_title,
+        content=full_markdown,
+        folder_id=folder_id,
+        client=client,
+    )
+    if created.get("status") != "success":
+        return created
+
+    doc_id = created["document_id"]
+    review_res = review_google_doc_with_stage_a(
+        doc_id,
+        semantic_comments=semantic_comments,
+        semantic_edits=semantic_edits,
+        tool_context=tool_context,
+        token_source=token_source,
+        quota_project=quota_project,
+        transport=transport,
+    )
+    return {
+        "status": review_res.get("status", "error"),
+        "skill_name": skill_name,
+        "case_id": str(case_id),
+        "document_id": doc_id,
+        "title": doc_title,
+        "viewUrl": created.get("viewUrl", f"https://docs.google.com/document/d/{doc_id}/edit"),
+        "char_count": review_res.get("char_count", 0),
+        "stage_a_url_count": review_res.get("stage_a_url_count", 0),
+        "comments": review_res.get("comments", {}),
+        "edits": review_res.get("edits", {}),
+        "message": review_res.get("message", ""),
+    }
+
+
+def format_soar_doc_review_comment(
+    case_id: str,
+    doc_title: str,
+    doc_url: str,
+    skill_name: str,
+    redline_summary: list[str],
+    *,
+    runbook_doc_url: str = "",
+) -> str:
+    """Formats a sanitized SOAR case timeline comment linking to the red-lined Google Docs."""
+    lines = [
+        f"[Grounded Google Docs Review Completed for Case {case_id}]",
+        f"- Incident Report & Postmortem Google Doc: {doc_title} ({doc_url})",
+        f"- Active Runbook Applied: {skill_name}",
+    ]
+    if runbook_doc_url:
+        lines.append(f"- Staged Runbook Red-Line Draft (writeMode=SUGGEST): {runbook_doc_url}")
+    if redline_summary:
+        lines.append("- Grounded Review Findings & Red-Lines Staged:")
+        for item in redline_summary:
+            lines.append(f"  * {sanitize_telemetry_text(str(item))}")
+    return sanitize_telemetry_text("\n".join(lines))
+
+
+def post_reviewed_doc_to_soar_case(
+    case_id: str,
+    doc_title: str,
+    doc_url: str,
+    skill_name: str,
+    redline_summary: str | list[str],
+    *,
+    runbook_doc_url: str = "",
+    soar_comment_fn: Any = None,
+) -> dict[str, Any]:
+    """Posts a sanitized summary of the grounded Google Doc review to a SOAR case timeline."""
+    if isinstance(redline_summary, str):
+        try:
+            parsed = json.loads(redline_summary)
+            summary_list = [str(x) for x in parsed] if isinstance(parsed, list) else [redline_summary]
+        except json.JSONDecodeError:
+            summary_list = [line.strip() for line in redline_summary.splitlines() if line.strip()]
+    else:
+        summary_list = [str(x) for x in redline_summary]
+
+    comment_text = format_soar_doc_review_comment(
+        case_id=str(case_id),
+        doc_title=doc_title,
+        doc_url=doc_url,
+        skill_name=skill_name,
+        redline_summary=summary_list,
+        runbook_doc_url=runbook_doc_url,
+    )
+
+    try:
+        if soar_comment_fn is not None:
+            raw_res = soar_comment_fn(str(case_id), comment_text)
+        else:
+            from .tools import execute_mcp_tool
+
+            raw_res = execute_mcp_tool(
+                "soar-mcp_post_case_comment",
+                {"case_id": str(case_id), "comment": comment_text},
+            )
+    except Exception as err:
+        return {
+            "status": "error",
+            "case_id": str(case_id),
+            "comment": comment_text,
+            "message": f"Failed to post SOAR case comment: {err}",
+        }
+
+    return {
+        "status": "success",
+        "case_id": str(case_id),
+        "comment": comment_text,
+        "soar_response": raw_res,
+    }
 
