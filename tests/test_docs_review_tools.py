@@ -6676,3 +6676,519 @@ def test_verify_and_redline_yaral2_rules_in_doc_meta_mitre_redlining_idempotency
     assert res2["edits"]["applied_count"] == 0
 
 
+def test_infer_yaral2_severity_from_risk_score_and_runbook_skill_from_rule():
+    """H19 Suite 1: Verifies ``infer_yaral2_severity_from_risk_score`` across all 5
+    Chronicle Risk Analytics bands (``90..100`` -> ``"CRITICAL"``, ``70..89`` ->
+    ``"HIGH"``, ``40..69`` -> ``"MEDIUM"``, ``20..39`` -> ``"LOW"``, ``1..19`` ->
+    ``"INFORMATIONAL"``, including conditional ``max(if(..., 85, 40))`` and
+    ``condition: $risk_score >= 90``) and verifies ``infer_yaral2_runbook_skill_from_rule``
+    against the live ``SkillRegistry`` across ``compromised-user-account-response``,
+    ``suspicious-login-triage``, ``malware-incident-response``, ``ransomware-response``,
+    and ``phishing-response``.
+    """
+    from manager.tools.docs_review_tools import (
+        infer_yaral2_runbook_skill_from_rule,
+        infer_yaral2_severity_from_risk_score,
+    )
+    from skills.registry import SkillRegistry
+
+    registry = SkillRegistry()
+
+    # 1. Severity-to-Risk-Score band mapping across all 5 tiers
+    band_cases = [
+        ("max(95)", "CRITICAL", 95, "90..100"),
+        ("max(85)", "HIGH", 85, "70..89"),
+        ("max(55)", "MEDIUM", 55, "40..69"),
+        ("max(25)", "LOW", 25, "20..39"),
+        ("max(10)", "INFORMATIONAL", 10, "1..19"),
+        (
+            'max(if($e.target.resource.name = "projects/base-production", 85, 40))',
+            "HIGH",
+            85,
+            "70..89",
+        ),
+    ]
+    for rhs_expr, expected_sev, expected_score, expected_band in band_cases:
+        rule_txt = (
+            "rule score_band_check {\n"
+            "  events:\n"
+            '    $e.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+            "  outcome:\n"
+            f"    $risk_score = {rhs_expr}\n"
+            "  condition:\n"
+            "    $e\n"
+            "}\n"
+        )
+        sev_res = infer_yaral2_severity_from_risk_score(rule_txt)
+        assert sev_res is not None
+        assert sev_res["canonical_severity"] == expected_sev
+        assert sev_res["risk_score"] == expected_score
+        assert sev_res["score_band"] == expected_band
+
+    # Condition threshold fallback ($risk_score >= 90 -> CRITICAL)
+    cond_thresh_rule = (
+        "rule cond_thresh_check {\n"
+        "  events:\n"
+        '    $e.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        "  outcome:\n"
+        "    $risk_score = count_distinct($e.target.resource.name)\n"
+        "  condition:\n"
+        "    $e and $risk_score >= 90\n"
+        "}\n"
+    )
+    cond_sev = infer_yaral2_severity_from_risk_score(cond_thresh_rule)
+    assert cond_sev is not None
+    assert cond_sev["canonical_severity"] == "CRITICAL"
+    assert cond_sev["risk_score"] == 90
+    assert cond_sev["source"] == "condition_threshold"
+
+    # 2. Runbook skill routing inference against live SkillRegistry
+    runbook_cases = [
+        (
+            'rule gcp_iam {\n  events:\n    $e.metadata.log_type = "GCP_CLOUDAUDIT"\n    $e.target.resource.name = "projects/base-production"\n  condition:\n    $e\n}',
+            "compromised-user-account-response",
+            "T1098.003",
+        ),
+        (
+            'rule lsass_dump {\n  events:\n    re.regex($e.target.process.command_line, `.*comsvcs\\.dll.*MiniDump.*`) nocase\n  condition:\n    $e\n}',
+            "compromised-user-account-response",
+            "T1003.001",
+        ),
+        (
+            'rule workspace_login {\n  events:\n    $e.metadata.log_type = "WORKSPACE_ACTIVITY"\n    $e.metadata.event_type = "USER_LOGIN"\n  condition:\n    $e\n}',
+            "suspicious-login-triage",
+            "T1078.004",
+        ),
+        (
+            'rule ps_empire {\n  events:\n    re.regex($e.target.process.command_line, `.*powershell.*-enc.*`) nocase\n  condition:\n    $e\n}',
+            "malware-incident-response",
+            "T1059.001",
+        ),
+        (
+            'rule cmd_shell {\n  events:\n    re.regex($e.target.process.command_line, `.*cmd\\.exe.*`) nocase\n  condition:\n    $e\n}',
+            "malware-incident-response",
+            "T1059.003",
+        ),
+        (
+            'rule rundll_proxy {\n  events:\n    re.regex($e.target.process.command_line, `.*rundll32\\.exe.*`) nocase\n  condition:\n    $e\n}',
+            "malware-incident-response",
+            "T1218.011",
+        ),
+        (
+            'rule derp_service {\n  events:\n    re.regex($e.target.process.command_line, `.*DERPService.*`) nocase\n  condition:\n    $e\n}',
+            "malware-incident-response",
+            "T1543.003",
+        ),
+        (
+            'rule shadow_copy_ransomware {\n  events:\n    re.regex($e.target.process.command_line, `.*vssadmin.*delete shadows.*`) nocase\n  condition:\n    $e\n}',
+            "ransomware-response",
+            "T1486",
+        ),
+        (
+            'rule spearphish_delivery {\n  events:\n    $e.metadata.event_type = "EMAIL_TRANSACTION"\n    $e.network.email.from = "attacker@phish-login.com"\n  condition:\n    $e\n}',
+            "phishing-response",
+            "T1566",
+        ),
+    ]
+    for r_txt, expected_skill, expected_mitre in runbook_cases:
+        rb_res = infer_yaral2_runbook_skill_from_rule(
+            r_txt, skill_registry=registry
+        )
+        assert rb_res is not None
+        assert rb_res["canonical_skill"] == expected_skill
+        assert rb_res["mitre_technique_id"] == expected_mitre
+        assert rb_res["skill_verified"] is True
+        assert registry.get_skill(expected_skill) is not None
+
+
+def test_find_yaral2_meta_runbook_and_severity_spans_all_four_defect_classes():
+    """H19 Suite 2: Verifies detection and exact 1-based UTF-16 span calculation
+    across all 4 H19 defect classes:
+    - ``invalid_meta_severity``: ``"SEV1"`` -> ``"CRITICAL"``, ``"WARN"`` -> ``"MEDIUM"``
+    - ``meta_severity_risk_score_mismatch``: ``severity = "LOW"`` with ``$risk_score = max(85)`` -> ``"HIGH"``
+    - ``meta_runbook_skill_mismatch``: hallucinated ``"gcp-iam-playbook"`` -> ``"compromised-user-account-response"``
+      and wrong-domain ``"suspicious-login-triage"`` on a Windows ``DERPService`` rule -> ``"malware-incident-response"``
+    - ``missing_meta_runbook_skill``: missing ``runbook_skill`` -> synthesizes ``runbook_skill = "malware-incident-response"``
+      on the ``insertion_anchor``
+    with 0 false positives on a valid control rule.
+    """
+    from manager.tools.docs_review_tools import (
+        _build_utf16_index_map,
+        find_yaral2_meta_runbook_and_severity_spans,
+    )
+
+    doc_text = (
+        'rule r1_sev_mismatch_and_hallucinated_runbook {\n'
+        '  meta:\n'
+        '    author = "SecOps"\n'
+        '    severity = "LOW"\n'
+        '    runbook_skill = "gcp-iam-playbook"\n'
+        '  events:\n'
+        '    $e.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $e.target.resource.name = "projects/base-production"\n'
+        '  outcome:\n'
+        '    $risk_score = max(85)\n'
+        '  condition:\n'
+        '    $e\n'
+        '}\n\n'
+        'rule r2_non_canonical_sev_and_wrong_domain_runbook {\n'
+        '  meta:\n'
+        '    author = "SecOps"\n'
+        '    severity = "SEV1"\n'
+        '    runbook_skill = "suspicious-login-triage"\n'
+        '  events:\n'
+        '    $e.principal.hostname = "wins-d19"\n'
+        '    re.regex($e.target.process.command_line, `.*DERPService.*`) nocase\n'
+        '  outcome:\n'
+        '    $risk_score = max(95)\n'
+        '  condition:\n'
+        '    $e\n'
+        '}\n\n'
+        'rule r3_warn_sev_and_missing_runbook {\n'
+        '  meta:\n'
+        '    severity = "WARN"\n'
+        '    author = "SecOps"\n'
+        '  events:\n'
+        '    $e.principal.hostname = "wins-d19"\n'
+        '    re.regex($e.target.process.command_line, `.*powershell.*`) nocase\n'
+        '  condition:\n'
+        '    $e\n'
+        '}\n\n'
+        'rule r4_valid_control {\n'
+        '  meta:\n'
+        '    author = "SecOps"\n'
+        '    severity = "MEDIUM"\n'
+        '    runbook_skill = "malware-incident-response"\n'
+        '  events:\n'
+        '    $e.principal.hostname = "wins-d19"\n'
+        '    re.regex($e.target.process.command_line, `.*cmd\\.exe.*`) nocase\n'
+        '  outcome:\n'
+        '    $risk_score = max(55)\n'
+        '  condition:\n'
+        '    $e\n'
+        '}\n'
+    )
+    idx_map = _build_utf16_index_map(doc_text)
+    comments, edits, findings = find_yaral2_meta_runbook_and_severity_spans(
+        doc_text, idx_map
+    )
+
+    assert len(findings) == 6
+    assert len(comments) == 6
+    assert len(edits) == 6
+    assert "r4_valid_control" not in {f["rule_name"] for f in findings}
+
+    # Verify every edit span matches doc_text[start-1:end-1] and no two spans overlap
+    for i, ed in enumerate(edits):
+        s_idx = ed["start_index"]
+        e_idx = ed["end_index"]
+        assert doc_text[s_idx - 1 : e_idx - 1] == ed["quote"]
+        for j in range(i + 1, len(edits)):
+            other = edits[j]
+            assert e_idx <= other["start_index"] or other["end_index"] <= s_idx
+
+    by_rule_and_type = {(f["rule_name"], f["defect_type"]): f for f in findings}
+
+    f_r1_sev = by_rule_and_type[
+        ("r1_sev_mismatch_and_hallucinated_runbook", "meta_severity_risk_score_mismatch")
+    ]
+    assert f_r1_sev["quote"] == "LOW"
+    assert f_r1_sev["replacement"] == "HIGH"
+    assert f_r1_sev["risk_score"] == 85
+    assert f_r1_sev["score_band"] == "70..89"
+
+    f_r1_rb = by_rule_and_type[
+        ("r1_sev_mismatch_and_hallucinated_runbook", "meta_runbook_skill_mismatch")
+    ]
+    assert f_r1_rb["quote"] == "gcp-iam-playbook"
+    assert f_r1_rb["replacement"] == "compromised-user-account-response"
+    assert f_r1_rb["skill_verified"] is True
+
+    f_r2_sev = by_rule_and_type[
+        ("r2_non_canonical_sev_and_wrong_domain_runbook", "invalid_meta_severity")
+    ]
+    assert f_r2_sev["quote"] == "SEV1"
+    assert f_r2_sev["replacement"] == "CRITICAL"
+
+    f_r2_rb = by_rule_and_type[
+        ("r2_non_canonical_sev_and_wrong_domain_runbook", "meta_runbook_skill_mismatch")
+    ]
+    assert f_r2_rb["quote"] == "suspicious-login-triage"
+    assert f_r2_rb["replacement"] == "malware-incident-response"
+
+    f_r3_sev = by_rule_and_type[
+        ("r3_warn_sev_and_missing_runbook", "invalid_meta_severity")
+    ]
+    assert f_r3_sev["quote"] == "WARN"
+    assert f_r3_sev["replacement"] == "MEDIUM"
+
+    f_r3_rb = by_rule_and_type[
+        ("r3_warn_sev_and_missing_runbook", "missing_meta_runbook_skill")
+    ]
+    assert f_r3_rb["quote"] == 'author = "SecOps"'
+    assert (
+        f_r3_rb["replacement"]
+        == 'author = "SecOps"\n    runbook_skill = "malware-incident-response"'
+    )
+
+
+def test_find_yaral2_rule_spans_folds_anchor_severity_repair_mitre_and_runbook_synthesis_without_overlap():
+    """H19 Suite 3: Verifies that when a rule's ``insertion_anchor`` is ``severity = "LOW"``
+    (which itself needs repair to ``"HIGH"``) and both MITRE attribution keys and
+    ``runbook_skill`` are missing, ``find_yaral2_rule_spans`` folds the anchor repair +
+    MITRE synthesis + ``runbook_skill`` synthesis into a single non-overlapping UTF-16
+    edit and produces a valid ``repaired_rule_text``.
+    """
+    from manager.tools.docs_review_tools import (
+        _build_utf16_index_map,
+        find_yaral2_rule_spans,
+    )
+
+    doc_text = (
+        'rule gcp_sa_unified_anchor_folding {\n'
+        '  meta:\n'
+        '    author = "SecOps Agent"\n'
+        '    severity = "LOW"\n'
+        '  strings:\n'
+        '    $iam.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $iam.resource.name = "projects/base-production"\n'
+        '  outcome:\n'
+        '    $risk_score = max(85)\n'
+        '  condition:\n'
+        '    $event\n'
+        '}\n'
+    )
+    idx_map = _build_utf16_index_map(doc_text)
+    comments, edits, findings = find_yaral2_rule_spans(
+        doc_text,
+        idx_map,
+        verify_meta_mitre=True,
+        synthesize_missing_meta=True,
+        verify_meta_severity=True,
+        verify_meta_runbook=True,
+        synthesize_missing_runbook=True,
+    )
+
+    # 4 non-overlapping edits:
+    # 1. Unified meta anchor (severity = "LOW" -> severity = "HIGH" + mitre_* + runbook_skill)
+    # 2. strings: -> events:
+    # 3. $iam.resource.name -> $iam.target.resource.name
+    # 4. $event -> $iam
+    assert len(edits) == 4
+    for i, ed in enumerate(edits):
+        s_idx = ed["start_index"]
+        e_idx = ed["end_index"]
+        assert doc_text[s_idx - 1 : e_idx - 1] == ed["quote"]
+        for j in range(i + 1, len(edits)):
+            other = edits[j]
+            assert e_idx <= other["start_index"] or other["end_index"] <= s_idx
+
+    meta_finding = [
+        f for f in findings if "synthesized_keys" in f
+    ][0]
+    assert meta_finding["quote"] == 'severity = "LOW"'
+    assert meta_finding["repaired_anchor_key"] == "severity"
+    assert meta_finding["repaired_anchor_value"] == "HIGH"
+    assert set(meta_finding["folded_defect_types"]) == {
+        "meta_severity_risk_score_mismatch",
+        "missing_meta_mitre_attribution",
+        "missing_meta_runbook_skill",
+    }
+    assert meta_finding["synthesized_keys"] == [
+        "mitre_attack_technique",
+        "mitre_attack_tactic",
+        "mitre_attack_url",
+        "runbook_skill",
+    ]
+    repaired_rule = meta_finding["repaired_rule_text"]
+    assert 'severity = "HIGH"' in repaired_rule
+    assert 'mitre_attack_technique = "T1098.003"' in repaired_rule
+    assert 'mitre_attack_tactic = "Persistence / Privilege Escalation"' in repaired_rule
+    assert (
+        'mitre_attack_url = "https://attack.mitre.org/techniques/T1098/003/"'
+        in repaired_rule
+    )
+    assert 'runbook_skill = "compromised-user-account-response"' in repaired_rule
+    assert "events:" in repaired_rule
+    assert "$iam.target.resource.name" in repaired_rule
+
+
+def test_collapsed_single_line_yaral2_meta_runbook_and_severity_spans():
+    """H19 Suite 4: Verifies ``find_yaral2_meta_runbook_and_severity_spans`` on
+    Google Drive Markdown-imported single-line collapsed YARA-L 2.0 rules.
+    """
+    from manager.tools.docs_review_tools import (
+        _build_utf16_index_map,
+        find_yaral2_meta_runbook_and_severity_spans,
+    )
+
+    collapsed_rule = (
+        'rule collapsed_empire_meta { meta: author = "SOC" severity = "P1" '
+        'events: $e.principal.hostname = "wins-d19" '
+        're.regex($e.target.process.command_line, `.*powershell.*-enc.*`) nocase '
+        'outcome: $risk_score = max(95) condition: $e }'
+    )
+    idx_map = _build_utf16_index_map(collapsed_rule)
+    comments, edits, findings = find_yaral2_meta_runbook_and_severity_spans(
+        collapsed_rule, idx_map
+    )
+
+    # Because severity = "P1" is the insertion_anchor in the collapsed meta: block,
+    # invalid_meta_severity ("P1" -> "CRITICAL") and missing_meta_runbook_skill
+    # fold onto the severity = "P1" anchor span.
+    assert len(findings) == 1
+    f = findings[0]
+    assert f["quote"] == 'severity = "P1"'
+    assert (
+        f["replacement"]
+        == 'severity = "CRITICAL" runbook_skill = "malware-incident-response"'
+    )
+    assert set(f["folded_defect_types"]) == {
+        "invalid_meta_severity",
+        "missing_meta_runbook_skill",
+    }
+    assert (
+        collapsed_rule[f["start_index"] - 1 : f["end_index"] - 1]
+        == 'severity = "P1"'
+    )
+
+
+def test_verify_and_redline_yaral2_rules_in_doc_with_meta_runbook_and_severity_and_adk_tool_schema():
+    """H19 Suite 5: Verifies end-to-end ``verify_and_redline_yaral2_rules_in_doc``
+    with ``verify_meta_runbook=True``, ``verify_meta_severity=True``, and
+    ``synthesize_missing_runbook=True`` against ``httpx.MockTransport`` (ordering
+    invariants, Pass 2 idempotency) and checks the ADK ``FunctionTool`` schema
+    declaration.
+    """
+    from google.adk.tools.function_tool import FunctionTool
+    from manager.tools.docs_review_tools import (
+        verify_and_redline_yaral2_rules_in_doc,
+    )
+    from manager.tools.tools import (
+        verify_and_redline_yaral2_rules_in_doc as adk_verify_yaral2_tool,
+    )
+
+    fn_tool = FunctionTool(adk_verify_yaral2_tool)
+    decl = fn_tool._get_declaration()
+    schema_str = str(decl.parameters_json_schema or decl.parameters)
+    assert "verify_meta_runbook" in schema_str
+    assert "verify_meta_severity" in schema_str
+    assert "synthesize_missing_runbook" in schema_str
+
+    doc_text = (
+        'rule gcp_sa_privilege_escalation_case_33278 {\n'
+        '  meta:\n'
+        '    author = "SecOps Agent"\n'
+        '    severity = "LOW"\n'
+        '  events:\n'
+        '    $e.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $e.target.resource.name = "projects/base-production"\n'
+        '  outcome:\n'
+        '    $risk_score = max(85)\n'
+        '  condition:\n'
+        '    $e\n'
+        '}\n\n'
+        'rule wins_d19_powershell_empire_case_33269 {\n'
+        '  meta:\n'
+        '    author = "SecOps Agent"\n'
+        '    severity = "SEV1"\n'
+        '    runbook_skill = "windows-powershell-playbook"\n'
+        '  events:\n'
+        '    $e.principal.hostname = "wins-d19"\n'
+        '    re.regex($e.target.process.command_line, `.*powershell.*`) nocase\n'
+        '  outcome:\n'
+        '    $risk_score = max(95)\n'
+        '  condition:\n'
+        '    $e\n'
+        '}\n'
+    )
+    mock_doc = _make_single_paragraph_doc(
+        "doc-h19-e2e", "Cycle 13 H19 E2E", doc_text
+    )
+    batch_calls: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=mock_doc)
+        payload = json.loads(request.content.decode("utf-8"))
+        batch_calls.append(payload)
+        if any("insertComment" in r for r in payload.get("requests", [])):
+            return httpx.Response(
+                200,
+                json={
+                    "replies": [
+                        {"insertComment": {"commentId": f"c-h19-{i}"}}
+                        for i in range(len(payload.get("requests", [])))
+                    ]
+                },
+            )
+        return httpx.Response(
+            200,
+            json={"replies": [{} for _ in payload.get("requests", [])]},
+        )
+
+    res = verify_and_redline_yaral2_rules_in_doc(
+        "doc-h19-e2e",
+        run_live_siem_check=True,
+        verify_meta_runbook=True,
+        verify_meta_severity=True,
+        synthesize_missing_runbook=True,
+        siem_validate_fn=lambda rule_str: {"success": True, "message": "OK"},
+        siem_search_fn=lambda q, s, e, m: {"events": [{"udm": {}}], "total_events": 1},
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(handler),
+    )
+    assert res["status"] == "success"
+    assert res["yaral2_findings_count"] == 3
+    assert res["comments"]["inserted_count"] == 3
+    assert res["edits"]["applied_count"] == 3
+    assert len(batch_calls) == 2
+    assert "writeControl" not in batch_calls[0]
+    assert batch_calls[1]["writeControl"] == {"writeMode": "SUGGEST"}
+    delete_starts = [
+        req["deleteContentRange"]["range"]["startIndex"]
+        for req in batch_calls[1]["requests"]
+        if "deleteContentRange" in req
+    ]
+    assert delete_starts == sorted(delete_starts, reverse=True)
+
+    # Pass 2 idempotency
+    mock_doc_pass2 = {
+        "documentId": "doc-h19-e2e",
+        "title": "Cycle 13 H19 E2E",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": len(doc_text) + 1,
+                                "textRun": {
+                                    "content": doc_text,
+                                    "suggestedDeletionIds": ["suggest.h19.existing"],
+                                },
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+    }
+    res2 = verify_and_redline_yaral2_rules_in_doc(
+        "doc-h19-e2e",
+        run_live_siem_check=True,
+        verify_meta_runbook=True,
+        verify_meta_severity=True,
+        synthesize_missing_runbook=True,
+        siem_validate_fn=lambda rule_str: {"success": True, "message": "OK"},
+        siem_search_fn=lambda q, s, e, m: {"events": [{"udm": {}}], "total_events": 1},
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(lambda req: httpx.Response(200, json=mock_doc_pass2)),
+    )
+    assert res2["yaral2_findings_count"] == 0
+    assert res2["skipped_existing_suggestion_count"] == 3
+    assert res2["comments"]["inserted_count"] == 0
+    assert res2["edits"]["applied_count"] == 0
+
+

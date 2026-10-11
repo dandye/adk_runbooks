@@ -5833,6 +5833,1174 @@ def find_yaral2_meta_mitre_spans(
     return comments, edits, findings
 
 
+VALID_YARAL2_META_SEVERITIES: tuple[str, ...] = (
+    "INFORMATIONAL",
+    "LOW",
+    "MEDIUM",
+    "HIGH",
+    "CRITICAL",
+)
+
+CANONICAL_YARAL2_SEVERITY_ALIASES: dict[str, str] = {
+    "SEV0": "CRITICAL",
+    "SEV-0": "CRITICAL",
+    "SEV1": "CRITICAL",
+    "SEV-1": "CRITICAL",
+    "P0": "CRITICAL",
+    "P-0": "CRITICAL",
+    "P1": "CRITICAL",
+    "P-1": "CRITICAL",
+    "URGENT": "CRITICAL",
+    "FATAL": "CRITICAL",
+    "CRIT": "CRITICAL",
+    "SEV2": "HIGH",
+    "SEV-2": "HIGH",
+    "P2": "HIGH",
+    "P-2": "HIGH",
+    "MAJOR": "HIGH",
+    "IMPORTANT": "HIGH",
+    "HI": "HIGH",
+    "SEV3": "MEDIUM",
+    "SEV-3": "MEDIUM",
+    "P3": "MEDIUM",
+    "P-3": "MEDIUM",
+    "MODERATE": "MEDIUM",
+    "WARNING": "MEDIUM",
+    "WARN": "MEDIUM",
+    "NORMAL": "MEDIUM",
+    "MED": "MEDIUM",
+    "SEV4": "LOW",
+    "SEV-4": "LOW",
+    "P4": "LOW",
+    "P-4": "LOW",
+    "MINOR": "LOW",
+    "LO": "LOW",
+    "SEV5": "INFORMATIONAL",
+    "SEV-5": "INFORMATIONAL",
+    "P5": "INFORMATIONAL",
+    "P-5": "INFORMATIONAL",
+    "INFO": "INFORMATIONAL",
+    "DEBUG": "INFORMATIONAL",
+    "TRACE": "INFORMATIONAL",
+    "NONE": "INFORMATIONAL",
+}
+
+CANONICAL_MITRE_TO_RUNBOOK_SKILL: dict[str, dict[str, Any]] = {
+    "T1098": {
+        "canonical_skill": "compromised-user-account-response",
+        "allowed_skills": ("compromised-user-account-response",),
+        "supporting_skills": (),
+    },
+    "T1098.001": {
+        "canonical_skill": "compromised-user-account-response",
+        "allowed_skills": ("compromised-user-account-response",),
+        "supporting_skills": (),
+    },
+    "T1098.003": {
+        "canonical_skill": "compromised-user-account-response",
+        "allowed_skills": ("compromised-user-account-response",),
+        "supporting_skills": (),
+    },
+    "T1078": {
+        "canonical_skill": "suspicious-login-triage",
+        "allowed_skills": (
+            "suspicious-login-triage",
+            "compromised-user-account-response",
+        ),
+        "supporting_skills": ("compromised-user-account-response",),
+    },
+    "T1078.001": {
+        "canonical_skill": "suspicious-login-triage",
+        "allowed_skills": (
+            "suspicious-login-triage",
+            "compromised-user-account-response",
+        ),
+        "supporting_skills": ("compromised-user-account-response",),
+    },
+    "T1078.002": {
+        "canonical_skill": "suspicious-login-triage",
+        "allowed_skills": (
+            "suspicious-login-triage",
+            "compromised-user-account-response",
+        ),
+        "supporting_skills": ("compromised-user-account-response",),
+    },
+    "T1078.003": {
+        "canonical_skill": "suspicious-login-triage",
+        "allowed_skills": (
+            "suspicious-login-triage",
+            "compromised-user-account-response",
+        ),
+        "supporting_skills": ("compromised-user-account-response",),
+    },
+    "T1078.004": {
+        "canonical_skill": "suspicious-login-triage",
+        "allowed_skills": (
+            "suspicious-login-triage",
+            "compromised-user-account-response",
+        ),
+        "supporting_skills": ("compromised-user-account-response",),
+    },
+    "T1059": {
+        "canonical_skill": "malware-incident-response",
+        "allowed_skills": (
+            "malware-incident-response",
+            "basic-endpoint-triage-isolation",
+        ),
+        "supporting_skills": ("basic-endpoint-triage-isolation",),
+    },
+    "T1059.001": {
+        "canonical_skill": "malware-incident-response",
+        "allowed_skills": (
+            "malware-incident-response",
+            "basic-endpoint-triage-isolation",
+        ),
+        "supporting_skills": ("basic-endpoint-triage-isolation",),
+    },
+    "T1059.003": {
+        "canonical_skill": "malware-incident-response",
+        "allowed_skills": (
+            "malware-incident-response",
+            "basic-endpoint-triage-isolation",
+        ),
+        "supporting_skills": ("basic-endpoint-triage-isolation",),
+    },
+    "T1059.004": {
+        "canonical_skill": "malware-incident-response",
+        "allowed_skills": (
+            "malware-incident-response",
+            "basic-endpoint-triage-isolation",
+        ),
+        "supporting_skills": ("basic-endpoint-triage-isolation",),
+    },
+    "T1218": {
+        "canonical_skill": "malware-incident-response",
+        "allowed_skills": (
+            "malware-incident-response",
+            "basic-endpoint-triage-isolation",
+        ),
+        "supporting_skills": ("basic-endpoint-triage-isolation",),
+    },
+    "T1218.003": {
+        "canonical_skill": "malware-incident-response",
+        "allowed_skills": (
+            "malware-incident-response",
+            "basic-endpoint-triage-isolation",
+        ),
+        "supporting_skills": ("basic-endpoint-triage-isolation",),
+    },
+    "T1218.005": {
+        "canonical_skill": "malware-incident-response",
+        "allowed_skills": (
+            "malware-incident-response",
+            "basic-endpoint-triage-isolation",
+        ),
+        "supporting_skills": ("basic-endpoint-triage-isolation",),
+    },
+    "T1218.010": {
+        "canonical_skill": "malware-incident-response",
+        "allowed_skills": (
+            "malware-incident-response",
+            "basic-endpoint-triage-isolation",
+        ),
+        "supporting_skills": ("basic-endpoint-triage-isolation",),
+    },
+    "T1218.011": {
+        "canonical_skill": "malware-incident-response",
+        "allowed_skills": (
+            "malware-incident-response",
+            "basic-endpoint-triage-isolation",
+        ),
+        "supporting_skills": ("basic-endpoint-triage-isolation",),
+    },
+    "T1543": {
+        "canonical_skill": "malware-incident-response",
+        "allowed_skills": (
+            "malware-incident-response",
+            "basic-endpoint-triage-isolation",
+        ),
+        "supporting_skills": ("basic-endpoint-triage-isolation",),
+    },
+    "T1543.003": {
+        "canonical_skill": "malware-incident-response",
+        "allowed_skills": (
+            "malware-incident-response",
+            "basic-endpoint-triage-isolation",
+        ),
+        "supporting_skills": ("basic-endpoint-triage-isolation",),
+    },
+    "T1505.003": {
+        "canonical_skill": "malware-incident-response",
+        "allowed_skills": (
+            "malware-incident-response",
+            "basic-endpoint-triage-isolation",
+        ),
+        "supporting_skills": ("basic-endpoint-triage-isolation",),
+    },
+    "T1546.013": {
+        "canonical_skill": "malware-incident-response",
+        "allowed_skills": (
+            "malware-incident-response",
+            "basic-endpoint-triage-isolation",
+        ),
+        "supporting_skills": ("basic-endpoint-triage-isolation",),
+    },
+    "T1003": {
+        "canonical_skill": "compromised-user-account-response",
+        "allowed_skills": (
+            "compromised-user-account-response",
+            "guided-ttp-hunt-credential-access",
+        ),
+        "supporting_skills": ("guided-ttp-hunt-credential-access",),
+    },
+    "T1003.001": {
+        "canonical_skill": "compromised-user-account-response",
+        "allowed_skills": (
+            "compromised-user-account-response",
+            "guided-ttp-hunt-credential-access",
+        ),
+        "supporting_skills": ("guided-ttp-hunt-credential-access",),
+    },
+    "T1003.002": {
+        "canonical_skill": "compromised-user-account-response",
+        "allowed_skills": (
+            "compromised-user-account-response",
+            "guided-ttp-hunt-credential-access",
+        ),
+        "supporting_skills": ("guided-ttp-hunt-credential-access",),
+    },
+    "T1003.003": {
+        "canonical_skill": "compromised-user-account-response",
+        "allowed_skills": (
+            "compromised-user-account-response",
+            "guided-ttp-hunt-credential-access",
+        ),
+        "supporting_skills": ("guided-ttp-hunt-credential-access",),
+    },
+    "T1550.002": {
+        "canonical_skill": "compromised-user-account-response",
+        "allowed_skills": (
+            "compromised-user-account-response",
+            "guided-ttp-hunt-credential-access",
+        ),
+        "supporting_skills": ("guided-ttp-hunt-credential-access",),
+    },
+}
+
+_DEFAULT_LOCAL_SKILL_REGISTRY: Any = None
+
+
+def _get_default_skill_registry() -> Any:
+    """Returns a cached local ``SkillRegistry`` instance from the repository's ``skills/`` directory."""
+    global _DEFAULT_LOCAL_SKILL_REGISTRY
+    if _DEFAULT_LOCAL_SKILL_REGISTRY is not None:
+        return _DEFAULT_LOCAL_SKILL_REGISTRY
+    try:
+        from pathlib import Path
+        from skills.registry import SkillRegistry
+
+        repo_skills_dir = Path(__file__).resolve().parents[3] / "skills"
+        if repo_skills_dir.is_dir():
+            _DEFAULT_LOCAL_SKILL_REGISTRY = SkillRegistry(str(repo_skills_dir))
+        else:
+            _DEFAULT_LOCAL_SKILL_REGISTRY = SkillRegistry()
+    except Exception:
+        _DEFAULT_LOCAL_SKILL_REGISTRY = None
+    return _DEFAULT_LOCAL_SKILL_REGISTRY
+
+
+def _map_risk_score_to_yaral2_severity(score: float | int) -> tuple[str, str]:
+    """Maps a numeric Chronicle Risk Analytics ``$risk_score`` (`1..100`) to its
+    canonical YARA-L 2.0 ``meta: severity`` tier and score band string.
+    """
+    val = float(score)
+    if val >= 90:
+        return "CRITICAL", "90..100"
+    if val >= 70:
+        return "HIGH", "70..89"
+    if val >= 40:
+        return "MEDIUM", "40..69"
+    if val >= 20:
+        return "LOW", "20..39"
+    return "INFORMATIONAL", "1..19"
+
+
+_NUMERIC_OUTCOME_RHS_RE = re.compile(
+    r"^\s*(?:([A-Za-z_][A-Za-z0-9_]*)\s*\(\s*)?(\d+(?:\.\d+)?)\s*\)?\s*$"
+)
+
+
+def infer_yaral2_severity_from_risk_score(rule_text: str) -> dict[str, Any] | None:
+    """Inspects a YARA-L 2.0 (``YL2``) rule's ``outcome:`` and ``condition:`` sections
+    for ``$risk_score`` (or ``*$score*`` / ``*severity*``) bindings and maps the numeric
+    score (`1..100`) to its canonical Chronicle ``meta: severity`` tier:
+    - ``90..100`` -> ``"CRITICAL"``
+    - ``70..89``  -> ``"HIGH"``
+    - ``40..69``  -> ``"MEDIUM"``
+    - ``20..39``  -> ``"LOW"``
+    - ``1..19``   -> ``"INFORMATIONAL"``
+    """
+    if not rule_text or not rule_text.strip():
+        return None
+
+    multi_spec = extract_yaral2_multi_event_spec(rule_text)
+    outcome_bindings: list[dict[str, Any]] = list(
+        multi_spec.get("outcome_bindings") or []
+    )
+
+    def _is_risk_score_var(var_name: str) -> bool:
+        vn = var_name.lower().lstrip("$")
+        return vn == "risk_score" or "risk_score" in vn or vn.endswith("score")
+
+    prioritized_bindings = sorted(
+        outcome_bindings,
+        key=lambda ob: (
+            0
+            if str(ob.get("outcome_var_name", "")).lower() == "risk_score"
+            else (
+                1
+                if _is_risk_score_var(str(ob.get("outcome_var_name", "")))
+                else 2
+            )
+        ),
+    )
+
+    for ob in prioritized_bindings:
+        var_name = str(ob.get("outcome_var_name") or "")
+        if not _is_risk_score_var(var_name):
+            continue
+        outcome_var = str(ob.get("outcome_var") or f"${var_name}")
+        rhs_text = str(ob.get("rhs_text") or "").strip()
+        cond_spec = ob.get("conditional_spec")
+        if isinstance(cond_spec, dict):
+            t_val = cond_spec.get("true_value")
+            f_val = cond_spec.get("false_value")
+            primary_num: float | None = None
+            if isinstance(t_val, (int, float)):
+                primary_num = float(t_val)
+            elif isinstance(f_val, (int, float)):
+                primary_num = float(f_val)
+            if primary_num is not None and primary_num > 0:
+                canon_sev, band = _map_risk_score_to_yaral2_severity(primary_num)
+                score_val: int | float = (
+                    int(primary_num)
+                    if float(primary_num).is_integer()
+                    else float(primary_num)
+                )
+                return {
+                    "canonical_severity": canon_sev,
+                    "risk_score": score_val,
+                    "score_band": band,
+                    "outcome_var": outcome_var,
+                    "source": "outcome_conditional",
+                    "evidence_reason": (
+                        f"outcome: {outcome_var} = {rhs_text} assigns primary conditional risk score {score_val} (band {band} -> {canon_sev})"
+                    ),
+                }
+
+        num_m = _NUMERIC_OUTCOME_RHS_RE.match(rhs_text)
+        if num_m:
+            raw_num = float(num_m.group(2))
+            if raw_num > 0:
+                canon_sev, band = _map_risk_score_to_yaral2_severity(raw_num)
+                score_val = (
+                    int(raw_num) if float(raw_num).is_integer() else float(raw_num)
+                )
+                return {
+                    "canonical_severity": canon_sev,
+                    "risk_score": score_val,
+                    "score_band": band,
+                    "outcome_var": outcome_var,
+                    "source": "outcome_binding",
+                    "evidence_reason": (
+                        f"outcome: {outcome_var} = {rhs_text} assigns risk score {score_val} (band {band} -> {canon_sev})"
+                    ),
+                }
+
+    for cmp_rec in multi_spec.get("condition_outcome_comparisons") or []:
+        var_name = str(cmp_rec.get("outcome_var_name") or "")
+        if not _is_risk_score_var(var_name):
+            continue
+        outcome_var = str(cmp_rec.get("outcome_var") or f"${var_name}")
+        op = str(cmp_rec.get("op") or ">=")
+        thresh_raw = cmp_rec.get("threshold_value")
+        if not isinstance(thresh_raw, (int, float)):
+            continue
+        eff_val = float(thresh_raw) + (1.0 if op == ">" else 0.0)
+        if eff_val > 0:
+            canon_sev, band = _map_risk_score_to_yaral2_severity(eff_val)
+            score_val = (
+                int(eff_val) if float(eff_val).is_integer() else float(eff_val)
+            )
+            cmp_text = str(
+                cmp_rec.get("comparison_text")
+                or f"{outcome_var} {op} {thresh_raw}"
+            )
+            return {
+                "canonical_severity": canon_sev,
+                "risk_score": score_val,
+                "score_band": band,
+                "outcome_var": outcome_var,
+                "source": "condition_threshold",
+                "evidence_reason": (
+                    f"condition: '{cmp_text}' requires risk score {score_val} (band {band} -> {canon_sev})"
+                ),
+            }
+
+    return None
+
+
+def infer_yaral2_runbook_skill_from_rule(
+    rule_text: str,
+    *,
+    skill_registry: Any = None,
+) -> dict[str, Any] | None:
+    """Deterministically infers the canonical ``SOC Runbooks`` operational playbook slug
+    (``meta: runbook_skill``) from a YARA-L 2.0 (``YL2``) rule's ``events:`` (or ``strings:``)
+    UDM predicates and MITRE ATT&CK technique, validating the resolved skill against
+    ``SkillRegistry`` / ``DriveSkillRegistry``.
+    """
+    if not rule_text or not rule_text.strip():
+        return None
+
+    blocks = _iter_yaral2_rule_blocks(rule_text)
+    rule_name = str(blocks[0]["rule_name"]) if blocks else ""
+    sec_matches = list(_YARAL2_SECTION_HEADER_RE.finditer(rule_text))
+    event_bodies: list[str] = []
+    for i, sm in enumerate(sec_matches):
+        sec_name = sm.group(1).lower()
+        if sec_name not in ("events", "strings"):
+            continue
+        body_start = sm.end()
+        body_end = (
+            sec_matches[i + 1].start()
+            if i + 1 < len(sec_matches)
+            else max(body_start, rule_text.rfind("}"))
+        )
+        event_bodies.append(rule_text[body_start:body_end])
+
+    ev_text = "\n".join(event_bodies).lower()
+    if not ev_text.strip():
+        return None
+    ctx = f"{rule_name.lower()}\n{ev_text}"
+
+    registry = (
+        skill_registry
+        if skill_registry is not None
+        else _get_default_skill_registry()
+    )
+
+    canonical_skill: str | None = None
+    allowed_skills: tuple[str, ...] = ()
+    supporting_skills: tuple[str, ...] = ()
+    mitre_id: str | None = None
+    evidence_reason = ""
+
+    # 1. Ransomware / Volume Shadow Copy deletion / mass encryption indicators
+    if any(
+        kw in ctx
+        for kw in (
+            "vssadmin",
+            "delete shadows",
+            "shadowcopy",
+            "wbadmin delete",
+            "recoveryenabled",
+            "ransom",
+            ".locked",
+            ".encrypted",
+            "t1486",
+            "t1490",
+        )
+    ):
+        canonical_skill = "ransomware-response"
+        allowed_skills = ("ransomware-response",)
+        supporting_skills = ("basic-endpoint-triage-isolation",)
+        mitre_id = "T1486"
+        evidence_reason = (
+            "ransomware/shadow-copy deletion predicates in events: (vssadmin / shadowcopy / ransomware)"
+        )
+
+    # 2. Phishing / Email delivery / malicious attachment or credential harvest link indicators
+    elif any(
+        kw in ctx
+        for kw in (
+            "network.email",
+            "email_transaction",
+            "phish",
+            "spearphish",
+            "mail.from",
+            "t1566",
+        )
+    ):
+        canonical_skill = "phishing-response"
+        allowed_skills = ("phishing-response",)
+        supporting_skills = ("compromised-user-account-response",)
+        mitre_id = "T1566"
+        evidence_reason = (
+            "email/phishing delivery predicates in events: (network.email / phishing)"
+        )
+
+    # 3. Map from inferred MITRE ATT&CK technique in events:
+    else:
+        inferred_mitre = infer_yaral2_mitre_from_events(rule_text)
+        if inferred_mitre is not None:
+            mitre_id = str(inferred_mitre["canonical_id"])
+            mitre_reason = str(inferred_mitre["evidence_reason"])
+            rb_map = CANONICAL_MITRE_TO_RUNBOOK_SKILL.get(mitre_id)
+            if rb_map is None and "." in mitre_id:
+                rb_map = CANONICAL_MITRE_TO_RUNBOOK_SKILL.get(
+                    mitre_id.split(".", 1)[0]
+                )
+            if rb_map is not None:
+                canonical_skill = str(rb_map["canonical_skill"])
+                allowed_skills = tuple(rb_map.get("allowed_skills", (canonical_skill,)))
+                supporting_skills = tuple(rb_map.get("supporting_skills", ()))
+                evidence_reason = (
+                    f"inferred MITRE technique {mitre_id} ({inferred_mitre['canonical_name']}) from {mitre_reason}"
+                )
+
+    if canonical_skill is None:
+        return None
+
+    category = "incident-response"
+    description = ""
+    skill_verified = False
+    if registry is not None and hasattr(registry, "get_skill"):
+        skill_meta = registry.get_skill(canonical_skill)
+        if skill_meta is not None:
+            skill_verified = True
+            category = str(getattr(skill_meta, "category", "") or category)
+            description = str(getattr(skill_meta, "description", "") or "")
+
+    return {
+        "canonical_skill": canonical_skill,
+        "category": category,
+        "description": description,
+        "allowed_skills": list(allowed_skills),
+        "supporting_skills": list(supporting_skills),
+        "mitre_technique_id": mitre_id or "",
+        "skill_verified": skill_verified,
+        "evidence_reason": evidence_reason,
+    }
+
+
+def _find_rule_meta_runbook_and_severity_defects(
+    rule_text: str,
+    rule_name: str,
+    *,
+    verify_meta_severity: bool = True,
+    verify_meta_runbook: bool = True,
+    synthesize_missing_runbook: bool = True,
+    skill_registry: Any = None,
+    yaral2_doc_url: str = DEFAULT_YARAL2_DOC_URL,
+) -> list[dict[str, Any]]:
+    """Evaluates a single YARA-L 2.0 (``YL2``) rule's ``meta:`` block for:
+    1. ``invalid_meta_severity``: non-canonical severity label (``"SEV1"``, ``"P1"``,
+       ``"WARN"``, ``"INFO"``) instead of Chronicle's 5 canonical severity tiers
+       (``"CRITICAL"``, ``"HIGH"``, ``"MEDIUM"``, ``"LOW"``, ``"INFORMATIONAL"``).
+    2. ``meta_severity_risk_score_mismatch``: valid ``meta: severity`` tier that
+       contradicts the rule's ``outcome:`` or ``condition:`` ``$risk_score`` band.
+    3. ``meta_runbook_skill_mismatch``: ``meta: runbook_skill`` (or ``runbook``) slug
+       that either does not exist in ``SkillRegistry`` / ``DriveSkillRegistry`` or
+       routes the rule to the wrong operational response domain.
+    4. ``missing_meta_runbook_skill``: ``meta:`` omits ``runbook_skill`` (and ``runbook``);
+       synthesizes ``runbook_skill = "<canonical_skill>"`` on the ``insertion_anchor``.
+    """
+    meta_spec = extract_yaral2_meta_spec(rule_text)
+    if not meta_spec.get("has_meta"):
+        return []
+
+    registry = (
+        skill_registry
+        if skill_registry is not None
+        else _get_default_skill_registry()
+    )
+    entries_by_key: dict[str, dict[str, Any]] = meta_spec["entries_by_key"]
+    defects: list[dict[str, Any]] = []
+    repaired_entry_values: dict[str, str] = {}
+    repaired_entry_defects: dict[str, dict[str, Any]] = {}
+
+    risk_info = infer_yaral2_severity_from_risk_score(rule_text)
+    inferred_rb = infer_yaral2_runbook_skill_from_rule(
+        rule_text, skill_registry=registry
+    )
+
+    # (1) & (2) Severity validation and risk_score consistency check
+    if verify_meta_severity:
+        sev_entry = entries_by_key.get("severity")
+        if sev_entry is not None:
+            cited_sev = str(sev_entry["value"]).strip()
+            cited_sev_upper = cited_sev.upper()
+            if cited_sev_upper not in VALID_YARAL2_META_SEVERITIES:
+                alias_sev = CANONICAL_YARAL2_SEVERITY_ALIASES.get(cited_sev_upper)
+                if risk_info is not None and (
+                    alias_sev is None
+                    or alias_sev == str(risk_info["canonical_severity"])
+                ):
+                    canonical_sev = str(risk_info["canonical_severity"])
+                    sev_reason = (
+                        f"is not one of Chronicle YARA-L 2.0's 5 canonical severity tiers "
+                        f"{list(VALID_YARAL2_META_SEVERITIES)} and {risk_info['evidence_reason']}"
+                    )
+                elif alias_sev is not None:
+                    canonical_sev = alias_sev
+                    sev_reason = (
+                        f"uses non-canonical PagerDuty/Jira/Splunk severity label '{cited_sev}' "
+                        f"instead of Chronicle YARA-L 2.0's 5 canonical severity tiers {list(VALID_YARAL2_META_SEVERITIES)}"
+                    )
+                elif risk_info is not None:
+                    canonical_sev = str(risk_info["canonical_severity"])
+                    sev_reason = (
+                        f"is not a canonical Chronicle YARA-L 2.0 severity tier and {risk_info['evidence_reason']}"
+                    )
+                else:
+                    canonical_sev = "MEDIUM"
+                    sev_reason = (
+                        f"is not one of Chronicle YARA-L 2.0's 5 canonical severity tiers {list(VALID_YARAL2_META_SEVERITIES)}"
+                    )
+
+                if int(sev_entry["local_value_inner_end"]) > int(
+                    sev_entry["local_value_inner_start"]
+                ):
+                    l_start = int(sev_entry["local_value_inner_start"])
+                    l_end = int(sev_entry["local_value_inner_end"])
+                    quote = cited_sev
+                    replacement = canonical_sev
+                else:
+                    l_start = int(sev_entry["local_value_start"])
+                    l_end = int(sev_entry["local_value_end"])
+                    quote = str(sev_entry["raw_value_literal"])
+                    replacement = f'"{canonical_sev}"'
+
+                sev_defect: dict[str, Any] = {
+                    "local_start": l_start,
+                    "local_end": l_end,
+                    "defect_type": "invalid_meta_severity",
+                    "meta_key": "severity",
+                    "quote": quote,
+                    "replacement": replacement,
+                    "invalid_field": cited_sev,
+                    "canonical_field": canonical_sev,
+                    "cited_severity": cited_sev,
+                    "canonical_severity": canonical_sev,
+                    "risk_score": (
+                        risk_info["risk_score"] if risk_info is not None else None
+                    ),
+                    "score_band": (
+                        risk_info["score_band"] if risk_info is not None else ""
+                    ),
+                    "evidence_reason": sev_reason,
+                    "comment": (
+                        f"Deterministic YARA-L 2.0 (YL2) meta: Severity Tier Check in rule '{rule_name}': "
+                        f"meta: severity '{cited_sev}' {sev_reason}. "
+                        f"Replace '{quote}' with '{replacement}' ({yaral2_doc_url})."
+                    ),
+                }
+                defects.append(sev_defect)
+                repaired_entry_values["severity"] = canonical_sev
+                repaired_entry_defects["severity"] = sev_defect
+            elif (
+                risk_info is not None
+                and cited_sev_upper != str(risk_info["canonical_severity"])
+            ):
+                canonical_sev = str(risk_info["canonical_severity"])
+                if int(sev_entry["local_value_inner_end"]) > int(
+                    sev_entry["local_value_inner_start"]
+                ):
+                    l_start = int(sev_entry["local_value_inner_start"])
+                    l_end = int(sev_entry["local_value_inner_end"])
+                    quote = cited_sev
+                    replacement = canonical_sev
+                else:
+                    l_start = int(sev_entry["local_value_start"])
+                    l_end = int(sev_entry["local_value_end"])
+                    quote = str(sev_entry["raw_value_literal"])
+                    replacement = f'"{canonical_sev}"'
+
+                sev_defect = {
+                    "local_start": l_start,
+                    "local_end": l_end,
+                    "defect_type": "meta_severity_risk_score_mismatch",
+                    "meta_key": "severity",
+                    "quote": quote,
+                    "replacement": replacement,
+                    "invalid_field": cited_sev,
+                    "canonical_field": canonical_sev,
+                    "cited_severity": cited_sev,
+                    "canonical_severity": canonical_sev,
+                    "risk_score": risk_info["risk_score"],
+                    "score_band": str(risk_info["score_band"]),
+                    "evidence_reason": str(risk_info["evidence_reason"]),
+                    "comment": (
+                        f"Deterministic YARA-L 2.0 (YL2) meta: Severity-to-Risk-Score Consistency Check in rule '{rule_name}': "
+                        f"meta: severity '{cited_sev}' contradicts {risk_info['evidence_reason']}. "
+                        f"Align meta: severity with Chronicle Risk Analytics band {risk_info['score_band']} "
+                        f"by replacing '{quote}' with '{replacement}' ({yaral2_doc_url})."
+                    ),
+                }
+                defects.append(sev_defect)
+                repaired_entry_values["severity"] = canonical_sev
+                repaired_entry_defects["severity"] = sev_defect
+
+    # (3) & (4) Runbook skill routing validation and synthesis
+    if verify_meta_runbook and inferred_rb is not None:
+        canonical_skill = str(inferred_rb["canonical_skill"])
+        allowed_skills = set(inferred_rb.get("allowed_skills") or [canonical_skill])
+        skill_category = str(inferred_rb.get("category") or "incident-response")
+        skill_verified = bool(inferred_rb.get("skill_verified", False))
+        rb_reason = str(inferred_rb.get("evidence_reason") or "")
+
+        rb_key = (
+            "runbook_skill"
+            if "runbook_skill" in entries_by_key
+            else ("runbook" if "runbook" in entries_by_key else None)
+        )
+        rb_entry = entries_by_key.get(rb_key) if rb_key is not None else None
+
+        if rb_entry is not None and rb_key is not None:
+            cited_skill = str(rb_entry["value"]).strip()
+            exists_in_registry = False
+            cited_category = ""
+            if registry is not None and hasattr(registry, "get_skill"):
+                cited_meta = registry.get_skill(cited_skill)
+                if cited_meta is not None:
+                    exists_in_registry = True
+                    cited_category = str(getattr(cited_meta, "category", "") or "")
+            else:
+                exists_in_registry = cited_skill in allowed_skills
+
+            if not exists_in_registry or cited_skill not in allowed_skills:
+                if not exists_in_registry:
+                    mismatch_detail = (
+                        f"is not a registered operational playbook in SkillRegistry / SOC Runbooks "
+                        f"(would fail load_skill('{cited_skill}') at incident response time)"
+                    )
+                else:
+                    cat_note = f" (category: {cited_category})" if cited_category else ""
+                    mismatch_detail = (
+                        f"routes to '{cited_skill}'{cat_note}, which mismatches {rb_reason}"
+                    )
+
+                if int(rb_entry["local_value_inner_end"]) > int(
+                    rb_entry["local_value_inner_start"]
+                ):
+                    l_start = int(rb_entry["local_value_inner_start"])
+                    l_end = int(rb_entry["local_value_inner_end"])
+                    quote = cited_skill
+                    replacement = canonical_skill
+                else:
+                    l_start = int(rb_entry["local_value_start"])
+                    l_end = int(rb_entry["local_value_end"])
+                    quote = str(rb_entry["raw_value_literal"])
+                    replacement = f'"{canonical_skill}"'
+
+                rb_defect: dict[str, Any] = {
+                    "local_start": l_start,
+                    "local_end": l_end,
+                    "defect_type": "meta_runbook_skill_mismatch",
+                    "meta_key": rb_key,
+                    "quote": quote,
+                    "replacement": replacement,
+                    "invalid_field": cited_skill,
+                    "canonical_field": canonical_skill,
+                    "cited_skill": cited_skill,
+                    "canonical_skill": canonical_skill,
+                    "skill_category": skill_category,
+                    "allowed_skills": sorted(allowed_skills),
+                    "skill_verified": skill_verified,
+                    "evidence_reason": rb_reason,
+                    "comment": (
+                        f"Deterministic YARA-L 2.0 (YL2) meta: Runbook Routing Check in rule '{rule_name}': "
+                        f"meta: {rb_key} '{cited_skill}' {mismatch_detail}. "
+                        f"Replace '{quote}' with verified SOC Runbooks skill '{replacement}' "
+                        f"(category: {skill_category} | {yaral2_doc_url})."
+                    ),
+                }
+                defects.append(rb_defect)
+                repaired_entry_values[rb_key] = canonical_skill
+                repaired_entry_defects[rb_key] = rb_defect
+
+        elif synthesize_missing_runbook:
+            anchor = meta_spec.get("insertion_anchor")
+            if isinstance(anchor, dict):
+                anchor_start = int(anchor["local_start"])
+                anchor_end = int(anchor["local_end"])
+                anchor_quote = str(anchor["quote"])
+                anchor_key = str(anchor.get("key") or "")
+                anchor_base_text = anchor_quote
+                folded_types: list[str] = []
+                repaired_anchor_val: str | None = None
+
+                if anchor_key in repaired_entry_values:
+                    repaired_anchor_val = repaired_entry_values[anchor_key]
+                    anchor_base_text = f'{anchor_key} = "{repaired_anchor_val}"'
+                    orig_anchor_def = repaired_entry_defects.get(anchor_key)
+                    if orig_anchor_def is not None:
+                        folded_types.append(str(orig_anchor_def["defect_type"]))
+                    defects = [
+                        d
+                        for d in defects
+                        if not _spans_overlap(
+                            (int(d["local_start"]), int(d["local_end"])),
+                            (anchor_start, anchor_end),
+                        )
+                    ]
+
+                folded_types.append("missing_meta_runbook_skill")
+                if meta_spec["is_collapsed"]:
+                    synthesized_suffix = f' runbook_skill = "{canonical_skill}"'
+                else:
+                    indent = str(meta_spec["indent"])
+                    synthesized_suffix = (
+                        f'\n{indent}runbook_skill = "{canonical_skill}"'
+                    )
+                replacement = anchor_base_text + synthesized_suffix
+
+                comment_parts: list[str] = []
+                if anchor_key in repaired_entry_defects:
+                    comment_parts.append(
+                        str(repaired_entry_defects[anchor_key]["comment"])
+                    )
+                comment_parts.append(
+                    f"Deterministic YARA-L 2.0 (YL2) meta: Runbook Routing Synthesis in rule '{rule_name}': "
+                    f"meta: section omits 'runbook_skill' for {rb_reason}. "
+                    f"Add runbook_skill = \"{canonical_skill}\" (SkillRegistry verified={skill_verified}, "
+                    f"category: {skill_category} | {yaral2_doc_url})."
+                )
+
+                synth_defect: dict[str, Any] = {
+                    "local_start": anchor_start,
+                    "local_end": anchor_end,
+                    "defect_type": "missing_meta_runbook_skill",
+                    "meta_key": "runbook_skill",
+                    "synthesized_keys": ["runbook_skill"],
+                    "folded_defect_types": folded_types,
+                    "quote": anchor_quote,
+                    "replacement": replacement,
+                    "invalid_field": anchor_quote,
+                    "canonical_field": canonical_skill,
+                    "canonical_skill": canonical_skill,
+                    "skill_category": skill_category,
+                    "allowed_skills": sorted(allowed_skills),
+                    "skill_verified": skill_verified,
+                    "evidence_reason": rb_reason,
+                    "comment": " ".join(comment_parts),
+                }
+                if repaired_anchor_val is not None:
+                    synth_defect["repaired_anchor_key"] = anchor_key
+                    synth_defect["repaired_anchor_value"] = repaired_anchor_val
+                    if anchor_key == "severity":
+                        synth_defect["canonical_severity"] = repaired_anchor_val
+                        orig_sev_def = repaired_entry_defects.get("severity", {})
+                        if "cited_severity" in orig_sev_def:
+                            synth_defect["cited_severity"] = orig_sev_def[
+                                "cited_severity"
+                            ]
+                        if orig_sev_def.get("risk_score") is not None:
+                            synth_defect["risk_score"] = orig_sev_def["risk_score"]
+                        if orig_sev_def.get("score_band"):
+                            synth_defect["score_band"] = orig_sev_def["score_band"]
+                defects.append(synth_defect)
+
+    defects.sort(key=lambda d: int(d["local_start"]))
+    return defects
+
+
+def _merge_yaral2_meta_defects(
+    rule_text: str,
+    rule_name: str,
+    meta_mitre_defects: list[dict[str, Any]],
+    meta_rb_sev_defects: list[dict[str, Any]],
+    *,
+    yaral2_doc_url: str = DEFAULT_YARAL2_DOC_URL,
+) -> list[dict[str, Any]]:
+    """Merges ``meta:`` MITRE ATT&CK defects and ``meta:`` Runbook/Severity defects
+    so that any combination of ``insertion_anchor`` value repairs (e.g. ``severity = "LOW"``
+    -> ``severity = "HIGH"``), ``missing_meta_mitre_attribution``, and
+    ``missing_meta_runbook_skill`` folds into a single non-overlapping edit on the
+    ``insertion_anchor`` span.
+    """
+    if not meta_mitre_defects:
+        return list(meta_rb_sev_defects)
+    if not meta_rb_sev_defects:
+        return list(meta_mitre_defects)
+
+    meta_spec = extract_yaral2_meta_spec(rule_text)
+    anchor = meta_spec.get("insertion_anchor")
+    if not isinstance(anchor, dict):
+        combined = list(meta_mitre_defects) + list(meta_rb_sev_defects)
+        combined.sort(key=lambda d: int(d["local_start"]))
+        return combined
+
+    anchor_start = int(anchor["local_start"])
+    anchor_end = int(anchor["local_end"])
+    anchor_quote = str(anchor["quote"])
+    anchor_key = str(anchor.get("key") or "")
+
+    all_candidates = list(meta_mitre_defects) + list(meta_rb_sev_defects)
+    anchor_overlapping = [
+        d
+        for d in all_candidates
+        if _spans_overlap(
+            (int(d["local_start"]), int(d["local_end"])),
+            (anchor_start, anchor_end),
+        )
+    ]
+    non_anchor = [
+        d
+        for d in all_candidates
+        if not _spans_overlap(
+            (int(d["local_start"]), int(d["local_end"])),
+            (anchor_start, anchor_end),
+        )
+    ]
+
+    has_anchor_synthesis = any(
+        d.get("defect_type")
+        in ("missing_meta_mitre_attribution", "missing_meta_runbook_skill")
+        for d in anchor_overlapping
+    )
+    if len(anchor_overlapping) <= 1 or not has_anchor_synthesis:
+        combined = non_anchor + anchor_overlapping
+        combined.sort(key=lambda d: int(d["local_start"]))
+        return combined
+
+    # Determine the repaired base text for the insertion_anchor assignment itself
+    anchor_base_text = anchor_quote
+    repaired_anchor_val: str | None = None
+    for d in anchor_overlapping:
+        if d.get("repaired_anchor_key") == anchor_key and d.get(
+            "repaired_anchor_value"
+        ):
+            repaired_anchor_val = str(d["repaired_anchor_value"])
+            anchor_base_text = f'{anchor_key} = "{repaired_anchor_val}"'
+            break
+        if (
+            d.get("meta_key") == anchor_key
+            and d.get("defect_type")
+            not in ("missing_meta_mitre_attribution", "missing_meta_runbook_skill")
+        ):
+            repaired_anchor_val = str(d["canonical_field"])
+            anchor_base_text = f'{anchor_key} = "{repaired_anchor_val}"'
+            break
+
+    synthesized_pairs: list[tuple[str, str]] = []
+    synthesized_keys: list[str] = []
+    folded_types: list[str] = []
+    comments_list: list[str] = []
+    merged_extra: dict[str, Any] = {}
+
+    for d in anchor_overlapping:
+        for ft in d.get("folded_defect_types") or [str(d["defect_type"])]:
+            if ft not in folded_types:
+                folded_types.append(ft)
+        c_txt = str(d.get("comment") or "")
+        if c_txt and c_txt not in comments_list:
+            comments_list.append(c_txt)
+        for k_Copy in (
+            "canonical_id",
+            "canonical_name",
+            "tactic",
+            "reference_url",
+            "canonical_skill",
+            "cited_skill",
+            "skill_category",
+            "allowed_skills",
+            "skill_verified",
+            "canonical_severity",
+            "cited_severity",
+            "risk_score",
+            "score_band",
+            "evidence_reason",
+        ):
+            if k_Copy in d and d[k_Copy] is not None and k_Copy not in merged_extra:
+                merged_extra[k_Copy] = d[k_Copy]
+
+        if d.get("defect_type") == "missing_meta_mitre_attribution":
+            for k in d.get("synthesized_keys") or []:
+                if k == "mitre_attack_technique" and d.get("canonical_id"):
+                    synthesized_pairs.append((k, str(d["canonical_id"])))
+                    synthesized_keys.append(k)
+                elif k == "mitre_attack_tactic" and d.get("tactic"):
+                    synthesized_pairs.append((k, str(d["tactic"])))
+                    synthesized_keys.append(k)
+                elif k == "mitre_attack_url" and d.get("reference_url"):
+                    synthesized_pairs.append((k, str(d["reference_url"])))
+                    synthesized_keys.append(k)
+        elif d.get("defect_type") == "missing_meta_runbook_skill":
+            if d.get("canonical_skill") and "runbook_skill" not in synthesized_keys:
+                synthesized_pairs.append(
+                    ("runbook_skill", str(d["canonical_skill"]))
+                )
+                synthesized_keys.append("runbook_skill")
+
+    if meta_spec["is_collapsed"]:
+        suffix = (
+            " " + " ".join(f'{k} = "{v}"' for k, v in synthesized_pairs)
+            if synthesized_pairs
+            else ""
+        )
+    else:
+        indent = str(meta_spec["indent"])
+        suffix = "".join(f'\n{indent}{k} = "{v}"' for k, v in synthesized_pairs)
+
+    replacement = anchor_base_text + suffix
+    primary_defect_type = (
+        "missing_meta_runbook_skill"
+        if "missing_meta_runbook_skill" in folded_types
+        and "missing_meta_mitre_attribution" not in folded_types
+        else (
+            "missing_meta_mitre_attribution"
+            if "missing_meta_mitre_attribution" in folded_types
+            else folded_types[-1]
+        )
+    )
+    canonical_field_val = str(
+        merged_extra.get("canonical_skill")
+        or merged_extra.get("canonical_id")
+        or repaired_anchor_val
+        or ""
+    )
+
+    merged_defect: dict[str, Any] = {
+        "local_start": anchor_start,
+        "local_end": anchor_end,
+        "defect_type": primary_defect_type,
+        "meta_key": ",".join(synthesized_keys) if synthesized_keys else anchor_key,
+        "synthesized_keys": synthesized_keys,
+        "folded_defect_types": folded_types,
+        "quote": anchor_quote,
+        "replacement": replacement,
+        "invalid_field": anchor_quote,
+        "canonical_field": canonical_field_val,
+        "comment": " ".join(comments_list),
+    }
+    merged_defect.update(merged_extra)
+    if repaired_anchor_val is not None:
+        merged_defect["repaired_anchor_key"] = anchor_key
+        merged_defect["repaired_anchor_value"] = repaired_anchor_val
+
+    result = non_anchor + [merged_defect]
+    result.sort(key=lambda d: int(d["local_start"]))
+    return result
+
+
+def find_yaral2_meta_runbook_and_severity_spans(
+    plain_text: str,
+    index_map: list[int],
+    *,
+    verify_meta_severity: bool = True,
+    verify_meta_runbook: bool = True,
+    synthesize_missing_runbook: bool = True,
+    skill_registry: Any = None,
+    yaral2_doc_url: str = DEFAULT_YARAL2_DOC_URL,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Scans ``plain_text`` for YARA-L 2.0 (``YL2``) detection rules and computes
+    non-overlapping 1-based UTF-16 spans for ``meta:`` severity-to-risk-score
+    consistency and ``SkillRegistry`` operational runbook routing defects:
+    - ``invalid_meta_severity``
+    - ``meta_severity_risk_score_mismatch``
+    - ``meta_runbook_skill_mismatch``
+    - ``missing_meta_runbook_skill``
+    """
+    comments: list[dict[str, Any]] = []
+    edits: list[dict[str, Any]] = []
+    findings: list[dict[str, Any]] = []
+    if not plain_text or not index_map:
+        return comments, edits, findings
+
+    for block in _iter_yaral2_rule_blocks(plain_text):
+        rule_name = str(block["rule_name"])
+        rule_char_start = int(block["char_start"])
+        rule_text = str(block["rule_text"])
+        meta_defects = _find_rule_meta_runbook_and_severity_defects(
+            rule_text,
+            rule_name,
+            verify_meta_severity=verify_meta_severity,
+            verify_meta_runbook=verify_meta_runbook,
+            synthesize_missing_runbook=synthesize_missing_runbook,
+            skill_registry=skill_registry,
+            yaral2_doc_url=yaral2_doc_url,
+        )
+        if not meta_defects:
+            continue
+
+        repaired_rule = rule_text
+        for defect in sorted(
+            meta_defects, key=lambda d: int(d["local_start"]), reverse=True
+        ):
+            l_s = int(defect["local_start"])
+            l_e = int(defect["local_end"])
+            repaired_rule = (
+                repaired_rule[:l_s]
+                + str(defect["replacement"])
+                + repaired_rule[l_e:]
+            )
+        repaired_rule = _normalize_yaral2_re_regex_calls(repaired_rule)
+
+        for defect in meta_defects:
+            abs_start = rule_char_start + int(defect["local_start"])
+            abs_end = rule_char_start + int(defect["local_end"]) - 1
+            start_idx = index_map[abs_start]
+            end_idx = index_map[abs_end] + _utf16_code_unit_len(
+                plain_text[abs_end]
+            )
+            quote = str(defect["quote"])
+            replacement = str(defect["replacement"])
+            comment_text = str(defect["comment"])
+
+            comments.append(
+                {
+                    "start_index": start_idx,
+                    "end_index": end_idx,
+                    "quote": quote,
+                    "comment": comment_text,
+                }
+            )
+            edits.append(
+                {
+                    "start_index": start_idx,
+                    "end_index": end_idx,
+                    "quote": quote,
+                    "replacement": replacement,
+                }
+            )
+            f_rec: dict[str, Any] = {
+                "rule_name": rule_name,
+                "defect_type": defect["defect_type"],
+                "meta_key": defect.get("meta_key", ""),
+                "invalid_field": defect["invalid_field"],
+                "canonical_field": defect["canonical_field"],
+                "quote": quote,
+                "replacement": replacement,
+                "start_index": start_idx,
+                "end_index": end_idx,
+                "original_rule_text": rule_text,
+                "repaired_rule_text": repaired_rule,
+            }
+            for extra_key in (
+                "cited_severity",
+                "canonical_severity",
+                "risk_score",
+                "score_band",
+                "cited_skill",
+                "canonical_skill",
+                "skill_category",
+                "allowed_skills",
+                "skill_verified",
+                "synthesized_keys",
+                "folded_defect_types",
+                "repaired_anchor_key",
+                "repaired_anchor_value",
+                "evidence_reason",
+            ):
+                if extra_key in defect:
+                    f_rec[extra_key] = defect[extra_key]
+            findings.append(f_rec)
+
+    return comments, edits, findings
+
+
 def find_yaral2_rule_spans(
     plain_text: str,
     index_map: list[int],
@@ -5842,6 +7010,10 @@ def find_yaral2_rule_spans(
     doc: dict[str, Any] | None = None,
     verify_meta_mitre: bool = False,
     synthesize_missing_meta: bool = False,
+    verify_meta_runbook: bool = False,
+    verify_meta_severity: bool = False,
+    synthesize_missing_runbook: bool = False,
+    skill_registry: Any = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     """Scans ``plain_text`` for single-event and multi-event YARA-L 2.0 (``YL2``) detection rules
     and computes 1-based UTF-16 spans.
@@ -5878,6 +7050,11 @@ def find_yaral2_rule_spans(
        (when ``verify_meta_mitre=True``): ``missing_meta_mitre_attribution`` (when
        ``synthesize_missing_meta=True``), ``meta_mitre_technique_mismatch``,
        ``meta_mitre_tactic_mismatch``, and ``meta_mitre_url_mismatch``.
+    8. Optional ``meta:`` block severity-to-risk-score consistency and ``SkillRegistry``
+       runbook routing checks (when ``verify_meta_severity=True`` or ``verify_meta_runbook=True``):
+       ``invalid_meta_severity``, ``meta_severity_risk_score_mismatch``,
+       ``meta_runbook_skill_mismatch``, and ``missing_meta_runbook_skill`` (when
+       ``synthesize_missing_runbook=True``).
 
     Returns:
         ``(comments, edits, findings)`` with exact 1-based UTF-16 ``start_index`` and
@@ -6567,14 +7744,52 @@ def find_yaral2_rule_spans(
                     }
                 )
 
-        if verify_meta_mitre:
-            meta_defects = _find_rule_meta_mitre_defects(
+        if verify_meta_mitre or verify_meta_runbook or verify_meta_severity:
+            # Evaluate meta: defects against a rule copy that includes repaired outcome:/events:
+            # expressions so conditional risk_score bindings (e.g. CASE WHEN -> max(if(...)))
+            # and repaired UDM fields inform severity and runbook inference.
+            prelim_rule_text = rule_text
+            for d_pre in sorted(
+                rule_defects, key=lambda d: int(d["local_start"]), reverse=True
+            ):
+                ps = int(d_pre["local_start"])
+                pe = int(d_pre["local_end"])
+                prelim_rule_text = (
+                    prelim_rule_text[:ps]
+                    + str(d_pre["replacement"])
+                    + prelim_rule_text[pe:]
+                )
+            meta_mitre_defs = (
+                _find_rule_meta_mitre_defects(
+                    rule_text,
+                    rule_name,
+                    synthesize_missing_meta=synthesize_missing_meta,
+                    yaral2_doc_url=yaral2_doc_url,
+                )
+                if verify_meta_mitre
+                else []
+            )
+            meta_rb_sev_defs = (
+                _find_rule_meta_runbook_and_severity_defects(
+                    rule_text,
+                    rule_name,
+                    verify_meta_severity=verify_meta_severity,
+                    verify_meta_runbook=verify_meta_runbook,
+                    synthesize_missing_runbook=synthesize_missing_runbook,
+                    skill_registry=skill_registry,
+                    yaral2_doc_url=yaral2_doc_url,
+                )
+                if (verify_meta_runbook or verify_meta_severity)
+                else []
+            )
+            merged_meta_defs = _merge_yaral2_meta_defects(
                 rule_text,
                 rule_name,
-                synthesize_missing_meta=synthesize_missing_meta,
+                meta_mitre_defs,
+                meta_rb_sev_defs,
                 yaral2_doc_url=yaral2_doc_url,
             )
-            for md in meta_defects:
+            for md in merged_meta_defs:
                 m_start = int(md["local_start"])
                 m_end = int(md["local_end"])
                 if any(
@@ -6660,6 +7875,18 @@ def find_yaral2_rule_spans(
                 "tactic",
                 "reference_url",
                 "synthesized_keys",
+                "folded_defect_types",
+                "repaired_anchor_key",
+                "repaired_anchor_value",
+                "cited_severity",
+                "canonical_severity",
+                "risk_score",
+                "score_band",
+                "cited_skill",
+                "canonical_skill",
+                "skill_category",
+                "allowed_skills",
+                "skill_verified",
                 "evidence_reason",
             ):
                 if extra_key in defect:
@@ -8753,6 +9980,10 @@ def verify_yaral2_rule_with_siem(
     diagnose_zero_hit_retrohunt: bool = True,
     verify_meta_mitre: bool = False,
     synthesize_missing_meta: bool = False,
+    verify_meta_runbook: bool = False,
+    verify_meta_severity: bool = False,
+    synthesize_missing_runbook: bool = False,
+    skill_registry: Any = None,
     start_time: str = "2026-02-07T00:00:00Z",
     end_time: str = "2026-02-08T00:00:00Z",
     max_events: int = 10,
@@ -8774,6 +10005,10 @@ def verify_yaral2_rule_with_siem(
         doc=doc,
         verify_meta_mitre=verify_meta_mitre,
         synthesize_missing_meta=synthesize_missing_meta,
+        verify_meta_runbook=verify_meta_runbook,
+        verify_meta_severity=verify_meta_severity,
+        synthesize_missing_runbook=synthesize_missing_runbook,
+        skill_registry=skill_registry,
     )
 
     blocks = _iter_yaral2_rule_blocks(rule_text)
@@ -8993,6 +10228,10 @@ def verify_and_redline_yaral2_rules_in_doc(
     diagnose_zero_hit_retrohunt: bool = True,
     verify_meta_mitre: bool = False,
     synthesize_missing_meta: bool = False,
+    verify_meta_runbook: bool = False,
+    verify_meta_severity: bool = False,
+    synthesize_missing_runbook: bool = False,
+    skill_registry: Any = None,
     start_time: str = "2026-02-07T00:00:00Z",
     end_time: str = "2026-02-08T00:00:00Z",
     max_events: int = 10,
@@ -9008,9 +10247,10 @@ def verify_and_redline_yaral2_rules_in_doc(
     """Lints single-event and multi-event YARA-L 2.0 (``YL2``) rules (including ``outcome:``
     aggregations, ``if()`` conditionals, ``net.ip_in_range_cidr()`` CIDR calls, ``!$e2``
     non-existence correlation, ``condition:`` outcome threshold calibration, and optional
-    ``meta:`` MITRE ATT&CK attribution synthesis and consistency checks) in a Google Doc,
-    optionally compiles and retrohunts them in Chronicle SIEM, and stages non-destructive
-    Suggested Edits (``writeMode="SUGGEST"``).
+    ``meta:`` MITRE ATT&CK attribution synthesis, severity-to-risk-score consistency, and
+    ``SkillRegistry`` runbook routing checks) in a Google Doc, optionally compiles and
+    retrohunts them in Chronicle SIEM, and stages non-destructive Suggested Edits
+    (``writeMode="SUGGEST"``).
 
     1. Calls :func:`read_google_doc` to populate the 1-based UTF-16 character index map
        and ``pending_suggestion_spans``.
@@ -9051,6 +10291,10 @@ def verify_and_redline_yaral2_rules_in_doc(
         doc=raw_doc,
         verify_meta_mitre=verify_meta_mitre,
         synthesize_missing_meta=synthesize_missing_meta,
+        verify_meta_runbook=verify_meta_runbook,
+        verify_meta_severity=verify_meta_severity,
+        synthesize_missing_runbook=synthesize_missing_runbook,
+        skill_registry=skill_registry,
     )
     pending_spans = _load_doc_pending_suggestion_spans(
         document_id, tool_context=tool_context
@@ -9111,6 +10355,10 @@ def verify_and_redline_yaral2_rules_in_doc(
                     diagnose_zero_hit_retrohunt=diagnose_zero_hit_retrohunt,
                     verify_meta_mitre=verify_meta_mitre,
                     synthesize_missing_meta=synthesize_missing_meta,
+                    verify_meta_runbook=verify_meta_runbook,
+                    verify_meta_severity=verify_meta_severity,
+                    synthesize_missing_runbook=synthesize_missing_runbook,
+                    skill_registry=skill_registry,
                     start_time=start_time,
                     end_time=end_time,
                     max_events=max_events,

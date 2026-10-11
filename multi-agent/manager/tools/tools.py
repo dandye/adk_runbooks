@@ -802,6 +802,9 @@ def verify_and_redline_yaral2_rules_in_doc(
     diagnose_zero_hit_retrohunt: bool = True,
     verify_meta_mitre: bool = False,
     synthesize_missing_meta: bool = False,
+    verify_meta_runbook: bool = False,
+    verify_meta_severity: bool = False,
+    synthesize_missing_runbook: bool = False,
     start_time: str = "2026-02-07T00:00:00Z",
     end_time: str = "2026-02-08T00:00:00Z",
     tool_context: ToolContext = None,
@@ -830,10 +833,13 @@ def verify_and_redline_yaral2_rules_in_doc(
   (`unaggregated_outcome_in_match_rule`), `condition:` outcome threshold
   variable mismatches (`condition_outcome_variable_mismatch`), `not $e2`
   negation syntax (`invalid_condition_negation_syntax`, normalized to `!$e2`),
-  single-event or multi-event `condition:` variable binding errors, and optional
+  single-event or multi-event `condition:` variable binding errors, optional
   `meta:` MITRE ATT&CK attribution synthesis and consistency checks
   (`missing_meta_mitre_attribution`, `meta_mitre_technique_mismatch`,
-  `meta_mitre_tactic_mismatch`, `meta_mitre_url_mismatch`) by exact
+  `meta_mitre_tactic_mismatch`, `meta_mitre_url_mismatch`), and optional `meta:`
+  severity-to-risk-score consistency and `SkillRegistry` operational runbook
+  routing checks (`invalid_meta_severity`, `meta_severity_risk_score_mismatch`,
+  `meta_runbook_skill_mismatch`, `missing_meta_runbook_skill`) by exact
   1-based UTF-16 span. When `run_live_siem_check=True`, compiles the repaired
   YARA-L 2.0 rule against Chronicle SIEM (`validate_rule`), executes
   single-event, multi-event intersection, or non-existence (`$e1 and !$e2`
@@ -854,6 +860,9 @@ def verify_and_redline_yaral2_rules_in_doc(
                                           pivots for 0-hit YARA-L 2.0 retrohunt predicates, cross-event join entity-role swaps, and uncalibrated outcome thresholds.
       verify_meta_mitre (bool): Whether to verify `meta:` MITRE ATT&CK technique, tactic, and URL consistency against `events:` predicates.
       synthesize_missing_meta (bool): Whether to synthesize missing `mitre_attack_technique`, `mitre_attack_tactic`, and `mitre_attack_url` entries in `meta:`.
+      verify_meta_runbook (bool): Whether to verify `meta: runbook_skill` against `SkillRegistry` / `DriveSkillRegistry` and rule `events:` domain.
+      verify_meta_severity (bool): Whether to verify `meta: severity` against Chronicle's 5 canonical severity tiers and `outcome:` `$risk_score` bands.
+      synthesize_missing_runbook (bool): Whether to synthesize missing `runbook_skill` in `meta:`.
       start_time (str): ISO-8601 start time for the SIEM retrohunt search window.
       end_time (str): ISO-8601 end time for the SIEM retrohunt search window.
 
@@ -868,6 +877,10 @@ def verify_and_redline_yaral2_rules_in_doc(
       diagnose_zero_hit_retrohunt=diagnose_zero_hit_retrohunt,
       verify_meta_mitre=verify_meta_mitre,
       synthesize_missing_meta=synthesize_missing_meta,
+      verify_meta_runbook=verify_meta_runbook,
+      verify_meta_severity=verify_meta_severity,
+      synthesize_missing_runbook=synthesize_missing_runbook,
+      skill_registry=skill_registry,
       start_time=start_time,
       end_time=end_time,
       tool_context=tool_context,
