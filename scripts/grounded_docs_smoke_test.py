@@ -1,22 +1,26 @@
 #!/usr/bin/env python3
 """Smoke test for Developer Knowledge Remote MCP and Google Docs API v1 review tools.
 
-Exercises, end to end:
+Exercises a realistic SecOps Incident Postmortem & Runbook Red-Line workflow:
   1. ``https://developerknowledge.googleapis.com/mcp`` via ADK ``McpToolset``:
      - Startup discovery ``get_tools(readonly_context=None)``
-     - ``search_documents`` and ``get_documents`` / ``answer_query``
+     - Queries ``search_documents`` for GCP IAM service account containment
+       (``disable`` vs ``delete``) and Chronicle UDM process field syntax
+       (``target.process.command_line``).
   2. ``web_search_verifier`` wrapped in ``AgentTool`` (verifies schema declaration).
-  3. Optional live Google Docs API v1 non-destructive review workflow
+  3. Live Google Docs API v1 non-destructive review workflow
      (``--create-review-doc`` or ``--document-id <DOC_ID>``):
      - ``create_google_doc`` (in ``DRIVE_REPORTS_FOLDER_ID``)
      - ``read_google_doc`` (builds 1-based UTF-16 character index map)
-     - ``insert_doc_comments`` (anchors native comments before any text edits)
-     - ``propose_doc_suggested_edits`` (back-to-front ``writeMode="SUGGEST"``)
+     - ``insert_doc_comments`` (anchors 3 grounded SOC review comments BEFORE edits)
+     - ``propose_doc_suggested_edits`` (4 back-to-front ``writeMode="SUGGEST"``
+       edits fixing MITRE ATT&CK sub-technique ID, defanging a live C2 URL,
+       correcting a hallucinated Chronicle UDM field path, and replacing
+       destructive service account deletion with reversible disablement)
 
 Usage (inside the direnv-activated worktree):
 
   python scripts/grounded_docs_smoke_test.py
-  python scripts/grounded_docs_smoke_test.py --query "Vertex AI IAM predefined roles"
   python scripts/grounded_docs_smoke_test.py --create-review-doc
   python scripts/grounded_docs_smoke_test.py --document-id <GOOGLE_DOC_ID>
 """
@@ -26,7 +30,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -51,19 +54,46 @@ from manager.tools.grounding_tools import (  # noqa: E402
 )
 
 
-SAMPLE_REVIEW_DOC_CONTENT = """# Suspicious Login & Vertex AI Remediation Runbook (Draft)
+SAMPLE_REVIEW_DOC_CONTENT = """# INC-2026-1011 Postmortem & Runbook Red-Line: Compromised GCP Service Account
 
-## Step 1: Service Account Permissions
-Grant the service account `roles/owner` on the Google Cloud project so the
-agent can invoke Vertex AI models.
+## 1. Threat Telemetry & MITRE ATT&CK Mapping
+- Initial Execution: Encoded PowerShell cradle (`powershell.exe -nop -w hidden -enc ...`) classified under MITRE ATT&CK technique `T1059.003 (Windows Command Shell)`.
+- Outbound C2 Callback: Beacon observed fetching second-stage payload from `https://login-micros0ft-update.com/stage2.ps1`.
 
-## Step 2: Model Configuration
-Configure the triage sub-agent to use `gemini-1.5-pro` for log analysis.
+## 2. Google SecOps (Chronicle) UDM Hunting Query
+Run the following UDM search to identify other hosts executing the encoded cradle:
+`metadata.event_type = "PROCESS_LAUNCH" AND process.command_line = /.*-enc.*/ nocase`
+
+## 3. Immediate GCP IAM Containment Runbook Step
+To cut off attacker access immediately during triage, run:
+`gcloud iam service-accounts delete sa-prod-etl@dandye-0324-chronicle.iam.gserviceaccount.com`
 """
 
 
-async def probe_developer_knowledge_mcp(query: str) -> str:
-    """Connects to Developer Knowledge MCP, lists tools, and runs a search query."""
+def _extract_first_doc_url(res: dict, prefix_filter: str = "") -> str | None:
+    """Extracts a canonical https:// URL from a Developer Knowledge search_documents response."""
+    for block in res.get("content", []):
+        if isinstance(block, dict) and block.get("type") == "text":
+            try:
+                parsed = json.loads(block.get("text", "{}"))
+                results = parsed.get("results", [])
+                for item in results:
+                    if not isinstance(item, dict):
+                        continue
+                    if item.get("url"):
+                        return str(item["url"])
+                    parent = str(item.get("parent", ""))
+                    if parent.startswith("documents/"):
+                        candidate = "https://" + parent[len("documents/"):]
+                        if not prefix_filter or prefix_filter in candidate:
+                            return candidate
+            except json.JSONDecodeError:
+                pass
+    return None
+
+
+async def probe_developer_knowledge_mcp(custom_query: str | None = None) -> dict[str, str]:
+    """Connects to Developer Knowledge MCP, lists tools, and verifies IAM + UDM docs."""
     url = developer_knowledge_mcp_url()
     project = developer_knowledge_quota_project()
     has_key = bool(developer_knowledge_api_key())
@@ -71,8 +101,12 @@ async def probe_developer_knowledge_mcp(query: str) -> str:
     print(f"[devknowledge] Quota project: {project or '<unset>'}")
     print(f"[devknowledge] Auth mode:     {'X-Goog-Api-Key' if has_key else 'ADC Bearer + X-Goog-User-Project'}")
 
+    citations = {
+        "iam_url": "https://docs.cloud.google.com/iam/docs/service-accounts-disable-enable",
+        "udm_url": "https://docs.cloud.google.com/chronicle/docs/reference/udm-field-list",
+    }
+
     toolset = init_developer_knowledge_toolset()
-    citation_url = "https://cloud.google.com/iam/docs/understanding-roles"
     try:
         tools = await toolset.get_tools(readonly_context=None)
         names = [t.name for t in tools]
@@ -80,32 +114,28 @@ async def probe_developer_knowledge_mcp(query: str) -> str:
 
         by_name = {t.name: t for t in tools}
         if "search_documents" in by_name:
-            print(f"[devknowledge] Calling search_documents(query={query!r})...")
-            res = await by_name["search_documents"].run_async(
-                args={"query": query}, tool_context=None
+            iam_query = custom_query or "gcloud iam service-accounts disable delete service account"
+            print(f"[devknowledge] 1. Querying IAM containment docs: {iam_query!r}...")
+            iam_res = await by_name["search_documents"].run_async(
+                args={"query": iam_query}, tool_context=None
             )
-            print(f"[devknowledge] search_documents isError={res.get('isError', False)}")
-            payload_str = json.dumps(res, indent=2)[:800]
-            print(f"[devknowledge] Response preview:\n{payload_str}")
-            for block in res.get("content", []):
-                if isinstance(block, dict) and block.get("type") == "text":
-                    try:
-                        parsed = json.loads(block.get("text", "{}"))
-                        results = parsed.get("results", [])
-                        if results and isinstance(results[0], dict):
-                            first = results[0]
-                            if first.get("url"):
-                                citation_url = str(first["url"])
-                                break
-                            parent = str(first.get("parent", ""))
-                            if parent.startswith("documents/"):
-                                citation_url = "https://" + parent[len("documents/"):]
-                                break
-                    except json.JSONDecodeError:
-                        pass
+            found_iam = _extract_first_doc_url(iam_res, "iam/docs")
+            if found_iam:
+                citations["iam_url"] = found_iam
+            print(f"[devknowledge]    Resolved IAM citation: {citations['iam_url']}")
+
+            udm_query = "udm-field-list target.process.command_line"
+            print(f"[devknowledge] 2. Querying Chronicle UDM schema docs: {udm_query!r}...")
+            udm_res = await by_name["search_documents"].run_async(
+                args={"query": udm_query}, tool_context=None
+            )
+            found_udm = _extract_first_doc_url(udm_res, "udm-field-list")
+            if found_udm:
+                citations["udm_url"] = found_udm
+            print(f"[devknowledge]    Resolved UDM citation: {citations['udm_url']}")
     finally:
         await toolset.close()
-    return citation_url
+    return citations
 
 
 def probe_web_search_agent_tool() -> None:
@@ -115,13 +145,15 @@ def probe_web_search_agent_tool() -> None:
     print(f"[web_search]   AgentTool name: {decl.name} (child tools: {[str(t) for t in agent_tool.agent.tools]})")
 
 
-def probe_google_docs_review(document_id: str | None, create_new: bool, citation_url: str) -> int:
+def probe_google_docs_review(
+    document_id: str | None, create_new: bool, citations: dict[str, str]
+) -> int:
     """Exercises create_google_doc -> read_google_doc -> insert_doc_comments -> propose_doc_suggested_edits."""
     target_doc_id = document_id
     if create_new and not target_doc_id:
-        print("[docs] Creating test Google Doc in DRIVE_REPORTS_FOLDER_ID...")
+        print("[docs] Creating INC-2026-1011 Postmortem & Runbook Google Doc in DRIVE_REPORTS_FOLDER_ID...")
         created = create_google_doc(
-            title="Grounded_Runbook_Review_Smoke_Test",
+            title="INC_2026_1011_Postmortem_and_Runbook_Redline",
             content=SAMPLE_REVIEW_DOC_CONTENT,
         )
         if created.get("status") != "success":
@@ -139,29 +171,66 @@ def probe_google_docs_review(document_id: str | None, create_new: bool, citation
     if read_res.get("status") != "success":
         print(f"[docs] read_google_doc failed: {read_res}")
         return 1
-    print(f"[docs]    Title: {read_res['title']!r} ({read_res['char_count']} chars)")
+    print(f"[docs]    Mapped {read_res['char_count']} UTF-16 character positions")
 
-    print("[docs] 2. Inserting anchored comments (BEFORE edits)...")
+    print("[docs] 2. Inserting 3 grounded SOC review comments (BEFORE edits)...")
     comment_res = insert_doc_comments(
         target_doc_id,
         [
             {
-                "quote": "roles/owner",
+                "quote": "T1059.003 (Windows Command Shell)",
                 "comment": (
-                    "Avoid primitive roles/owner; grant least-privilege "
-                    f"roles/aiplatform.user instead ({citation_url})."
+                    "MITRE ATT&CK mismatch: powershell.exe -enc payloads map to "
+                    "T1059.001 (PowerShell), not T1059.003 (cmd.exe) "
+                    "(https://attack.mitre.org/techniques/T1059/001/)."
                 ),
-            }
+            },
+            {
+                "quote": "https://login-micros0ft-update.com/stage2.ps1",
+                "comment": (
+                    "Live C2 URL auto-linkifies in Google Docs and creates a click hazard "
+                    "for bridge reviewers. Defang indicator to hxxps:// and [.] before sharing."
+                ),
+            },
+            {
+                "quote": "process.command_line",
+                "comment": (
+                    "Invalid Chronicle UDM field path: UDM requires an entity prefix such as "
+                    f"target.process.command_line or principal.process.command_line ({citations['udm_url']})."
+                ),
+            },
+            {
+                "quote": "gcloud iam service-accounts delete",
+                "comment": (
+                    "High blast-radius containment warning: deleting a production service account "
+                    "destroys its unique resource ID and breaks Workload Identity bindings. "
+                    f"Use reversible 'gcloud iam service-accounts disable' during triage ({citations['iam_url']})."
+                ),
+            },
         ],
     )
     print(f"[docs]    insert_doc_comments result: {comment_res}")
 
-    print("[docs] 3. Proposing non-destructive Suggested Edits (writeMode=SUGGEST)...")
+    print("[docs] 3. Proposing 4 non-destructive Suggested Edits (back-to-front writeMode=SUGGEST)...")
     edit_res = propose_doc_suggested_edits(
         target_doc_id,
         [
-            {"quote": "roles/owner", "replacement": "roles/aiplatform.user"},
-            {"quote": "gemini-1.5-pro", "replacement": "gemini-2.5-pro"},
+            {
+                "quote": "T1059.003 (Windows Command Shell)",
+                "replacement": "T1059.001 (PowerShell)",
+            },
+            {
+                "quote": "https://login-micros0ft-update.com/stage2.ps1",
+                "replacement": "hxxps://login-micros0ft-update[.]com/stage2.ps1",
+            },
+            {
+                "quote": "process.command_line",
+                "replacement": "target.process.command_line",
+            },
+            {
+                "quote": "gcloud iam service-accounts delete",
+                "replacement": "gcloud iam service-accounts disable",
+            },
         ],
     )
     print(f"[docs]    propose_doc_suggested_edits result: {edit_res}")
@@ -172,13 +241,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--query",
-        default="Vertex AI IAM predefined roles roles/aiplatform.user",
-        help="Query to send to Developer Knowledge MCP search_documents.",
+        default=None,
+        help="Optional custom query to send to Developer Knowledge MCP search_documents.",
     )
     parser.add_argument(
         "--create-review-doc",
         action="store_true",
-        help="Create a test Google Doc in DRIVE_REPORTS_FOLDER_ID and apply comments + suggested edits.",
+        help="Create an INC-2026-1011 Postmortem & Runbook Google Doc in DRIVE_REPORTS_FOLDER_ID and apply grounded comments + suggested edits.",
     )
     parser.add_argument(
         "--document-id",
@@ -189,12 +258,15 @@ def main() -> int:
 
     probe_web_search_agent_tool()
     try:
-        citation_url = asyncio.run(probe_developer_knowledge_mcp(args.query))
+        citations = asyncio.run(probe_developer_knowledge_mcp(args.query))
     except Exception as err:
         print(f"[devknowledge] Error probing Developer Knowledge MCP: {err}")
-        citation_url = "https://cloud.google.com/iam/docs/understanding-roles"
+        citations = {
+            "iam_url": "https://docs.cloud.google.com/iam/docs/service-accounts-disable-enable",
+            "udm_url": "https://docs.cloud.google.com/chronicle/docs/reference/udm-field-list",
+        }
 
-    return probe_google_docs_review(args.document_id, args.create_review_doc, citation_url)
+    return probe_google_docs_review(args.document_id, args.create_review_doc, citations)
 
 
 if __name__ == "__main__":
