@@ -34,6 +34,7 @@ from .grounding_tools import (
     init_web_search_agent_tool,
 )
 from .docs_review_tools import (
+    audit_and_redline_claim_evidence_and_campaign_in_doc as _audit_and_redline_claim_evidence_and_campaign_in_doc,
     create_google_doc as _create_google_doc,
     export_accepted_doc_to_markdown as _export_accepted_doc_to_markdown,
     insert_doc_comments as _insert_doc_comments,
@@ -1018,6 +1019,49 @@ def triage_and_redline_leaked_credentials_in_doc(
   )
 
 
+def audit_and_redline_claim_evidence_and_campaign_in_doc(
+    document_id: str,
+    run_live_siem_check: bool = False,
+    start_time: str = "2026-02-07T00:00:00Z",
+    end_time: str = "2026-02-08T00:00:00Z",
+    tool_context: ToolContext = None,
+) -> dict:
+  """Audits narrative analyst disposition claims, cross-case campaign correlation, and forensic evidence citations in a Google Doc.
+
+  Builds the cross-case campaign correlation graph across SOAR cases (`33269`,
+  `33280`, `33285` on `wins-d19`; `33281`, `33283`, `33287` on `79.154.246.114`;
+  `33278` on `104.198.226.161`) and scans narrative text outside YARA-L 2.0
+  rule blocks for:
+  1. `contradicted_analyst_disposition_claim` (benign / false-positive claims
+     contradicted by Chronicle SIEM UDM telemetry),
+  2. `missing_cross_case_campaign_correlation` (siloed single-case references
+     omitting sibling cases in the same campaign), and
+  3. `uncited_analytical_claim` (forensic claims lacking `[Evidence: SOAR Case #... | UDM: ... | MITRE: ...]` anchors).
+  Optionally verifies campaign UDM queries against live Chronicle SIEM when
+  `run_live_siem_check=True`, anchors comments first, and stages non-destructive
+  Suggested Edits (`writeMode="SUGGEST"`) second.
+
+  Args:
+      document_id (str): The Google Docs documentId.
+      run_live_siem_check (bool): Whether to verify campaign evidence queries
+                                  against live Chronicle SIEM (`search_udm`).
+      start_time (str): ISO-8601 start time for Chronicle SIEM campaign verification.
+      end_time (str): ISO-8601 end time for Chronicle SIEM campaign verification.
+
+  Returns:
+      dict: {"status", "document_id", "title", "campaign_graph", "finding_count",
+             "findings", "siem_campaign_results", "skipped_existing_suggestion_count",
+             "comments", "edits"}.
+  """
+  return _audit_and_redline_claim_evidence_and_campaign_in_doc(
+      document_id=document_id,
+      run_live_siem_check=run_live_siem_check,
+      start_time=start_time,
+      end_time=end_time,
+      tool_context=tool_context,
+  )
+
+
 def get_agent_tools():
   """Initializes and returns MCP toolsets and progressive discovery tools.
 
@@ -1066,6 +1110,9 @@ def get_agent_tools():
   wrapped_triage_and_redline_leaked_credentials_in_doc = instrument_tool(
       triage_and_redline_leaked_credentials_in_doc
   )
+  wrapped_audit_and_redline_claim_evidence_and_campaign_in_doc = instrument_tool(
+      audit_and_redline_claim_evidence_and_campaign_in_doc
+  )
   wrapped_inspect_doc_suggestions = instrument_tool(inspect_doc_suggestions)
   wrapped_list_doc_comments = instrument_tool(list_doc_comments)
   wrapped_export_accepted_doc_to_markdown = instrument_tool(
@@ -1101,6 +1148,7 @@ def get_agent_tools():
       wrapped_verify_and_redline_mitre_and_cve_in_doc,
       wrapped_sanitize_and_redline_telemetry_in_doc,
       wrapped_triage_and_redline_leaked_credentials_in_doc,
+      wrapped_audit_and_redline_claim_evidence_and_campaign_in_doc,
       wrapped_inspect_doc_suggestions,
       wrapped_list_doc_comments,
       wrapped_export_accepted_doc_to_markdown,

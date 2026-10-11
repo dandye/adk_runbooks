@@ -13879,6 +13879,7 @@ def review_google_doc_with_stage_a(
     include_udm_stage_a: bool = True,
     include_yaral2_stage_a: bool = True,
     include_mitre_cve_stage_a: bool = True,
+    include_claim_campaign_stage_a: bool = False,
     token_source: TokenSource | None = None,
     quota_project: str | None = None,
     transport: httpx.BaseTransport | None = None,
@@ -13893,13 +13894,15 @@ def review_google_doc_with_stage_a(
        ``include_telemetry_hazard_stage_a=True``,
        :func:`find_deterministic_indicator_spans`,
        :func:`find_udm_field_spans` when ``include_udm_stage_a=True``,
-       :func:`find_yaral2_rule_spans` when ``include_yaral2_stage_a=True``, and
-       :func:`find_mitre_and_cve_spans` when ``include_mitre_cve_stage_a=True``)
+       :func:`find_yaral2_rule_spans` when ``include_yaral2_stage_a=True``,
+       :func:`find_mitre_and_cve_spans` when ``include_mitre_cve_stage_a=True``,
+       and :func:`find_claim_evidence_and_campaign_spans` when
+       ``include_claim_campaign_stage_a=True``)
        to locate leaked credentials, destructive/ineffective containment CLIs,
        unredacted telemetry payloads/secrets, live untrusted URLs,
-       standalone Chronicle UDM field defects, YARA-L 2.0 rule defects, and
-       MITRE ATT&CK / CVE defects by numeric UTF-16 span without echoing them
-       through an LLM.
+       standalone Chronicle UDM field defects, YARA-L 2.0 rule defects,
+       MITRE ATT&CK / CVE defects, and narrative claim/campaign defects by
+       numeric UTF-16 span without echoing them through an LLM.
     3. Deduplicates Stage A spans against overlapping Stage B
        ``semantic_comments`` and ``semantic_edits`` and skips any span that
        overlaps an existing pending suggestion (multi-pass idempotency).
@@ -14077,6 +14080,25 @@ def review_google_doc_with_stage_a(
                 deduped_mitre_cve_edits.append(e_item)
                 existing_edit_spans.append(e_span)
 
+    stage_a_claim_campaign_count = 0
+    deduped_claim_campaign_comments: list[dict[str, Any]] = []
+    deduped_claim_campaign_edits: list[dict[str, Any]] = []
+    if include_claim_campaign_stage_a:
+        cl_comments, cl_edits, cl_findings = (
+            find_claim_evidence_and_campaign_spans(plain_text, index_map)
+        )
+        stage_a_claim_campaign_count = len(cl_findings)
+        for c_item in cl_comments:
+            c_span = (c_item["start_index"], c_item["end_index"])
+            if not any(_spans_overlap(c_span, ex) for ex in existing_comment_spans):
+                deduped_claim_campaign_comments.append(c_item)
+                existing_comment_spans.append(c_span)
+        for e_item in cl_edits:
+            e_span = (e_item["start_index"], e_item["end_index"])
+            if not any(_spans_overlap(e_span, ex) for ex in existing_edit_spans):
+                deduped_claim_campaign_edits.append(e_item)
+                existing_edit_spans.append(e_span)
+
     raw_all_comments = (
         deduped_credential_containment_comments
         + deduped_telemetry_comments
@@ -14084,6 +14106,7 @@ def review_google_doc_with_stage_a(
         + deduped_udm_comments
         + deduped_yaral2_comments
         + deduped_mitre_cve_comments
+        + deduped_claim_campaign_comments
         + stage_b_comments
     )
     raw_all_edits = (
@@ -14093,6 +14116,7 @@ def review_google_doc_with_stage_a(
         + deduped_udm_edits
         + deduped_yaral2_edits
         + deduped_mitre_cve_edits
+        + deduped_claim_campaign_edits
         + stage_b_edits
     )
 
@@ -14162,6 +14186,7 @@ def review_google_doc_with_stage_a(
         "stage_a_udm_count": stage_a_udm_count,
         "stage_a_yaral2_count": stage_a_yaral2_count,
         "stage_a_mitre_cve_count": stage_a_mitre_cve_count,
+        "stage_a_claim_campaign_count": stage_a_claim_campaign_count,
         "stage_a_italic_regex_count": stage_a_italic_regex_count,
         "skipped_existing_suggestion_count": skipped_existing_suggestion_count,
         "comments": comments_res,
@@ -14179,6 +14204,7 @@ def stage_runbook_update_as_google_doc(
     tool_context: Any = None,
     *,
     include_credential_containment_stage_a: bool = True,
+    include_claim_campaign_stage_a: bool = False,
     skill_content_override: str | None = None,
     client: DriveMcpClient | None = None,
     token_source: TokenSource | None = None,
@@ -14231,6 +14257,7 @@ def stage_runbook_update_as_google_doc(
         semantic_edits=semantic_edits,
         tool_context=tool_context,
         include_credential_containment_stage_a=include_credential_containment_stage_a,
+        include_claim_campaign_stage_a=include_claim_campaign_stage_a,
         token_source=token_source,
         quota_project=quota_project,
         transport=transport,
@@ -14251,6 +14278,7 @@ def stage_runbook_update_as_google_doc(
         "stage_a_udm_count": review_res.get("stage_a_udm_count", 0),
         "stage_a_yaral2_count": review_res.get("stage_a_yaral2_count", 0),
         "stage_a_mitre_cve_count": review_res.get("stage_a_mitre_cve_count", 0),
+        "stage_a_claim_campaign_count": review_res.get("stage_a_claim_campaign_count", 0),
         "stage_a_italic_regex_count": review_res.get("stage_a_italic_regex_count", 0),
         "comments": review_res.get("comments", {}),
         "edits": review_res.get("edits", {}),
@@ -16422,3 +16450,874 @@ def triage_and_redline_leaked_credentials_in_doc(
         "comments": comments_res,
         "edits": edits_res,
     }
+
+
+# ---------------------------------------------------------------------------
+# Cycle 16 (H5): Cross-Case Campaign Graph & Claim-to-Evidence Grounding Auditor
+# ---------------------------------------------------------------------------
+
+CANONICAL_SOAR_CAMPAIGN_CATALOG: dict[str, dict[str, Any]] = {
+    "CAMP-WINS-D19-ENDPOINT": {
+        "campaign_id": "CAMP-WINS-D19-ENDPOINT",
+        "campaign_title": "wins-d19 Multi-Stage Endpoint Intrusion Campaign",
+        "case_ids": ["33269", "33280", "33285"],
+        "case_summaries": {
+            "33269": "PowerShell Empire C2 Launcher on wins-d19 (T1059.001 / T1059.003)",
+            "33280": "Suspicious DERPService Windows Service Creation on wins-d19 (T1543.003)",
+            "33285": "Gamarue / Andromeda Endpoint Malware Infection on wins-d19 (T1204.002)",
+        },
+        "shared_hosts": ["wins-d19"],
+        "shared_principals": ["lisawalker"],
+        "shared_ips": ["10.8.1.99", "62.99.149.251"],
+        "shared_resources": ["C:\\Users\\Public\\DERPService.exe"],
+        "shared_processes": ["powershell.exe", "cmd.exe", "DERPService.exe"],
+        "shared_hashes": [
+            "71c0fbdddddc9fbcaadcc1d1cccd48dd07d1532d6f189d8b35e733a02bd09ad3",
+            "00a3ade8ffd8eb0f7fccece4fc8fa5fa77efdddeaa2c9134b04921e0cd2da7aa",
+        ],
+        "mitre_techniques": ["T1059.001", "T1059.003", "T1543.003"],
+        "udm_actions": ["PROCESS_LAUNCH", "SERVICE_CREATION"],
+        "udm_validation_query": 'principal.hostname = "wins-d19"',
+        "runbook_skill": "malware-incident-response",
+        "verified_disposition": (
+            "confirmed multi-stage endpoint intrusion on host wins-d19 "
+            "(PowerShell Empire launcher, DERPService persistence, and Gamarue infection)"
+        ),
+        "default_evidence_citation": (
+            "[Evidence: SOAR Cases #33269, #33280, #33285 | "
+            'UDM: principal.hostname = "wins-d19" (powershell.exe / DERPService.exe) | '
+            "MITRE: T1059.001, T1543.003]"
+        ),
+    },
+    "CAMP-WORKSPACE-SUPERADMIN-TAKEOVER": {
+        "campaign_id": "CAMP-WORKSPACE-SUPERADMIN-TAKEOVER",
+        "campaign_title": "Google Workspace Identity Federation & Drive Exfiltration Campaign",
+        "case_ids": ["33281", "33283", "33287"],
+        "case_summaries": {
+            "33281": "Super Admin Role Assignment & 2SV Weakening from 79.154.246.114 (T1098.003)",
+            "33283": "Google Drive Ownership Transfer & Mass Exfiltration from 79.154.246.114 (T1567.002)",
+            "33287": "SAML2 Service Provider Deletion & OAuth API Client Access from 79.154.246.114 (T1078.004)",
+        },
+        "shared_hosts": [],
+        "shared_principals": ["admin@mydomain.com", "bruce.wayne@the.org"],
+        "shared_ips": ["79.154.246.114"],
+        "shared_resources": ["mydomain.com", "the.org"],
+        "shared_processes": [],
+        "shared_hashes": [],
+        "mitre_techniques": ["T1078.004", "T1098.003", "T1567.002"],
+        "udm_actions": [
+            "DELETE_SAML2_SERVICE_PROVIDER_CONFIG",
+            "AUTHORIZE_API_CLIENT_ACCESS",
+            "CHANGE_ALLOWED_TWO_STEP_VERIFICATION_METHODS",
+            "CREATE_DATA_TRANSFER_REQUEST",
+        ],
+        "udm_validation_query": (
+            'metadata.log_type = "WORKSPACE_ACTIVITY" AND principal.ip = "79.154.246.114"'
+        ),
+        "runbook_skill": "suspicious-login-triage",
+        "verified_disposition": (
+            "confirmed malicious Google Workspace Super Admin takeover and identity federation "
+            "tampering from 79.154.246.114"
+        ),
+        "default_evidence_citation": (
+            "[Evidence: SOAR Cases #33281, #33283, #33287 | "
+            "UDM: DELETE_SAML2_SERVICE_PROVIDER_CONFIG, AUTHORIZE_API_CLIENT_ACCESS, "
+            "CHANGE_ALLOWED_TWO_STEP_VERIFICATION_METHODS | "
+            "Source IP: 79.154.246.114 | MITRE: T1078.004, T1098.003]"
+        ),
+    },
+    "CAMP-GCP-CONTROL-PLANE-33278": {
+        "campaign_id": "CAMP-GCP-CONTROL-PLANE-33278",
+        "campaign_title": "GCP Service Account Privilege Escalation & Cloud SQL Destruction Campaign",
+        "case_ids": ["33278"],
+        "case_summaries": {
+            "33278": (
+                "GCP IAM SetIamPolicy Privilege Escalation & Cloud SQL prod-customers "
+                "Deletion from 104.198.226.161 (T1078.004 / T1098.003 / T1485)"
+            ),
+        },
+        "shared_hosts": ["crypto-mining-1"],
+        "shared_principals": [
+            "294955789222-compute@developer.gserviceaccount.com",
+            "hello@base-production.iam.gserviceaccount.com",
+        ],
+        "shared_ips": ["104.198.226.161"],
+        "shared_resources": ["projects/base-production", "prod-customers"],
+        "shared_processes": [],
+        "shared_hashes": [],
+        "mitre_techniques": ["T1078.004", "T1098.003", "T1485"],
+        "udm_actions": [
+            "SetIamPolicy",
+            "cloudsql.instances.delete",
+            "v1.compute.instances.insert",
+            "DeleteDataset",
+        ],
+        "udm_validation_query": (
+            'metadata.log_type = "GCP_CLOUDAUDIT" AND principal.ip = "104.198.226.161"'
+        ),
+        "runbook_skill": "compromised-user-account-response",
+        "verified_disposition": (
+            "confirmed malicious GCP control-plane intrusion (SetIamPolicy privilege escalation "
+            "and Cloud SQL prod-customers deletion from 104.198.226.161)"
+        ),
+        "default_evidence_citation": (
+            "[Evidence: SOAR Case #33278 | "
+            "UDM: SetIamPolicy (roles/editor), cloudsql.instances.delete (prod-customers) | "
+            "Source IP: 104.198.226.161 | MITRE: T1078.004, T1098.003]"
+        ),
+    },
+}
+
+_CONTRADICTED_DISPOSITION_RE = re.compile(
+    r"\b(?:"
+    r"a\s+legitimate\s+automated\s+process"
+    r"|legitimate\s+automated\s+process"
+    r"|benign\s+administrative\s+activity"
+    r"|authorized\s+routine\s+maintenance"
+    r"|a\s+false\s+positive\s+requiring\s+no\s+escalation"
+    r"|false\s+positive\s+requiring\s+no\s+escalation"
+    r"|benign\s+automated\s+sync(?:\s+job)?"
+    r"|expected\s+routine\s+administration"
+    r")\b",
+    re.IGNORECASE,
+)
+
+_SINGLE_CASE_REF_RE = re.compile(
+    r"\b(?P<prefix>(?:SOAR\s+)?Case(?:\s+ID)?\s*#?)(?P<case_id>33269|33280|33285|33281|33283|33287)\b"
+)
+
+_EVIDENCE_TAG_RE = re.compile(
+    r"\[Evidence:\s*[^\]]+\]|\bEvidence:\s*SOAR\s+Cases?\b|\(Campaign\s+CAMP-[A-Z0-9-]+\)",
+    re.IGNORECASE,
+)
+
+_CLAIM_ACTION_INDICATORS: dict[str, tuple[str, ...]] = {
+    "CAMP-GCP-CONTROL-PLANE-33278": (
+        "SetIamPolicy",
+        "roles/editor",
+        "cloudsql.instances.delete",
+        "prod-customers",
+        "v1.compute.instances.insert",
+        "DeleteDataset",
+        "crypto-mining-1",
+        "granted roles/editor",
+        "deleted the prod-customers",
+        "deleted prod-customers",
+        "Cloud SQL instance",
+    ),
+    "CAMP-WORKSPACE-SUPERADMIN-TAKEOVER": (
+        "DELETE_SAML2_SERVICE_PROVIDER_CONFIG",
+        "AUTHORIZE_API_CLIENT_ACCESS",
+        "CHANGE_ALLOWED_TWO_STEP_VERIFICATION_METHODS",
+        "CREATE_DATA_TRANSFER_REQUEST",
+        "SAML2 service provider",
+        "two-step verification",
+        "2-step verification",
+        "ownership transfer",
+        "Drive ownership",
+        "Super Admin",
+    ),
+    "CAMP-WINS-D19-ENDPOINT": (
+        "PowerShell Empire",
+        "DERPService",
+        "Gamarue",
+        "Andromeda",
+        "encoded PowerShell",
+        "malicious service",
+        "Windows service",
+        "persistence",
+    ),
+}
+
+_PURE_HEADING_LINE_RE = re.compile(
+    r"^\s*(?:#{1,6}\s+.*|(?:Scenario|Finding|Section|Phase|Part)\s+[A-Za-z0-9]+\b[^.\n]*)\s*$"
+)
+
+
+def build_cross_case_campaign_graph(
+    plain_text: str | None = None,
+) -> dict[str, Any]:
+    """Builds a cross-case campaign correlation graph across SOAR cases and entities.
+
+    When ``plain_text`` is provided, annotates each campaign with the cases and
+    entities referenced in the document and identifies any missing sibling cases
+    from multi-case campaigns. When ``plain_text`` is ``None``, returns the full
+    canonical SOAR campaign graph.
+    """
+    text_lower = (plain_text or "").lower()
+    campaigns_out: dict[str, dict[str, Any]] = {}
+    case_to_campaign: dict[str, str] = {}
+    entity_to_cases: dict[str, list[str]] = {}
+    shared_entities: dict[str, dict[str, Any]] = {}
+
+    for camp_id, spec in CANONICAL_SOAR_CAMPAIGN_CATALOG.items():
+        c_ids = list(spec["case_ids"])
+        for cid in c_ids:
+            case_to_campaign[cid] = camp_id
+
+        all_entities: list[tuple[str, str]] = []
+        for h in spec.get("shared_hosts", []):
+            all_entities.append(("hostname", h))
+        for p in spec.get("shared_principals", []):
+            all_entities.append(("principal", p))
+        for ip in spec.get("shared_ips", []):
+            all_entities.append(("ip", ip))
+        for res in spec.get("shared_resources", []):
+            all_entities.append(("resource", res))
+        for proc in spec.get("shared_processes", []):
+            all_entities.append(("process", proc))
+
+        matched_cases = [
+            cid for cid in c_ids if plain_text is not None and re.search(rf"\b{re.escape(cid)}\b", plain_text)
+        ]
+        matched_entities = [
+            ent_val
+            for _, ent_val in all_entities
+            if plain_text is not None and ent_val.lower() in text_lower
+        ]
+
+        for ent_type, ent_val in all_entities:
+            entity_to_cases[ent_val] = list(c_ids)
+            if len(c_ids) > 1 or ent_val not in shared_entities:
+                shared_entities[ent_val] = {
+                    "entity": ent_val,
+                    "entity_type": ent_type,
+                    "campaign_id": camp_id,
+                    "case_ids": list(c_ids),
+                    "multi_case_pivot": len(c_ids) > 1,
+                }
+
+        missing_sibling_cases = (
+            [cid for cid in c_ids if cid not in matched_cases]
+            if (plain_text is not None and (matched_cases or matched_entities))
+            else []
+        )
+
+        campaigns_out[camp_id] = {
+            **spec,
+            "referenced_in_doc": bool(matched_cases or matched_entities)
+            if plain_text is not None
+            else True,
+            "matched_cases_in_doc": matched_cases,
+            "matched_entities_in_doc": matched_entities,
+            "missing_sibling_cases_in_doc": missing_sibling_cases,
+        }
+
+    referenced_campaign_ids = [
+        cid for cid, info in campaigns_out.items() if info["referenced_in_doc"]
+    ]
+    total_cases = sum(len(spec["case_ids"]) for spec in CANONICAL_SOAR_CAMPAIGN_CATALOG.values())
+
+    return {
+        "campaigns": campaigns_out,
+        "referenced_campaign_ids": referenced_campaign_ids,
+        "case_to_campaign": case_to_campaign,
+        "entity_to_cases": entity_to_cases,
+        "shared_entities": shared_entities,
+        "total_campaigns": len(campaigns_out),
+        "total_cases": total_cases,
+    }
+
+
+from skills.drive_registry import StaticTokenSource
+
+extract_doc_text_and_index_map = _extract_text_and_index_map
+
+
+def _py_span_to_utf16_span(
+    plain_text: str,
+    index_map: list[int],
+    py_s: int,
+    py_e: int,
+) -> tuple[int, int] | None:
+    """Maps a 0-based Python slice ``[py_s:py_e]`` to a 1-based UTF-16 ``(start_index, end_index)`` span."""
+    if py_s < 0 or py_e <= py_s or py_e > len(plain_text):
+        return None
+    if not index_map or py_e - 1 >= len(index_map):
+        return None
+    start_index = int(index_map[py_s])
+    end_index = int(index_map[py_e - 1]) + _utf16_code_unit_len(plain_text[py_e - 1])
+    return (start_index, end_index)
+
+
+def _match_campaign_for_text(text: str) -> dict[str, Any] | None:
+    """Returns the canonical campaign spec matched by ``text`` (or ``None``)."""
+    text_lower = text.lower()
+    for spec in CANONICAL_SOAR_CAMPAIGN_CATALOG.values():
+        for cid in spec["case_ids"]:
+            if re.search(rf"\b{re.escape(cid)}\b", text):
+                return spec
+        for field_name in (
+            "shared_hosts",
+            "shared_principals",
+            "shared_ips",
+            "shared_resources",
+            "shared_processes",
+        ):
+            for ent in spec.get(field_name, []):
+                if ent.lower() in text_lower:
+                    return spec
+    return None
+
+
+def find_claim_evidence_and_campaign_spans(
+    plain_text: str,
+    index_map: list[int],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Locates narrative disposition contradictions, siloed single-case citations, and uncited forensic claims.
+
+    Inspects narrative lines outside YARA-L 2.0 ``rule <name> { ... }`` blocks
+    and detects three deterministic defect classes:
+    1. ``contradicted_analyst_disposition_claim``: Benign/false-positive disposition
+       claims (such as ``legitimate automated process`` or ``authorized routine
+       maintenance``) on sentences referencing a compromised campaign entity/case
+       where Chronicle SIEM UDM telemetry proves malicious activity.
+    2. ``missing_cross_case_campaign_correlation``: Isolated single-case references
+       (such as ``Case 33269`` or ``SOAR Case 33287``) where sibling cases in the
+       same multi-case campaign (``33269``/``33280``/``33285`` on ``wins-d19`` or
+       ``33281``/``33283``/``33287`` on ``79.154.246.114``) are omitted in that
+       section.
+    3. ``uncited_analytical_claim``: Narrative sentences/bullets asserting concrete
+       attacker actions (such as ``SetIamPolicy``, ``roles/editor``,
+       ``cloudsql.instances.delete``, ``DELETE_SAML2_SERVICE_PROVIDER_CONFIG``,
+       ``PowerShell Empire``, or ``DERPService``) on a known campaign entity without
+       an explicit ``[Evidence: SOAR Case #... | UDM: ... | MITRE: ...]`` citation.
+
+    Returns ``(comments, edits, findings)`` with 1-based UTF-16 ``start_index`` and
+    ``end_index`` coordinates. Guarantees non-overlapping edit spans.
+    """
+    if not plain_text or not index_map:
+        return [], [], []
+
+    rule_blocks = _iter_yaral2_rule_blocks(plain_text)
+
+    def _in_rule_block(py_start: int, py_end: int) -> bool:
+        for _, r_start, r_end in rule_blocks:
+            if max(py_start, r_start) < min(py_end, r_end):
+                return True
+        return False
+
+    raw_findings: list[dict[str, Any]] = []
+    occupied_py_spans: list[tuple[int, int]] = []
+
+    def _overlaps_occupied(py_s: int, py_e: int) -> bool:
+        return any(max(py_s, os) < min(py_e, oe) for os, oe in occupied_py_spans)
+
+    lines_with_offsets: list[tuple[int, int, str]] = []
+    cursor = 0
+    for line in plain_text.splitlines(keepends=True):
+        line_start = cursor
+        line_end = cursor + len(line)
+        cursor = line_end
+        lines_with_offsets.append((line_start, line_end, line))
+
+    for line_start, line_end, raw_line in lines_with_offsets:
+        if _in_rule_block(line_start, line_end):
+            continue
+        stripped_line = raw_line.strip()
+        if not stripped_line or stripped_line.startswith("```"):
+            continue
+        if _PURE_HEADING_LINE_RE.match(stripped_line):
+            continue
+
+        sec_start, sec_end = _section_bounds_for_offset(plain_text, line_start)
+        sec_text = plain_text[sec_start:sec_end]
+        campaign_spec = _match_campaign_for_text(raw_line) or _match_campaign_for_text(sec_text)
+
+        line_had_inline_defect = False
+
+        # 1. Contradicted False-Positive Analyst Disposition Claim
+        if campaign_spec is not None:
+            for disp_match in _CONTRADICTED_DISPOSITION_RE.finditer(raw_line):
+                py_s = line_start + disp_match.start()
+                py_e = line_start + disp_match.end()
+                if _overlaps_occupied(py_s, py_e):
+                    continue
+                span = _py_span_to_utf16_span(plain_text, index_map, py_s, py_e)
+                if span is None:
+                    continue
+                matched_phrase = plain_text[py_s:py_e]
+                starts_with_article = matched_phrase.lower().startswith("a ")
+                verified_disp = campaign_spec["verified_disposition"]
+                if starts_with_article:
+                    verified_disp = f"a {verified_disp}"
+                replacement = f"{verified_disp} {campaign_spec['default_evidence_citation']}"
+                camp_id = campaign_spec["campaign_id"]
+                rationale = (
+                    f"[Stage A Claim-to-Evidence Grounding ({camp_id})] "
+                    f"Contradicted analyst disposition `{matched_phrase}`: Chronicle SIEM UDM "
+                    f"telemetry for `{campaign_spec['udm_validation_query']}` proves "
+                    f"{campaign_spec['verified_disposition']} "
+                    f"({', '.join(campaign_spec['udm_actions'][:3])}). "
+                    "Overturning false-positive disposition and anchoring SIEM evidence."
+                )
+                occupied_py_spans.append((py_s, py_e))
+                line_had_inline_defect = True
+                raw_findings.append(
+                    {
+                        "py_start": py_s,
+                        "py_end": py_e,
+                        "start_index": span[0],
+                        "end_index": span[1],
+                        "issue_type": "contradicted_analyst_disposition_claim",
+                        "campaign_id": camp_id,
+                        "case_ids": list(campaign_spec["case_ids"]),
+                        "udm_validation_query": campaign_spec["udm_validation_query"],
+                        "original_text": matched_phrase,
+                        "replacement_text": replacement,
+                        "rationale": rationale,
+                    }
+                )
+
+        # 2. Missing Cross-Case Campaign Correlation (Siloed Single-Case Reference)
+        for case_match in _SINGLE_CASE_REF_RE.finditer(raw_line):
+            py_s = line_start + case_match.start()
+            py_e = line_start + case_match.end()
+            if _overlaps_occupied(py_s, py_e):
+                continue
+            # Skip if this case reference is already inside an [Evidence: ...] tag
+            prefix_on_line = raw_line[: case_match.start()]
+            if "[Evidence:" in prefix_on_line and "]" not in prefix_on_line.split("[Evidence:")[-1]:
+                continue
+            cited_case = case_match.group("case_id")
+            prefix_str = case_match.group("prefix")
+            # Determine which multi-case campaign owns cited_case
+            target_spec: dict[str, Any] | None = None
+            for spec in CANONICAL_SOAR_CAMPAIGN_CATALOG.values():
+                if cited_case in spec["case_ids"] and len(spec["case_ids"]) > 1:
+                    target_spec = spec
+                    break
+            if target_spec is None:
+                continue
+
+            sibling_cases = [c for c in target_spec["case_ids"] if c != cited_case]
+            # Check if all sibling cases are already cited in this line or section
+            missing_siblings = [
+                sib
+                for sib in sibling_cases
+                if not re.search(rf"\b{re.escape(sib)}\b", sec_text)
+            ]
+            if not missing_siblings:
+                continue
+
+            span = _py_span_to_utf16_span(plain_text, index_map, py_s, py_e)
+            if span is None:
+                continue
+
+            matched_ref = plain_text[py_s:py_e]
+            all_cases = list(target_spec["case_ids"])
+            use_soar_prefix = "soar" in prefix_str.lower()
+            use_hash = "#" in prefix_str
+            formatted_ids = [f"#{c}" if use_hash else c for c in all_cases]
+            if len(formatted_ids) == 2:
+                joined_ids = f"{formatted_ids[0]} and {formatted_ids[1]}"
+            else:
+                joined_ids = f"{', '.join(formatted_ids[:-1])}, and {formatted_ids[-1]}"
+            noun = "SOAR Cases" if use_soar_prefix else "Cases"
+            camp_id = target_spec["campaign_id"]
+            shared_pivots = (
+                target_spec.get("shared_hosts", [])
+                + target_spec.get("shared_principals", [])
+                + target_spec.get("shared_ips", [])
+            )
+            pivot_summary = ", ".join(shared_pivots[:2])
+            replacement = f"{noun} {joined_ids} (Campaign {camp_id})"
+            rationale = (
+                f"[Stage A Cross-Case Campaign Graph ({camp_id})] "
+                f"Isolated single-case citation `{matched_ref}` omits correlated sibling "
+                f"SOAR case(s) {', '.join(missing_siblings)} sharing pivot entity "
+                f"`{pivot_summary}` ({target_spec['campaign_title']}). "
+                f"Expanding citation to `{replacement}`."
+            )
+            occupied_py_spans.append((py_s, py_e))
+            line_had_inline_defect = True
+            raw_findings.append(
+                {
+                    "py_start": py_s,
+                    "py_end": py_e,
+                    "start_index": span[0],
+                    "end_index": span[1],
+                    "issue_type": "missing_cross_case_campaign_correlation",
+                    "campaign_id": camp_id,
+                    "case_ids": all_cases,
+                    "missing_sibling_cases": missing_siblings,
+                    "udm_validation_query": target_spec["udm_validation_query"],
+                    "original_text": matched_ref,
+                    "replacement_text": replacement,
+                    "rationale": rationale,
+                }
+            )
+
+        # 3. Uncited Analytical / Forensic Claim
+        if line_had_inline_defect or campaign_spec is None:
+            continue
+        if _EVIDENCE_TAG_RE.search(raw_line):
+            continue
+        # Skip lines that already cite both a SOAR case number and a UDM/MITRE anchor
+        has_case_id_on_line = any(
+            re.search(rf"\b{re.escape(cid)}\b", raw_line)
+            for cid in campaign_spec["case_ids"]
+        )
+        has_technical_citation_on_line = bool(
+            re.search(r"\b(?:T\d{4}(?:\.\d{3})?|UDM:|MITRE:)\b", raw_line)
+        )
+        if has_case_id_on_line and has_technical_citation_on_line:
+            continue
+
+        # Skip standalone UDM query lines or CLI command lines
+        if re.match(
+            r"^\s*(?:[-*]\s+)?`?(?:metadata\.|principal\.|target\.|security_result\.|gcloud\s+|gam\s+)",
+            stripped_line,
+        ):
+            continue
+
+        camp_id = campaign_spec["campaign_id"]
+        indicators = _CLAIM_ACTION_INDICATORS.get(camp_id, ())
+        matched_indicator = next(
+            (ind for ind in indicators if ind.lower() in raw_line.lower()),
+            None,
+        )
+        if matched_indicator is None:
+            continue
+
+        # Must also reference at least one campaign entity or case on the line
+        line_matches_entity = _match_campaign_for_text(raw_line) is not None
+        if not line_matches_entity:
+            continue
+
+        content_match = re.search(r"\S.*\S|\S", raw_line)
+        if content_match is None:
+            continue
+        py_s = line_start + content_match.start()
+        py_e = line_start + content_match.end()
+        if _overlaps_occupied(py_s, py_e):
+            continue
+
+        span = _py_span_to_utf16_span(plain_text, index_map, py_s, py_e)
+        if span is None:
+            continue
+
+        claim_quote = plain_text[py_s:py_e]
+        evidence_citation = campaign_spec["default_evidence_citation"]
+        replacement = f"{claim_quote} {evidence_citation}"
+        rationale = (
+            f"[Stage A Claim-to-Evidence Grounding ({camp_id})] "
+            f"Uncited forensic claim referencing `{matched_indicator}` without an explicit "
+            "SOAR Case ID, Chronicle UDM action, and MITRE ATT&CK citation anchor. "
+            f"Appending `{evidence_citation}`."
+        )
+        occupied_py_spans.append((py_s, py_e))
+        raw_findings.append(
+            {
+                "py_start": py_s,
+                "py_end": py_e,
+                "start_index": span[0],
+                "end_index": span[1],
+                "issue_type": "uncited_analytical_claim",
+                "campaign_id": camp_id,
+                "case_ids": list(campaign_spec["case_ids"]),
+                "udm_validation_query": campaign_spec["udm_validation_query"],
+                "original_text": claim_quote,
+                "replacement_text": replacement,
+                "rationale": rationale,
+            }
+        )
+
+    raw_findings.sort(key=lambda item: (item["start_index"], item["end_index"]))
+
+    comments: list[dict[str, Any]] = []
+    edits: list[dict[str, Any]] = []
+    findings: list[dict[str, Any]] = []
+    for item in raw_findings:
+        f_copy = {k: v for k, v in item.items() if k not in ("py_start", "py_end")}
+        findings.append(f_copy)
+        comments.append(
+            {
+                "start_index": item["start_index"],
+                "end_index": item["end_index"],
+                "quote": item["original_text"],
+                "comment": item["rationale"],
+            }
+        )
+        edits.append(
+            {
+                "start_index": item["start_index"],
+                "end_index": item["end_index"],
+                "original_text": item["original_text"],
+                "replacement": item["replacement_text"],
+                "replacement_text": item["replacement_text"],
+                "rationale": item["rationale"],
+            }
+        )
+
+    return comments, edits, findings
+
+
+def verify_claims_and_campaign_with_siem(
+    findings: list[dict[str, Any]],
+    *,
+    start_time: str = "2026-02-07T00:00:00Z",
+    end_time: str = "2026-02-08T00:00:00Z",
+    max_events: int = 25,
+    siem_search_fn: Any = None,
+) -> list[dict[str, Any]]:
+    """Verifies campaign evidence queries against Chronicle SIEM UDM search.
+
+    Executes each referenced campaign's ``udm_validation_query`` at most once via
+    :func:`verify_udm_query_with_siem` and returns sanitized event counts,
+    observed actions, observed principals, and a compact verification badge.
+    """
+    results_by_campaign: dict[str, dict[str, Any]] = {}
+    for finding in findings:
+        camp_id = str(finding.get("campaign_id") or "")
+        if not camp_id or camp_id in results_by_campaign:
+            continue
+        spec = CANONICAL_SOAR_CAMPAIGN_CATALOG.get(camp_id, {})
+        query = str(
+            finding.get("udm_validation_query")
+            or spec.get("udm_validation_query")
+            or ""
+        )
+        if not query:
+            continue
+
+        siem_res = verify_udm_query_with_siem(
+            query,
+            start_time=start_time,
+            end_time=end_time,
+            max_events=max_events,
+            siem_search_fn=siem_search_fn,
+        )
+        siem_resp = (
+            siem_res.get("siem_response")
+            if isinstance(siem_res.get("siem_response"), dict)
+            else {}
+        )
+        sample_events = (
+            siem_resp.get("events")
+            or siem_resp.get("sample_events")
+            or siem_res.get("sample_events")
+            or []
+        )
+        events_matched = int(
+            siem_res.get("event_count")
+            or siem_resp.get("events_matched")
+            or siem_res.get("events_matched")
+            or (len(sample_events) if isinstance(sample_events, list) else 0)
+            or 0
+        )
+        observed_actions: list[str] = []
+        observed_principals: list[str] = []
+        for ev in sample_events if isinstance(sample_events, list) else []:
+            if not isinstance(ev, dict):
+                continue
+            ev_str = json.dumps(ev)
+            for candidate_action in spec.get("udm_actions", []):
+                if (
+                    candidate_action.lower() in ev_str.lower()
+                    and candidate_action not in observed_actions
+                ):
+                    observed_actions.append(candidate_action)
+            for candidate_principal in (
+                spec.get("shared_principals", []) + spec.get("shared_hosts", [])
+            ):
+                if (
+                    candidate_principal.lower() in ev_str.lower()
+                    and candidate_principal not in observed_principals
+                ):
+                    observed_principals.append(candidate_principal)
+
+        if not observed_actions and events_matched > 0:
+            observed_actions = list(spec.get("udm_actions", [])[:3])
+        if not observed_principals and events_matched > 0:
+            observed_principals = list(
+                (spec.get("shared_principals", []) + spec.get("shared_hosts", []))[:2]
+            )
+
+        status = str(siem_res.get("status", "error"))
+        case_list_str = ", ".join(spec.get("case_ids", []))
+        if status == "success":
+            summary = (
+                f"[SIEM Campaign Evidence Verified: campaign={camp_id}, "
+                f"cases=[{case_list_str}], query=`{query}` -> "
+                f"{events_matched} event(s) in {start_time}..{end_time}; "
+                f"actions={observed_actions}]"
+            )
+        else:
+            summary = (
+                f"[SIEM Campaign Evidence Check Error: campaign={camp_id}, "
+                f"error={siem_res.get('error_message', 'unknown')}]"
+            )
+
+        results_by_campaign[camp_id] = {
+            "status": status,
+            "campaign_id": camp_id,
+            "case_ids": list(spec.get("case_ids", [])),
+            "query": query,
+            "events_matched": events_matched,
+            "observed_actions": observed_actions,
+            "observed_principals": observed_principals,
+            "summary": summary,
+        }
+
+    return list(results_by_campaign.values())
+
+
+def audit_and_redline_claim_evidence_and_campaign_in_doc(
+    document_id: str,
+    *,
+    run_live_siem_check: bool = False,
+    start_time: str = "2026-02-07T00:00:00Z",
+    end_time: str = "2026-02-08T00:00:00Z",
+    siem_search_fn: Callable[..., dict[str, Any]] | None = None,
+    tool_context: Any = None,
+    token_source: TokenSource | None = None,
+    quota_project: str | None = None,
+    transport: httpx.BaseTransport | None = None,
+) -> dict[str, Any]:
+    """Audits and red-lines narrative disposition contradictions, siloed single-case citations, and uncited forensic claims in a Google Doc.
+
+    1. Calls :func:`read_google_doc` to populate the 1-based UTF-16 index map
+       and ``pending_suggestion_spans``.
+    2. Builds the cross-case campaign correlation graph via
+       :func:`build_cross_case_campaign_graph`.
+    3. Scans the document via :func:`find_claim_evidence_and_campaign_spans` for:
+       - ``contradicted_analyst_disposition_claim``
+       - ``missing_cross_case_campaign_correlation``
+       - ``uncited_analytical_claim``
+    4. Optionally verifies each referenced campaign's UDM evidence query against
+       live Chronicle SIEM via :func:`verify_claims_and_campaign_with_siem` when
+       ``run_live_siem_check=True``, enriching anchored comments with live SIEM
+       event counts and observed actions.
+    5. Filters out spans overlapping ``pending_suggestion_spans`` for multi-pass
+       idempotency, anchors Drive comments first via :func:`insert_doc_comments`,
+       and stages Suggested Edits second via :func:`propose_doc_suggested_edits`
+       in descending ``startIndex`` order under ``writeMode="SUGGEST"``.
+    """
+    read_res = read_google_doc(
+        document_id,
+        tool_context=tool_context,
+        token_source=token_source,
+        quota_project=quota_project,
+        transport=transport,
+    )
+    if read_res.get("status") != "success":
+        return read_res
+
+    plain_text, index_map = _load_doc_index_state(
+        document_id, tool_context=tool_context
+    )
+    if plain_text is None or index_map is None:
+        return {
+            "status": "error",
+            "message": "Failed to load UTF-16 index map after read_google_doc.",
+        }
+
+    pending_spans = _load_doc_pending_suggestion_spans(
+        document_id, tool_context=tool_context
+    )
+
+    campaign_graph = build_cross_case_campaign_graph(plain_text)
+    raw_comments, raw_edits, findings = find_claim_evidence_and_campaign_spans(
+        plain_text, index_map
+    )
+
+    siem_campaign_results: list[dict[str, Any]] = []
+    if run_live_siem_check and findings:
+        siem_campaign_results = verify_claims_and_campaign_with_siem(
+            findings,
+            start_time=start_time,
+            end_time=end_time,
+            siem_search_fn=siem_search_fn,
+        )
+        badge_by_campaign = {
+            r["campaign_id"]: str(r.get("summary") or "")
+            for r in siem_campaign_results
+            if r.get("campaign_id")
+        }
+        for c_item, f_item in zip(raw_comments, findings):
+            camp_id = str(f_item.get("campaign_id") or "")
+            badge = badge_by_campaign.get(camp_id, "")
+            if badge and badge not in c_item["comment"]:
+                c_item["comment"] = f"{c_item['comment']} {badge}"
+                f_item["rationale"] = c_item["comment"]
+
+    filtered_comments: list[dict[str, Any]] = []
+    for c_item in raw_comments:
+        c_span = (int(c_item["start_index"]), int(c_item["end_index"]))
+        if any(_spans_overlap(c_span, p_span) for p_span in pending_spans):
+            continue
+        filtered_comments.append(c_item)
+
+    filtered_edits: list[dict[str, Any]] = []
+    skipped_existing_suggestion_count = 0
+    for e_item in raw_edits:
+        e_span = (int(e_item["start_index"]), int(e_item["end_index"]))
+        if any(_spans_overlap(e_span, p_span) for p_span in pending_spans):
+            skipped_existing_suggestion_count += 1
+            continue
+        filtered_edits.append(e_item)
+
+    active_findings = [
+        f
+        for f in findings
+        if not any(
+            _spans_overlap(
+                (int(f["start_index"]), int(f["end_index"])), p_span
+            )
+            for p_span in pending_spans
+        )
+    ]
+
+    comments_res: dict[str, Any] = {
+        "status": "skipped",
+        "inserted_count": 0,
+        "comment_ids": [],
+    }
+    if filtered_comments:
+        comments_res = insert_doc_comments(
+            document_id,
+            filtered_comments,
+            tool_context=tool_context,
+            token_source=token_source,
+            quota_project=quota_project,
+            transport=transport,
+        )
+        if comments_res.get("status") != "success":
+            return {
+                "status": "error",
+                "message": f"insert_doc_comments failed: {comments_res.get('message')}",
+                "comments": comments_res,
+            }
+
+    edits_res: dict[str, Any] = {"status": "skipped", "applied_count": 0}
+    if filtered_edits:
+        edits_res = propose_doc_suggested_edits(
+            document_id,
+            filtered_edits,
+            tool_context=tool_context,
+            token_source=token_source,
+            quota_project=quota_project,
+            transport=transport,
+        )
+        if edits_res.get("status") != "success":
+            return {
+                "status": "error",
+                "message": f"propose_doc_suggested_edits failed: {edits_res.get('message')}",
+                "comments": comments_res,
+                "edits": edits_res,
+            }
+
+    return {
+        "status": "success",
+        "document_id": document_id,
+        "title": read_res.get("title", ""),
+        "campaign_graph": campaign_graph,
+        "finding_count": len(active_findings),
+        "findings": active_findings,
+        "siem_campaign_results": siem_campaign_results,
+        "skipped_existing_suggestion_count": skipped_existing_suggestion_count,
+        "comments": comments_res,
+        "edits": edits_res,
+    }
+

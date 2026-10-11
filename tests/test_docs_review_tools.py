@@ -8328,3 +8328,474 @@ def test_triage_and_redline_leaked_credentials_in_doc_end_to_end_and_stage_a_int
     assert "run_live_siem_check" in props
     assert "synthesize_missing_revocation" in props
     assert "tool_context" not in props
+
+
+# ---------------------------------------------------------------------------
+# Cycle 16 (H5): Cross-Case Campaign Graph & Claim-to-Evidence Grounding Auditor
+# ---------------------------------------------------------------------------
+
+
+def test_build_cross_case_campaign_graph_correlates_cases_hosts_principals_and_ips() -> None:
+    """Verifies build_cross_case_campaign_graph correlates multi-case campaigns and shared entities."""
+    from manager.tools.docs_review_tools import (
+        CANONICAL_SOAR_CAMPAIGN_CATALOG,
+        build_cross_case_campaign_graph,
+    )
+
+    full_graph = build_cross_case_campaign_graph()
+    assert full_graph["total_campaigns"] == 3
+    assert full_graph["total_cases"] == 7
+    assert set(full_graph["campaigns"].keys()) == set(
+        CANONICAL_SOAR_CAMPAIGN_CATALOG.keys()
+    )
+    assert full_graph["case_to_campaign"]["33269"] == "CAMP-WINS-D19-ENDPOINT"
+    assert full_graph["case_to_campaign"]["33280"] == "CAMP-WINS-D19-ENDPOINT"
+    assert full_graph["case_to_campaign"]["33285"] == "CAMP-WINS-D19-ENDPOINT"
+    assert (
+        full_graph["case_to_campaign"]["33281"]
+        == "CAMP-WORKSPACE-SUPERADMIN-TAKEOVER"
+    )
+    assert (
+        full_graph["case_to_campaign"]["33283"]
+        == "CAMP-WORKSPACE-SUPERADMIN-TAKEOVER"
+    )
+    assert (
+        full_graph["case_to_campaign"]["33287"]
+        == "CAMP-WORKSPACE-SUPERADMIN-TAKEOVER"
+    )
+    assert full_graph["case_to_campaign"]["33278"] == "CAMP-GCP-CONTROL-PLANE-33278"
+
+    assert full_graph["entity_to_cases"]["wins-d19"] == ["33269", "33280", "33285"]
+    assert full_graph["entity_to_cases"]["79.154.246.114"] == [
+        "33281",
+        "33283",
+        "33287",
+    ]
+    assert full_graph["entity_to_cases"]["104.198.226.161"] == ["33278"]
+    assert full_graph["shared_entities"]["wins-d19"]["multi_case_pivot"] is True
+    assert full_graph["shared_entities"]["79.154.246.114"]["multi_case_pivot"] is True
+
+    # Scoped document referencing only Case 33269 on wins-d19 and Case 33287 on 79.154.246.114
+    sample_doc = (
+        "Incident Summary: Host wins-d19 triggered Case 33269 under user lisawalker.\n"
+        "Identity Summary: Source IP 79.154.246.114 triggered SOAR Case 33287.\n"
+    )
+    scoped = build_cross_case_campaign_graph(sample_doc)
+    assert set(scoped["referenced_campaign_ids"]) == {
+        "CAMP-WINS-D19-ENDPOINT",
+        "CAMP-WORKSPACE-SUPERADMIN-TAKEOVER",
+    }
+    wins_camp = scoped["campaigns"]["CAMP-WINS-D19-ENDPOINT"]
+    assert wins_camp["matched_cases_in_doc"] == ["33269"]
+    assert wins_camp["missing_sibling_cases_in_doc"] == ["33280", "33285"]
+    ws_camp = scoped["campaigns"]["CAMP-WORKSPACE-SUPERADMIN-TAKEOVER"]
+    assert ws_camp["matched_cases_in_doc"] == ["33287"]
+    assert ws_camp["missing_sibling_cases_in_doc"] == ["33281", "33283"]
+
+
+def test_find_claim_evidence_and_campaign_spans_repairs_contradicted_dispositions_and_siloed_cases() -> None:
+    """Verifies exact UTF-16 span detection and replacement for contradicted dispositions and siloed case citations."""
+    from manager.tools.docs_review_tools import (
+        extract_doc_text_and_index_map,
+        find_claim_evidence_and_campaign_spans,
+    )
+
+    doc_text = (
+        "## Scenario 1: Workspace Identity Takeover\n"
+        "Initial Tier-1 triage concluded that the SAML2 service provider deletion and 2-step verification changes "
+        "by admin@mydomain.com from 79.154.246.114 in SOAR Case 33287 were a legitimate automated process.\n\n"
+        "## Scenario 2: Endpoint Intrusion on wins-d19\n"
+        "Endpoint containment was scoped exclusively to Case 33269 on workstation wins-d19 for user lisawalker.\n"
+    )
+    mock_doc = {
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": len(doc_text) + 1,
+                                "textRun": {"content": doc_text},
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    }
+    plain_text, index_map = extract_doc_text_and_index_map(mock_doc)
+    comments, edits, findings = find_claim_evidence_and_campaign_spans(
+        plain_text, index_map
+    )
+
+    issue_types = [f["issue_type"] for f in findings]
+    assert "contradicted_analyst_disposition_claim" in issue_types
+    assert "missing_cross_case_campaign_correlation" in issue_types
+    assert len(findings) == 3
+
+    disp_finding = next(
+        f for f in findings if f["issue_type"] == "contradicted_analyst_disposition_claim"
+    )
+    assert disp_finding["campaign_id"] == "CAMP-WORKSPACE-SUPERADMIN-TAKEOVER"
+    assert disp_finding["original_text"] == "a legitimate automated process"
+    assert (
+        "confirmed malicious Google Workspace Super Admin takeover"
+        in disp_finding["replacement_text"]
+    )
+    assert (
+        "[Evidence: SOAR Cases #33281, #33283, #33287"
+        in disp_finding["replacement_text"]
+    )
+
+    silo_ws = next(
+        f
+        for f in findings
+        if f["issue_type"] == "missing_cross_case_campaign_correlation"
+        and f["campaign_id"] == "CAMP-WORKSPACE-SUPERADMIN-TAKEOVER"
+    )
+    assert silo_ws["original_text"] == "SOAR Case 33287"
+    assert (
+        silo_ws["replacement_text"]
+        == "SOAR Cases 33281, 33283, and 33287 (Campaign CAMP-WORKSPACE-SUPERADMIN-TAKEOVER)"
+    )
+
+    silo_wins = next(
+        f
+        for f in findings
+        if f["issue_type"] == "missing_cross_case_campaign_correlation"
+        and f["campaign_id"] == "CAMP-WINS-D19-ENDPOINT"
+    )
+    assert silo_wins["original_text"] == "Case 33269"
+    assert (
+        silo_wins["replacement_text"]
+        == "Cases 33269, 33280, and 33285 (Campaign CAMP-WINS-D19-ENDPOINT)"
+    )
+
+    # Verify non-overlapping UTF-16 spans
+    assert len(comments) == len(edits) == len(findings)
+    for i in range(len(edits)):
+        for j in range(i + 1, len(edits)):
+            a = (edits[i]["start_index"], edits[i]["end_index"])
+            b = (edits[j]["start_index"], edits[j]["end_index"])
+            assert max(a[0], b[0]) >= min(a[1], b[1])
+
+
+def test_find_claim_evidence_and_campaign_spans_anchors_uncited_claims_with_zero_false_positives() -> None:
+    """Verifies uncited forensic claims receive [Evidence: ...] anchors while well-cited control lines produce 0 findings."""
+    from manager.tools.docs_review_tools import (
+        extract_doc_text_and_index_map,
+        find_claim_evidence_and_campaign_spans,
+    )
+
+    doc_text = (
+        "## Scenario 3: Cloud Control Plane Escalation\n"
+        "The attacker used 294955789222-compute@developer.gserviceaccount.com from 104.198.226.161 "
+        "to execute SetIamPolicy granting roles/editor to hello@base-production.iam.gserviceaccount.com "
+        "and deleted the prod-customers Cloud SQL instance.\n\n"
+        "## Scenario 4: Well-Grounded Control Section\n"
+        "Correlated SOAR Cases 33269, 33280, and 33285 (Campaign CAMP-WINS-D19-ENDPOINT) confirm "
+        "PowerShell Empire execution and DERPService persistence on host wins-d19 "
+        '[Evidence: SOAR Cases #33269, #33280, #33285 | UDM: principal.hostname = "wins-d19" | MITRE: T1059.001, T1543.003].\n'
+    )
+    mock_doc = {
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": len(doc_text) + 1,
+                                "textRun": {"content": doc_text},
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    }
+    plain_text, index_map = extract_doc_text_and_index_map(mock_doc)
+    comments, edits, findings = find_claim_evidence_and_campaign_spans(
+        plain_text, index_map
+    )
+
+    assert len(findings) == 1
+    f = findings[0]
+    assert f["issue_type"] == "uncited_analytical_claim"
+    assert f["campaign_id"] == "CAMP-GCP-CONTROL-PLANE-33278"
+    assert "SetIamPolicy" in f["original_text"]
+    assert (
+        "[Evidence: SOAR Case #33278 | UDM: SetIamPolicy (roles/editor), cloudsql.instances.delete (prod-customers)"
+        in f["replacement_text"]
+    )
+    assert len(comments) == len(edits) == 1
+
+
+def test_verify_claims_and_campaign_with_siem_executes_campaign_udm_queries() -> None:
+    """Verifies verify_claims_and_campaign_with_siem deduplicates campaign UDM queries and extracts observed actions."""
+    from manager.tools.docs_review_tools import verify_claims_and_campaign_with_siem
+
+    findings = [
+        {
+            "issue_type": "contradicted_analyst_disposition_claim",
+            "campaign_id": "CAMP-WORKSPACE-SUPERADMIN-TAKEOVER",
+            "udm_validation_query": 'metadata.log_type = "WORKSPACE_ACTIVITY" AND principal.ip = "79.154.246.114"',
+        },
+        {
+            "issue_type": "missing_cross_case_campaign_correlation",
+            "campaign_id": "CAMP-WORKSPACE-SUPERADMIN-TAKEOVER",
+            "udm_validation_query": 'metadata.log_type = "WORKSPACE_ACTIVITY" AND principal.ip = "79.154.246.114"',
+        },
+        {
+            "issue_type": "missing_cross_case_campaign_correlation",
+            "campaign_id": "CAMP-WINS-D19-ENDPOINT",
+            "udm_validation_query": 'principal.hostname = "wins-d19"',
+        },
+        {
+            "issue_type": "uncited_analytical_claim",
+            "campaign_id": "CAMP-GCP-CONTROL-PLANE-33278",
+            "udm_validation_query": 'metadata.log_type = "GCP_CLOUDAUDIT" AND principal.ip = "104.198.226.161"',
+        },
+    ]
+
+    executed_queries: list[str] = []
+
+    def fake_siem_search(
+        query: str, start_time: str, end_time: str, max_events: int
+    ) -> dict[str, Any]:
+        executed_queries.append(query)
+        if "79.154.246.114" in query:
+            return {
+                "status": "success",
+                "events_matched": 30,
+                "sample_events": [
+                    {
+                        "metadata": {"product_event_type": "DELETE_SAML2_SERVICE_PROVIDER_CONFIG"},
+                        "principal": {"user": {"email_addresses": ["admin@mydomain.com"]}},
+                    },
+                    {
+                        "metadata": {"product_event_type": "AUTHORIZE_API_CLIENT_ACCESS"},
+                        "principal": {"user": {"email_addresses": ["bruce.wayne@the.org"]}},
+                    },
+                ],
+            }
+        if "wins-d19" in query:
+            return {
+                "status": "success",
+                "events_matched": 25,
+                "sample_events": [
+                    {
+                        "metadata": {"event_type": "PROCESS_LAUNCH"},
+                        "principal": {"hostname": "wins-d19", "user": {"userid": "lisawalker"}},
+                    }
+                ],
+            }
+        return {
+            "status": "success",
+            "events_matched": 4,
+            "sample_events": [
+                {
+                    "metadata": {"product_event_type": "SetIamPolicy"},
+                    "principal": {
+                        "user": {
+                            "email_addresses": [
+                                "294955789222-compute@developer.gserviceaccount.com"
+                            ]
+                        }
+                    },
+                },
+                {
+                    "metadata": {"product_event_type": "cloudsql.instances.delete"},
+                },
+            ],
+        }
+
+    results = verify_claims_and_campaign_with_siem(
+        findings,
+        siem_search_fn=fake_siem_search,
+    )
+    # Deduplicated: 4 findings across 3 distinct campaigns -> 3 SIEM queries
+    assert len(executed_queries) == 3
+    assert len(results) == 3
+    by_camp = {r["campaign_id"]: r for r in results}
+    assert by_camp["CAMP-WORKSPACE-SUPERADMIN-TAKEOVER"]["events_matched"] == 30
+    assert (
+        "DELETE_SAML2_SERVICE_PROVIDER_CONFIG"
+        in by_camp["CAMP-WORKSPACE-SUPERADMIN-TAKEOVER"]["observed_actions"]
+    )
+    assert by_camp["CAMP-WINS-D19-ENDPOINT"]["events_matched"] == 25
+    assert by_camp["CAMP-GCP-CONTROL-PLANE-33278"]["events_matched"] == 4
+    assert (
+        "SetIamPolicy"
+        in by_camp["CAMP-GCP-CONTROL-PLANE-33278"]["observed_actions"]
+    )
+    assert (
+        "[SIEM Campaign Evidence Verified:"
+        in by_camp["CAMP-GCP-CONTROL-PLANE-33278"]["summary"]
+    )
+
+
+def test_audit_and_redline_claim_evidence_and_campaign_in_doc_end_to_end_and_idempotency() -> None:
+    """Verifies end-to-end Google Docs campaign/claim red-lining, SIEM badge enrichment, descending edits, Pass 2 idempotency, Stage A integration, and ADK FunctionTool schema."""
+    from google.adk.tools.function_tool import FunctionTool
+    from manager.tools import tools as tools_module
+    from manager.tools.docs_review_tools import (
+        StaticTokenSource,
+        audit_and_redline_claim_evidence_and_campaign_in_doc,
+        review_google_doc_with_stage_a,
+    )
+
+    doc_text = (
+        "## Scenario 1: Workspace Super Admin Takeover\n"
+        "Initial Tier-1 triage concluded that the SAML2 service provider deletion and 2-step verification changes "
+        "by admin@mydomain.com from 79.154.246.114 in SOAR Case 33287 were a legitimate automated process.\n\n"
+        "## Scenario 2: Endpoint Intrusion on wins-d19\n"
+        "Endpoint containment was scoped exclusively to Case 33269 on workstation wins-d19 for user lisawalker.\n\n"
+        "## Scenario 3: Cloud Control Plane Escalation\n"
+        "The attacker used 294955789222-compute@developer.gserviceaccount.com from 104.198.226.161 "
+        "to execute SetIamPolicy granting roles/editor to hello@base-production.iam.gserviceaccount.com "
+        "and deleted the prod-customers Cloud SQL instance.\n\n"
+        "## Scenario 4: Well-Grounded Control Section\n"
+        "Correlated SOAR Cases 33269, 33280, and 33285 (Campaign CAMP-WINS-D19-ENDPOINT) confirm "
+        "PowerShell Empire execution and DERPService persistence on host wins-d19 "
+        '[Evidence: SOAR Cases #33269, #33280, #33285 | UDM: principal.hostname = "wins-d19" | MITRE: T1059.001, T1543.003].\n'
+    )
+    mock_doc = {
+        "documentId": "doc-h5-e2e",
+        "title": "Cycle 16 H5 E2E Test",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": len(doc_text) + 1,
+                                "textRun": {"content": doc_text},
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+    }
+
+    batch_calls: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=mock_doc)
+        payload = json.loads(request.content.decode("utf-8"))
+        batch_calls.append(payload)
+        reqs = payload.get("requests", [])
+        if reqs and "insertComment" in reqs[0]:
+            return httpx.Response(
+                200,
+                json={
+                    "replies": [
+                        {"insertComment": {"commentId": f"c-h5-{idx}"}}
+                        for idx in range(len(reqs))
+                    ]
+                },
+            )
+        return httpx.Response(200, json={"replies": [{} for _ in reqs]})
+
+    def fake_siem_search(
+        query: str, start_time: str, end_time: str, max_events: int
+    ) -> dict[str, Any]:
+        return {
+            "status": "success",
+            "events_matched": 12,
+            "sample_events": [],
+        }
+
+    res1 = audit_and_redline_claim_evidence_and_campaign_in_doc(
+        "doc-h5-e2e",
+        run_live_siem_check=True,
+        siem_search_fn=fake_siem_search,
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(handler),
+    )
+    assert res1["status"] == "success"
+    assert res1["finding_count"] == 4
+    assert res1["skipped_existing_suggestion_count"] == 0
+    assert res1["comments"]["inserted_count"] == 4
+    assert res1["edits"]["applied_count"] == 4
+    assert len(res1["siem_campaign_results"]) == 3
+    assert len(batch_calls) == 2
+
+    comment_bodies = [
+        req["insertComment"]["content"] for req in batch_calls[0]["requests"]
+    ]
+    assert any(
+        "[SIEM Campaign Evidence Verified:" in body for body in comment_bodies
+    )
+
+    delete_starts = [
+        req["deleteContentRange"]["range"]["startIndex"]
+        for req in batch_calls[1]["requests"]
+        if "deleteContentRange" in req
+    ]
+    assert delete_starts == sorted(delete_starts, reverse=True)
+
+    # Pass 2 idempotency when suggestions are already pending
+    mock_doc_pass2 = {
+        "documentId": "doc-h5-e2e",
+        "title": "Cycle 16 H5 E2E Test",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": len(doc_text) + 1,
+                                "textRun": {
+                                    "content": doc_text,
+                                    "suggestedDeletionIds": ["suggest.h5.existing"],
+                                },
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+    }
+    res2 = audit_and_redline_claim_evidence_and_campaign_in_doc(
+        "doc-h5-e2e",
+        run_live_siem_check=True,
+        siem_search_fn=fake_siem_search,
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(
+            lambda req: httpx.Response(200, json=mock_doc_pass2)
+        ),
+    )
+    assert res2["finding_count"] == 0
+    assert res2["skipped_existing_suggestion_count"] == 4
+    assert res2["comments"]["inserted_count"] == 0
+    assert res2["edits"]["applied_count"] == 0
+
+    # Verify Stage A integration when include_claim_campaign_stage_a=True
+    batch_calls.clear()
+    stage_a_res = review_google_doc_with_stage_a(
+        "doc-h5-e2e",
+        include_claim_campaign_stage_a=True,
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(handler),
+    )
+    assert stage_a_res["status"] == "success"
+    assert stage_a_res["stage_a_claim_campaign_count"] == 4
+    assert stage_a_res["edits"]["applied_count"] == 4
+
+    # Verify ADK FunctionTool schema declaration
+    ft = FunctionTool(
+        tools_module.audit_and_redline_claim_evidence_and_campaign_in_doc
+    )
+    decl = ft._get_declaration()
+    assert decl.name == "audit_and_redline_claim_evidence_and_campaign_in_doc"
+    props = (decl.parameters_json_schema or {}).get("properties", {})
+    assert "document_id" in props
+    assert "run_live_siem_check" in props
+    assert "tool_context" not in props
+
