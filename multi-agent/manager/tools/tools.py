@@ -757,6 +757,7 @@ def export_accepted_doc_to_markdown(
 def verify_and_redline_yaral2_rules_in_doc(
     document_id: str,
     run_live_siem_check: bool = False,
+    diagnose_zero_hit_retrohunt: bool = True,
     start_time: str = "2026-02-07T00:00:00Z",
     end_time: str = "2026-02-08T00:00:00Z",
     tool_context: ToolContext = None,
@@ -768,24 +769,30 @@ def verify_and_redline_yaral2_rules_in_doc(
   event-variable-prefixed invalid UDM fields (`$e.resource.name`, `$e.ip`,
   `re.regex($e.process.command_line, ...)`), and undeclared event variables in
   `condition:` by exact 1-based UTF-16 span. When `run_live_siem_check=True`,
-  compiles the repaired YARA-L 2.0 rule against Chronicle SIEM (`validate_rule`)
-  and dry-runs its `events:` predicates against historical UDM telemetry
-  (`search_udm`) before anchoring comments and staging `writeMode="SUGGEST"` edits.
+  compiles the repaired YARA-L 2.0 rule against Chronicle SIEM (`validate_rule`),
+  dry-runs its `events:` predicates against historical UDM telemetry
+  (`search_udm`), diagnoses 0-hit retrohunt predicates via clause ablation and
+  live UDM event inspection (`exact_match_on_command_line`, `entity_role_swap`,
+  `value_format_mismatch`), and stages compiler-verified `writeMode="SUGGEST"` edits.
 
   Args:
       document_id (str): The Google Docs documentId.
       run_live_siem_check (bool): Whether to compile the repaired YARA-L 2.0 rule
                                   and dry-run its UDM predicates against live Chronicle SIEM.
+      diagnose_zero_hit_retrohunt (bool): Whether to diagnose and stage compiler-verified
+                                          pivots for 0-hit YARA-L 2.0 retrohunt predicates.
       start_time (str): ISO-8601 start time for the SIEM retrohunt search window.
       end_time (str): ISO-8601 end time for the SIEM retrohunt search window.
 
   Returns:
       dict: {"status", "document_id", "title", "char_count", "yaral2_findings_count",
-             "skipped_existing_suggestion_count", "findings", "siem_rule_checks", "comments", "edits"}.
+             "zero_hit_yaral2_findings_count", "skipped_existing_suggestion_count",
+             "findings", "siem_rule_checks", "zero_hit_yaral2_diagnoses", "comments", "edits"}.
   """
   return _verify_and_redline_yaral2_rules_in_doc(
       document_id=document_id,
       run_live_siem_check=run_live_siem_check,
+      diagnose_zero_hit_retrohunt=diagnose_zero_hit_retrohunt,
       start_time=start_time,
       end_time=end_time,
       tool_context=tool_context,

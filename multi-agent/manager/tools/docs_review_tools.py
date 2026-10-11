@@ -413,13 +413,13 @@ _YARAL2_RE_REGEX_SLASH_NORM_RE = re.compile(
 )
 _YARAL2_RE_REGEX_CALL_RE = re.compile(
     r"re\.regex\(\s*\$([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_.]*)\s*,\s*"
-    r"(?:/([^/\r\n]+)/|`([^`\r\n]+)`|\"([^\r\n\"]+)\")\s*(nocase)?\s*\)\s*(nocase)?",
+    r"(?:/([^/\r\n]+)/|`([^`\r\n]+)`|\"([^\r\n\"]+)\")(?:[ \t]+(nocase))?\s*\)(?:[ \t]+(nocase))?",
     re.IGNORECASE,
 )
 _YARAL2_EVENT_COMPARISON_RE = re.compile(
     r"\$([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_.]*)"
     r"(\s*(?:!=|=)\s*)"
-    r"(\"[^\r\n\"]*\"|'[^\r\n']*'|“[^\r\n”]*”|/[^\r\n/]+/(?:\s*nocase)?|`[^`\r\n]*`(?:\s*nocase)?)"
+    r"(\"[^\r\n\"]*\"|'[^\r\n']*'|“[^\r\n”]*”|/[^\r\n/]+/(?:[ \t]+nocase)?|`[^`\r\n]*`(?:[ \t]+nocase)?)"
 )
 
 _FRONTMATTER_BLOCK_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n(.*)$", re.DOTALL)
@@ -3162,65 +3162,217 @@ def _normalize_yaral2_re_regex_calls(rule_text: str) -> str:
     return _YARAL2_RE_REGEX_SLASH_NORM_RE.sub(_replace_call, rule_text)
 
 
+def extract_yaral2_event_predicates(
+    rule_text: str,
+    rule_char_start: int = 0,
+    full_plain_text: str | None = None,
+    index_map: list[int] | None = None,
+) -> list[dict[str, Any]]:
+    """Extracts ordered event predicates and 1-based UTF-16 spans from a YARA-L 2.0 rule's events section.
+
+    Supports both multi-line YARA-L 2.0 (``YL2``) rules and single-line paragraphs
+    collapsed by Google Drive Markdown import, returning predicate records that
+    map 1-to-1 with :func:`_extract_retrohunt_udm_query_from_yaral2`.
+    """
+    if not rule_text:
+        return []
+    if full_plain_text is None:
+        full_plain_text = rule_text
+    if index_map is None:
+        index_map = _build_utf16_index_map(full_plain_text)
+
+    sec_matches = list(_YARAL2_SECTION_HEADER_RE.finditer(rule_text))
+    raw_items: list[dict[str, Any]] = []
+
+    for i, sm in enumerate(sec_matches):
+        sec_name = sm.group(1).lower()
+        if sec_name not in ("events", "strings"):
+            continue
+        b_start = sm.end()
+        b_end = (
+            sec_matches[i + 1].start()
+            if i + 1 < len(sec_matches)
+            else max(b_start, rule_text.rfind("}"))
+        )
+        sec_body = rule_text[b_start:b_end]
+        if not sec_body.strip():
+            continue
+
+        comment_spans = [
+            (cm.start(), cm.end())
+            for cm in re.finditer(r"(?m)^[ \t]*//[^\r\n]*", sec_body)
+        ]
+        re_spans: list[tuple[int, int]] = []
+
+        for re_match in _YARAL2_RE_REGEX_CALL_RE.finditer(sec_body):
+            m_span = (re_match.start(), re_match.end())
+            if any(_spans_overlap(m_span, c_span) for c_span in comment_spans):
+                continue
+            re_spans.append(m_span)
+            var_name = re_match.group(1)
+            event_var = f"${var_name}"
+            field_token = re_match.group(2)
+            var_field_token = f"{event_var}.{field_token}"
+            canonical_field = CANONICAL_UDM_FIELD_CORRECTIONS.get(
+                field_token, field_token
+            )
+            pattern = (
+                re_match.group(3)
+                or re_match.group(4)
+                or re_match.group(5)
+                or ""
+            )
+            if re_match.group(3) is not None:
+                rhs_rel_start = re_match.start(3) - 1
+                rhs_rel_end = re_match.end(3) + 1
+            elif re_match.group(4) is not None:
+                rhs_rel_start = re_match.start(4) - 1
+                rhs_rel_end = re_match.end(4) + 1
+            else:
+                rhs_rel_start = re_match.start(5) - 1
+                rhs_rel_end = re_match.end(5) + 1
+
+            has_nocase = bool(re_match.group(6) or re_match.group(7))
+            udm_clause = (
+                f"{canonical_field} = /{pattern}/ nocase"
+                if has_nocase
+                else f"{canonical_field} = /{pattern}/"
+            )
+            local_predicate_start = b_start + re_match.start(0)
+            local_predicate_end = b_start + re_match.end(0)
+            local_var_field_start = b_start + re_match.start(1) - 1
+            local_var_field_end = b_start + re_match.end(2)
+            local_rhs_start = b_start + rhs_rel_start
+            local_rhs_end = b_start + rhs_rel_end
+
+            raw_items.append(
+                {
+                    "predicate_kind": "re_regex",
+                    "predicate_text": rule_text[
+                        local_predicate_start:local_predicate_end
+                    ],
+                    "event_var": event_var,
+                    "var_field_token": var_field_token,
+                    "field_token": field_token,
+                    "canonical_field": canonical_field,
+                    "operator": "re.regex",
+                    "operator_raw": "re.regex",
+                    "rhs_raw": rule_text[local_rhs_start:local_rhs_end],
+                    "regex_pattern": pattern,
+                    "has_nocase": has_nocase,
+                    "udm_clause": udm_clause,
+                    "local_predicate_start": local_predicate_start,
+                    "local_predicate_end": local_predicate_end,
+                    "local_var_field_start": local_var_field_start,
+                    "local_var_field_end": local_var_field_end,
+                    "local_rhs_start": local_rhs_start,
+                    "local_rhs_end": local_rhs_end,
+                }
+            )
+
+        for cmp_match in _YARAL2_EVENT_COMPARISON_RE.finditer(sec_body):
+            c_span = (cmp_match.start(), cmp_match.end())
+            if any(_spans_overlap(c_span, r_span) for r_span in re_spans):
+                continue
+            if any(_spans_overlap(c_span, cm_span) for cm_span in comment_spans):
+                continue
+            var_name = cmp_match.group(1)
+            event_var = f"${var_name}"
+            field_token = cmp_match.group(2)
+            var_field_token = f"{event_var}.{field_token}"
+            canonical_field = CANONICAL_UDM_FIELD_CORRECTIONS.get(
+                field_token, field_token
+            )
+            operator_raw = cmp_match.group(3)
+            operator = operator_raw.strip()
+            rhs_raw = cmp_match.group(4).strip()
+            has_nocase = bool(re.search(r"(?i)\bnocase\s*$", rhs_raw))
+            udm_clause = f"{canonical_field} {operator} {rhs_raw}"
+
+            local_predicate_start = b_start + cmp_match.start(0)
+            local_predicate_end = b_start + cmp_match.end(0)
+            local_var_field_start = b_start + cmp_match.start(1) - 1
+            local_var_field_end = b_start + cmp_match.end(2)
+            local_rhs_start = b_start + cmp_match.start(4)
+            local_rhs_end = b_start + cmp_match.end(4)
+
+            raw_items.append(
+                {
+                    "predicate_kind": "comparison",
+                    "predicate_text": rule_text[
+                        local_predicate_start:local_predicate_end
+                    ],
+                    "event_var": event_var,
+                    "var_field_token": var_field_token,
+                    "field_token": field_token,
+                    "canonical_field": canonical_field,
+                    "operator": operator,
+                    "operator_raw": operator_raw,
+                    "rhs_raw": rhs_raw,
+                    "regex_pattern": None,
+                    "has_nocase": has_nocase,
+                    "udm_clause": udm_clause,
+                    "local_predicate_start": local_predicate_start,
+                    "local_predicate_end": local_predicate_end,
+                    "local_var_field_start": local_var_field_start,
+                    "local_var_field_end": local_var_field_end,
+                    "local_rhs_start": local_rhs_start,
+                    "local_rhs_end": local_rhs_end,
+                }
+            )
+
+    raw_items.sort(key=lambda item: int(item["local_predicate_start"]))
+
+    def _to_utf16_span(local_s: int, local_e: int) -> tuple[int, int]:
+        abs_s = rule_char_start + local_s
+        abs_e = rule_char_start + local_e - 1
+        return (
+            index_map[abs_s],
+            index_map[abs_e] + _utf16_code_unit_len(full_plain_text[abs_e]),
+        )
+
+    predicates: list[dict[str, Any]] = []
+    seen_clauses: set[str] = set()
+    for item in raw_items:
+        clause = str(item["udm_clause"])
+        if clause in seen_clauses:
+            continue
+        seen_clauses.add(clause)
+        p_start_idx, p_end_idx = _to_utf16_span(
+            int(item["local_predicate_start"]),
+            int(item["local_predicate_end"]),
+        )
+        vf_start_idx, vf_end_idx = _to_utf16_span(
+            int(item["local_var_field_start"]),
+            int(item["local_var_field_end"]),
+        )
+        rhs_start_idx, rhs_end_idx = _to_utf16_span(
+            int(item["local_rhs_start"]),
+            int(item["local_rhs_end"]),
+        )
+        rec = dict(item)
+        rec.update(
+            {
+                "predicate_index": len(predicates),
+                "predicate_start_index": p_start_idx,
+                "predicate_end_index": p_end_idx,
+                "var_field_start_index": vf_start_idx,
+                "var_field_end_index": vf_end_idx,
+                "rhs_start_index": rhs_start_idx,
+                "rhs_end_index": rhs_end_idx,
+            }
+        )
+        predicates.append(rec)
+
+    return predicates
+
+
 def _extract_retrohunt_udm_query_from_yaral2(
     rule_text: str,
 ) -> tuple[str, list[str]]:
     """Extracts a Chronicle UDM retrohunt search query and clause list from a YARA-L 2.0 rule's events section."""
-    sec_matches = list(_YARAL2_SECTION_HEADER_RE.finditer(rule_text))
-    events_body = ""
-    for i, sm in enumerate(sec_matches):
-        sec_name = sm.group(1).lower()
-        if sec_name in ("events", "strings"):
-            b_start = sm.end()
-            b_end = (
-                sec_matches[i + 1].start()
-                if i + 1 < len(sec_matches)
-                else max(b_start, rule_text.rfind("}"))
-            )
-            events_body += "\n" + rule_text[b_start:b_end]
-
-    if not events_body.strip():
-        return "", []
-
-    cleaned_lines = [
-        raw_line
-        for raw_line in events_body.splitlines()
-        if not raw_line.strip().startswith("//")
-    ]
-    cleaned_body = "\n".join(cleaned_lines)
-
-    positioned_clauses: list[tuple[int, str]] = []
-    re_spans: list[tuple[int, int]] = []
-    for re_match in _YARAL2_RE_REGEX_CALL_RE.finditer(cleaned_body):
-        re_spans.append((re_match.start(), re_match.end()))
-        raw_field = re_match.group(2)
-        field_path = CANONICAL_UDM_FIELD_CORRECTIONS.get(raw_field, raw_field)
-        pattern = re_match.group(3) or re_match.group(4) or re_match.group(5) or ""
-        has_nocase = bool(re_match.group(6) or re_match.group(7))
-        clause = (
-            f"{field_path} = /{pattern}/ nocase"
-            if has_nocase
-            else f"{field_path} = /{pattern}/"
-        )
-        positioned_clauses.append((re_match.start(), clause))
-
-    for cmp_match in _YARAL2_EVENT_COMPARISON_RE.finditer(cleaned_body):
-        c_span = (cmp_match.start(), cmp_match.end())
-        if any(_spans_overlap(c_span, r_span) for r_span in re_spans):
-            continue
-        raw_field = cmp_match.group(2)
-        field_path = CANONICAL_UDM_FIELD_CORRECTIONS.get(raw_field, raw_field)
-        op = cmp_match.group(3).strip()
-        rhs = cmp_match.group(4).strip()
-        clause = f"{field_path} {op} {rhs}"
-        positioned_clauses.append((cmp_match.start(), clause))
-
-    positioned_clauses.sort(key=lambda item: item[0])
-    clauses: list[str] = []
-    for _pos, clause in positioned_clauses:
-        if clause not in clauses:
-            clauses.append(clause)
-
+    predicates = extract_yaral2_event_predicates(rule_text)
+    clauses = [str(p["udm_clause"]) for p in predicates]
     return " AND ".join(clauses), clauses
 
 
@@ -3494,10 +3646,371 @@ def _parse_siem_validate_output(raw_res: Any) -> dict[str, Any]:
     }
 
 
+def _validate_yaral2_rule_with_compiler(
+    candidate_rule_text: str,
+    *,
+    siem_validate_fn: Any = None,
+) -> tuple[bool, str]:
+    """Compiles a YARA-L 2.0 (``YL2``) rule via Chronicle's ``validate_rule`` endpoint."""
+    try:
+        if siem_validate_fn is not None:
+            try:
+                raw_val = siem_validate_fn(rule_text=candidate_rule_text)
+            except TypeError:
+                raw_val = siem_validate_fn(candidate_rule_text)
+        else:
+            from .tools import execute_mcp_tool
+
+            raw_val = execute_mcp_tool(
+                "secops-mcp_validate_rule",
+                {"rule_text": candidate_rule_text},
+            )
+        parsed_val = _parse_siem_validate_output(raw_val)
+        return bool(parsed_val["compiler_verified"]), str(
+            parsed_val["compiler_output"]
+        )
+    except Exception as err:
+        return False, f"Chronicle validate_rule call failed: {err}"
+
+
+def diagnose_zero_hit_yaral2_rule(
+    rule_text: str,
+    *,
+    start_time: str = "2026-02-07T00:00:00Z",
+    end_time: str = "2026-02-08T00:00:00Z",
+    max_events: int = 20,
+    siem_validate_fn: Any = None,
+    siem_search_fn: Any = None,
+) -> dict[str, Any]:
+    """Diagnoses a zero-hit YARA-L 2.0 (``YL2``) detection rule against historical UDM telemetry
+    and synthesizes a compiler-verified YARA-L 2.0 predicate pivot.
+
+    1. Repairs any static YARA-L 2.0 syntax/schema defects via :func:`find_yaral2_rule_spans`.
+    2. Extracts ordered ``events:`` predicates via :func:`extract_yaral2_event_predicates`
+       and invokes :func:`diagnose_zero_hit_udm_query` on the retrohunt UDM query.
+    3. Maps ``failing_clause_index`` back to the corresponding YARA-L 2.0 event predicate
+       and synthesizes valid Chronicle YARA-L 2.0 (``YL2``) AST replacement syntax:
+       - ``exact_match_on_command_line`` -> ``re.regex($<var>.<field>, `<pattern>`) nocase``
+       - ``entity_role_swap`` -> ``$<var>.<recommended_field>``
+       - ``value_format_mismatch`` -> ``$<var>.<recommended_field> = "<best_val>"``
+    4. Splices the replacement into ``pivoted_rule_text`` and compiles it via Chronicle's
+       ``validate_rule`` API to confirm ``pivot_compiler_verified=True`` alongside
+       ``pivot_verified=True`` (``pivot_event_count > 0``).
+    """
+    synthetic_map = _build_utf16_index_map(rule_text)
+    _comments, _edits, static_findings = find_yaral2_rule_spans(
+        rule_text, synthetic_map
+    )
+
+    blocks = _iter_yaral2_rule_blocks(rule_text)
+    rule_name = blocks[0]["rule_name"] if blocks else "unknown_rule"
+
+    if static_findings:
+        repaired_rule_text = str(static_findings[0]["repaired_rule_text"])
+    else:
+        repaired_rule_text = _normalize_yaral2_re_regex_calls(rule_text)
+
+    orig_predicates = extract_yaral2_event_predicates(rule_text)
+    repaired_predicates = extract_yaral2_event_predicates(repaired_rule_text)
+    retrohunt_udm_query = " AND ".join(
+        str(p["udm_clause"]) for p in repaired_predicates
+    )
+
+    compiler_verified, compiler_output = _validate_yaral2_rule_with_compiler(
+        repaired_rule_text, siem_validate_fn=siem_validate_fn
+    )
+
+    if not retrohunt_udm_query or len(repaired_predicates) < 2:
+        return {
+            "status": "error" if not retrohunt_udm_query else "success",
+            "rule_name": rule_name,
+            "original_rule_text": rule_text,
+            "repaired_rule_text": repaired_rule_text,
+            "pivoted_rule_text": repaired_rule_text,
+            "static_findings": static_findings,
+            "has_schema_defect": bool(static_findings),
+            "compiler_verified": compiler_verified,
+            "compiler_output": compiler_output,
+            "retrohunt_udm_query": retrohunt_udm_query,
+            "initial_event_count": 0,
+            "event_count": 0,
+            "zero_hit": True,
+            "diagnosis_class": None,
+            "failure_reason": None,
+            "failing_predicate_index": None,
+            "failing_predicate": None,
+            "recommended_field": None,
+            "recommended_rhs": None,
+            "recommended_yaral2_predicate": None,
+            "recommended_span_target": None,
+            "recommended_span_replacement": None,
+            "pivoted_retrohunt_udm_query": None,
+            "recommended_query": None,
+            "pivot_verified": False,
+            "pivot_event_count": 0,
+            "pivot_compiler_verified": compiler_verified,
+            "pivot_compiler_output": compiler_output,
+            "observed_values": [],
+            "sample_observed_values": [],
+        }
+
+    udm_diag = diagnose_zero_hit_udm_query(
+        retrohunt_udm_query,
+        start_time=start_time,
+        end_time=end_time,
+        max_events=max_events,
+        siem_search_fn=siem_search_fn,
+    )
+    initial_event_count = int(udm_diag.get("event_count", 0) or 0)
+    diagnosis_class = udm_diag.get("diagnosis_class")
+    failing_idx = udm_diag.get("failing_clause_index")
+
+    if (
+        not udm_diag.get("zero_hit")
+        or not udm_diag.get("pivot_verified")
+        or not isinstance(failing_idx, int)
+        or not (0 <= failing_idx < len(repaired_predicates))
+    ):
+        return {
+            "status": "success",
+            "rule_name": rule_name,
+            "original_rule_text": rule_text,
+            "repaired_rule_text": repaired_rule_text,
+            "pivoted_rule_text": repaired_rule_text,
+            "static_findings": static_findings,
+            "has_schema_defect": bool(static_findings),
+            "compiler_verified": compiler_verified,
+            "compiler_output": compiler_output,
+            "retrohunt_udm_query": retrohunt_udm_query,
+            "initial_event_count": initial_event_count,
+            "event_count": initial_event_count,
+            "zero_hit": bool(udm_diag.get("zero_hit")),
+            "diagnosis_class": diagnosis_class,
+            "failure_reason": diagnosis_class,
+            "anchor_query": udm_diag.get("anchor_query"),
+            "anchor_event_count": int(udm_diag.get("anchor_event_count", 0) or 0),
+            "failing_predicate_index": failing_idx,
+            "failing_predicate": (
+                orig_predicates[failing_idx]
+                if isinstance(failing_idx, int)
+                and 0 <= failing_idx < len(orig_predicates)
+                else None
+            ),
+            "recommended_field": udm_diag.get("recommended_field"),
+            "recommended_rhs": udm_diag.get("recommended_rhs"),
+            "recommended_yaral2_predicate": None,
+            "recommended_span_target": None,
+            "recommended_span_replacement": None,
+            "pivoted_retrohunt_udm_query": udm_diag.get("recommended_query"),
+            "recommended_query": udm_diag.get("recommended_query"),
+            "pivot_verified": False,
+            "pivot_event_count": int(udm_diag.get("pivot_event_count", 0) or 0),
+            "pivot_compiler_verified": compiler_verified,
+            "pivot_compiler_output": compiler_output,
+            "observed_values": list(udm_diag.get("observed_values") or []),
+            "sample_observed_values": list(udm_diag.get("observed_values") or []),
+        }
+
+    orig_pred = (
+        orig_predicates[failing_idx]
+        if failing_idx < len(orig_predicates)
+        else repaired_predicates[failing_idx]
+    )
+    rep_pred = repaired_predicates[failing_idx]
+    event_var = str(orig_pred["event_var"])
+    recommended_field = str(
+        udm_diag.get("recommended_field") or rep_pred["canonical_field"]
+    )
+    recommended_rhs = str(udm_diag.get("recommended_rhs") or rep_pred["rhs_raw"])
+    recommended_clause = str(udm_diag.get("recommended_clause") or "")
+    has_schema_defect = bool(
+        orig_pred["field_token"] != orig_pred["canonical_field"]
+    )
+
+    if diagnosis_class == "exact_match_on_command_line":
+        pat_m = re.search(r"/([^/\r\n]+)/", recommended_clause)
+        if pat_m:
+            regex_pattern = pat_m.group(1)
+        else:
+            raw_lit = str(orig_pred["rhs_raw"]).strip("\"'“”`")
+            regex_pattern = f".*{re.escape(raw_lit)}.*"
+        recommended_yaral2_predicate = (
+            f"re.regex({event_var}.{recommended_field}, `{regex_pattern}`) nocase"
+        )
+        recommended_span_target = "predicate"
+        recommended_span_replacement = recommended_yaral2_predicate
+    elif diagnosis_class == "entity_role_swap":
+        new_var_field = f"{event_var}.{recommended_field}"
+        if rep_pred["predicate_kind"] == "re_regex":
+            pred_str = str(rep_pred["predicate_text"])
+            rel_vf_s = int(rep_pred["local_var_field_start"]) - int(
+                rep_pred["local_predicate_start"]
+            )
+            rel_vf_e = int(rep_pred["local_var_field_end"]) - int(
+                rep_pred["local_predicate_start"]
+            )
+            recommended_yaral2_predicate = (
+                pred_str[:rel_vf_s] + new_var_field + pred_str[rel_vf_e:]
+            )
+        else:
+            op_str = str(rep_pred["operator"] or "=")
+            recommended_yaral2_predicate = (
+                f"{new_var_field} {op_str} {rep_pred['rhs_raw']}"
+            )
+        recommended_span_target = "var_field"
+        recommended_span_replacement = new_var_field
+    else:
+        op_str = str(rep_pred["operator"] or "=")
+        if op_str == "re.regex":
+            op_str = "="
+        recommended_yaral2_predicate = (
+            f"{event_var}.{recommended_field} {op_str} {recommended_rhs}"
+        )
+        recommended_span_target = "predicate"
+        recommended_span_replacement = recommended_yaral2_predicate
+
+    rep_p_start = int(rep_pred["local_predicate_start"])
+    rep_p_end = int(rep_pred["local_predicate_end"])
+    pivoted_rule_text = (
+        repaired_rule_text[:rep_p_start]
+        + recommended_yaral2_predicate
+        + repaired_rule_text[rep_p_end:]
+    )
+
+    pivot_compiler_verified, pivot_compiler_output = (
+        _validate_yaral2_rule_with_compiler(
+            pivoted_rule_text, siem_validate_fn=siem_validate_fn
+        )
+    )
+    observed_vals = list(udm_diag.get("observed_values") or [])
+    pivoted_query = str(udm_diag.get("recommended_query") or "")
+    pivot_count = int(udm_diag.get("pivot_event_count", 0) or 0)
+
+    return {
+        "status": "success",
+        "rule_name": rule_name,
+        "original_rule_text": rule_text,
+        "repaired_rule_text": repaired_rule_text,
+        "pivoted_rule_text": pivoted_rule_text,
+        "static_findings": static_findings,
+        "has_schema_defect": has_schema_defect,
+        "compiler_verified": compiler_verified,
+        "compiler_output": compiler_output,
+        "retrohunt_udm_query": retrohunt_udm_query,
+        "initial_event_count": initial_event_count,
+        "event_count": initial_event_count,
+        "zero_hit": True,
+        "diagnosis_class": str(diagnosis_class),
+        "failure_reason": str(diagnosis_class),
+        "anchor_query": str(udm_diag.get("anchor_query") or ""),
+        "anchor_event_count": int(udm_diag.get("anchor_event_count", 0) or 0),
+        "failing_predicate_index": failing_idx,
+        "failing_predicate": orig_pred,
+        "repaired_failing_predicate": rep_pred,
+        "recommended_field": recommended_field,
+        "recommended_rhs": recommended_rhs,
+        "recommended_yaral2_predicate": recommended_yaral2_predicate,
+        "recommended_span_target": recommended_span_target,
+        "recommended_span_replacement": recommended_span_replacement,
+        "pivoted_retrohunt_udm_query": pivoted_query,
+        "recommended_query": pivoted_query,
+        "pivot_verified": True,
+        "pivot_event_count": pivot_count,
+        "pivot_compiler_verified": pivot_compiler_verified,
+        "pivot_compiler_output": pivot_compiler_output,
+        "observed_values": observed_vals,
+        "sample_observed_values": observed_vals,
+    }
+
+
+def _format_zero_hit_yaral2_comment(
+    diag_res: dict[str, Any],
+    *,
+    rule_name: str,
+    has_schema_defect: bool = False,
+    udm_doc_url: str = DEFAULT_UDM_FIELD_LIST_URL,
+    yaral2_doc_url: str = DEFAULT_YARAL2_DOC_URL,
+) -> str:
+    """Formats a grounded Google Docs review comment for a zero-hit YARA-L 2.0 (``YL2``) predicate pivot."""
+    diag_class = str(
+        diag_res.get("diagnosis_class")
+        or diag_res.get("failure_reason")
+        or "zero_hit"
+    )
+    failing_pred = diag_res.get("failing_predicate") or {}
+    orig_pred_text = str(failing_pred.get("predicate_text") or "")
+    orig_var_field = str(failing_pred.get("var_field_token") or "")
+    orig_field = str(failing_pred.get("field_token") or "")
+    canon_field = str(failing_pred.get("canonical_field") or "")
+    event_var = str(failing_pred.get("event_var") or "$e")
+    rec_field = str(diag_res.get("recommended_field") or canon_field)
+    rec_pred = str(diag_res.get("recommended_yaral2_predicate") or "")
+    rec_span_rep = str(diag_res.get("recommended_span_replacement") or rec_pred)
+    anchor_query = str(diag_res.get("anchor_query") or "")
+    anchor_count = int(diag_res.get("anchor_event_count", 0) or 0)
+    pivoted_query = str(diag_res.get("pivoted_retrohunt_udm_query") or "")
+    pivot_count = int(diag_res.get("pivot_event_count", 0) or 0)
+    observed = list(diag_res.get("observed_values") or [])
+    observed_preview = observed[0] if observed else ""
+    compiler_status = (
+        "PASSED" if diag_res.get("pivot_compiler_verified") else "FAILED"
+    )
+
+    schema_prefix = ""
+    if has_schema_defect:
+        schema_prefix = (
+            f"Deterministic YARA-L 2.0 (YL2) UDM Schema Check in rule '{rule_name}': "
+            f"'{orig_var_field}' references non-canonical Chronicle UDM field '{orig_field}' "
+            f"(canonical: '{event_var}.{canon_field}', {udm_doc_url}). "
+        )
+
+    if diag_class == "exact_match_on_command_line":
+        reason = (
+            f"Zero-Hit YARA-L 2.0 (YL2) Retrohunt Diagnosis in rule '{rule_name}' "
+            f"(exact_match_on_command_line): Exact string equality in '{orig_pred_text}' "
+            f"returned 0 Chronicle SIEM UDM events, whereas ablated anchor query "
+            f"'{anchor_query}' matched {anchor_count} events with full command-line "
+            f"arguments such as '{observed_preview}'. Replace with YARA-L 2.0 regex "
+            f"predicate '{rec_pred}' ({yaral2_doc_url})."
+        )
+    elif diag_class == "entity_role_swap":
+        reason = (
+            f"Zero-Hit YARA-L 2.0 (YL2) Retrohunt Diagnosis in rule '{rule_name}' "
+            f"(entity_role_swap): Event variable field '{orig_var_field}' in "
+            f"'{orig_pred_text}' returned 0 Chronicle SIEM UDM events, whereas sibling "
+            f"UDM entity role '{event_var}.{rec_field}' in ablated anchor query "
+            f"'{anchor_query}' ({anchor_count} events) holds matching telemetry "
+            f"('{observed_preview}'). Replace '{orig_var_field}' with "
+            f"'{rec_span_rep}' ({udm_doc_url})."
+        )
+    elif diag_class == "value_format_mismatch":
+        reason = (
+            f"Zero-Hit YARA-L 2.0 (YL2) Retrohunt Diagnosis in rule '{rule_name}' "
+            f"(value_format_mismatch): Predicate '{orig_pred_text}' returned 0 Chronicle "
+            f"SIEM UDM events even after UDM field normalization, whereas ablated anchor "
+            f"query '{anchor_query}' matched {anchor_count} events where "
+            f"'{rec_field}' is populated as '{observed_preview}'. Replace predicate with "
+            f"'{rec_pred}' ({yaral2_doc_url})."
+        )
+    else:
+        reason = (
+            f"Zero-Hit YARA-L 2.0 (YL2) Retrohunt Diagnosis in rule '{rule_name}' "
+            f"({diag_class}): Predicate '{orig_pred_text}' returned 0 Chronicle SIEM UDM "
+            f"events; replace with '{rec_span_rep}' ({yaral2_doc_url})."
+        )
+
+    return (
+        f"{schema_prefix}{reason} "
+        f"[Chronicle YARA-L 2.0 Compiler Verified: {compiler_status} | "
+        f"Retrohunt Pivot Verified: query='{pivoted_query}', events_matched={pivot_count}]"
+    )
+
+
 def verify_yaral2_rule_with_siem(
     rule_text: str,
     *,
     run_retrohunt_check: bool = True,
+    diagnose_zero_hit_retrohunt: bool = True,
     start_time: str = "2026-02-07T00:00:00Z",
     end_time: str = "2026-02-08T00:00:00Z",
     max_events: int = 10,
@@ -3523,32 +4036,16 @@ def verify_yaral2_rule_with_siem(
             _extract_retrohunt_udm_query_from_yaral2(repaired_rule_text)
         )
 
-    compiler_verified = False
-    compiler_output = ""
-    try:
-        if siem_validate_fn is not None:
-            try:
-                raw_val = siem_validate_fn(rule_text=repaired_rule_text)
-            except TypeError:
-                raw_val = siem_validate_fn(repaired_rule_text)
-        else:
-            from .tools import execute_mcp_tool
-
-            raw_val = execute_mcp_tool(
-                "secops-mcp_validate_rule",
-                {"rule_text": repaired_rule_text},
-            )
-        parsed_val = _parse_siem_validate_output(raw_val)
-        compiler_verified = bool(parsed_val["compiler_verified"])
-        compiler_output = str(parsed_val["compiler_output"])
-    except Exception as err:
-        compiler_verified = False
-        compiler_output = f"Chronicle validate_rule call failed: {err}"
+    compiler_verified, compiler_output = _validate_yaral2_rule_with_compiler(
+        repaired_rule_text, siem_validate_fn=siem_validate_fn
+    )
 
     retrohunt_verified = False
     retrohunt_event_count = 0
     retrohunt_res: dict[str, Any] = {}
     retrohunt_initial_zero_hit_query: str | None = None
+    pivoted_rule_text = repaired_rule_text
+    zero_hit_diagnosis: dict[str, Any] | None = None
 
     if run_retrohunt_check and retrohunt_udm_query:
         retrohunt_res = verify_udm_query_with_siem(
@@ -3561,9 +4058,41 @@ def verify_yaral2_rule_with_siem(
         retrohunt_verified = bool(retrohunt_res.get("siem_verified"))
         retrohunt_event_count = int(retrohunt_res.get("event_count", 0) or 0)
 
-        # If a multi-clause GCP Cloud Audit query yields 0 hits due to a restrictive
-        # target.resource.name literal (where SetIamPolicy stores project scope under
-        # target.cloud.project.name), pivot to the remaining core clauses.
+        if (
+            retrohunt_verified
+            and retrohunt_event_count == 0
+            and diagnose_zero_hit_retrohunt
+            and len(retrohunt_clauses) >= 2
+        ):
+            zero_hit_diagnosis = diagnose_zero_hit_yaral2_rule(
+                rule_text,
+                start_time=start_time,
+                end_time=end_time,
+                max_events=max(max_events, 20),
+                siem_validate_fn=siem_validate_fn,
+                siem_search_fn=siem_search_fn,
+            )
+            if zero_hit_diagnosis.get("pivot_verified") and zero_hit_diagnosis.get(
+                "pivot_compiler_verified"
+            ):
+                retrohunt_initial_zero_hit_query = retrohunt_udm_query
+                retrohunt_udm_query = str(
+                    zero_hit_diagnosis["pivoted_retrohunt_udm_query"]
+                )
+                retrohunt_event_count = int(
+                    zero_hit_diagnosis["pivot_event_count"]
+                )
+                pivoted_rule_text = str(zero_hit_diagnosis["pivoted_rule_text"])
+                compiler_verified = bool(
+                    zero_hit_diagnosis["pivot_compiler_verified"]
+                )
+                compiler_output = str(
+                    zero_hit_diagnosis["pivot_compiler_output"]
+                )
+
+        # Fallback: if a multi-clause GCP Cloud Audit query yields 0 hits due to a restrictive
+        # target.resource.name literal and no value-level UDM payload was available to pivot,
+        # relax to the remaining core clauses.
         if (
             retrohunt_verified
             and retrohunt_event_count == 0
@@ -3597,6 +4126,7 @@ def verify_yaral2_rule_with_siem(
         "rule_name": rule_name,
         "original_rule_text": rule_text,
         "repaired_rule_text": repaired_rule_text,
+        "pivoted_rule_text": pivoted_rule_text,
         "findings": findings,
         "compiler_verified": compiler_verified,
         "compiler_output": compiler_output,
@@ -3607,6 +4137,8 @@ def verify_yaral2_rule_with_siem(
     }
     if retrohunt_initial_zero_hit_query is not None:
         result["retrohunt_initial_zero_hit_query"] = retrohunt_initial_zero_hit_query
+    if zero_hit_diagnosis is not None:
+        result["zero_hit_diagnosis"] = zero_hit_diagnosis
     return result
 
 
@@ -3614,6 +4146,7 @@ def verify_and_redline_yaral2_rules_in_doc(
     document_id: str,
     *,
     run_live_siem_check: bool = False,
+    diagnose_zero_hit_retrohunt: bool = True,
     start_time: str = "2026-02-07T00:00:00Z",
     end_time: str = "2026-02-08T00:00:00Z",
     max_events: int = 10,
@@ -3627,15 +4160,18 @@ def verify_and_redline_yaral2_rules_in_doc(
     transport: httpx.BaseTransport | None = None,
 ) -> dict[str, Any]:
     """Lints YARA-L 2.0 (``YL2``) rules in a Google Doc, optionally compiles and retrohunts them
-    in Chronicle SIEM, and stages non-destructive Suggested Edits (``writeMode="SUGGEST"``).
+    in Chronicle SIEM (including zero-hit predicate ablation and compiler-verified pivot red-lining),
+    and stages non-destructive Suggested Edits (``writeMode="SUGGEST"``).
 
     1. Calls :func:`read_google_doc` to populate the 1-based UTF-16 character index map
        and ``pending_suggestion_spans``.
     2. Calls :func:`find_yaral2_rule_spans` and skips any span that overlaps an existing
        pending suggestion (guaranteeing multi-pass idempotency).
     3. When ``run_live_siem_check=True`` (or ``siem_validate_fn`` / ``siem_search_fn`` is
-       provided), verifies each repaired YARA-L 2.0 rule via :func:`verify_yaral2_rule_with_siem`
-       and enriches the anchored Google Docs comments with compiler and retrohunt results.
+       provided), verifies every YARA-L 2.0 rule in the document via
+       :func:`verify_yaral2_rule_with_siem` and :func:`diagnose_zero_hit_yaral2_rule`,
+       upgrading combined static-schema + zero-hit value predicates in-place and staging
+       compiler-verified ``writeMode="SUGGEST"`` pivots for syntactically valid zero-hit rules.
     4. Anchors comments first via :func:`insert_doc_comments` and stages descending-index
        Suggested Edits second via :func:`propose_doc_suggested_edits` (``writeMode="SUGGEST"``).
     """
@@ -3666,27 +4202,45 @@ def verify_and_redline_yaral2_rules_in_doc(
         document_id, tool_context=tool_context
     )
 
+    static_rules_all: set[str] = set()
     comments: list[dict[str, Any]] = []
     edits: list[dict[str, Any]] = []
     findings: list[dict[str, Any]] = []
+    finding_idx_by_var_field_span: dict[tuple[int, int], int] = {}
     skipped_existing_suggestion_count = 0
+
     for c_item, e_item, f_item in zip(raw_comments, raw_edits, raw_findings):
+        r_name = str(f_item.get("rule_name") or "")
+        if r_name:
+            static_rules_all.add(r_name)
         f_span = (int(f_item["start_index"]), int(f_item["end_index"]))
         if any(_spans_overlap(f_span, p_span) for p_span in pending_spans):
             skipped_existing_suggestion_count += 1
             continue
+        f_idx = len(findings)
+        if f_item.get("defect_type") == "invalid_udm_field":
+            finding_idx_by_var_field_span[f_span] = f_idx
         comments.append(c_item)
         edits.append(e_item)
         findings.append(f_item)
 
     siem_rule_checks: list[dict[str, Any]] = []
-    if (
+    zero_hit_yaral2_diagnoses: list[dict[str, Any]] = []
+    zero_hit_yaral2_findings_count = 0
+    live_siem_enabled = bool(
         run_live_siem_check
         or siem_validate_fn is not None
         or siem_search_fn is not None
-    ) and findings:
+    )
+
+    if live_siem_enabled:
+        rule_blocks_by_name = {
+            str(b["rule_name"]): b for b in _iter_yaral2_rule_blocks(plain_text)
+        }
         rule_cache: dict[str, dict[str, Any]] = {}
-        for idx, finding in enumerate(findings):
+        upgraded_finding_indices: set[int] = set()
+
+        for idx, finding in enumerate(list(findings)):
             r_name = str(finding.get("rule_name") or "")
             orig_rule = str(finding.get("original_rule_text") or "")
             cache_key = r_name or orig_rule
@@ -3694,6 +4248,7 @@ def verify_and_redline_yaral2_rules_in_doc(
                 rule_check = verify_yaral2_rule_with_siem(
                     orig_rule,
                     run_retrohunt_check=True,
+                    diagnose_zero_hit_retrohunt=diagnose_zero_hit_retrohunt,
                     start_time=start_time,
                     end_time=end_time,
                     max_events=max_events,
@@ -3702,9 +4257,115 @@ def verify_and_redline_yaral2_rules_in_doc(
                 )
                 rule_cache[cache_key] = rule_check
                 siem_rule_checks.append(rule_check)
+                zh_diag = rule_check.get("zero_hit_diagnosis")
+                if (
+                    isinstance(zh_diag, dict)
+                    and zh_diag.get("pivot_verified")
+                    and zh_diag.get("pivot_compiler_verified")
+                ):
+                    zero_hit_yaral2_diagnoses.append(zh_diag)
+                    b_info = rule_blocks_by_name.get(r_name)
+                    if b_info is not None:
+                        doc_preds = extract_yaral2_event_predicates(
+                            orig_rule,
+                            rule_char_start=int(b_info["char_start"]),
+                            full_plain_text=plain_text,
+                            index_map=index_map,
+                        )
+                        f_pred_idx = zh_diag.get("failing_predicate_index")
+                        if isinstance(f_pred_idx, int) and (
+                            0 <= f_pred_idx < len(doc_preds)
+                        ):
+                            target_pred = doc_preds[f_pred_idx]
+                            vf_span = (
+                                int(target_pred["var_field_start_index"]),
+                                int(target_pred["var_field_end_index"]),
+                            )
+                            existing_f_idx = finding_idx_by_var_field_span.get(
+                                vf_span
+                            )
+                            if existing_f_idx is not None:
+                                p_start = int(target_pred["predicate_start_index"])
+                                p_end = int(target_pred["predicate_end_index"])
+                                p_quote = str(target_pred["predicate_text"])
+                                rec_rep = str(
+                                    zh_diag["recommended_span_replacement"]
+                                )
+                                comment_body = _format_zero_hit_yaral2_comment(
+                                    zh_diag,
+                                    rule_name=r_name,
+                                    has_schema_defect=True,
+                                    udm_doc_url=udm_doc_url,
+                                    yaral2_doc_url=yaral2_doc_url,
+                                )
+                                comments[existing_f_idx] = {
+                                    "start_index": p_start,
+                                    "end_index": p_end,
+                                    "quote": p_quote,
+                                    "comment": comment_body,
+                                }
+                                edits[existing_f_idx] = {
+                                    "start_index": p_start,
+                                    "end_index": p_end,
+                                    "quote": p_quote,
+                                    "replacement": rec_rep,
+                                }
+                                findings[existing_f_idx].update(
+                                    {
+                                        "start_index": p_start,
+                                        "end_index": p_end,
+                                        "quote": p_quote,
+                                        "replacement": rec_rep,
+                                        "repaired_rule_text": zh_diag[
+                                            "pivoted_rule_text"
+                                        ],
+                                        "pivoted_rule_text": zh_diag[
+                                            "pivoted_rule_text"
+                                        ],
+                                        "retrohunt_udm_query": zh_diag[
+                                            "pivoted_retrohunt_udm_query"
+                                        ],
+                                        "zero_hit_diagnosis": zh_diag[
+                                            "diagnosis_class"
+                                        ],
+                                        "failure_reason": zh_diag[
+                                            "failure_reason"
+                                        ],
+                                        "recommended_yaral2_predicate": zh_diag[
+                                            "recommended_yaral2_predicate"
+                                        ],
+                                        "recommended_span_target": zh_diag[
+                                            "recommended_span_target"
+                                        ],
+                                        "anchor_query": zh_diag["anchor_query"],
+                                        "anchor_event_count": zh_diag[
+                                            "anchor_event_count"
+                                        ],
+                                        "pivot_event_count": zh_diag[
+                                            "pivot_event_count"
+                                        ],
+                                        "pivot_compiler_verified": zh_diag[
+                                            "pivot_compiler_verified"
+                                        ],
+                                        "observed_values": zh_diag.get(
+                                            "observed_values", []
+                                        ),
+                                    }
+                                )
+                                upgraded_finding_indices.add(existing_f_idx)
+                                zero_hit_yaral2_findings_count += 1
             else:
                 rule_check = rule_cache[cache_key]
 
+            if idx in upgraded_finding_indices:
+                continue
+
+            findings[idx]["repaired_rule_text"] = rule_check.get(
+                "pivoted_rule_text", rule_check.get("repaired_rule_text")
+            )
+            findings[idx]["retrohunt_udm_query"] = rule_check.get(
+                "retrohunt_udm_query"
+            )
             if rule_check.get("compiler_verified"):
                 comments[idx]["comment"] = (
                     f"{comments[idx]['comment']} "
@@ -3712,6 +4373,187 @@ def verify_and_redline_yaral2_rules_in_doc(
                     f"Retrohunt Dry-Run: query='{rule_check['retrohunt_udm_query']}', "
                     f"events_matched={rule_check['retrohunt_event_count']}]"
                 )
+
+        if diagnose_zero_hit_retrohunt:
+            for block in _iter_yaral2_rule_blocks(plain_text):
+                r_name = str(block["rule_name"])
+                if r_name in static_rules_all:
+                    continue
+                orig_rule = str(block["rule_text"])
+                rule_char_start = int(block["char_start"])
+                rule_char_end = int(block["char_end"])
+                doc_preds = extract_yaral2_event_predicates(
+                    orig_rule,
+                    rule_char_start=rule_char_start,
+                    full_plain_text=plain_text,
+                    index_map=index_map,
+                )
+                if len(doc_preds) < 2:
+                    continue
+
+                rule_span = (
+                    index_map[rule_char_start],
+                    index_map[rule_char_end - 1]
+                    + _utf16_code_unit_len(plain_text[rule_char_end - 1]),
+                )
+                normalized_rule = _normalize_yaral2_re_regex_calls(orig_rule)
+                retrohunt_query = " AND ".join(
+                    str(p["udm_clause"]) for p in doc_preds
+                )
+                initial_siem = verify_udm_query_with_siem(
+                    retrohunt_query,
+                    start_time=start_time,
+                    end_time=end_time,
+                    max_events=max_events,
+                    siem_search_fn=siem_search_fn,
+                )
+                if not initial_siem.get("siem_verified"):
+                    continue
+                initial_hits = int(initial_siem.get("event_count", 0) or 0)
+                if initial_hits > 0:
+                    comp_ok, comp_out = _validate_yaral2_rule_with_compiler(
+                        normalized_rule, siem_validate_fn=siem_validate_fn
+                    )
+                    siem_rule_checks.append(
+                        {
+                            "status": "success" if comp_ok else "error",
+                            "rule_name": r_name,
+                            "original_rule_text": orig_rule,
+                            "repaired_rule_text": normalized_rule,
+                            "pivoted_rule_text": normalized_rule,
+                            "findings": [],
+                            "compiler_verified": comp_ok,
+                            "compiler_output": comp_out,
+                            "retrohunt_udm_query": retrohunt_query,
+                            "retrohunt_verified": True,
+                            "retrohunt_event_count": initial_hits,
+                            "retrohunt_response": initial_siem,
+                        }
+                    )
+                    continue
+
+                if any(
+                    _spans_overlap(rule_span, p_span) for p_span in pending_spans
+                ):
+                    skipped_existing_suggestion_count += 1
+                    continue
+
+                rule_check = verify_yaral2_rule_with_siem(
+                    orig_rule,
+                    run_retrohunt_check=True,
+                    diagnose_zero_hit_retrohunt=True,
+                    start_time=start_time,
+                    end_time=end_time,
+                    max_events=max_events,
+                    siem_validate_fn=siem_validate_fn,
+                    siem_search_fn=siem_search_fn,
+                )
+                siem_rule_checks.append(rule_check)
+                zh_diag = rule_check.get("zero_hit_diagnosis")
+                if not (
+                    isinstance(zh_diag, dict)
+                    and zh_diag.get("pivot_verified")
+                    and zh_diag.get("pivot_compiler_verified")
+                ):
+                    continue
+
+                zero_hit_yaral2_diagnoses.append(zh_diag)
+                f_pred_idx = zh_diag.get("failing_predicate_index")
+                if not isinstance(f_pred_idx, int) or not (
+                    0 <= f_pred_idx < len(doc_preds)
+                ):
+                    continue
+
+                target_pred = doc_preds[f_pred_idx]
+                span_target = str(
+                    zh_diag.get("recommended_span_target") or "predicate"
+                )
+                if span_target == "var_field":
+                    t_start = int(target_pred["var_field_start_index"])
+                    t_end = int(target_pred["var_field_end_index"])
+                    t_quote = str(target_pred["var_field_token"])
+                elif span_target == "rhs":
+                    t_start = int(target_pred["rhs_start_index"])
+                    t_end = int(target_pred["rhs_end_index"])
+                    t_quote = str(target_pred["rhs_raw"])
+                else:
+                    t_start = int(target_pred["predicate_start_index"])
+                    t_end = int(target_pred["predicate_end_index"])
+                    t_quote = str(target_pred["predicate_text"])
+
+                t_replacement = str(zh_diag["recommended_span_replacement"])
+
+                if any(
+                    _spans_overlap((t_start, t_end), p_span)
+                    for p_span in pending_spans
+                ):
+                    skipped_existing_suggestion_count += 1
+                    continue
+
+                if any(
+                    _spans_overlap(
+                        (t_start, t_end),
+                        (int(existing_e["start_index"]), int(existing_e["end_index"])),
+                    )
+                    for existing_e in edits
+                ):
+                    continue
+
+                comment_body = _format_zero_hit_yaral2_comment(
+                    zh_diag,
+                    rule_name=r_name,
+                    has_schema_defect=False,
+                    udm_doc_url=udm_doc_url,
+                    yaral2_doc_url=yaral2_doc_url,
+                )
+                comments.append(
+                    {
+                        "start_index": t_start,
+                        "end_index": t_end,
+                        "quote": t_quote,
+                        "comment": comment_body,
+                    }
+                )
+                edits.append(
+                    {
+                        "start_index": t_start,
+                        "end_index": t_end,
+                        "quote": t_quote,
+                        "replacement": t_replacement,
+                    }
+                )
+                findings.append(
+                    {
+                        "rule_name": r_name,
+                        "defect_type": "zero_hit_retrohunt_predicate",
+                        "invalid_field": str(target_pred["var_field_token"]),
+                        "canonical_field": f"{target_pred['event_var']}.{zh_diag['recommended_field']}",
+                        "quote": t_quote,
+                        "replacement": t_replacement,
+                        "start_index": t_start,
+                        "end_index": t_end,
+                        "original_rule_text": orig_rule,
+                        "repaired_rule_text": zh_diag["pivoted_rule_text"],
+                        "pivoted_rule_text": zh_diag["pivoted_rule_text"],
+                        "retrohunt_udm_query": zh_diag[
+                            "pivoted_retrohunt_udm_query"
+                        ],
+                        "zero_hit_diagnosis": zh_diag["diagnosis_class"],
+                        "failure_reason": zh_diag["failure_reason"],
+                        "recommended_yaral2_predicate": zh_diag[
+                            "recommended_yaral2_predicate"
+                        ],
+                        "recommended_span_target": span_target,
+                        "anchor_query": zh_diag["anchor_query"],
+                        "anchor_event_count": zh_diag["anchor_event_count"],
+                        "pivot_event_count": zh_diag["pivot_event_count"],
+                        "pivot_compiler_verified": zh_diag[
+                            "pivot_compiler_verified"
+                        ],
+                        "observed_values": zh_diag.get("observed_values", []),
+                    }
+                )
+                zero_hit_yaral2_findings_count += 1
 
     comments_res: dict[str, Any] = {
         "status": "skipped",
@@ -3758,9 +4600,11 @@ def verify_and_redline_yaral2_rules_in_doc(
         "title": read_res.get("title", ""),
         "char_count": read_res.get("char_count", 0),
         "yaral2_findings_count": len(findings),
+        "zero_hit_yaral2_findings_count": zero_hit_yaral2_findings_count,
         "skipped_existing_suggestion_count": skipped_existing_suggestion_count,
         "findings": findings,
         "siem_rule_checks": siem_rule_checks,
+        "zero_hit_yaral2_diagnoses": zero_hit_yaral2_diagnoses,
         "comments": comments_res,
         "edits": edits_res,
     }

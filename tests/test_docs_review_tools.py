@@ -3107,3 +3107,653 @@ def test_verify_and_redline_udm_queries_in_doc_zero_hit_pivots_and_idempotency()
     assert "diagnose_zero_hit_queries" in props
     assert "tool_context" not in props
 
+
+def test_extract_yaral2_event_predicates_multiline_and_collapsed() -> None:
+    """Verifies exact 1-based UTF-16 span extraction and UDM clause mapping across
+    both multi-line and Drive-collapsed single-line YARA-L 2.0 (YL2) rules."""
+    from manager.tools.docs_review_tools import (
+        _build_utf16_index_map,
+        _iter_yaral2_rule_blocks,
+        extract_yaral2_event_predicates,
+    )
+
+    multiline_doc = (
+        "Postmortem YARA-L 2.0 Rule:\n"
+        "rule linux_derp_process_creation {\n"
+        "  meta:\n"
+        '    author = "SOC Detection Engineering"\n'
+        "  events:\n"
+        '    $proc.metadata.event_type = "PROCESS_LAUNCH"\n'
+        '    $proc.principal.hostname = "custom-image-ubuntu2204"\n'
+        "    re.regex($proc.principal.process.command_line, `.*DERPService.*`) nocase\n"
+        "  condition:\n"
+        "    $proc\n"
+        "}\n"
+    )
+    index_map = _build_utf16_index_map(multiline_doc)
+    blocks = _iter_yaral2_rule_blocks(multiline_doc)
+    assert len(blocks) == 1
+    b0 = blocks[0]
+    preds = extract_yaral2_event_predicates(
+        b0["rule_text"],
+        rule_char_start=b0["char_start"],
+        full_plain_text=multiline_doc,
+        index_map=index_map,
+    )
+    assert len(preds) == 3
+    assert [p["predicate_kind"] for p in preds] == [
+        "comparison",
+        "comparison",
+        "re_regex",
+    ]
+    assert [p["udm_clause"] for p in preds] == [
+        'metadata.event_type = "PROCESS_LAUNCH"',
+        'principal.hostname = "custom-image-ubuntu2204"',
+        "principal.process.command_line = /.*DERPService.*/ nocase",
+    ]
+    for p in preds:
+        p_s = p["predicate_start_index"] - 1
+        p_e = p["predicate_end_index"] - 1
+        assert multiline_doc[p_s:p_e] == p["predicate_text"]
+        vf_s = p["var_field_start_index"] - 1
+        vf_e = p["var_field_end_index"] - 1
+        assert multiline_doc[vf_s:vf_e] == p["var_field_token"]
+        rhs_s = p["rhs_start_index"] - 1
+        rhs_e = p["rhs_end_index"] - 1
+        assert multiline_doc[rhs_s:rhs_e] == p["rhs_raw"]
+
+    collapsed_doc = (
+        "Collapsed rule: "
+        'rule wins_d19_cmd { meta: author = "SOC" events: '
+        '$proc.metadata.event_type = "PROCESS_LAUNCH" '
+        '$proc.principal.hostname = "wins-d19" '
+        '$proc.target.process.command_line = "cmd.exe" '
+        "condition: $proc }"
+    )
+    c_map = _build_utf16_index_map(collapsed_doc)
+    c_blocks = _iter_yaral2_rule_blocks(collapsed_doc)
+    assert len(c_blocks) == 1
+    cb0 = c_blocks[0]
+    c_preds = extract_yaral2_event_predicates(
+        cb0["rule_text"],
+        rule_char_start=cb0["char_start"],
+        full_plain_text=collapsed_doc,
+        index_map=c_map,
+    )
+    assert len(c_preds) == 3
+    assert c_preds[2]["predicate_text"] == '$proc.target.process.command_line = "cmd.exe"'
+    p2_s = c_preds[2]["predicate_start_index"] - 1
+    p2_e = c_preds[2]["predicate_end_index"] - 1
+    assert collapsed_doc[p2_s:p2_e] == '$proc.target.process.command_line = "cmd.exe"'
+
+
+def test_diagnose_zero_hit_yaral2_rule_exact_match_command_line_to_re_regex() -> None:
+    """Verifies that a syntactically valid YARA-L 2.0 rule with exact command-line
+    equality ($proc.target.process.command_line = "cmd.exe") is diagnosed as
+    exact_match_on_command_line, rewritten to re.regex(...) nocase, compiler-verified,
+    and confirmed with pivot_event_count > 0."""
+    from manager.tools.docs_review_tools import (
+        diagnose_zero_hit_yaral2_rule,
+        verify_yaral2_rule_with_siem,
+    )
+
+    rule_text = (
+        "rule wins_d19_cmd_discovery_case_33280 {\n"
+        "  meta:\n"
+        '    author = "SOC Detection Engineering"\n'
+        "  events:\n"
+        '    $proc.metadata.event_type = "PROCESS_LAUNCH"\n'
+        '    $proc.principal.hostname = "wins-d19"\n'
+        '    $proc.target.process.command_line = "cmd.exe"\n'
+        "  condition:\n"
+        "    $proc\n"
+        "}"
+    )
+
+    validated_rules: list[str] = []
+
+    def fake_validate(rule_text: str) -> str:
+        validated_rules.append(rule_text)
+        return "Rule validation PASSED. The YARA-L 2.0 syntax appears to be valid."
+
+    def fake_search(query: str, hours_back: int = 24, max_events: int = 20) -> dict[str, Any]:
+        if 'target.process.command_line = "cmd.exe"' in query:
+            return {"events": [], "total_events": 0}
+        if 'principal.hostname = "wins-d19"' in query:
+            return {
+                "events": [
+                    {
+                        "udm": {
+                            "metadata": {"event_type": "PROCESS_LAUNCH"},
+                            "principal": {"hostname": "wins-d19"},
+                            "target": {
+                                "process": {
+                                    "command_line": 'C:\\Windows\\system32\\cmd.exe /c "net user /domain"'
+                                }
+                            },
+                        }
+                    }
+                    for _ in range(8)
+                ],
+                "total_events": 8,
+            }
+        return {"events": [], "total_events": 0}
+
+    diag = diagnose_zero_hit_yaral2_rule(
+        rule_text,
+        siem_validate_fn=fake_validate,
+        siem_search_fn=fake_search,
+    )
+    assert diag["status"] == "success"
+    assert diag["static_findings"] == []
+    assert diag["initial_event_count"] == 0
+    assert diag["failure_reason"] == "exact_match_on_command_line"
+    assert diag["failing_predicate_index"] == 2
+    assert (
+        diag["recommended_yaral2_predicate"]
+        == "re.regex($proc.target.process.command_line, `.*cmd\\.exe.*`) nocase"
+    )
+    assert diag["recommended_span_target"] == "predicate"
+    assert (
+        diag["recommended_span_replacement"]
+        == "re.regex($proc.target.process.command_line, `.*cmd\\.exe.*`) nocase"
+    )
+    assert (
+        "re.regex($proc.target.process.command_line, `.*cmd\\.exe.*`) nocase"
+        in diag["pivoted_rule_text"]
+    )
+    assert diag["pivot_verified"] is True
+    assert diag["pivot_compiler_verified"] is True
+    assert diag["pivot_event_count"] == 8
+    assert len(validated_rules) == 2
+
+    siem_check = verify_yaral2_rule_with_siem(
+        rule_text,
+        diagnose_zero_hit_retrohunt=True,
+        siem_validate_fn=fake_validate,
+        siem_search_fn=fake_search,
+    )
+    assert siem_check["compiler_verified"] is True
+    assert siem_check["retrohunt_event_count"] == 8
+    assert (
+        "re.regex($proc.target.process.command_line, `.*cmd\\.exe.*`) nocase"
+        in siem_check["pivoted_rule_text"]
+    )
+
+
+def test_diagnose_zero_hit_yaral2_rule_entity_role_swap_in_re_regex_and_comparison() -> None:
+    """Verifies entity_role_swap diagnosis and $var.<field> span replacement on both
+    re.regex($proc.principal.process.command_line, ...) and comparison predicates."""
+    from manager.tools.docs_review_tools import diagnose_zero_hit_yaral2_rule
+
+    rule_regex = (
+        "rule linux_derp_process_creation_case_33279 {\n"
+        "  meta:\n"
+        '    author = "SOC Detection Engineering"\n'
+        "  events:\n"
+        '    $proc.metadata.event_type = "PROCESS_LAUNCH"\n'
+        '    $proc.principal.hostname = "custom-image-ubuntu2204"\n'
+        "    re.regex($proc.principal.process.command_line, `.*DERPService.*`) nocase\n"
+        "  condition:\n"
+        "    $proc\n"
+        "}"
+    )
+
+    def fake_validate(rule_text: str) -> str:
+        return "Rule validation PASSED."
+
+    def fake_search_regex(
+        query: str, hours_back: int = 24, max_events: int = 20
+    ) -> dict[str, Any]:
+        if "principal.process.command_line = /.*DERPService.*/" in query:
+            return {"events": [], "total_events": 0}
+        if 'principal.hostname = "custom-image-ubuntu2204"' in query:
+            return {
+                "events": [
+                    {
+                        "udm": {
+                            "metadata": {"event_type": "PROCESS_LAUNCH"},
+                            "principal": {
+                                "hostname": "custom-image-ubuntu2204",
+                                "process": {"command_line": "/bin/bash"},
+                            },
+                            "target": {
+                                "process": {
+                                    "command_line": "/usr/local/bin/DERPService --port 8443"
+                                }
+                            },
+                        }
+                    }
+                    for _ in range(11)
+                ],
+                "total_events": 11,
+            }
+        return {"events": [], "total_events": 0}
+
+    diag1 = diagnose_zero_hit_yaral2_rule(
+        rule_regex,
+        siem_validate_fn=fake_validate,
+        siem_search_fn=fake_search_regex,
+    )
+    assert diag1["failure_reason"] == "entity_role_swap"
+    assert diag1["recommended_field"] == "target.process.command_line"
+    assert diag1["recommended_span_target"] == "var_field"
+    assert diag1["recommended_span_replacement"] == "$proc.target.process.command_line"
+    assert (
+        diag1["recommended_yaral2_predicate"]
+        == "re.regex($proc.target.process.command_line, `.*DERPService.*`) nocase"
+    )
+    assert diag1["pivot_verified"] is True
+    assert diag1["pivot_compiler_verified"] is True
+    assert diag1["pivot_event_count"] == 11
+
+    rule_cmp = (
+        "rule gcp_actor_swap {\n"
+        "  meta:\n"
+        '    author = "SOC"\n'
+        "  events:\n"
+        '    $e.metadata.event_type = "RESOURCE_PERMISSIONS_CHANGE"\n'
+        '    $e.principal.ip = "104.198.226.161"\n'
+        '    $e.target.user.email_addresses = "bruce.wayne@the.org"\n'
+        "  condition:\n"
+        "    $e\n"
+        "}"
+    )
+
+    def fake_search_cmp(
+        query: str, hours_back: int = 24, max_events: int = 20
+    ) -> dict[str, Any]:
+        if 'target.user.email_addresses = "bruce.wayne@the.org"' in query:
+            return {"events": [], "total_events": 0}
+        if 'principal.ip = "104.198.226.161"' in query:
+            return {
+                "events": [
+                    {
+                        "udm": {
+                            "metadata": {"event_type": "RESOURCE_PERMISSIONS_CHANGE"},
+                            "principal": {
+                                "ip": ["104.198.226.161"],
+                                "user": {
+                                    "email_addresses": ["bruce.wayne@the.org"]
+                                },
+                            },
+                        }
+                    }
+                    for _ in range(9)
+                ],
+                "total_events": 9,
+            }
+        return {"events": [], "total_events": 0}
+
+    diag2 = diagnose_zero_hit_yaral2_rule(
+        rule_cmp,
+        siem_validate_fn=fake_validate,
+        siem_search_fn=fake_search_cmp,
+    )
+    assert diag2["failure_reason"] == "entity_role_swap"
+    assert diag2["recommended_field"] == "principal.user.email_addresses"
+    assert diag2["recommended_span_target"] == "var_field"
+    assert diag2["recommended_span_replacement"] == "$e.principal.user.email_addresses"
+    assert (
+        diag2["recommended_yaral2_predicate"]
+        == '$e.principal.user.email_addresses = "bruce.wayne@the.org"'
+    )
+    assert diag2["pivot_verified"] is True
+    assert diag2["pivot_compiler_verified"] is True
+    assert diag2["pivot_event_count"] == 9
+
+
+def test_diagnose_zero_hit_yaral2_rule_value_format_mismatch_combined_with_schema_defect() -> None:
+    """Verifies that a rule combining static schema defects (strings:, $e.resource.name,
+    $e.ip, $event) with a semantic value_format_mismatch on $e.resource.name upgrades
+    the predicate to $e.target.resource.name = "projects/base-production"."""
+    from manager.tools.docs_review_tools import diagnose_zero_hit_yaral2_rule
+
+    rule_text = (
+        "rule gcp_sa_privilege_escalation_case_33278 {\n"
+        "  meta:\n"
+        '    author = "SOC Detection Engineering"\n'
+        "  strings:\n"
+        '    $e.metadata.event_type = "RESOURCE_PERMISSIONS_CHANGE"\n'
+        '    $e.resource.name = "projects/base-analytics/instances/prod-customers"\n'
+        '    $e.ip = "104.198.226.161"\n'
+        '    $e.principal.user.email_addresses = "bruce.wayne@the.org"\n'
+        "  condition:\n"
+        "    $event\n"
+        "}"
+    )
+
+    def fake_validate(rule_text: str) -> str:
+        assert "strings:" not in rule_text
+        assert "$e.resource.name" not in rule_text
+        assert "$e.ip " not in rule_text
+        assert "$event" not in rule_text
+        return "Rule validation PASSED."
+
+    def fake_search(query: str, hours_back: int = 24, max_events: int = 20) -> dict[str, Any]:
+        if 'target.resource.name = "projects/base-analytics/instances/prod-customers"' in query:
+            return {"events": [], "total_events": 0}
+        if 'principal.ip = "104.198.226.161"' in query:
+            return {
+                "events": [
+                    {
+                        "udm": {
+                            "metadata": {"event_type": "RESOURCE_PERMISSIONS_CHANGE"},
+                            "principal": {
+                                "ip": ["104.198.226.161"],
+                                "user": {"email_addresses": ["bruce.wayne@the.org"]},
+                            },
+                            "target": {
+                                "resource": {"name": "projects/base-production"}
+                            },
+                        }
+                    }
+                    for _ in range(9)
+                ],
+                "total_events": 9,
+            }
+        return {"events": [], "total_events": 0}
+
+    diag = diagnose_zero_hit_yaral2_rule(
+        rule_text,
+        siem_validate_fn=fake_validate,
+        siem_search_fn=fake_search,
+    )
+    assert diag["status"] == "success"
+    assert len(diag["static_findings"]) == 4
+    assert diag["has_schema_defect"] is True
+    assert diag["failure_reason"] == "value_format_mismatch"
+    assert diag["failing_predicate_index"] == 1
+    assert (
+        diag["recommended_yaral2_predicate"]
+        == '$e.target.resource.name = "projects/base-production"'
+    )
+    assert diag["recommended_span_target"] == "predicate"
+    assert (
+        diag["recommended_span_replacement"]
+        == '$e.target.resource.name = "projects/base-production"'
+    )
+    assert (
+        '$e.target.resource.name = "projects/base-production"'
+        in diag["pivoted_rule_text"]
+    )
+    assert diag["pivot_verified"] is True
+    assert diag["pivot_compiler_verified"] is True
+    assert diag["pivot_event_count"] == 9
+
+
+def test_verify_and_redline_yaral2_rules_in_doc_zero_hit_pivots_and_idempotency() -> None:
+    """Verifies end-to-end Google Docs UTF-16 span commenting, non-overlapping
+    descending-index writeMode='SUGGEST' edits across combined static+semantic and
+    pure-semantic zero-hit YARA-L 2.0 rules, 0 false positives on valid control rules,
+    and multi-pass suggestion idempotency."""
+    from google.adk.tools.function_tool import FunctionTool
+    from manager.tools import tools as tools_module
+    from manager.tools.docs_review_tools import (
+        clear_doc_index_cache,
+        verify_and_redline_yaral2_rules_in_doc,
+    )
+
+    clear_doc_index_cache()
+
+    doc_text = (
+        "Section 1: Combined Static Schema + Zero-Hit Value Mismatch\n"
+        "rule gcp_sa_privilege_escalation_case_33278 {\n"
+        "  meta:\n"
+        '    author = "SOC Detection Engineering"\n'
+        "  strings:\n"
+        '    $e.metadata.event_type = "RESOURCE_PERMISSIONS_CHANGE"\n'
+        '    $e.resource.name = "projects/base-analytics/instances/prod-customers"\n'
+        '    $e.ip = "104.198.226.161"\n'
+        '    $e.principal.user.email_addresses = "bruce.wayne@the.org"\n'
+        "  condition:\n"
+        "    $event\n"
+        "}\n\n"
+        "Section 2: Syntactically Valid Zero-Hit Exact Command-Line Match\n"
+        "rule wins_d19_cmd_discovery_case_33280 {\n"
+        "  meta:\n"
+        '    author = "SOC Detection Engineering"\n'
+        "  events:\n"
+        '    $proc.metadata.event_type = "PROCESS_LAUNCH"\n'
+        '    $proc.principal.hostname = "wins-d19"\n'
+        '    $proc.target.process.command_line = "cmd.exe"\n'
+        "  condition:\n"
+        "    $proc\n"
+        "}\n\n"
+        "Section 3: Syntactically Valid Zero-Hit Entity Role Swap\n"
+        "rule linux_derp_process_creation_case_33279 {\n"
+        "  meta:\n"
+        '    author = "SOC Detection Engineering"\n'
+        "  events:\n"
+        '    $proc.metadata.event_type = "PROCESS_LAUNCH"\n'
+        '    $proc.principal.hostname = "custom-image-ubuntu2204"\n'
+        "    re.regex($proc.principal.process.command_line, `.*DERPService.*`) nocase\n"
+        "  condition:\n"
+        "    $proc\n"
+        "}\n\n"
+        "Section 4: Valid Non-Zero-Hit Control Rule\n"
+        "rule valid_crowdstrike_network_control {\n"
+        "  meta:\n"
+        '    author = "SOC Detection Engineering"\n'
+        "  events:\n"
+        '    $net.metadata.event_type = "NETWORK_CONNECTION"\n'
+        '    $net.metadata.vendor_name = "Crowdstrike"\n'
+        "  condition:\n"
+        "    $net\n"
+        "}\n"
+    )
+
+    mock_doc = {
+        "documentId": "doc-yaral2-zero-hit",
+        "title": "YARA-L 2.0 Zero-Hit Retrohunt Pivot Test",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": len(doc_text) + 1,
+                                "textRun": {"content": doc_text},
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+    }
+
+    batch_calls: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=mock_doc)
+        payload = json.loads(request.content.decode("utf-8"))
+        batch_calls.append(payload)
+        if "writeControl" not in payload:
+            return httpx.Response(
+                200,
+                json={
+                    "replies": [
+                        {"insertComment": {"commentId": f"c-yl2-zh-{i}"}}
+                        for i in range(len(payload.get("requests", [])))
+                    ]
+                },
+            )
+        return httpx.Response(
+            200,
+            json={"replies": [{} for _ in payload.get("requests", [])]},
+        )
+
+    def fake_validate(rule_text: str) -> str:
+        return "Rule validation PASSED."
+
+    def fake_search(query: str, hours_back: int = 24, max_events: int = 20) -> dict[str, Any]:
+        if 'target.resource.name = "projects/base-analytics/instances/prod-customers"' in query:
+            return {"events": [], "total_events": 0}
+        if 'principal.ip = "104.198.226.161"' in query:
+            return {
+                "events": [
+                    {
+                        "udm": {
+                            "metadata": {"event_type": "RESOURCE_PERMISSIONS_CHANGE"},
+                            "principal": {
+                                "ip": ["104.198.226.161"],
+                                "user": {"email_addresses": ["bruce.wayne@the.org"]},
+                            },
+                            "target": {"resource": {"name": "projects/base-production"}},
+                        }
+                    }
+                    for _ in range(9)
+                ],
+                "total_events": 9,
+            }
+        if 'target.process.command_line = "cmd.exe"' in query:
+            return {"events": [], "total_events": 0}
+        if 'principal.hostname = "wins-d19"' in query:
+            return {
+                "events": [
+                    {
+                        "udm": {
+                            "metadata": {"event_type": "PROCESS_LAUNCH"},
+                            "principal": {"hostname": "wins-d19"},
+                            "target": {
+                                "process": {
+                                    "command_line": 'C:\\Windows\\system32\\cmd.exe /c "net user /domain"'
+                                }
+                            },
+                        }
+                    }
+                    for _ in range(8)
+                ],
+                "total_events": 8,
+            }
+        if "principal.process.command_line = /.*DERPService.*/" in query:
+            return {"events": [], "total_events": 0}
+        if 'principal.hostname = "custom-image-ubuntu2204"' in query:
+            return {
+                "events": [
+                    {
+                        "udm": {
+                            "metadata": {"event_type": "PROCESS_LAUNCH"},
+                            "principal": {"hostname": "custom-image-ubuntu2204"},
+                            "target": {
+                                "process": {
+                                    "command_line": "/usr/local/bin/DERPService --port 8443"
+                                }
+                            },
+                        }
+                    }
+                    for _ in range(11)
+                ],
+                "total_events": 11,
+            }
+        if 'metadata.vendor_name = "Crowdstrike"' in query:
+            return {
+                "events": [
+                    {
+                        "udm": {
+                            "metadata": {
+                                "event_type": "NETWORK_CONNECTION",
+                                "vendor_name": "Crowdstrike",
+                            }
+                        }
+                    }
+                    for _ in range(10)
+                ],
+                "total_events": 10,
+            }
+        return {"events": [], "total_events": 0}
+
+    res = verify_and_redline_yaral2_rules_in_doc(
+        "doc-yaral2-zero-hit",
+        run_live_siem_check=True,
+        diagnose_zero_hit_retrohunt=True,
+        siem_validate_fn=fake_validate,
+        siem_search_fn=fake_search,
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(handler),
+    )
+    assert res["status"] == "success"
+    # 4 findings on Rule 1 (1 upgraded in-place to zero-hit + 3 static) + 1 on Rule 2 + 1 on Rule 3 + 0 on Rule 4 = 6
+    assert res["yaral2_findings_count"] == 6
+    assert res["zero_hit_yaral2_findings_count"] == 3
+    assert res["skipped_existing_suggestion_count"] == 0
+    assert res["comments"]["inserted_count"] == 6
+    assert res["edits"]["applied_count"] == 6
+
+    rule_names_with_findings = {f["rule_name"] for f in res["findings"]}
+    assert "valid_crowdstrike_network_control" not in rule_names_with_findings
+
+    zh_findings = [f for f in res["findings"] if f.get("zero_hit_diagnosis")]
+    assert [f["zero_hit_diagnosis"] for f in zh_findings] == [
+        "value_format_mismatch",
+        "exact_match_on_command_line",
+        "entity_role_swap",
+    ]
+    assert [f["replacement"] for f in zh_findings] == [
+        '$e.target.resource.name = "projects/base-production"',
+        "re.regex($proc.target.process.command_line, `.*cmd\\.exe.*`) nocase",
+        "$proc.target.process.command_line",
+    ]
+
+    assert len(batch_calls) == 2
+    assert "writeControl" not in batch_calls[0]
+    assert batch_calls[1]["writeControl"] == {"writeMode": "SUGGEST"}
+    delete_starts = [
+        req["deleteContentRange"]["range"]["startIndex"]
+        for req in batch_calls[1]["requests"]
+        if "deleteContentRange" in req
+    ]
+    assert delete_starts == sorted(delete_starts, reverse=True)
+
+    # Second pass with pending suggestions covering the document -> 0 new edits, 6 skipped
+    mock_doc_pending = {
+        "documentId": "doc-yaral2-zero-hit",
+        "title": "YARA-L 2.0 Zero-Hit Retrohunt Pivot Test",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": len(doc_text) + 1,
+                                "textRun": {
+                                    "content": doc_text,
+                                    "suggestedDeletionIds": ["suggest.yl2.zh.existing"],
+                                },
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+    }
+    batch_calls.clear()
+    res2 = verify_and_redline_yaral2_rules_in_doc(
+        "doc-yaral2-zero-hit",
+        run_live_siem_check=True,
+        diagnose_zero_hit_retrohunt=True,
+        siem_validate_fn=fake_validate,
+        siem_search_fn=fake_search,
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(
+            lambda req: httpx.Response(200, json=mock_doc_pending)
+        ),
+    )
+    assert res2["status"] == "success"
+    assert res2["yaral2_findings_count"] == 0
+    assert res2["zero_hit_yaral2_findings_count"] == 0
+    assert res2["skipped_existing_suggestion_count"] == 6
+    assert res2["comments"]["inserted_count"] == 0
+    assert res2["edits"]["applied_count"] == 0
+    assert len(batch_calls) == 0
+
+    ft = FunctionTool(tools_module.verify_and_redline_yaral2_rules_in_doc)
+    decl = ft._get_declaration()
+    props = (decl.parameters_json_schema or {}).get("properties", {})
+    assert "diagnose_zero_hit_retrohunt" in props
+    assert "tool_context" not in props
+
+
