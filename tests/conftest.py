@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from tests.fake_devknowledge_mcp import FakeDevKnowledgeMcpServer, FakeDevKnowledgeStore
 from tests.fake_drive_mcp import FakeDriveMcpServer, FakeDriveStore
 
 
@@ -24,4 +25,17 @@ def fake_drive(drive_store: FakeDriveStore):
 def fake_drive_sse(drive_store: FakeDriveStore):
     """A running fake Drive MCP server that answers with ``text/event-stream``."""
     with FakeDriveMcpServer(drive_store, json_response=False) as server:
+        yield server
+
+
+@pytest.fixture
+def devknowledge_store() -> FakeDevKnowledgeStore:
+    """An in-memory fake Developer Knowledge corpus with default seeded docs."""
+    return FakeDevKnowledgeStore(seed_defaults=True)
+
+
+@pytest.fixture
+def fake_devknowledge(devknowledge_store: FakeDevKnowledgeStore):
+    """A running fake Developer Knowledge MCP server."""
+    with FakeDevKnowledgeMcpServer(devknowledge_store, json_response=True) as server:
         yield server

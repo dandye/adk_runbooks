@@ -83,13 +83,21 @@ class AdcTokenSource:
         self._lock = threading.Lock()
 
     def __call__(self) -> str:
-        with self._lock:
-            if self._credentials is None:
-                self._credentials = self._load_credentials()
-            if not self._credentials.valid:
-                from google.auth.transport.requests import Request  # pylint: disable=g-import-not-at-top
+        import google.auth.exceptions  # pylint: disable=g-import-not-at-top
 
-                self._credentials.refresh(Request())
+        with self._lock:
+            try:
+                if self._credentials is None:
+                    self._credentials = self._load_credentials()
+                if not self._credentials.valid:
+                    from google.auth.transport.requests import Request  # pylint: disable=g-import-not-at-top
+
+                    self._credentials.refresh(Request())
+            except google.auth.exceptions.GoogleAuthError as err:
+                raise DriveRegistryConfigError(
+                        f"ADC authentication failed ({err}). Run: gcloud auth login <ACCOUNT> "
+                        "--enable-gdrive-access --update-adc inside the worktree."
+                ) from err
             token = self._credentials.token
         if not token:
             raise DriveMcpError("ADC refresh produced an empty access token.")

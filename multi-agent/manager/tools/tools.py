@@ -16,6 +16,7 @@ if str(_project_root) not in sys.path:
 
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioConnectionParams
 from google.adk.tools.mcp_tool.mcp_session_manager import StdioServerParameters
+from google.adk.tools.tool_context import ToolContext
 
 from ..utils.instrumentation import instrument_tool, get_run_metrics
 from skills.registry import SkillRegistry
@@ -27,6 +28,16 @@ from .drive_tools import (
     init_drive_toolset,
     publish_report_to_drive,
     reports_folder_id,
+)
+from .grounding_tools import (
+    init_developer_knowledge_mcp_tools,
+    init_web_search_agent_tool,
+)
+from .docs_review_tools import (
+    create_google_doc as _create_google_doc,
+    insert_doc_comments as _insert_doc_comments,
+    propose_doc_suggested_edits as _propose_doc_suggested_edits,
+    read_google_doc as _read_google_doc,
 )
 
 logger = logging.getLogger(__name__)
@@ -444,6 +455,84 @@ def init_drive_mcp_tools():
   return drive_toolset
 
 
+def create_google_doc(title: str, content: str, folder_id: str = "") -> dict:
+  """Creates a collaborative Google Doc in Google Drive from Markdown or plain text.
+
+  Unlike `write_report` (which stores raw `text/markdown` files), this tool
+  creates a native Google Doc (`application/vnd.google-apps.document`) in
+  `DRIVE_REPORTS_FOLDER_ID` (or `folder_id` when supplied) so analysts and agents
+  can attach anchored comments and Suggested Edits via the Google Docs API v1.
+
+  Args:
+      title (str): Document title in Google Drive.
+      content (str): Initial Markdown or plain-text content.
+      folder_id (str): Optional target Google Drive folder ID.
+
+  Returns:
+      dict: {"status", "document_id", "title", "viewUrl", "parentId", "mimeType"}.
+  """
+  return _create_google_doc(title=title, content=content, folder_id=folder_id or None)
+
+
+def read_google_doc(document_id: str, tool_context: ToolContext = None) -> dict:
+  """Reads a Google Doc via the Google Docs API v1 and caches its 1-based UTF-16 index map.
+
+  Always call `read_google_doc` before calling `insert_doc_comments` or
+  `propose_doc_suggested_edits`.
+
+  Args:
+      document_id (str): The Google Docs documentId.
+
+  Returns:
+      dict: {"status", "document_id", "title", "content", "char_count"}.
+  """
+  return _read_google_doc(document_id=document_id, tool_context=tool_context)
+
+
+def insert_doc_comments(
+    document_id: str, comments: str, tool_context: ToolContext = None
+) -> dict:
+  """Anchors native review comments to exact text spans in a Google Doc.
+
+  IMPORTANT: Always call `insert_doc_comments` BEFORE `propose_doc_suggested_edits`
+  so comments attach to the pre-edit index spans captured by `read_google_doc`.
+
+  Args:
+      document_id (str): The Google Docs documentId.
+      comments (str): JSON array of objects, each with keys "quote" (exact substring
+                      in the document) and "comment" (rationale and citation URL).
+
+  Returns:
+      dict: {"status", "inserted_count", "comment_ids", "skipped"}.
+  """
+  return _insert_doc_comments(
+      document_id=document_id, comments=comments, tool_context=tool_context
+  )
+
+
+def propose_doc_suggested_edits(
+    document_id: str, edits: str, tool_context: ToolContext = None
+) -> dict:
+  """Proposes non-destructive Suggested Edits (writeMode="SUGGEST") in a Google Doc.
+
+  Sorts replacement spans descending by `startIndex` (back-to-front) so earlier
+  edits do not shift subsequent UTF-16 character offsets, and submits them under
+  `writeControl: {"writeMode": "SUGGEST"}` so human authors can Accept or Reject
+  each edit in Google Docs.
+
+  Args:
+      document_id (str): The Google Docs documentId.
+      edits (str): JSON array of non-overlapping objects, each with keys "quote"
+                   (exact substring to replace) and "replacement" (proposed text).
+
+  Returns:
+      dict: {"status", "applied_count", "skipped"}.
+  """
+  return _propose_doc_suggested_edits(
+      document_id=document_id, edits=edits, tool_context=tool_context
+  )
+
+
 def get_agent_tools():
   """Initializes and returns MCP toolsets and progressive discovery tools.
 
@@ -456,6 +545,11 @@ def get_agent_tools():
   siem_toolset, soar_toolset, gti_toolset = init_shared_mcp_tools()
   drive_toolset = init_drive_mcp_tools()
   drive_toolsets = (drive_toolset,) if drive_toolset is not None else ()
+  devknowledge_toolset = init_developer_knowledge_mcp_tools(global_mcp_registry)
+  devknowledge_toolsets = (
+      (devknowledge_toolset,) if devknowledge_toolset is not None else ()
+  )
+  web_search_tool = init_web_search_agent_tool()
 
   # Wrap built-in tools
   wrapped_write_report = instrument_tool(write_report)
@@ -463,6 +557,12 @@ def get_agent_tools():
   wrapped_read_file_content = instrument_tool(read_file_content)
   wrapped_load_skill = instrument_tool(load_skill)
   wrapped_list_available_skills = instrument_tool(list_available_skills)
+
+  # Wrap Google Docs API v1 non-destructive review tools
+  wrapped_create_google_doc = instrument_tool(create_google_doc)
+  wrapped_read_google_doc = instrument_tool(read_google_doc)
+  wrapped_insert_doc_comments = instrument_tool(insert_doc_comments)
+  wrapped_propose_doc_suggested_edits = instrument_tool(propose_doc_suggested_edits)
 
   # Wrap progressive MCP discovery meta-tools
   wrapped_search_mcp_tools = instrument_tool(search_mcp_tools)
@@ -478,7 +578,13 @@ def get_agent_tools():
       soar_toolset,
       gti_toolset,
       *drive_toolsets,
+      *devknowledge_toolsets,
+      web_search_tool,
       wrapped_write_report,
+      wrapped_create_google_doc,
+      wrapped_read_google_doc,
+      wrapped_insert_doc_comments,
+      wrapped_propose_doc_suggested_edits,
       wrapped_get_current_time,
       wrapped_read_file_content,
       wrapped_load_skill,

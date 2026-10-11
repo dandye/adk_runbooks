@@ -29,6 +29,10 @@ from .tools.tools import (
     search_mcp_tools,
     get_mcp_tool_schema,
     execute_mcp_tool,
+    create_google_doc,
+    read_google_doc,
+    insert_doc_comments,
+    propose_doc_suggested_edits,
 )
 
 # Set the root logger to output debug messages
@@ -95,12 +99,27 @@ root_agent = Agent(
     - detection_engineer: Designing, developing, testing, and tuning security detection rules and analytics.
     - llm_judge: Evaluating the quality and completeness of runbook executions by other agents.
 
+    **Grounding Policy (VERIFY BEFORE YOU SUGGEST):**
+    - For Google Cloud, Chronicle SIEM/SOAR, IAM roles, Vertex AI, Gemini, or ADK claims and commands, verify against the Developer Knowledge MCP tools (`devknowledge_search_documents`, `devknowledge_answer_query`, `devknowledge_get_documents`) first.
+    - For external CVEs, third-party vendor advisories (FortiOS, Ivanti, Palo Alto, AWS, Azure), and open-web facts, call the `web_search_verifier` tool.
+
+    **Collaborative Google Docs Runbook & Report Review:**
+    When reviewing or proposing improvements to a Google Doc runbook or incident report:
+    1. Call `read_google_doc(document_id)` first to read the text and build the UTF-16 index map.
+    2. Call `insert_doc_comments(document_id, comments)` **before** proposing edits so comments attach to the pre-edit index spans (include authoritative citation URLs in comments).
+    3. Call `propose_doc_suggested_edits(document_id, edits)` **second** to propose non-destructive Suggested Edits (`writeMode="SUGGEST"`).
+
     **Your Tools:**
-    You have direct access to these tools for oversight, skill retrieval, tool discovery, and reporting:
+    You have direct access to these tools for oversight, skill retrieval, tool discovery, grounding, and reporting:
     - load_skill
     - list_available_skills
     - get_current_time
     - write_report
+    - create_google_doc
+    - read_google_doc
+    - insert_doc_comments
+    - propose_doc_suggested_edits
+    - web_search_verifier
     - read_file_content
     - search_mcp_tools
     - get_mcp_tool_schema
