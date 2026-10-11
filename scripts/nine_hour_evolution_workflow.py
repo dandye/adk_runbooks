@@ -9,7 +9,7 @@ LEDGER_REPO_PATH = f"{WORKTREE_DIR}/docs/evolution_ledger.md"
 LEDGER_ARTIFACT_PATH = f"{ARTIFACT_DIR}/evolution_ledger.md"
 BLOG_REPO_PATH = f"{WORKTREE_DIR}/docs/blog_grounded_google_docs_runbooks.md"
 
-DURATION_SECONDS = int(2.75 * 3600)  # Remaining ~2.75 hours of active 9-hour loop after server restart
+DURATION_SECONDS = 9 * 3600  # 9 straight hours (32,400 seconds)
 COOLDOWN_SECONDS = 90        # Brief API quota cooldown between cycles
 MAX_CYCLES = 40              # Upper bound safety cap across 9 hours
 
@@ -261,7 +261,7 @@ Call `finish` with the required verification JSON."""
     }
 
 
-cycle_num = 13
+cycle_num = 1
 completed_cycles = []
 
 while time.time() < deadline and cycle_num <= MAX_CYCLES:
