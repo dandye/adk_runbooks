@@ -762,7 +762,7 @@ def verify_and_redline_yaral2_rules_in_doc(
     end_time: str = "2026-02-08T00:00:00Z",
     tool_context: ToolContext = None,
 ) -> dict:
-  """Lints single-event and multi-event YARA-L 2.0 (YL2) rules in a Google Doc, optionally compiles and retrohunts them in Chronicle SIEM, and stages red-lines.
+  """Lints single-event, multi-event, and non-existence YARA-L 2.0 (YL2) rules in a Google Doc, optionally compiles and retrohunts them in Chronicle SIEM, and stages red-lines.
 
   Scans the Google Doc for single-event and multi-event YARA-L 2.0 (`YL2`) rule
   blocks and identifies standard-YARA `strings:` sections used instead of
@@ -771,14 +771,22 @@ def verify_and_redline_yaral2_rules_in_doc(
   cross-event join semantic type contradictions (`cross_event_join_type_mismatch`),
   `match:` placeholder variable mismatches (`match_placeholder_mismatch`),
   invalid `match:` time window syntax (`invalid_match_window_syntax`, normalized
-  to `over <N><s|m|h|d>`), and single-event or multi-event `condition:` variable
-  binding errors by exact 1-based UTF-16 span. When `run_live_siem_check=True`,
-  compiles the repaired YARA-L 2.0 rule against Chronicle SIEM (`validate_rule`),
-  executes single-event or per-stream multi-event UDM correlation retrohunts
-  (`search_udm`), diagnoses 0-hit retrohunt predicates and cross-event join
-  entity-role swaps (`exact_match_on_command_line`, `entity_role_swap`,
-  `value_format_mismatch`, `cross_event_join_entity_role_swap`), and stages
-  compiler-verified `writeMode="SUGGEST"` edits.
+  to `over <N><s|m|h|d>`), non-YARA-L SQL/Splunk aggregation functions in
+  `outcome:` (`invalid_outcome_aggregation_function`: `distinct_count` ->
+  `count_distinct`, `collect_set` -> `array_distinct`, `avg` -> `max`),
+  unaggregated event fields in `outcome:` when `match:` is present
+  (`unaggregated_outcome_in_match_rule`), `condition:` outcome threshold
+  variable mismatches (`condition_outcome_variable_mismatch`), `not $e2`
+  negation syntax (`invalid_condition_negation_syntax`, normalized to `!$e2`),
+  and single-event or multi-event `condition:` variable binding errors by exact
+  1-based UTF-16 span. When `run_live_siem_check=True`, compiles the repaired
+  YARA-L 2.0 rule against Chronicle SIEM (`validate_rule`), executes
+  single-event, multi-event intersection, or non-existence (`$e1 and !$e2`
+  set-difference) UDM correlation retrohunts (`search_udm`), diagnoses 0-hit
+  retrohunt predicates and cross-event join entity-role swaps
+  (`exact_match_on_command_line`, `entity_role_swap`, `value_format_mismatch`,
+  `cross_event_join_entity_role_swap`), and stages compiler-verified
+  `writeMode="SUGGEST"` edits.
 
   Args:
       document_id (str): The Google Docs documentId.

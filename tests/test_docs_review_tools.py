@@ -4336,3 +4336,606 @@ def test_verify_and_redline_yaral2_rules_in_doc_multi_event_end_to_end_and_idemp
     assert len(batch_calls) == 0
 
 
+def test_extract_yaral2_multi_event_spec_parses_outcome_bindings_and_non_existence_condition() -> None:
+    """Verifies parsing of outcome: variables, aggregation functions, referenced event fields,
+    and positive_event_vars vs. negated_event_vars (!$e2 and not $e2) across multi-line
+    and Drive-collapsed single-line rules with exact 1-based UTF-16 spans."""
+    from manager.tools.docs_review_tools import (
+        _build_utf16_index_map,
+        extract_yaral2_multi_event_spec,
+    )
+
+    multi_line_rule = (
+        "rule gcp_iam_unapproved_privilege_escalation {\n"
+        "  meta:\n"
+        '    author = "SecOps Autonomous Agent"\n'
+        "  events:\n"
+        '    $iam.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $iam.target.resource.name = "projects/base-production"\n'
+        "    $iam.principal.ip = $src_ip\n"
+        '    $approval.metadata.log_type = "WORKSPACE_ACTIVITY"\n'
+        "    $approval.principal.ip = $src_ip\n"
+        "  match:\n"
+        "    $src_ip over 15m\n"
+        "  outcome:\n"
+        "    $risk_score = max(85)\n"
+        "    $event_count = distinct_count($iam.metadata.id)\n"
+        "    $target_resources = $iam.resource.name\n"
+        "  condition:\n"
+        "    $iam and not $approval and $event_count >= 1\n"
+        "}"
+    )
+
+    prefix = "Header prefix:\n"
+    full_text = prefix + multi_line_rule
+    idx_map = _build_utf16_index_map(full_text)
+    spec = extract_yaral2_multi_event_spec(
+        multi_line_rule,
+        rule_char_start=len(prefix),
+        full_plain_text=full_text,
+        index_map=idx_map,
+    )
+    assert spec["is_multi_event"] is True
+    assert spec["event_vars"] == ["$iam", "$approval"]
+    assert spec["outcome_vars"] == [
+        "$risk_score",
+        "$event_count",
+        "$target_resources",
+    ]
+    assert spec["outcome_var_names"] == [
+        "risk_score",
+        "event_count",
+        "target_resources",
+    ]
+    assert len(spec["outcome_bindings"]) == 3
+
+    b0, b1, b2 = spec["outcome_bindings"]
+    assert b0["outcome_var"] == "$risk_score"
+    assert b0["func_name"] == "max"
+    assert b0["is_aggregated"] is True
+
+    assert b1["outcome_var"] == "$event_count"
+    assert b1["func_name"] == "distinct_count"
+    assert b1["is_aggregated"] is False
+    assert b1["canonical_func_name"] == "count_distinct"
+    assert b1["referenced_event_fields"] == ["$iam.metadata.id"]
+    func_local_start = b1["func_local_start"]
+    func_local_end = b1["func_local_end"]
+    assert multi_line_rule[func_local_start:func_local_end] == "distinct_count"
+    assert b1["func_start_index"] == idx_map[len(prefix) + func_local_start]
+
+    assert b2["outcome_var"] == "$target_resources"
+    assert b2["func_name"] is None
+    assert b2["is_aggregated"] is False
+    assert b2["referenced_event_fields"] == ["$iam.resource.name"]
+    rhs_local_start = b2["rhs_local_start"]
+    rhs_local_end = b2["rhs_local_end"]
+    assert multi_line_rule[rhs_local_start:rhs_local_end] == "$iam.resource.name"
+    assert b2["rhs_start_index"] == idx_map[len(prefix) + rhs_local_start]
+
+    assert spec["positive_event_vars"] == ["$iam"]
+    assert spec["negated_event_vars"] == ["$approval"]
+    assert spec["is_non_existence"] is True
+    assert len(spec["condition_negation_spans"]) == 1
+    neg_span = spec["condition_negation_spans"][0]
+    assert neg_span["quote"] == "not $approval"
+    assert neg_span["replacement"] == "!$approval"
+
+    cond_tokens_by_var = {t["var_token"]: t for t in spec["condition_tokens"]}
+    assert cond_tokens_by_var["$iam"]["is_negated"] is False
+    assert cond_tokens_by_var["$iam"]["in_comparison"] is False
+    assert cond_tokens_by_var["$approval"]["is_negated"] is True
+    assert cond_tokens_by_var["$event_count"]["in_comparison"] is True
+
+    # Verify Drive-collapsed single-line rule with !$e2
+    single_line_rule = (
+        "rule single_line_non_existence { "
+        'meta: author = "SecOps" '
+        'events: $e1.metadata.log_type = "GCP_CLOUDAUDIT" $e1.principal.ip = $ip '
+        '$e2.metadata.log_type = "WORKSPACE_ACTIVITY" $e2.principal.ip = $ip '
+        "match: $ip over 15m "
+        "outcome: $event_count = count_distinct($e1.metadata.id) "
+        "condition: $e1 and !$e2 and $event_count >= 1 }"
+    )
+    sl_spec = extract_yaral2_multi_event_spec(single_line_rule)
+    assert sl_spec["is_multi_event"] is True
+    assert sl_spec["outcome_vars"] == ["$event_count"]
+    assert sl_spec["positive_event_vars"] == ["$e1"]
+    assert sl_spec["negated_event_vars"] == ["$e2"]
+    assert sl_spec["is_non_existence"] is True
+    assert sl_spec["condition_negation_spans"] == []
+
+
+def test_find_yaral2_rule_spans_repairs_outcome_aggregations_condition_outcomes_and_negation_syntax() -> None:
+    """Verifies detection and non-overlapping UTF-16 span repair of
+    invalid_outcome_aggregation_function, unaggregated_outcome_in_match_rule
+    (superseding inner invalid_udm_field edits), condition_outcome_variable_mismatch,
+    invalid_condition_negation_syntax, and zero false positives on valid outcome: variables."""
+    from manager.tools.docs_review_tools import (
+        _build_utf16_index_map,
+        find_yaral2_rule_spans,
+    )
+
+    doc_text = (
+        "rule gcp_iam_unapproved_privilege_escalation {\n"
+        "  meta:\n"
+        '    author = "SecOps Autonomous Agent"\n'
+        "  events:\n"
+        '    $iam.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $iam.target.resource.name = "projects/base-production"\n'
+        "    $iam.principal.ip = $src_ip\n"
+        '    $approval.metadata.log_type = "WORKSPACE_ACTIVITY"\n'
+        "    $approval.principal.ip = $src_ip\n"
+        "  match:\n"
+        "    $src_ip over 15m\n"
+        "  outcome:\n"
+        "    $risk_score = avg(85)\n"
+        "    $event_count = distinct_count($iam.metadata.id)\n"
+        "    $target_resources = $iam.resource.name\n"
+        "  condition:\n"
+        "    $iam and not $approval and $hit_count >= 1\n"
+        "}\n\n"
+        "rule valid_outcome_and_non_existence_control {\n"
+        "  meta:\n"
+        '    author = "SecOps Autonomous Agent"\n'
+        "  events:\n"
+        '    $iam.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        "    $iam.principal.ip = $src_ip\n"
+        '    $approval.metadata.log_type = "WORKSPACE_ACTIVITY"\n'
+        "    $approval.principal.ip = $src_ip\n"
+        "  match:\n"
+        "    $src_ip over 15m\n"
+        "  outcome:\n"
+        "    $risk_score = max(85)\n"
+        "    $event_count = count_distinct($iam.metadata.id)\n"
+        "    $target_resources = array_distinct($iam.target.resource.name)\n"
+        "  condition:\n"
+        "    $iam and !$approval and $event_count >= 1 and $risk_score >= 50\n"
+        "}\n"
+    )
+
+    idx_map = _build_utf16_index_map(doc_text)
+    comments, edits, findings = find_yaral2_rule_spans(doc_text, idx_map)
+    assert len(comments) == len(edits) == len(findings)
+    rule_names = {s["rule_name"] for s in findings}
+    assert "valid_outcome_and_non_existence_control" not in rule_names
+    assert rule_names == {"gcp_iam_unapproved_privilege_escalation"}
+
+    defect_types = [s["defect_type"] for s in findings]
+    assert defect_types.count("invalid_outcome_aggregation_function") == 2
+    assert defect_types.count("unaggregated_outcome_in_match_rule") == 1
+    assert defect_types.count("invalid_condition_negation_syntax") == 1
+    assert defect_types.count("condition_outcome_variable_mismatch") == 1
+    # Inner invalid_udm_field on $iam.resource.name in outcome: must be superseded
+    assert "invalid_udm_field" not in defect_types
+
+    # Verify non-overlapping UTF-16 spans and exact descending-index reconstruction
+    sorted_spans = sorted(findings, key=lambda s: int(s["start_index"]))
+    for i in range(len(sorted_spans) - 1):
+        assert int(sorted_spans[i]["end_index"]) <= int(
+            sorted_spans[i + 1]["start_index"]
+        )
+
+    reconstructed = doc_text
+    for s in sorted(
+        findings, key=lambda item: int(item["start_index"]), reverse=True
+    ):
+        s_idx = int(s["start_index"]) - 1
+        e_idx = int(s["end_index"]) - 1
+        assert reconstructed[s_idx:e_idx] == s["quote"]
+        assert idx_map[s_idx] == int(s["start_index"])
+        reconstructed = (
+            reconstructed[:s_idx] + str(s["replacement"]) + reconstructed[e_idx:]
+        )
+
+    assert "$risk_score = max(85)" in reconstructed
+    assert "$event_count = count_distinct($iam.metadata.id)" in reconstructed
+    assert (
+        "$target_resources = array_distinct($iam.target.resource.name)"
+        in reconstructed
+    )
+    assert "$iam and !$approval and $event_count >= 1" in reconstructed
+    # After applying all spans, re-running find_yaral2_rule_spans produces 0 defects
+    _, _, findings_after = find_yaral2_rule_spans(
+        reconstructed, _build_utf16_index_map(reconstructed)
+    )
+    assert findings_after == []
+
+
+def test_verify_yaral2_rule_with_siem_evaluates_non_existence_set_difference_retrohunt() -> None:
+    """Verifies that _run_multi_event_siem_retrohunt and verify_yaral2_rule_with_siem
+    compute positive_join_values - negated_join_values (shared_join_values and
+    suppressed_join_values) when condition: $e1 and !$e2 is present."""
+    from manager.tools.docs_review_tools import verify_yaral2_rule_with_siem
+
+    non_existence_rule = (
+        "rule gcp_iam_without_workspace_approval {\n"
+        "  meta:\n"
+        '    author = "SecOps Autonomous Agent"\n'
+        "  events:\n"
+        '    $iam.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $iam.target.resource.name = "projects/base-production"\n'
+        "    $iam.principal.ip = $src_ip\n"
+        '    $approval.metadata.log_type = "WORKSPACE_ACTIVITY"\n'
+        "    $approval.principal.ip = $src_ip\n"
+        "  match:\n"
+        "    $src_ip over 15m\n"
+        "  outcome:\n"
+        "    $event_count = count_distinct($iam.metadata.id)\n"
+        "    $target_resources = array_distinct($iam.target.resource.name)\n"
+        "  condition:\n"
+        "    $iam and !$approval and $event_count >= 1\n"
+        "}"
+    )
+
+    def fake_validate(rule_text: str) -> str:
+        return "Rule validation PASSED."
+
+    def fake_search(query: str, **kwargs: Any) -> dict[str, Any]:
+        if "GCP_CLOUDAUDIT" in query:
+            return {
+                "events": [
+                    {
+                        "udm": {
+                            "metadata": {"log_type": "GCP_CLOUDAUDIT"},
+                            "principal": {"ip": ["104.198.226.161"]},
+                            "target": {
+                                "resource": {"name": "projects/base-production"}
+                            },
+                        }
+                    },
+                    {
+                        "udm": {
+                            "metadata": {"log_type": "GCP_CLOUDAUDIT"},
+                            "principal": {"ip": ["35.190.10.25"]},
+                            "target": {
+                                "resource": {"name": "projects/base-production"}
+                            },
+                        }
+                    },
+                ],
+                "total_events": 2,
+            }
+        if "WORKSPACE_ACTIVITY" in query:
+            # 35.190.10.25 has a matching approval event; 104.198.226.161 does NOT
+            return {
+                "events": [
+                    {
+                        "udm": {
+                            "metadata": {"log_type": "WORKSPACE_ACTIVITY"},
+                            "principal": {"ip": ["35.190.10.25"]},
+                        }
+                    }
+                ],
+                "total_events": 1,
+            }
+        return {"events": [], "total_events": 0}
+
+    res = verify_yaral2_rule_with_siem(
+        non_existence_rule,
+        run_retrohunt_check=True,
+        siem_validate_fn=fake_validate,
+        siem_search_fn=fake_search,
+    )
+    assert res["status"] == "success"
+    assert res["compiler_verified"] is True
+    assert res["retrohunt_verified"] is True
+    # Only the 1 unapproved event on 104.198.226.161 fires!
+    assert res["retrohunt_event_count"] == 1
+    me = res["multi_event_retrohunt"]
+    assert me is not None
+    assert me["is_multi_event"] is True
+    assert me["is_non_existence"] is True
+    assert me["positive_event_vars"] == ["$iam"]
+    assert me["negated_event_vars"] == ["$approval"]
+    assert me["shared_join_values"] == ["104.198.226.161"]
+    assert me["suppressed_join_values"] == ["35.190.10.25"]
+
+
+def test_diagnose_zero_hit_yaral2_rule_pivots_zero_hit_positive_stream_in_multi_event_and_non_existence_rules() -> None:
+    """Verifies that when a positive stream in a multi-event or non-existence rule returns
+    0 SIEM events (value_format_mismatch), diagnose_zero_hit_yaral2_rule ablates that stream's
+    query, splices the repaired predicate into the rule, verifies compiler validity, and confirms
+    correlated_event_count > 0."""
+    from manager.tools.docs_review_tools import diagnose_zero_hit_yaral2_rule
+
+    zero_hit_non_existence_rule = (
+        "rule gcp_iam_unapproved_wrong_project_prefix {\n"
+        "  meta:\n"
+        '    author = "SecOps Autonomous Agent"\n'
+        "  events:\n"
+        '    $iam.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $iam.target.resource.name = "projects/base-analytics"\n'
+        "    $iam.principal.ip = $src_ip\n"
+        '    $approval.metadata.log_type = "WORKSPACE_ACTIVITY"\n'
+        "    $approval.principal.ip = $src_ip\n"
+        "  match:\n"
+        "    $src_ip over 15m\n"
+        "  outcome:\n"
+        "    $event_count = count_distinct($iam.metadata.id)\n"
+        "  condition:\n"
+        "    $iam and !$approval and $event_count >= 1\n"
+        "}"
+    )
+
+    validated_rules: list[str] = []
+
+    def fake_validate(rule_text: str) -> str:
+        validated_rules.append(rule_text)
+        return "Rule validation PASSED."
+
+    def fake_search(query: str, **kwargs: Any) -> dict[str, Any]:
+        if 'target.resource.name = "projects/base-analytics"' in query:
+            return {"events": [], "total_events": 0}
+        if "GCP_CLOUDAUDIT" in query:
+            return {
+                "events": [
+                    {
+                        "udm": {
+                            "metadata": {"log_type": "GCP_CLOUDAUDIT"},
+                            "principal": {"ip": ["104.198.226.161"]},
+                            "target": {
+                                "resource": {"name": "projects/base-production"}
+                            },
+                        }
+                    }
+                    for _ in range(5)
+                ],
+                "total_events": 5,
+            }
+        if "WORKSPACE_ACTIVITY" in query:
+            return {"events": [], "total_events": 0}
+        return {"events": [], "total_events": 0}
+
+    diag = diagnose_zero_hit_yaral2_rule(
+        zero_hit_non_existence_rule,
+        siem_search_fn=fake_search,
+        siem_validate_fn=fake_validate,
+    )
+    assert diag["status"] == "success"
+    assert diag["zero_hit"] is True
+    assert diag["is_multi_event"] is True
+    assert diag["diagnosis_class"] == "value_format_mismatch"
+    assert diag["failing_event_var"] == "$iam"
+    assert diag["failing_predicate_index"] == 1
+    assert diag["recommended_span_target"] == "predicate"
+    assert (
+        diag["recommended_span_replacement"]
+        == '$iam.target.resource.name = "projects/base-production"'
+    )
+    assert (
+        diag["recommended_yaral2_predicate"]
+        == '$iam.target.resource.name = "projects/base-production"'
+    )
+    assert diag["pivot_verified"] is True
+    assert diag["pivot_compiler_verified"] is True
+    assert diag["pivot_event_count"] == 5
+    assert diag["shared_join_values"] == ["104.198.226.161"]
+    assert (
+        '$iam.target.resource.name = "projects/base-production"'
+        in diag["pivoted_rule_text"]
+    )
+    assert any(
+        '$iam.target.resource.name = "projects/base-production"' in r
+        for r in validated_rules
+    )
+
+
+def test_verify_and_redline_yaral2_rules_in_doc_stages_outcome_and_non_existence_edits_idempotently() -> None:
+    """End-to-end mock Google Docs test verifying descending-index writeMode="SUGGEST" edits,
+    combined static outcome/condition repairs + zero-hit positive stream pivot, valid control
+    preservation, and Pass 2 idempotency (skipped_existing_suggestion_count)."""
+    from manager.tools.docs_review_tools import (
+        _build_utf16_index_map,
+        clear_doc_index_cache,
+        find_yaral2_rule_spans,
+        verify_and_redline_yaral2_rules_in_doc,
+    )
+
+    clear_doc_index_cache()
+
+    doc_text = (
+        "# Cycle 9 H16 YARA-L 2.0 Outcome & Non-Existence Runbook\n\n"
+        "rule gcp_iam_unapproved_privilege_escalation {\n"
+        "  meta:\n"
+        '    author = "SecOps Autonomous Agent"\n'
+        "  events:\n"
+        '    $iam.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $iam.target.resource.name = "projects/base-analytics"\n'
+        "    $iam.principal.ip = $src_ip\n"
+        '    $approval.metadata.log_type = "WORKSPACE_ACTIVITY"\n'
+        "    $approval.principal.ip = $src_ip\n"
+        "  match:\n"
+        "    $src_ip over 15m\n"
+        "  outcome:\n"
+        "    $risk_score = avg(85)\n"
+        "    $event_count = distinct_count($iam.metadata.id)\n"
+        "    $target_resources = $iam.resource.name\n"
+        "  condition:\n"
+        "    $iam and not $approval and $hit_count >= 1\n"
+        "}\n\n"
+        "rule gcp_iam_verified_non_existence_baseline {\n"
+        "  meta:\n"
+        '    author = "SecOps Autonomous Agent"\n'
+        "  events:\n"
+        '    $iam.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $iam.target.resource.name = "projects/base-production"\n'
+        "    $iam.principal.ip = $src_ip\n"
+        '    $approval.metadata.log_type = "WORKSPACE_ACTIVITY"\n'
+        "    $approval.principal.ip = $src_ip\n"
+        "  match:\n"
+        "    $src_ip over 15m\n"
+        "  outcome:\n"
+        "    $risk_score = max(85)\n"
+        "    $event_count = count_distinct($iam.metadata.id)\n"
+        "    $target_resources = array_distinct($iam.target.resource.name)\n"
+        "  condition:\n"
+        "    $iam and !$approval and $event_count >= 1 and $risk_score >= 50\n"
+        "}\n"
+    )
+
+    mock_doc = {
+        "documentId": "doc-h16-outcome-non-existence",
+        "title": "Cycle 9 H16 Outcome & Non-Existence Test",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": len(doc_text) + 1,
+                                "textRun": {"content": doc_text},
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+    }
+    batch_calls: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=mock_doc)
+        payload = json.loads(request.content.decode("utf-8"))
+        batch_calls.append(payload)
+        if any("insertComment" in r for r in payload.get("requests", [])):
+            return httpx.Response(
+                200,
+                json={
+                    "replies": [
+                        {"insertComment": {"commentId": f"c-h16-{i}"}}
+                        for i, _ in enumerate(payload["requests"])
+                    ]
+                },
+            )
+        return httpx.Response(
+            200,
+            json={"replies": [{} for _ in payload.get("requests", [])]},
+        )
+
+    def fake_validate(rule_text: str) -> str:
+        return "Rule validation PASSED."
+
+    def fake_search(query: str, **kwargs: Any) -> dict[str, Any]:
+        if 'target.resource.name = "projects/base-analytics"' in query:
+            return {"events": [], "total_events": 0}
+        if "GCP_CLOUDAUDIT" in query:
+            return {
+                "events": [
+                    {
+                        "udm": {
+                            "metadata": {"log_type": "GCP_CLOUDAUDIT"},
+                            "principal": {"ip": ["104.198.226.161"]},
+                            "target": {
+                                "resource": {"name": "projects/base-production"}
+                            },
+                        }
+                    }
+                    for _ in range(5)
+                ],
+                "total_events": 5,
+            }
+        if "WORKSPACE_ACTIVITY" in query:
+            return {"events": [], "total_events": 0}
+        return {"events": [], "total_events": 0}
+
+    res = verify_and_redline_yaral2_rules_in_doc(
+        "doc-h16-outcome-non-existence",
+        run_live_siem_check=True,
+        diagnose_zero_hit_retrohunt=True,
+        siem_validate_fn=fake_validate,
+        siem_search_fn=fake_search,
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(handler),
+    )
+    assert res["status"] == "success"
+    # 5 static outcome/condition findings + 1 zero-hit predicate finding on Rule 1 = 6 total
+    assert res["yaral2_findings_count"] == 6
+    assert res["zero_hit_yaral2_findings_count"] == 1
+    assert res["skipped_existing_suggestion_count"] == 0
+    assert res["comments"]["inserted_count"] == 6
+    assert res["edits"]["applied_count"] == 6
+
+    # Control rule must have 0 findings
+    finding_rules = {f["rule_name"] for f in res["findings"]}
+    assert "gcp_iam_verified_non_existence_baseline" not in finding_rules
+
+    # Verify descending-index writeMode="SUGGEST" execution order
+    assert len(batch_calls) == 2
+    assert "writeControl" not in batch_calls[0]
+    assert batch_calls[1]["writeControl"] == {"writeMode": "SUGGEST"}
+    delete_starts = [
+        req["deleteContentRange"]["range"]["startIndex"]
+        for req in batch_calls[1]["requests"]
+        if "deleteContentRange" in req
+    ]
+    assert delete_starts == sorted(delete_starts, reverse=True)
+
+    # Apply staged edits in descending order and verify accepted_text has 0 defects
+    accepted_text = doc_text
+    for f in sorted(
+        res["findings"], key=lambda item: int(item["start_index"]), reverse=True
+    ):
+        s_idx = int(f["start_index"]) - 1
+        e_idx = int(f["end_index"]) - 1
+        assert accepted_text[s_idx:e_idx] == f["quote"]
+        accepted_text = (
+            accepted_text[:s_idx] + str(f["replacement"]) + accepted_text[e_idx:]
+        )
+    _, _, remaining_findings = find_yaral2_rule_spans(
+        accepted_text, _build_utf16_index_map(accepted_text)
+    )
+    assert remaining_findings == []
+    assert '$iam.target.resource.name = "projects/base-production"' in accepted_text
+    assert "$target_resources = array_distinct($iam.target.resource.name)" in accepted_text
+    assert "$iam and !$approval and $event_count >= 1" in accepted_text
+
+    # Pass 2 idempotency
+    mock_doc_pending = {
+        "documentId": "doc-h16-outcome-non-existence",
+        "title": "Cycle 9 H16 Outcome & Non-Existence Test",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": len(doc_text) + 1,
+                                "textRun": {
+                                    "content": doc_text,
+                                    "suggestedDeletionIds": [
+                                        "suggest.yl2.h16.existing"
+                                    ],
+                                },
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+    }
+    batch_calls.clear()
+    res2 = verify_and_redline_yaral2_rules_in_doc(
+        "doc-h16-outcome-non-existence",
+        run_live_siem_check=True,
+        diagnose_zero_hit_retrohunt=True,
+        siem_validate_fn=fake_validate,
+        siem_search_fn=fake_search,
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(
+            lambda req: httpx.Response(200, json=mock_doc_pending)
+        ),
+    )
+    assert res2["status"] == "success"
+    assert res2["yaral2_findings_count"] == 0
+    assert res2["zero_hit_yaral2_findings_count"] == 0
+    assert res2["skipped_existing_suggestion_count"] == 6
+    assert res2["comments"]["inserted_count"] == 0
+    assert res2["edits"]["applied_count"] == 0
+    assert len(batch_calls) == 0
+
+
+

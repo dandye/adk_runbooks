@@ -456,6 +456,36 @@ _YARAL2_TIME_UNIT_MAP: dict[str, str] = {
     "day": "d",
     "days": "d",
 }
+VALID_YARAL2_OUTCOME_AGG_FUNCS: tuple[str, ...] = (
+    "max",
+    "min",
+    "sum",
+    "count",
+    "count_distinct",
+    "array",
+    "array_distinct",
+)
+CANONICAL_YARAL2_OUTCOME_AGG_CORRECTIONS: dict[str, str] = {
+    "distinct_count": "count_distinct",
+    "count_unique": "count_distinct",
+    "dc": "count_distinct",
+    "collect_set": "array_distinct",
+    "values": "array_distinct",
+    "array_agg": "array",
+    "collect_list": "array",
+    "avg": "max",
+    "average": "max",
+}
+_YARAL2_OUTCOME_LHS_RE = re.compile(
+    r"\$([A-Za-z_][A-Za-z0-9_]*)(?!\.)\s*=\s*"
+)
+_YARAL2_OUTCOME_FUNC_CALL_RE = re.compile(
+    r"^([A-Za-z_][A-Za-z0-9_]*)\s*\((.*)\)$",
+    re.DOTALL,
+)
+_YARAL2_COND_NOT_VAR_RE = re.compile(
+    r"(?i)\b(not)[ \t]+([#$])([A-Za-z_][A-Za-z0-9_]*)(?!\.)"
+)
 
 _FRONTMATTER_BLOCK_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n(.*)$", re.DOTALL)
 
@@ -3446,6 +3476,146 @@ def _classify_udm_field_semantic_type(field_path: str) -> str:
     return "generic"
 
 
+def _choose_yaral2_outcome_agg_func(
+    outcome_var_name: str, canonical_field: str | None = None
+) -> str:
+    """Selects the canonical Chronicle YARA-L 2.0 outcome aggregation function for an
+    unaggregated outcome variable in a rule with a ``match:`` window."""
+    v_lower = (outcome_var_name or "").lower()
+    f_lower = (canonical_field or "").lower()
+    if (
+        v_lower.endswith("count")
+        or v_lower.endswith("counts")
+        or v_lower.endswith("total")
+        or v_lower.startswith("count_")
+        or v_lower.startswith("num_")
+        or v_lower.startswith("unique_")
+    ):
+        return "count_distinct"
+    if (
+        any(
+            tok in v_lower
+            for tok in (
+                "score",
+                "severity",
+                "bytes",
+                "port",
+                "risk",
+                "max",
+                "duration",
+            )
+        )
+        or f_lower.endswith(".port")
+        or "bytes" in f_lower
+        or "score" in f_lower
+    ):
+        return "max"
+    return "array_distinct"
+
+
+def _find_top_level_outcome_lhs_matches(
+    sec_body: str, comment_spans: list[tuple[int, int]]
+) -> list[re.Match[str]]:
+    """Finds top-level ``$<outcome_var> =`` assignments in an ``outcome:`` section body
+    at parenthesis depth 0 outside comments and string literals."""
+    depth_at: list[int] = [0] * (len(sec_body) + 1)
+    in_str_at: list[bool] = [False] * (len(sec_body) + 1)
+    depth = 0
+    in_quote = False
+    quote_ch = ""
+    escape = False
+    for idx, ch in enumerate(sec_body):
+        depth_at[idx] = depth
+        in_str_at[idx] = in_quote
+        if any(c_s <= idx < c_e for c_s, c_e in comment_spans):
+            continue
+        if escape:
+            escape = False
+            continue
+        if ch == "\\":
+            escape = True
+            continue
+        if in_quote:
+            if ch == quote_ch:
+                in_quote = False
+            continue
+        if ch in ('"', "'", "`"):
+            in_quote = True
+            quote_ch = ch
+            continue
+        if ch == "(":
+            depth += 1
+        elif ch == ")" and depth > 0:
+            depth -= 1
+
+    matches: list[re.Match[str]] = []
+    for m in _YARAL2_OUTCOME_LHS_RE.finditer(sec_body):
+        m_span = (m.start(), m.end())
+        if any(_spans_overlap(m_span, c_span) for c_span in comment_spans):
+            continue
+        if in_str_at[m.start()] or depth_at[m.start()] != 0:
+            continue
+        prefix = sec_body[: m.start()].rstrip(" \t")
+        if prefix.endswith(("=", "!", "<", ">")):
+            continue
+        matches.append(m)
+    return matches
+
+
+def _find_outcome_rhs_bounds(
+    sec_body: str, rhs_slice_start: int, rhs_slice_end: int
+) -> tuple[int, int]:
+    """Determines the trimmed ``(start, end)`` local indices inside ``sec_body`` for an
+    ``outcome:`` assignment's right-hand side expression."""
+    cur = rhs_slice_start
+    while cur < rhs_slice_end and sec_body[cur] in (" ", "\t", "\r", "\n"):
+        cur += 1
+    expr_start = cur
+    depth = 0
+    in_quote = False
+    quote_ch = ""
+    escape = False
+    expr_end = rhs_slice_end
+    for idx in range(expr_start, rhs_slice_end):
+        ch = sec_body[idx]
+        if escape:
+            escape = False
+            continue
+        if ch == "\\":
+            escape = True
+            continue
+        if in_quote:
+            if ch == quote_ch:
+                in_quote = False
+            continue
+        if ch in ('"', "'", "`"):
+            in_quote = True
+            quote_ch = ch
+            continue
+        if ch == "(":
+            depth += 1
+            continue
+        if ch == ")":
+            if depth > 0:
+                depth -= 1
+            continue
+        if depth == 0:
+            if sec_body[idx : idx + 2] == "//":
+                expr_end = idx
+                break
+            if ch in ("\r", "\n"):
+                expr_end = idx
+                break
+    while expr_end > expr_start and sec_body[expr_end - 1] in (
+        " ",
+        "\t",
+        "\r",
+        "\n",
+    ):
+        expr_end -= 1
+    return expr_start, expr_end
+
+
 def extract_yaral2_multi_event_spec(
     rule_text: str,
     rule_char_start: int = 0,
@@ -3453,8 +3623,9 @@ def extract_yaral2_multi_event_spec(
     index_map: list[int] | None = None,
 ) -> dict[str, Any]:
     """Parses multi-line and Drive-collapsed single-line YARA-L 2.0 (``YL2``) rules into
-    per-event-stream UDM queries, cross-event join bindings, ``match:`` clauses, and
-    ``condition:`` variable tokens with exact 1-based UTF-16 spans.
+    per-event-stream UDM queries, cross-event join bindings, ``match:`` clauses,
+    ``outcome:`` variable bindings, and ``condition:`` variable tokens (including
+    ``!$e2`` non-existence correlation) with exact 1-based UTF-16 spans.
     """
     if full_plain_text is None:
         full_plain_text = rule_text
@@ -3482,7 +3653,11 @@ def extract_yaral2_multi_event_spec(
     raw_join_bindings: list[dict[str, Any]] = []
     join_placeholders: list[str] = []
     match_clauses: list[dict[str, Any]] = []
+    outcome_vars: list[str] = []
+    outcome_var_names: list[str] = []
+    outcome_bindings: list[dict[str, Any]] = []
     condition_tokens: list[dict[str, Any]] = []
+    condition_negation_spans: list[dict[str, Any]] = []
     condition_span: dict[str, Any] | None = None
 
     for i, sm in enumerate(sec_matches):
@@ -3692,6 +3867,137 @@ def extract_yaral2_multi_event_spec(
                     }
                 )
 
+        elif sec_name == "outcome":
+            lhs_matches = _find_top_level_outcome_lhs_matches(sec_body, comment_spans)
+            for k, lhs_m in enumerate(lhs_matches):
+                out_var_name = lhs_m.group(1)
+                out_var = f"${out_var_name}"
+                if out_var not in outcome_vars:
+                    outcome_vars.append(out_var)
+                    outcome_var_names.append(out_var_name)
+
+                rhs_slice_start = lhs_m.end()
+                rhs_slice_end = (
+                    lhs_matches[k + 1].start()
+                    if k + 1 < len(lhs_matches)
+                    else len(sec_body)
+                )
+                rhs_rel_s, rhs_rel_e = _find_outcome_rhs_bounds(
+                    sec_body, rhs_slice_start, rhs_slice_end
+                )
+                if rhs_rel_e <= rhs_rel_s:
+                    continue
+
+                local_var_start = b_start + lhs_m.start(0)
+                local_var_end = b_start + lhs_m.end(1)
+                local_rhs_start = b_start + rhs_rel_s
+                local_rhs_end = b_start + rhs_rel_e
+                local_binding_start = local_var_start
+                local_binding_end = local_rhs_end
+
+                rhs_text = rule_text[local_rhs_start:local_rhs_end]
+                func_name: str | None = None
+                canonical_func_name: str | None = None
+                is_valid_agg_func = False
+                is_non_canonical_agg_func = False
+                local_func_start: int | None = None
+                local_func_end: int | None = None
+                func_start_idx: int | None = None
+                func_end_idx: int | None = None
+
+                fn_m = _YARAL2_OUTCOME_FUNC_CALL_RE.match(rhs_text)
+                if fn_m is not None:
+                    func_name = fn_m.group(1)
+                    fn_lower = func_name.lower()
+                    local_func_start = local_rhs_start + fn_m.start(1)
+                    local_func_end = local_rhs_start + fn_m.end(1)
+                    func_start_idx, func_end_idx = _to_utf16_span(
+                        local_func_start, local_func_end
+                    )
+                    if fn_lower in VALID_YARAL2_OUTCOME_AGG_FUNCS:
+                        is_valid_agg_func = True
+                        canonical_func_name = fn_lower
+                    elif fn_lower in CANONICAL_YARAL2_OUTCOME_AGG_CORRECTIONS:
+                        is_non_canonical_agg_func = True
+                        canonical_func_name = (
+                            CANONICAL_YARAL2_OUTCOME_AGG_CORRECTIONS[fn_lower]
+                        )
+
+                ref_event_vars: list[str] = []
+                ref_event_fields: list[dict[str, Any]] = []
+                for ef_m in _YARAL2_EVENT_FIELD_RE.finditer(rhs_text):
+                    ev_n = ef_m.group(1)
+                    ev_tok = f"${ev_n}"
+                    f_tok = ef_m.group(2)
+                    c_field = CANONICAL_UDM_FIELD_CORRECTIONS.get(f_tok, f_tok)
+                    if ev_tok not in ref_event_vars:
+                        ref_event_vars.append(ev_tok)
+                    if ev_tok not in event_vars and ev_n not in outcome_var_names:
+                        event_vars.append(ev_tok)
+                        event_var_names.append(ev_n)
+                    ef_loc_s = local_rhs_start + ef_m.start(0)
+                    ef_loc_e = local_rhs_start + ef_m.end(0)
+                    ref_event_fields.append(
+                        {
+                            "event_var": ev_tok,
+                            "field_token": f_tok,
+                            "canonical_field": c_field,
+                            "var_field_token": f"{ev_tok}.{f_tok}",
+                            "local_start": ef_loc_s,
+                            "local_end": ef_loc_e,
+                        }
+                    )
+
+                is_aggregated = bool(is_valid_agg_func)
+                bind_u_s, bind_u_e = _to_utf16_span(
+                    local_binding_start, local_binding_end
+                )
+                var_u_s, var_u_e = _to_utf16_span(local_var_start, local_var_end)
+                rhs_u_s, rhs_u_e = _to_utf16_span(local_rhs_start, local_rhs_end)
+
+                outcome_bindings.append(
+                    {
+                        "binding_index": len(outcome_bindings),
+                        "outcome_var": out_var,
+                        "outcome_var_name": out_var_name,
+                        "binding_text": rule_text[
+                            local_binding_start:local_binding_end
+                        ],
+                        "rhs_text": rhs_text,
+                        "func_name": func_name,
+                        "canonical_func_name": canonical_func_name,
+                        "is_valid_agg_func": is_valid_agg_func,
+                        "is_non_canonical_agg_func": is_non_canonical_agg_func,
+                        "is_aggregated": is_aggregated,
+                        "referenced_event_vars": ref_event_vars,
+                        "referenced_event_fields": [
+                            str(item["var_field_token"])
+                            for item in ref_event_fields
+                        ],
+                        "referenced_event_field_specs": ref_event_fields,
+                        "local_binding_start": local_binding_start,
+                        "local_binding_end": local_binding_end,
+                        "binding_start_index": bind_u_s,
+                        "binding_end_index": bind_u_e,
+                        "local_var_start": local_var_start,
+                        "local_var_end": local_var_end,
+                        "var_start_index": var_u_s,
+                        "var_end_index": var_u_e,
+                        "local_rhs_start": local_rhs_start,
+                        "local_rhs_end": local_rhs_end,
+                        "rhs_local_start": local_rhs_start,
+                        "rhs_local_end": local_rhs_end,
+                        "rhs_start_index": rhs_u_s,
+                        "rhs_end_index": rhs_u_e,
+                        "local_func_start": local_func_start,
+                        "local_func_end": local_func_end,
+                        "func_local_start": local_func_start,
+                        "func_local_end": local_func_end,
+                        "func_start_index": func_start_idx,
+                        "func_end_index": func_end_idx,
+                    }
+                )
+
         elif sec_name == "condition":
             # Trim comments and surrounding whitespace to locate the condition expression span
             cleaned_lines: list[tuple[int, int]] = []
@@ -3719,6 +4025,33 @@ def extract_yaral2_multi_event_spec(
                     "end_index": cond_u_e,
                 }
 
+            not_span_by_var_start: dict[int, dict[str, Any]] = {}
+            for nm in _YARAL2_COND_NOT_VAR_RE.finditer(sec_body):
+                n_span = (nm.start(), nm.end())
+                if any(_spans_overlap(n_span, cs) for cs in comment_spans):
+                    continue
+                sigil = nm.group(2)
+                v_name = nm.group(3)
+                loc_s = b_start + nm.start(0)
+                loc_e = b_start + nm.end(0)
+                var_loc_s = b_start + nm.start(2)
+                u_s, u_e = _to_utf16_span(loc_s, loc_e)
+                neg_rec = {
+                    "negation_text": rule_text[loc_s:loc_e],
+                    "quote": rule_text[loc_s:loc_e],
+                    "sigil": sigil,
+                    "var_name": v_name,
+                    "event_var": f"${v_name}",
+                    "replacement": f"!{sigil}{v_name}",
+                    "local_start": loc_s,
+                    "local_end": loc_e,
+                    "local_var_start": var_loc_s,
+                    "start_index": u_s,
+                    "end_index": u_e,
+                }
+                condition_negation_spans.append(neg_rec)
+                not_span_by_var_start[var_loc_s] = neg_rec
+
             for cm in _YARAL2_COND_VAR_RE.finditer(sec_body):
                 c_span = (cm.start(), cm.end())
                 if any(_spans_overlap(c_span, cs) for cs in comment_spans):
@@ -3728,11 +4061,38 @@ def extract_yaral2_multi_event_spec(
                 loc_s = b_start + cm.start(0)
                 loc_e = b_start + cm.end(0)
                 u_s, u_e = _to_utf16_span(loc_s, loc_e)
+
+                prefix = sec_body[: cm.start(0)]
+                suffix = sec_body[cm.end(0) :]
+                has_bang = prefix.rstrip(" \t").endswith("!")
+                not_span_info = not_span_by_var_start.get(loc_s)
+                is_zero_cardinality = bool(
+                    sigil == "#"
+                    and (
+                        re.match(r"^[ \t]*(?:==?[ \t]*0\b|<[ \t]*1\b)", suffix)
+                        or re.search(r"\b0[ \t]*==?[ \t]*$", prefix)
+                    )
+                )
+                is_negated = bool(
+                    has_bang or not_span_info is not None or is_zero_cardinality
+                )
+                in_comparison = bool(
+                    sigil == "#"
+                    or re.match(
+                        r"^[ \t]*(?:>=|<=|!=|==|=|>|<)[ \t]*-?\d+", suffix
+                    )
+                    or re.search(
+                        r"-?\d+[ \t]*(?:>=|<=|!=|==|=|>|<)[ \t]*$", prefix
+                    )
+                )
                 condition_tokens.append(
                     {
                         "sigil": sigil,
                         "var_name": v_name,
                         "token_text": f"{sigil}{v_name}",
+                        "var_token": f"{sigil}{v_name}",
+                        "is_negated": is_negated,
+                        "in_comparison": in_comparison,
                         "local_start": loc_s,
                         "local_end": loc_e,
                         "start_index": u_s,
@@ -3769,6 +4129,18 @@ def extract_yaral2_multi_event_spec(
         if ph_var not in join_placeholders:
             join_placeholders.append(ph_var)
 
+    negated_event_vars: list[str] = []
+    for ct in condition_tokens:
+        v_name = str(ct["var_name"])
+        ev_tok = f"${v_name}"
+        if ct.get("is_negated") and ev_tok in event_vars:
+            if ev_tok not in negated_event_vars:
+                negated_event_vars.append(ev_tok)
+    positive_event_vars: list[str] = [
+        ev for ev in event_vars if ev not in negated_event_vars
+    ]
+    is_non_existence = bool(negated_event_vars)
+
     per_event_predicates: dict[str, list[dict[str, Any]]] = {
         ev: [] for ev in event_vars
     }
@@ -3784,6 +4156,9 @@ def extract_yaral2_multi_event_spec(
     return {
         "event_vars": event_vars,
         "event_var_names": event_var_names,
+        "positive_event_vars": positive_event_vars,
+        "negated_event_vars": negated_event_vars,
+        "is_non_existence": is_non_existence,
         "is_multi_event": len(event_vars) >= 2,
         "predicates": predicates,
         "per_event_predicates": per_event_predicates,
@@ -3791,7 +4166,11 @@ def extract_yaral2_multi_event_spec(
         "join_bindings": join_bindings,
         "join_placeholders": join_placeholders,
         "match_clauses": match_clauses,
+        "outcome_vars": outcome_vars,
+        "outcome_var_names": outcome_var_names,
+        "outcome_bindings": outcome_bindings,
         "condition_tokens": condition_tokens,
+        "condition_negation_spans": condition_negation_spans,
         "condition_span": condition_span,
     }
 
@@ -3809,6 +4188,42 @@ def _extract_retrohunt_udm_query_from_yaral2(
     return " AND ".join(clauses), clauses
 
 
+def _select_best_outcome_var_for_condition_token(
+    cond_var: str,
+    in_comparison: bool,
+    candidate_outcome_vars: list[str],
+    outcome_bindings: list[dict[str, Any]],
+) -> str:
+    """Chooses the best matching declared ``outcome:`` variable name for an undeclared
+    ``condition:`` variable token."""
+    if len(candidate_outcome_vars) == 1:
+        return candidate_outcome_vars[0]
+    cond_parts = {p for p in cond_var.lower().split("_") if p}
+    binding_by_name = {
+        str(ob["outcome_var_name"]): ob for ob in outcome_bindings
+    }
+    best_var = candidate_outcome_vars[0]
+    best_score = -1
+    for cand in candidate_outcome_vars:
+        cand_lower = cand.lower()
+        cand_parts = {p for p in cand_lower.split("_") if p}
+        score = len(cond_parts & cand_parts) * 10
+        ob = binding_by_name.get(cand, {})
+        c_func = str(ob.get("canonical_func_name") or ob.get("func_name") or "").lower()
+        if in_comparison:
+            if c_func in ("count_distinct", "count", "max", "min", "sum") or any(
+                tok in cand_lower
+                for tok in ("count", "score", "total", "risk", "severity", "max")
+            ):
+                score += 5
+            elif c_func in ("array_distinct", "array"):
+                score -= 3
+        if score > best_score:
+            best_score = score
+            best_var = cand
+    return best_var
+
+
 def find_yaral2_rule_spans(
     plain_text: str,
     index_map: list[int],
@@ -3824,15 +4239,22 @@ def find_yaral2_rule_spans(
        explicitly distinguishing standard YARA (file/payload byte-pattern matching) from
        YARA-L 2.0 / YL2 (Chronicle SIEM UDM event detection rules).
     2. Event-variable-prefixed invalid UDM fields (``$<var>.<field_path>`` in comparisons,
-       join bindings, or inside YARA-L 2.0 function calls such as ``re.regex($<var>.<field_path>, ...)``).
+       join bindings, ``outcome:`` expressions, or inside YARA-L 2.0 function calls such as
+       ``re.regex($<var>.<field_path>, ...)``).
     3. Cross-event join semantic type contradictions (``cross_event_join_type_mismatch``) where
        two event streams bind the same join placeholder ``$<join_key>`` to incompatible UDM domains
        (e.g. ``$e1.principal.ip = $ip`` paired with ``$e2.principal.hostname = $ip``).
     4. ``match:`` section placeholder variable mismatches (``match_placeholder_mismatch``) and
        invalid ``match:`` time window syntax or verbose units (``invalid_match_window_syntax``,
        normalized to ``over <N><s|m|h|d>``).
-    5. Single-event (``condition_variable_mismatch``) and multi-event
-       (``multi_event_condition_mismatch``) condition variable binding errors.
+    5. ``outcome:`` section non-YARA-L SQL/Splunk aggregation functions
+       (``invalid_outcome_aggregation_function``: ``distinct_count`` -> ``count_distinct``,
+       ``collect_set`` -> ``array_distinct``, ``avg`` -> ``max``) and unaggregated event fields
+       in rules with a ``match:`` window (``unaggregated_outcome_in_match_rule``).
+    6. Single-event (``condition_variable_mismatch``), multi-event
+       (``multi_event_condition_mismatch``), ``outcome:`` threshold variable
+       (``condition_outcome_variable_mismatch``), and non-existence negation syntax
+       (``invalid_condition_negation_syntax``: ``not $e2`` -> ``!$e2``) condition errors.
 
     Returns:
         ``(comments, edits, findings)`` with exact 1-based UTF-16 ``start_index`` and
@@ -3885,6 +4307,8 @@ def find_yaral2_rule_spans(
             index_map=index_map,
         )
         declared_event_vars: list[str] = list(multi_spec["event_var_names"])
+        declared_outcome_vars: list[str] = list(multi_spec["outcome_var_names"])
+        declared_outcome_set: set[str] = set(declared_outcome_vars)
         ordered_placeholder_names: list[str] = [
             ph.lstrip("$") for ph in multi_spec["join_placeholders"]
         ]
@@ -4092,88 +4516,262 @@ def find_yaral2_rule_spans(
                         }
                     )
 
-        # (e) Condition event-variable checks (single-event and multi-event)
-        if len(declared_event_vars) == 1:
-            canonical_ev = declared_event_vars[0]
-            for sec in sections:
-                if sec["name"] != "condition":
-                    continue
-                for cm in _YARAL2_COND_VAR_RE.finditer(sec["body"]):
-                    sigil = cm.group(1)
-                    cond_var = cm.group(2)
-                    if (
-                        cond_var in declared_event_vars
-                        or cond_var in declared_placeholder_vars
-                    ):
-                        continue
-                    local_start = int(sec["body_start"]) + cm.start(0)
-                    local_end = int(sec["body_start"]) + cm.end(0)
-                    quote = f"{sigil}{cond_var}"
-                    replacement = f"{sigil}{canonical_ev}"
+        # (d2) 'outcome:' section non-canonical aggregation functions and unaggregated fields in match rules
+        if multi_spec["outcome_bindings"]:
+            has_match_section = bool(multi_spec["match_clauses"])
+            for ob in multi_spec["outcome_bindings"]:
+                if (
+                    ob["is_non_canonical_agg_func"]
+                    and ob.get("local_func_start") is not None
+                    and ob.get("local_func_end") is not None
+                    and ob.get("canonical_func_name")
+                ):
+                    local_start = int(ob["local_func_start"])
+                    local_end = int(ob["local_func_end"])
+                    quote = str(ob["func_name"])
+                    replacement = str(ob["canonical_func_name"])
                     rule_defects.append(
                         {
                             "local_start": local_start,
                             "local_end": local_end,
-                            "defect_type": "condition_variable_mismatch",
+                            "defect_type": "invalid_outcome_aggregation_function",
                             "quote": quote,
                             "replacement": replacement,
                             "invalid_field": quote,
                             "canonical_field": replacement,
                             "comment": (
-                                f"Deterministic YARA-L 2.0 (YL2) Condition Binding Check in rule '{rule_name}': "
-                                f"condition references undeclared event variable '{quote}', while the events "
-                                f"section binds '${canonical_ev}'. Replace '{quote}' with "
-                                f"'{replacement}' ({yaral2_doc_url})."
+                                f"Deterministic YARA-L 2.0 (YL2) Outcome Aggregation Check in rule '{rule_name}': "
+                                f"outcome variable '{ob['outcome_var']}' uses non-YARA-L SQL/Splunk aggregation "
+                                f"function '{quote}(...)'. Replace '{quote}' with canonical Chronicle YARA-L 2.0 "
+                                f"aggregation '{replacement}' ({yaral2_doc_url})."
                             ),
                         }
                     )
-        elif len(declared_event_vars) >= 2:
+                elif (
+                    has_match_section
+                    and ob["referenced_event_field_specs"]
+                    and not ob["is_aggregated"]
+                ):
+                    local_start = int(ob["local_rhs_start"])
+                    local_end = int(ob["local_rhs_end"])
+                    quote = str(ob["rhs_text"])
+
+                    def _canon_rhs_field(m: re.Match[str]) -> str:
+                        v_n = m.group(1)
+                        f_p = m.group(2)
+                        c_f = CANONICAL_UDM_FIELD_CORRECTIONS.get(f_p, f_p)
+                        return f"${v_n}.{c_f}"
+
+                    canonical_rhs = _YARAL2_EVENT_FIELD_RE.sub(
+                        _canon_rhs_field, quote
+                    )
+                    first_canon_field = str(
+                        ob["referenced_event_field_specs"][0]["canonical_field"]
+                    )
+                    agg_func = _choose_yaral2_outcome_agg_func(
+                        str(ob["outcome_var_name"]), first_canon_field
+                    )
+                    replacement = f"{agg_func}({canonical_rhs})"
+                    # Supersede any inner invalid_udm_field defect overlapping this RHS span
+                    rule_defects = [
+                        d
+                        for d in rule_defects
+                        if not _spans_overlap(
+                            (int(d["local_start"]), int(d["local_end"])),
+                            (local_start, local_end),
+                        )
+                    ]
+                    rule_defects.append(
+                        {
+                            "local_start": local_start,
+                            "local_end": local_end,
+                            "defect_type": "unaggregated_outcome_in_match_rule",
+                            "quote": quote,
+                            "replacement": replacement,
+                            "invalid_field": quote,
+                            "canonical_field": replacement,
+                            "comment": (
+                                f"Deterministic YARA-L 2.0 (YL2) Outcome Aggregation Check in rule '{rule_name}': "
+                                f"outcome variable '{ob['outcome_var']} = {quote}' references an unaggregated "
+                                f"UDM event field in a rule with a 'match:' window. Wrap the canonical UDM "
+                                f"expression in '{agg_func}(...)' as '{replacement}' ({yaral2_doc_url})."
+                            ),
+                        }
+                    )
+
+        # (e) Condition variable and negation syntax checks (single-event, multi-event, outcome, !$e2)
+        if declared_event_vars:
             cond_tokens = multi_spec["condition_tokens"]
             cond_span = multi_spec["condition_span"]
-            referenced_valid = {
+            cond_neg_spans = multi_spec["condition_negation_spans"]
+
+            referenced_valid_events = {
                 str(ct["var_name"])
                 for ct in cond_tokens
                 if str(ct["var_name"]) in declared_event_vars
             }
             missing_declared = [
-                v for v in declared_event_vars if v not in referenced_valid
+                v
+                for v in declared_event_vars
+                if v not in referenced_valid_events
             ]
-            undeclared_tokens = [
-                ct
+            referenced_valid_outcomes = {
+                str(ct["var_name"])
                 for ct in cond_tokens
-                if str(ct["var_name"]) not in declared_event_vars
-                and str(ct["var_name"]) not in declared_placeholder_vars
+                if str(ct["var_name"]) in declared_outcome_set
+            }
+            unused_outcomes = [
+                v
+                for v in declared_outcome_vars
+                if v not in referenced_valid_outcomes
             ]
-            if undeclared_tokens:
-                for ct in undeclared_tokens:
+
+            handled_var_starts: set[int] = set()
+            for neg_s in cond_neg_spans:
+                v_name = str(neg_s["var_name"])
+                sigil = str(neg_s["sigil"])
+                var_loc_s = int(neg_s["local_var_start"])
+                local_start = int(neg_s["local_start"])
+                local_end = int(neg_s["local_end"])
+                quote = str(neg_s["negation_text"])
+                if (
+                    v_name not in declared_event_vars
+                    and v_name not in declared_placeholder_vars
+                    and v_name not in declared_outcome_set
+                ):
                     target_ev = (
                         missing_declared.pop(0)
                         if missing_declared
                         else declared_event_vars[-1]
                     )
+                    replacement = f"!{sigil}{target_ev}"
+                else:
+                    replacement = f"!{sigil}{v_name}"
+                handled_var_starts.add(var_loc_s)
+                rule_defects.append(
+                    {
+                        "local_start": local_start,
+                        "local_end": local_end,
+                        "defect_type": "invalid_condition_negation_syntax",
+                        "quote": quote,
+                        "replacement": replacement,
+                        "invalid_field": quote,
+                        "canonical_field": replacement,
+                        "comment": (
+                            f"Deterministic YARA-L 2.0 (YL2) Condition Negation Syntax Check in rule '{rule_name}': "
+                            f"'{quote}' uses SQL/Python-style 'not' keyword in the condition section. "
+                            f"Chronicle YARA-L 2.0 non-existence correlation requires '!' negation syntax; "
+                            f"replace '{quote}' with '{replacement}' ({yaral2_doc_url})."
+                        ),
+                    }
+                )
+
+            undeclared_tokens = [
+                ct
+                for ct in cond_tokens
+                if int(ct["local_start"]) not in handled_var_starts
+                and str(ct["var_name"]) not in declared_event_vars
+                and str(ct["var_name"]) not in declared_placeholder_vars
+                and str(ct["var_name"]) not in declared_outcome_set
+            ]
+
+            if undeclared_tokens:
+                for ct in undeclared_tokens:
                     sigil = str(ct["sigil"])
+                    cond_var = str(ct["var_name"])
+                    in_cmp = bool(ct.get("in_comparison"))
                     local_start = int(ct["local_start"])
                     local_end = int(ct["local_end"])
                     quote = str(ct["token_text"])
-                    replacement = f"{sigil}{target_ev}"
-                    rule_defects.append(
-                        {
-                            "local_start": local_start,
-                            "local_end": local_end,
-                            "defect_type": "multi_event_condition_mismatch",
-                            "quote": quote,
-                            "replacement": replacement,
-                            "invalid_field": quote,
-                            "canonical_field": replacement,
-                            "comment": (
-                                f"Deterministic YARA-L 2.0 (YL2) Multi-Event Condition Check in rule '{rule_name}': "
-                                f"condition references undeclared event variable '{quote}', while the events "
-                                f"section declares {', '.join('$' + v for v in declared_event_vars)}. "
-                                f"Replace '{quote}' with '{replacement}' ({yaral2_doc_url})."
-                            ),
-                        }
-                    )
-            elif missing_declared and cond_span is not None:
+
+                    if (
+                        declared_outcome_vars
+                        and sigil == "$"
+                        and (in_cmp or not missing_declared)
+                    ):
+                        cand_outcomes = (
+                            unused_outcomes
+                            if unused_outcomes
+                            else declared_outcome_vars
+                        )
+                        target_out = _select_best_outcome_var_for_condition_token(
+                            cond_var,
+                            in_cmp,
+                            cand_outcomes,
+                            multi_spec["outcome_bindings"],
+                        )
+                        if target_out in unused_outcomes:
+                            unused_outcomes.remove(target_out)
+                        replacement = f"${target_out}"
+                        rule_defects.append(
+                            {
+                                "local_start": local_start,
+                                "local_end": local_end,
+                                "defect_type": "condition_outcome_variable_mismatch",
+                                "quote": quote,
+                                "replacement": replacement,
+                                "invalid_field": quote,
+                                "canonical_field": replacement,
+                                "comment": (
+                                    f"Deterministic YARA-L 2.0 (YL2) Condition Outcome Variable Check in rule '{rule_name}': "
+                                    f"condition references undeclared variable '{quote}' in threshold comparison, "
+                                    f"while the outcome section declares {', '.join('$' + v for v in declared_outcome_vars)}. "
+                                    f"Replace '{quote}' with '{replacement}' ({yaral2_doc_url})."
+                                ),
+                            }
+                        )
+                    elif len(declared_event_vars) == 1:
+                        canonical_ev = declared_event_vars[0]
+                        if missing_declared:
+                            missing_declared.clear()
+                        replacement = f"{sigil}{canonical_ev}"
+                        rule_defects.append(
+                            {
+                                "local_start": local_start,
+                                "local_end": local_end,
+                                "defect_type": "condition_variable_mismatch",
+                                "quote": quote,
+                                "replacement": replacement,
+                                "invalid_field": quote,
+                                "canonical_field": replacement,
+                                "comment": (
+                                    f"Deterministic YARA-L 2.0 (YL2) Condition Binding Check in rule '{rule_name}': "
+                                    f"condition references undeclared event variable '{quote}', while the events "
+                                    f"section binds '${canonical_ev}'. Replace '{quote}' with "
+                                    f"'{replacement}' ({yaral2_doc_url})."
+                                ),
+                            }
+                        )
+                    else:
+                        target_ev = (
+                            missing_declared.pop(0)
+                            if missing_declared
+                            else declared_event_vars[-1]
+                        )
+                        replacement = f"{sigil}{target_ev}"
+                        rule_defects.append(
+                            {
+                                "local_start": local_start,
+                                "local_end": local_end,
+                                "defect_type": "multi_event_condition_mismatch",
+                                "quote": quote,
+                                "replacement": replacement,
+                                "invalid_field": quote,
+                                "canonical_field": replacement,
+                                "comment": (
+                                    f"Deterministic YARA-L 2.0 (YL2) Multi-Event Condition Check in rule '{rule_name}': "
+                                    f"condition references undeclared event variable '{quote}', while the events "
+                                    f"section declares {', '.join('$' + v for v in declared_event_vars)}. "
+                                    f"Replace '{quote}' with '{replacement}' ({yaral2_doc_url})."
+                                ),
+                            }
+                        )
+            elif (
+                len(declared_event_vars) >= 2
+                and missing_declared
+                and cond_span is not None
+                and not cond_neg_spans
+            ):
                 local_start = int(cond_span["local_start"])
                 local_end = int(cond_span["local_end"])
                 quote = str(cond_span["condition_text"])
@@ -4341,9 +4939,15 @@ def _run_multi_event_siem_retrohunt(
     siem_search_fn: Any = None,
 ) -> dict[str, Any]:
     """Executes per-event-stream UDM queries in Chronicle SIEM for a multi-event YARA-L 2.0 rule
-    and computes shared join-key values across correlated streams."""
+    and computes shared join-key values (or non-existence set-difference join keys
+    ``positive_join_values - negated_join_values`` when ``condition: $e1 and !$e2`` is present)."""
     spec = extract_yaral2_multi_event_spec(rule_text)
     event_vars: list[str] = list(spec["event_vars"])
+    positive_event_vars: list[str] = list(
+        spec.get("positive_event_vars") or event_vars
+    )
+    negated_event_vars: list[str] = list(spec.get("negated_event_vars") or [])
+    is_non_existence: bool = bool(spec.get("is_non_existence"))
     per_event_queries: dict[str, str] = dict(spec["per_event_udm_queries"])
     per_event_counts: dict[str, int] = {}
     per_event_responses: dict[str, dict[str, Any]] = {}
@@ -4388,8 +4992,60 @@ def _run_multi_event_siem_retrohunt(
     join_placeholder = join_placeholders[0] if join_placeholders else None
     join_bindings: list[dict[str, Any]] = list(spec["join_bindings"])
     per_event_join_values: dict[str, list[str]] = {}
+    positive_join_values: list[str] = []
+    suppressed_join_values: list[str] = []
     shared_join_values: list[str] = []
     correlated_event_count = 0
+    sample_limit = max(max_events, 20)
+
+    def _pushdown_candidates_into_bindings(
+        anchor_ev: str,
+        candidate_vals: list[str],
+        target_bindings: list[dict[str, Any]],
+    ) -> None:
+        for trunc_b in target_bindings:
+            trunc_ev = str(trunc_b["event_var"])
+            if trunc_ev == anchor_ev:
+                continue
+            trunc_q = per_event_queries.get(trunc_ev, "")
+            trunc_field = str(trunc_b["canonical_field"])
+            if not trunc_q or not trunc_field:
+                continue
+            for cand_val in candidate_vals[:3]:
+                pushed_q = f'{trunc_q} AND {trunc_field} = "{cand_val}"'
+                pushed_res = verify_udm_query_with_siem(
+                    pushed_q,
+                    start_time=start_time,
+                    end_time=end_time,
+                    max_events=sample_limit,
+                    siem_search_fn=siem_search_fn,
+                )
+                if (
+                    pushed_res.get("siem_verified")
+                    and int(pushed_res.get("event_count", 0) or 0) > 0
+                ):
+                    pushed_events = (
+                        pushed_res.get("siem_response") or {}
+                    ).get("events")
+                    if isinstance(pushed_events, list):
+                        for ev_obj in pushed_events:
+                            if not isinstance(ev_obj, dict):
+                                continue
+                            f_map = _extract_udm_event_field_values(ev_obj)
+                            per_event_event_maps.setdefault(
+                                trunc_ev, []
+                            ).append(f_map)
+                            for f_path, vals in f_map.items():
+                                bucket = per_event_field_values.setdefault(
+                                    trunc_ev, {}
+                                ).setdefault(f_path, [])
+                                for v in vals:
+                                    if v not in bucket:
+                                        bucket.append(v)
+                    if cand_val not in per_event_join_values.setdefault(
+                        trunc_ev, []
+                    ):
+                        per_event_join_values[trunc_ev].append(cand_val)
 
     if join_placeholder is not None:
         ph_bindings = [
@@ -4401,96 +5057,157 @@ def _run_multi_event_siem_retrohunt(
             vals = per_event_field_values.get(ev, {}).get(c_field, [])
             per_event_join_values[ev] = list(vals)
 
-        if len(ph_bindings) >= 2 and all(
-            bool(per_event_join_values.get(str(b["event_var"]))) for b in ph_bindings
-        ):
-            first_ev = str(ph_bindings[0]["event_var"])
-            first_vals = per_event_join_values.get(first_ev, [])
-            other_sets = [
-                {
-                    v.lower()
-                    for v in per_event_join_values.get(str(b["event_var"]), [])
-                }
-                for b in ph_bindings[1:]
+        if is_non_existence and positive_event_vars:
+            pos_bindings = [
+                b
+                for b in ph_bindings
+                if str(b["event_var"]) in positive_event_vars
+            ]
+            neg_bindings = [
+                b
+                for b in ph_bindings
+                if str(b["event_var"]) in negated_event_vars
+            ]
+            if len(pos_bindings) == 1:
+                pos_ev = str(pos_bindings[0]["event_var"])
+                positive_join_values = list(
+                    per_event_join_values.get(pos_ev, [])
+                )
+            elif len(pos_bindings) >= 2:
+                if all(
+                    bool(per_event_join_values.get(str(b["event_var"])))
+                    for b in pos_bindings
+                ):
+                    first_ev = str(pos_bindings[0]["event_var"])
+                    first_vals = per_event_join_values.get(first_ev, [])
+                    other_sets = [
+                        {
+                            v.lower()
+                            for v in per_event_join_values.get(
+                                str(b["event_var"]), []
+                            )
+                        }
+                        for b in pos_bindings[1:]
+                    ]
+                    positive_join_values = [
+                        v
+                        for v in first_vals
+                        if all(v.lower() in s for s in other_sets)
+                    ]
+                if not positive_join_values:
+                    sel_pos = [
+                        b
+                        for b in pos_bindings
+                        if 1
+                        <= len(
+                            per_event_join_values.get(str(b["event_var"]), [])
+                        )
+                        <= 5
+                    ]
+                    trunc_pos = [
+                        b
+                        for b in pos_bindings
+                        if per_event_counts.get(str(b["event_var"]), 0)
+                        >= sample_limit
+                    ]
+                    if sel_pos and trunc_pos:
+                        anchor_b = min(
+                            sel_pos,
+                            key=lambda b: len(
+                                per_event_join_values.get(
+                                    str(b["event_var"]), []
+                                )
+                            ),
+                        )
+                        _pushdown_candidates_into_bindings(
+                            str(anchor_b["event_var"]),
+                            per_event_join_values.get(
+                                str(anchor_b["event_var"]), []
+                            ),
+                            trunc_pos,
+                        )
+                        first_ev = str(pos_bindings[0]["event_var"])
+                        first_vals = per_event_join_values.get(first_ev, [])
+                        other_sets = [
+                            {
+                                v.lower()
+                                for v in per_event_join_values.get(
+                                    str(b["event_var"]), []
+                                )
+                            }
+                            for b in pos_bindings[1:]
+                        ]
+                        positive_join_values = [
+                            v
+                            for v in first_vals
+                            if all(v.lower() in s for s in other_sets)
+                        ]
+
+            if positive_join_values and neg_bindings:
+                trunc_neg = [
+                    b
+                    for b in neg_bindings
+                    if per_event_counts.get(str(b["event_var"]), 0)
+                    >= sample_limit
+                ]
+                if trunc_neg:
+                    _pushdown_candidates_into_bindings(
+                        str(pos_bindings[0]["event_var"])
+                        if pos_bindings
+                        else "",
+                        positive_join_values,
+                        trunc_neg,
+                    )
+
+            negated_join_values: list[str] = []
+            for nb in neg_bindings:
+                for v in per_event_join_values.get(str(nb["event_var"]), []):
+                    if v not in negated_join_values:
+                        negated_join_values.append(v)
+            negated_lower = {v.lower() for v in negated_join_values}
+            suppressed_join_values = [
+                v for v in positive_join_values if v.lower() in negated_lower
             ]
             shared_join_values = [
-                v for v in first_vals if all(v.lower() in s for s in other_sets)
+                v
+                for v in positive_join_values
+                if v.lower() not in negated_lower
             ]
 
-        # If initial 20-event samples did not intersect because a broad stream hit the
-        # sample pagination limit (>= sample_limit), push down candidate join values
-        # from the selective stream into the truncated stream to check server-side intersection.
-        sample_limit = max(max_events, 20)
-        if not shared_join_values and len(ph_bindings) >= 2:
-            selective_bindings = [
-                b
-                for b in ph_bindings
-                if 1 <= len(per_event_join_values.get(str(b["event_var"]), [])) <= 5
-            ]
-            truncated_bindings = [
-                b
-                for b in ph_bindings
-                if per_event_counts.get(str(b["event_var"]), 0) >= sample_limit
-            ]
-            if selective_bindings and truncated_bindings:
-                anchor_b = min(
-                    selective_bindings,
-                    key=lambda b: len(
-                        per_event_join_values.get(str(b["event_var"]), [])
-                    ),
-                )
-                anchor_ev = str(anchor_b["event_var"])
-                anchor_vals = per_event_join_values.get(anchor_ev, [])
-                for trunc_b in truncated_bindings:
-                    trunc_ev = str(trunc_b["event_var"])
-                    if trunc_ev == anchor_ev:
-                        continue
-                    trunc_q = per_event_queries.get(trunc_ev, "")
-                    trunc_field = str(trunc_b["canonical_field"])
-                    if not trunc_q or not trunc_field:
-                        continue
-                    for cand_val in anchor_vals[:3]:
-                        pushed_q = f'{trunc_q} AND {trunc_field} = "{cand_val}"'
-                        pushed_res = verify_udm_query_with_siem(
-                            pushed_q,
-                            start_time=start_time,
-                            end_time=end_time,
-                            max_events=sample_limit,
-                            siem_search_fn=siem_search_fn,
+            if shared_join_values and pos_bindings:
+                shared_lower = {v.lower() for v in shared_join_values}
+                pos_corr_counts: list[int] = []
+                for b in pos_bindings:
+                    ev = str(b["event_var"])
+                    c_field = str(b["canonical_field"])
+                    ev_maps = per_event_event_maps.get(ev, [])
+                    if ev_maps:
+                        matched_cnt = sum(
+                            1
+                            for em in ev_maps
+                            if any(
+                                v.lower() in shared_lower
+                                for v in em.get(c_field, [])
+                            )
                         )
-                        if (
-                            pushed_res.get("siem_verified")
-                            and int(pushed_res.get("event_count", 0) or 0) > 0
-                        ):
-                            pushed_events = (
-                                pushed_res.get("siem_response") or {}
-                            ).get("events")
-                            if isinstance(pushed_events, list):
-                                for ev_obj in pushed_events:
-                                    if not isinstance(ev_obj, dict):
-                                        continue
-                                    f_map = _extract_udm_event_field_values(ev_obj)
-                                    per_event_event_maps.setdefault(
-                                        trunc_ev, []
-                                    ).append(f_map)
-                                    for f_path, vals in f_map.items():
-                                        bucket = per_event_field_values.setdefault(
-                                            trunc_ev, {}
-                                        ).setdefault(f_path, [])
-                                        for v in vals:
-                                            if v not in bucket:
-                                                bucket.append(v)
-                            if cand_val not in per_event_join_values.setdefault(
-                                trunc_ev, []
-                            ):
-                                per_event_join_values[trunc_ev].append(cand_val)
-
+                    else:
+                        matched_cnt = per_event_counts.get(ev, 0)
+                    pos_corr_counts.append(matched_cnt)
+                if pos_corr_counts and all(c > 0 for c in pos_corr_counts):
+                    correlated_event_count = sum(pos_corr_counts)
+        else:
+            if len(ph_bindings) >= 2 and all(
+                bool(per_event_join_values.get(str(b["event_var"])))
+                for b in ph_bindings
+            ):
                 first_ev = str(ph_bindings[0]["event_var"])
                 first_vals = per_event_join_values.get(first_ev, [])
                 other_sets = [
                     {
                         v.lower()
-                        for v in per_event_join_values.get(str(b["event_var"]), [])
+                        for v in per_event_join_values.get(
+                            str(b["event_var"]), []
+                        )
                     }
                     for b in ph_bindings[1:]
                 ]
@@ -4500,26 +5217,72 @@ def _run_multi_event_siem_retrohunt(
                     if all(v.lower() in s for s in other_sets)
                 ]
 
-        if shared_join_values:
-            shared_lower = {v.lower() for v in shared_join_values}
-            stream_corr_counts: list[int] = []
-            for b in ph_bindings:
-                ev = str(b["event_var"])
-                c_field = str(b["canonical_field"])
-                ev_maps = per_event_event_maps.get(ev, [])
-                if ev_maps:
-                    matched_cnt = sum(
-                        1
-                        for em in ev_maps
-                        if any(
-                            v.lower() in shared_lower for v in em.get(c_field, [])
-                        )
+            if not shared_join_values and len(ph_bindings) >= 2:
+                selective_bindings = [
+                    b
+                    for b in ph_bindings
+                    if 1
+                    <= len(per_event_join_values.get(str(b["event_var"]), []))
+                    <= 5
+                ]
+                truncated_bindings = [
+                    b
+                    for b in ph_bindings
+                    if per_event_counts.get(str(b["event_var"]), 0)
+                    >= sample_limit
+                ]
+                if selective_bindings and truncated_bindings:
+                    anchor_b = min(
+                        selective_bindings,
+                        key=lambda b: len(
+                            per_event_join_values.get(str(b["event_var"]), [])
+                        ),
                     )
-                else:
-                    matched_cnt = per_event_counts.get(ev, 0)
-                stream_corr_counts.append(matched_cnt)
-            if stream_corr_counts and all(c > 0 for c in stream_corr_counts):
-                correlated_event_count = sum(stream_corr_counts)
+                    anchor_ev = str(anchor_b["event_var"])
+                    anchor_vals = per_event_join_values.get(anchor_ev, [])
+                    _pushdown_candidates_into_bindings(
+                        anchor_ev, anchor_vals, truncated_bindings
+                    )
+
+                    first_ev = str(ph_bindings[0]["event_var"])
+                    first_vals = per_event_join_values.get(first_ev, [])
+                    other_sets = [
+                        {
+                            v.lower()
+                            for v in per_event_join_values.get(
+                                str(b["event_var"]), []
+                            )
+                        }
+                        for b in ph_bindings[1:]
+                    ]
+                    shared_join_values = [
+                        v
+                        for v in first_vals
+                        if all(v.lower() in s for s in other_sets)
+                    ]
+
+            positive_join_values = list(shared_join_values)
+            if shared_join_values:
+                shared_lower = {v.lower() for v in shared_join_values}
+                stream_corr_counts: list[int] = []
+                for b in ph_bindings:
+                    ev = str(b["event_var"])
+                    c_field = str(b["canonical_field"])
+                    ev_maps = per_event_event_maps.get(ev, [])
+                    if ev_maps:
+                        matched_cnt = sum(
+                            1
+                            for em in ev_maps
+                            if any(
+                                v.lower() in shared_lower
+                                for v in em.get(c_field, [])
+                            )
+                        )
+                    else:
+                        matched_cnt = per_event_counts.get(ev, 0)
+                    stream_corr_counts.append(matched_cnt)
+                if stream_corr_counts and all(c > 0 for c in stream_corr_counts):
+                    correlated_event_count = sum(stream_corr_counts)
 
     siem_verified = (
         all(bool(r.get("siem_verified")) for r in per_event_responses.values())
@@ -4532,8 +5295,11 @@ def _run_multi_event_siem_retrohunt(
 
     return {
         "is_multi_event": True,
+        "is_non_existence": is_non_existence,
         "siem_verified": siem_verified,
         "event_vars": event_vars,
+        "positive_event_vars": positive_event_vars,
+        "negated_event_vars": negated_event_vars,
         "per_event_queries": per_event_queries,
         "per_event_counts": per_event_counts,
         "per_event_join_values": per_event_join_values,
@@ -4542,10 +5308,79 @@ def _run_multi_event_siem_retrohunt(
         "per_event_event_maps": per_event_event_maps,
         "join_placeholder": join_placeholder,
         "join_bindings": join_bindings,
+        "positive_join_values": positive_join_values,
+        "suppressed_join_values": suppressed_join_values,
         "shared_join_values": shared_join_values,
         "correlated_event_count": correlated_event_count,
         "summary_query": summary_query,
     }
+
+
+def _synthesize_yaral2_predicate_pivot(
+    diagnosis_class: str,
+    orig_pred: dict[str, Any],
+    rep_pred: dict[str, Any],
+    udm_diag: dict[str, Any],
+) -> tuple[str, str, str, str, str]:
+    """Synthesizes ``(recommended_field, recommended_rhs, recommended_yaral2_predicate,
+    recommended_span_target, recommended_span_replacement)`` for a zero-hit YARA-L 2.0
+    event predicate."""
+    event_var = str(orig_pred["event_var"])
+    recommended_field = str(
+        udm_diag.get("recommended_field") or rep_pred["canonical_field"]
+    )
+    recommended_rhs = str(udm_diag.get("recommended_rhs") or rep_pred["rhs_raw"])
+    recommended_clause = str(udm_diag.get("recommended_clause") or "")
+
+    if diagnosis_class == "exact_match_on_command_line":
+        pat_m = re.search(r"/([^/\r\n]+)/", recommended_clause)
+        if pat_m:
+            regex_pattern = pat_m.group(1)
+        else:
+            raw_lit = str(orig_pred["rhs_raw"]).strip("\"'“”`")
+            regex_pattern = f".*{re.escape(raw_lit)}.*"
+        recommended_yaral2_predicate = (
+            f"re.regex({event_var}.{recommended_field}, `{regex_pattern}`) nocase"
+        )
+        recommended_span_target = "predicate"
+        recommended_span_replacement = recommended_yaral2_predicate
+    elif diagnosis_class == "entity_role_swap":
+        new_var_field = f"{event_var}.{recommended_field}"
+        if rep_pred["predicate_kind"] == "re_regex":
+            pred_str = str(rep_pred["predicate_text"])
+            rel_vf_s = int(rep_pred["local_var_field_start"]) - int(
+                rep_pred["local_predicate_start"]
+            )
+            rel_vf_e = int(rep_pred["local_var_field_end"]) - int(
+                rep_pred["local_predicate_start"]
+            )
+            recommended_yaral2_predicate = (
+                pred_str[:rel_vf_s] + new_var_field + pred_str[rel_vf_e:]
+            )
+        else:
+            op_str = str(rep_pred["operator"] or "=")
+            recommended_yaral2_predicate = (
+                f"{new_var_field} {op_str} {rep_pred['rhs_raw']}"
+            )
+        recommended_span_target = "var_field"
+        recommended_span_replacement = new_var_field
+    else:
+        op_str = str(rep_pred["operator"] or "=")
+        if op_str == "re.regex":
+            op_str = "="
+        recommended_yaral2_predicate = (
+            f"{event_var}.{recommended_field} {op_str} {recommended_rhs}"
+        )
+        recommended_span_target = "predicate"
+        recommended_span_replacement = recommended_yaral2_predicate
+
+    return (
+        recommended_field,
+        recommended_rhs,
+        recommended_yaral2_predicate,
+        recommended_span_target,
+        recommended_span_replacement,
+    )
 
 
 def diagnose_zero_hit_yaral2_rule(
@@ -4560,14 +5395,19 @@ def diagnose_zero_hit_yaral2_rule(
     """Diagnoses a zero-hit single-event or multi-event YARA-L 2.0 (``YL2``) detection rule
     against historical UDM telemetry and synthesizes a compiler-verified YARA-L 2.0 pivot.
 
-    1. Repairs any static YARA-L 2.0 syntax/schema/correlation defects via
+    1. Repairs any static YARA-L 2.0 syntax/schema/correlation/outcome defects via
        :func:`find_yaral2_rule_spans`.
-    2. For multi-event correlation rules (``is_multi_event=True``), executes per-stream UDM
-       queries via :func:`_run_multi_event_siem_retrohunt`, detects
-       ``cross_event_join_entity_role_swap`` when individual streams match events but share
-       0 join-key values, pivots the swapped stream's join binding to the matching sibling
-       entity role (e.g. ``$svc.target.hostname`` -> ``$svc.principal.hostname``), and
-       verifies compilation via Chronicle's ``validate_rule`` API.
+    2. For multi-event correlation and non-existence rules (``is_multi_event=True``), executes
+       per-stream UDM queries via :func:`_run_multi_event_siem_retrohunt`:
+       - When individual streams match events but share 0 join-key values, detects
+         ``cross_event_join_entity_role_swap`` and pivots the swapped stream's join binding
+         to the matching sibling entity role.
+       - When a positive event stream in a multi-event or non-existence (``$e1 and !$e2``)
+         rule matches 0 SIEM events, runs clause ablation on that stream via
+         :func:`diagnose_zero_hit_udm_query`, maps ``failing_clause_index`` back to the
+         stream's event predicate, splices the repaired predicate into ``pivoted_rule_text``,
+         verifies compilation via Chronicle's ``validate_rule`` API, and re-runs
+         :func:`_run_multi_event_siem_retrohunt` to confirm ``correlated_event_count > 0``.
     3. For single-event rules, extracts ordered ``events:`` predicates via
        :func:`extract_yaral2_event_predicates`, invokes :func:`diagnose_zero_hit_udm_query`,
        maps ``failing_clause_index`` back to the corresponding YARA-L 2.0 predicate
@@ -4650,7 +5490,11 @@ def diagnose_zero_hit_yaral2_rule(
         per_ev_counts = dict(me_retro["per_event_counts"])
         per_ev_join_vals = dict(me_retro["per_event_join_values"])
         per_ev_field_vals = dict(me_retro["per_event_field_values"])
+        positive_event_vars = list(
+            me_retro.get("positive_event_vars") or repaired_spec["event_vars"]
+        )
 
+        # (a) Cross-event join entity-role swap when all streams matched events
         if (
             per_ev_counts
             and all(c > 0 for c in per_ev_counts.values())
@@ -4806,6 +5650,130 @@ def diagnose_zero_hit_yaral2_rule(
                         "multi_event_retrohunt": pivoted_me_retro,
                     }
 
+        # (b) Positive event stream in multi-event / non-existence rule matched 0 events
+        for ev in positive_event_vars:
+            if per_ev_counts.get(ev, 0) > 0:
+                continue
+            ev_repaired_preds = list(
+                repaired_spec["per_event_predicates"].get(ev, [])
+            )
+            ev_orig_preds = list(orig_spec["per_event_predicates"].get(ev, []))
+            ev_query = str(me_retro["per_event_queries"].get(ev, ""))
+            if not ev_query or len(ev_repaired_preds) < 2:
+                continue
+
+            ev_udm_diag = diagnose_zero_hit_udm_query(
+                ev_query,
+                start_time=start_time,
+                end_time=end_time,
+                max_events=max_events,
+                siem_search_fn=siem_search_fn,
+            )
+            ev_clause_idx = ev_udm_diag.get("failing_clause_index")
+            if (
+                not ev_udm_diag.get("zero_hit")
+                or not ev_udm_diag.get("pivot_verified")
+                or not isinstance(ev_clause_idx, int)
+                or not (0 <= ev_clause_idx < len(ev_repaired_preds))
+            ):
+                continue
+
+            rep_pred = ev_repaired_preds[ev_clause_idx]
+            global_pred_idx = int(rep_pred["predicate_index"])
+            orig_pred = (
+                ev_orig_preds[ev_clause_idx]
+                if ev_clause_idx < len(ev_orig_preds)
+                else (
+                    orig_predicates[global_pred_idx]
+                    if global_pred_idx < len(orig_predicates)
+                    else rep_pred
+                )
+            )
+            diag_cls = str(ev_udm_diag.get("diagnosis_class") or "")
+            has_schema_defect = bool(
+                orig_pred["field_token"] != orig_pred["canonical_field"]
+            )
+            (
+                rec_field,
+                rec_rhs,
+                rec_yaral2_pred,
+                rec_span_target,
+                rec_span_rep,
+            ) = _synthesize_yaral2_predicate_pivot(
+                diag_cls, orig_pred, rep_pred, ev_udm_diag
+            )
+            rep_p_s = int(rep_pred["local_predicate_start"])
+            rep_p_e = int(rep_pred["local_predicate_end"])
+            pivoted_rule_text = (
+                repaired_rule_text[:rep_p_s]
+                + rec_yaral2_pred
+                + repaired_rule_text[rep_p_e:]
+            )
+            pivot_compiler_verified, pivot_compiler_output = (
+                _validate_yaral2_rule_with_compiler(
+                    pivoted_rule_text, siem_validate_fn=siem_validate_fn
+                )
+            )
+            pivoted_me_retro = _run_multi_event_siem_retrohunt(
+                pivoted_rule_text,
+                start_time=start_time,
+                end_time=end_time,
+                max_events=max_events,
+                siem_search_fn=siem_search_fn,
+            )
+            pivot_count = int(
+                pivoted_me_retro.get("correlated_event_count", 0) or 0
+            )
+            pivoted_summary_query = str(
+                pivoted_me_retro.get("summary_query") or ""
+            )
+            observed_vals = list(ev_udm_diag.get("observed_values") or [])
+            shared_vals = list(pivoted_me_retro.get("shared_join_values") or [])
+            return {
+                "status": "success",
+                "rule_name": rule_name,
+                "original_rule_text": rule_text,
+                "repaired_rule_text": repaired_rule_text,
+                "pivoted_rule_text": pivoted_rule_text,
+                "static_findings": static_findings,
+                "has_schema_defect": has_schema_defect,
+                "is_multi_event": True,
+                "compiler_verified": compiler_verified,
+                "compiler_output": compiler_output,
+                "retrohunt_udm_query": summary_query,
+                "initial_event_count": 0,
+                "event_count": 0,
+                "zero_hit": True,
+                "diagnosis_class": diag_cls,
+                "failure_reason": diag_cls,
+                "anchor_query": str(ev_udm_diag.get("anchor_query") or ""),
+                "anchor_event_count": int(
+                    ev_udm_diag.get("anchor_event_count", 0) or 0
+                ),
+                "failing_event_var": ev,
+                "failing_predicate_index": global_pred_idx,
+                "failing_join_binding_index": None,
+                "failing_predicate": orig_pred,
+                "repaired_failing_predicate": rep_pred,
+                "recommended_field": rec_field,
+                "recommended_rhs": rec_rhs,
+                "recommended_yaral2_predicate": rec_yaral2_pred,
+                "recommended_span_target": rec_span_target,
+                "recommended_span_replacement": rec_span_rep,
+                "pivoted_retrohunt_udm_query": pivoted_summary_query,
+                "recommended_query": pivoted_summary_query,
+                "pivot_verified": pivot_count > 0,
+                "pivot_event_count": pivot_count,
+                "pivot_compiler_verified": pivot_compiler_verified,
+                "pivot_compiler_output": pivot_compiler_output,
+                "shared_join_values": shared_vals,
+                "observed_values": observed_vals if observed_vals else shared_vals,
+                "sample_observed_values": (
+                    observed_vals if observed_vals else shared_vals
+                ),
+                "multi_event_retrohunt": pivoted_me_retro,
+            }
+
         return {
             "status": "success",
             "rule_name": rule_name,
@@ -4944,57 +5912,18 @@ def diagnose_zero_hit_yaral2_rule(
         else repaired_predicates[failing_idx]
     )
     rep_pred = repaired_predicates[failing_idx]
-    event_var = str(orig_pred["event_var"])
-    recommended_field = str(
-        udm_diag.get("recommended_field") or rep_pred["canonical_field"]
-    )
-    recommended_rhs = str(udm_diag.get("recommended_rhs") or rep_pred["rhs_raw"])
-    recommended_clause = str(udm_diag.get("recommended_clause") or "")
     has_schema_defect = bool(
         orig_pred["field_token"] != orig_pred["canonical_field"]
     )
-
-    if diagnosis_class == "exact_match_on_command_line":
-        pat_m = re.search(r"/([^/\r\n]+)/", recommended_clause)
-        if pat_m:
-            regex_pattern = pat_m.group(1)
-        else:
-            raw_lit = str(orig_pred["rhs_raw"]).strip("\"'“”`")
-            regex_pattern = f".*{re.escape(raw_lit)}.*"
-        recommended_yaral2_predicate = (
-            f"re.regex({event_var}.{recommended_field}, `{regex_pattern}`) nocase"
-        )
-        recommended_span_target = "predicate"
-        recommended_span_replacement = recommended_yaral2_predicate
-    elif diagnosis_class == "entity_role_swap":
-        new_var_field = f"{event_var}.{recommended_field}"
-        if rep_pred["predicate_kind"] == "re_regex":
-            pred_str = str(rep_pred["predicate_text"])
-            rel_vf_s = int(rep_pred["local_var_field_start"]) - int(
-                rep_pred["local_predicate_start"]
-            )
-            rel_vf_e = int(rep_pred["local_var_field_end"]) - int(
-                rep_pred["local_predicate_start"]
-            )
-            recommended_yaral2_predicate = (
-                pred_str[:rel_vf_s] + new_var_field + pred_str[rel_vf_e:]
-            )
-        else:
-            op_str = str(rep_pred["operator"] or "=")
-            recommended_yaral2_predicate = (
-                f"{new_var_field} {op_str} {rep_pred['rhs_raw']}"
-            )
-        recommended_span_target = "var_field"
-        recommended_span_replacement = new_var_field
-    else:
-        op_str = str(rep_pred["operator"] or "=")
-        if op_str == "re.regex":
-            op_str = "="
-        recommended_yaral2_predicate = (
-            f"{event_var}.{recommended_field} {op_str} {recommended_rhs}"
-        )
-        recommended_span_target = "predicate"
-        recommended_span_replacement = recommended_yaral2_predicate
+    (
+        recommended_field,
+        recommended_rhs,
+        recommended_yaral2_predicate,
+        recommended_span_target,
+        recommended_span_replacement,
+    ) = _synthesize_yaral2_predicate_pivot(
+        str(diagnosis_class or ""), orig_pred, rep_pred, udm_diag
+    )
 
     rep_p_start = int(rep_pred["local_predicate_start"])
     rep_p_end = int(rep_pred["local_predicate_end"])
@@ -5157,7 +6086,8 @@ def verify_yaral2_rule_with_siem(
 ) -> dict[str, Any]:
     """Repairs a candidate single-event or multi-event YARA-L 2.0 (``YL2``) rule, compiles it
     via Chronicle ``validate_rule``, and dry-runs its ``events:`` predicates (or per-stream
-    multi-event correlation queries) against historical Chronicle UDM telemetry.
+    multi-event correlation / non-existence set-difference queries) against historical
+    Chronicle UDM telemetry.
     """
     synthetic_map = _build_utf16_index_map(rule_text)
     _comments, _edits, findings = find_yaral2_rule_spans(rule_text, synthetic_map)
@@ -5327,6 +6257,7 @@ def verify_yaral2_rule_with_siem(
         "pivoted_rule_text": pivoted_rule_text,
         "findings": findings,
         "is_multi_event": is_multi_event,
+        "is_non_existence": bool(repaired_spec.get("is_non_existence")),
         "compiler_verified": compiler_verified,
         "compiler_output": compiler_output,
         "retrohunt_udm_query": retrohunt_udm_query,
@@ -5360,10 +6291,10 @@ def verify_and_redline_yaral2_rules_in_doc(
     quota_project: str | None = None,
     transport: httpx.BaseTransport | None = None,
 ) -> dict[str, Any]:
-    """Lints single-event and multi-event YARA-L 2.0 (``YL2``) rules in a Google Doc, optionally
-    compiles and retrohunts them in Chronicle SIEM (including per-stream multi-event correlation,
-    zero-hit predicate ablation, and cross-event join entity-role pivot red-lining), and stages
-    non-destructive Suggested Edits (``writeMode="SUGGEST"``).
+    """Lints single-event and multi-event YARA-L 2.0 (``YL2``) rules (including ``outcome:``
+    aggregations and ``!$e2`` non-existence correlation) in a Google Doc, optionally compiles
+    and retrohunts them in Chronicle SIEM, and stages non-destructive Suggested Edits
+    (``writeMode="SUGGEST"``).
 
     1. Calls :func:`read_google_doc` to populate the 1-based UTF-16 character index map
        and ``pending_suggestion_spans``.
@@ -5373,8 +6304,7 @@ def verify_and_redline_yaral2_rules_in_doc(
        provided), verifies every YARA-L 2.0 rule in the document via
        :func:`verify_yaral2_rule_with_siem` and :func:`diagnose_zero_hit_yaral2_rule`,
        upgrading combined static-schema + zero-hit value predicates in-place and staging
-       compiler-verified ``writeMode="SUGGEST"`` pivots for syntactically valid zero-hit rules
-       (including ``cross_event_join_entity_role_swap`` on multi-event correlation rules).
+       compiler-verified ``writeMode="SUGGEST"`` pivots for syntactically valid zero-hit rules.
     4. Anchors comments first via :func:`insert_doc_comments` and stages descending-index
        Suggested Edits second via :func:`propose_doc_suggested_edits` (``writeMode="SUGGEST"``).
     """
@@ -5406,6 +6336,8 @@ def verify_and_redline_yaral2_rules_in_doc(
     )
 
     static_rules_all: set[str] = set()
+    static_rules_kept: set[str] = set()
+    raw_var_field_spans: set[tuple[int, int]] = set()
     comments: list[dict[str, Any]] = []
     edits: list[dict[str, Any]] = []
     findings: list[dict[str, Any]] = []
@@ -5417,9 +6349,13 @@ def verify_and_redline_yaral2_rules_in_doc(
         if r_name:
             static_rules_all.add(r_name)
         f_span = (int(f_item["start_index"]), int(f_item["end_index"]))
+        if f_item.get("defect_type") == "invalid_udm_field":
+            raw_var_field_spans.add(f_span)
         if any(_spans_overlap(f_span, p_span) for p_span in pending_spans):
             skipped_existing_suggestion_count += 1
             continue
+        if r_name:
+            static_rules_kept.add(r_name)
         f_idx = len(findings)
         if f_item.get("defect_type") == "invalid_udm_field":
             finding_idx_by_var_field_span[f_span] = f_idx
@@ -5469,12 +6405,13 @@ def verify_and_redline_yaral2_rules_in_doc(
                     zero_hit_yaral2_diagnoses.append(zh_diag)
                     b_info = rule_blocks_by_name.get(r_name)
                     if b_info is not None:
-                        doc_preds = extract_yaral2_event_predicates(
+                        doc_multi_spec = extract_yaral2_multi_event_spec(
                             orig_rule,
                             rule_char_start=int(b_info["char_start"]),
                             full_plain_text=plain_text,
                             index_map=index_map,
                         )
+                        doc_preds = doc_multi_spec["predicates"]
                         f_pred_idx = zh_diag.get("failing_predicate_index")
                         if (
                             zh_diag.get("diagnosis_class")
@@ -5553,6 +6490,9 @@ def verify_and_redline_yaral2_rules_in_doc(
                                         "pivot_compiler_verified": zh_diag[
                                             "pivot_compiler_verified"
                                         ],
+                                        "shared_join_values": zh_diag.get(
+                                            "shared_join_values", []
+                                        ),
                                         "observed_values": zh_diag.get(
                                             "observed_values", []
                                         ),
@@ -5560,6 +6500,132 @@ def verify_and_redline_yaral2_rules_in_doc(
                                 )
                                 upgraded_finding_indices.add(existing_f_idx)
                                 zero_hit_yaral2_findings_count += 1
+                            else:
+                                span_target = str(
+                                    zh_diag.get("recommended_span_target")
+                                    or "predicate"
+                                )
+                                if span_target == "var_field":
+                                    t_start = int(
+                                        target_pred["var_field_start_index"]
+                                    )
+                                    t_end = int(
+                                        target_pred["var_field_end_index"]
+                                    )
+                                    t_quote = str(target_pred["var_field_token"])
+                                elif span_target == "rhs":
+                                    t_start = int(target_pred["rhs_start_index"])
+                                    t_end = int(target_pred["rhs_end_index"])
+                                    t_quote = str(target_pred["rhs_raw"])
+                                else:
+                                    t_start = int(
+                                        target_pred["predicate_start_index"]
+                                    )
+                                    t_end = int(
+                                        target_pred["predicate_end_index"]
+                                    )
+                                    t_quote = str(target_pred["predicate_text"])
+                                t_replacement = str(
+                                    zh_diag["recommended_span_replacement"]
+                                )
+                                inv_field_tok = str(
+                                    target_pred["var_field_token"]
+                                )
+                                canon_field_tok = f"{target_pred['event_var']}.{zh_diag['recommended_field']}"
+                                if any(
+                                    _spans_overlap((t_start, t_end), p_span)
+                                    for p_span in pending_spans
+                                ):
+                                    skipped_existing_suggestion_count += 1
+                                elif not any(
+                                    _spans_overlap(
+                                        (t_start, t_end),
+                                        (
+                                            int(ex_e["start_index"]),
+                                            int(ex_e["end_index"]),
+                                        ),
+                                    )
+                                    for ex_e in edits
+                                ):
+                                    comment_body = _format_zero_hit_yaral2_comment(
+                                        zh_diag,
+                                        rule_name=r_name,
+                                        has_schema_defect=False,
+                                        udm_doc_url=udm_doc_url,
+                                        yaral2_doc_url=yaral2_doc_url,
+                                    )
+                                    comments.append(
+                                        {
+                                            "start_index": t_start,
+                                            "end_index": t_end,
+                                            "quote": t_quote,
+                                            "comment": comment_body,
+                                        }
+                                    )
+                                    edits.append(
+                                        {
+                                            "start_index": t_start,
+                                            "end_index": t_end,
+                                            "quote": t_quote,
+                                            "replacement": t_replacement,
+                                        }
+                                    )
+                                    findings.append(
+                                        {
+                                            "rule_name": r_name,
+                                            "defect_type": "zero_hit_retrohunt_predicate",
+                                            "invalid_field": inv_field_tok,
+                                            "canonical_field": canon_field_tok,
+                                            "quote": t_quote,
+                                            "replacement": t_replacement,
+                                            "start_index": t_start,
+                                            "end_index": t_end,
+                                            "original_rule_text": orig_rule,
+                                            "repaired_rule_text": zh_diag[
+                                                "pivoted_rule_text"
+                                            ],
+                                            "pivoted_rule_text": zh_diag[
+                                                "pivoted_rule_text"
+                                            ],
+                                            "is_multi_event": bool(
+                                                zh_diag.get(
+                                                    "is_multi_event", False
+                                                )
+                                            ),
+                                            "retrohunt_udm_query": zh_diag[
+                                                "pivoted_retrohunt_udm_query"
+                                            ],
+                                            "zero_hit_diagnosis": zh_diag[
+                                                "diagnosis_class"
+                                            ],
+                                            "failure_reason": zh_diag[
+                                                "failure_reason"
+                                            ],
+                                            "recommended_yaral2_predicate": zh_diag[
+                                                "recommended_yaral2_predicate"
+                                            ],
+                                            "recommended_span_target": span_target,
+                                            "anchor_query": zh_diag[
+                                                "anchor_query"
+                                            ],
+                                            "anchor_event_count": zh_diag[
+                                                "anchor_event_count"
+                                            ],
+                                            "pivot_event_count": zh_diag[
+                                                "pivot_event_count"
+                                            ],
+                                            "pivot_compiler_verified": zh_diag[
+                                                "pivot_compiler_verified"
+                                            ],
+                                            "shared_join_values": zh_diag.get(
+                                                "shared_join_values", []
+                                            ),
+                                            "observed_values": zh_diag.get(
+                                                "observed_values", []
+                                            ),
+                                        }
+                                    )
+                                    zero_hit_yaral2_findings_count += 1
             else:
                 rule_check = rule_cache[cache_key]
 
@@ -5575,13 +6641,23 @@ def verify_and_redline_yaral2_rules_in_doc(
             if rule_check.get("compiler_verified"):
                 me_info = rule_check.get("multi_event_retrohunt")
                 if isinstance(me_info, dict) and me_info.get("is_multi_event"):
-                    comments[idx]["comment"] = (
-                        f"{comments[idx]['comment']} "
-                        f"[Chronicle YARA-L 2.0 Compiler Verified: PASSED | "
-                        f"Multi-Event Retrohunt Correlation: "
-                        f"shared_join_values={me_info.get('shared_join_values', [])}, "
-                        f"events_matched={rule_check['retrohunt_event_count']}]"
-                    )
+                    if me_info.get("is_non_existence"):
+                        comments[idx]["comment"] = (
+                            f"{comments[idx]['comment']} "
+                            f"[Chronicle YARA-L 2.0 Compiler Verified: PASSED | "
+                            f"Non-Existence Retrohunt Set-Difference: "
+                            f"shared_join_values={me_info.get('shared_join_values', [])}, "
+                            f"suppressed_join_values={me_info.get('suppressed_join_values', [])}, "
+                            f"events_matched={rule_check['retrohunt_event_count']}]"
+                        )
+                    else:
+                        comments[idx]["comment"] = (
+                            f"{comments[idx]['comment']} "
+                            f"[Chronicle YARA-L 2.0 Compiler Verified: PASSED | "
+                            f"Multi-Event Retrohunt Correlation: "
+                            f"shared_join_values={me_info.get('shared_join_values', [])}, "
+                            f"events_matched={rule_check['retrohunt_event_count']}]"
+                        )
                 else:
                     comments[idx]["comment"] = (
                         f"{comments[idx]['comment']} "
@@ -5593,7 +6669,7 @@ def verify_and_redline_yaral2_rules_in_doc(
         if diagnose_zero_hit_retrohunt:
             for block in _iter_yaral2_rule_blocks(plain_text):
                 r_name = str(block["rule_name"])
-                if r_name in static_rules_all:
+                if r_name in static_rules_kept:
                     continue
                 orig_rule = str(block["rule_text"])
                 rule_char_start = int(block["char_start"])
@@ -5605,6 +6681,49 @@ def verify_and_redline_yaral2_rules_in_doc(
                     index_map=index_map,
                 )
                 doc_preds = doc_multi_spec["predicates"]
+                if r_name in static_rules_all:
+                    if pending_spans:
+                        rule_check = verify_yaral2_rule_with_siem(
+                            orig_rule,
+                            run_retrohunt_check=True,
+                            diagnose_zero_hit_retrohunt=True,
+                            start_time=start_time,
+                            end_time=end_time,
+                            max_events=max_events,
+                            siem_validate_fn=siem_validate_fn,
+                            siem_search_fn=siem_search_fn,
+                        )
+                        zh_diag = rule_check.get("zero_hit_diagnosis")
+                        f_pred_idx = (
+                            zh_diag.get("failing_predicate_index")
+                            if isinstance(zh_diag, dict)
+                            else None
+                        )
+                        if (
+                            isinstance(zh_diag, dict)
+                            and zh_diag.get("pivot_verified")
+                            and zh_diag.get("pivot_compiler_verified")
+                            and zh_diag.get("diagnosis_class")
+                            != "cross_event_join_entity_role_swap"
+                            and isinstance(f_pred_idx, int)
+                            and (0 <= f_pred_idx < len(doc_preds))
+                        ):
+                            target_pred = doc_preds[f_pred_idx]
+                            vf_span = (
+                                int(target_pred["var_field_start_index"]),
+                                int(target_pred["var_field_end_index"]),
+                            )
+                            if vf_span not in raw_var_field_spans:
+                                p_span_cand = (
+                                    int(target_pred["predicate_start_index"]),
+                                    int(target_pred["predicate_end_index"]),
+                                )
+                                if any(
+                                    _spans_overlap(p_span_cand, p_span)
+                                    for p_span in pending_spans
+                                ):
+                                    skipped_existing_suggestion_count += 1
+                    continue
                 if len(doc_preds) < 2 and not doc_multi_spec["is_multi_event"]:
                     continue
 
@@ -5641,6 +6760,9 @@ def verify_and_redline_yaral2_rules_in_doc(
                                 "pivoted_rule_text": normalized_rule,
                                 "findings": [],
                                 "is_multi_event": True,
+                                "is_non_existence": bool(
+                                    initial_me.get("is_non_existence")
+                                ),
                                 "compiler_verified": comp_ok,
                                 "compiler_output": comp_out,
                                 "retrohunt_udm_query": str(
@@ -5837,6 +6959,15 @@ def verify_and_redline_yaral2_rules_in_doc(
                     }
                 )
                 zero_hit_yaral2_findings_count += 1
+
+    if len(findings) > 1:
+        ordered = sorted(
+            zip(comments, edits, findings),
+            key=lambda triple: int(triple[2]["start_index"]),
+        )
+        comments = [item[0] for item in ordered]
+        edits = [item[1] for item in ordered]
+        findings = [item[2] for item in ordered]
 
     comments_res: dict[str, Any] = {
         "status": "skipped",
