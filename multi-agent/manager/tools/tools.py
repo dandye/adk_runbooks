@@ -38,6 +38,7 @@ from .docs_review_tools import (
     insert_doc_comments as _insert_doc_comments,
     propose_doc_suggested_edits as _propose_doc_suggested_edits,
     read_google_doc as _read_google_doc,
+    verify_and_redline_udm_queries_in_doc as _verify_and_redline_udm_queries_in_doc,
 )
 
 logger = logging.getLogger(__name__)
@@ -637,6 +638,39 @@ def post_reviewed_doc_to_soar_case(
   )
 
 
+def verify_and_redline_udm_queries_in_doc(
+    document_id: str,
+    run_live_siem_check: bool = False,
+    start_time: str = "2026-02-07T00:00:00Z",
+    end_time: str = "2026-02-08T00:00:00Z",
+    tool_context: ToolContext = None,
+) -> dict:
+  """Verifies Chronicle UDM queries inside a Google Doc, optionally dry-runs them in SIEM, and stages red-lines.
+
+  Scans the Google Doc for unprefixed or hallucinated Chronicle UDM fields by
+  exact 1-based UTF-16 span (`start_index`/`end_index`), optionally executes a
+  dry-run UDM query against Chronicle SIEM (`search_udm`) when
+  `run_live_siem_check=True`, anchors verification comments first, and proposes
+  non-destructive Suggested Edits (`writeMode="SUGGEST"`) second.
+
+  Args:
+      document_id (str): The Google Docs documentId.
+      run_live_siem_check (bool): Whether to execute a live Chronicle SIEM dry-run query check.
+      start_time (str): ISO-8601 start time for the SIEM dry-run search window.
+      end_time (str): ISO-8601 end time for the SIEM dry-run search window.
+
+  Returns:
+      dict: {"status", "document_id", "title", "char_count", "udm_findings_count", "findings", "siem_checks", "comments", "edits"}.
+  """
+  return _verify_and_redline_udm_queries_in_doc(
+      document_id=document_id,
+      run_live_siem_check=run_live_siem_check,
+      start_time=start_time,
+      end_time=end_time,
+      tool_context=tool_context,
+  )
+
+
 def get_agent_tools():
   """Initializes and returns MCP toolsets and progressive discovery tools.
 
@@ -670,6 +704,9 @@ def get_agent_tools():
   wrapped_review_google_doc_with_stage_a = instrument_tool(review_google_doc_with_stage_a)
   wrapped_stage_runbook_update_as_google_doc = instrument_tool(stage_runbook_update_as_google_doc)
   wrapped_post_reviewed_doc_to_soar_case = instrument_tool(post_reviewed_doc_to_soar_case)
+  wrapped_verify_and_redline_udm_queries_in_doc = instrument_tool(
+      verify_and_redline_udm_queries_in_doc
+  )
 
   # Wrap progressive MCP discovery meta-tools
   wrapped_search_mcp_tools = instrument_tool(search_mcp_tools)
@@ -695,6 +732,7 @@ def get_agent_tools():
       wrapped_review_google_doc_with_stage_a,
       wrapped_stage_runbook_update_as_google_doc,
       wrapped_post_reviewed_doc_to_soar_case,
+      wrapped_verify_and_redline_udm_queries_in_doc,
       wrapped_get_current_time,
       wrapped_read_file_content,
       wrapped_load_skill,

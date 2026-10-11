@@ -400,6 +400,7 @@ def test_adk_function_tool_declarations_for_docs_review_tools():
         "review_google_doc_with_stage_a",
         "stage_runbook_update_as_google_doc",
         "post_reviewed_doc_to_soar_case",
+        "verify_and_redline_udm_queries_in_doc",
     ):
         fn = getattr(tools_module, fn_name)
         ft = FunctionTool(fn)
@@ -412,6 +413,7 @@ def test_adk_function_tool_declarations_for_docs_review_tools():
         assert "transport" not in props
         assert "token_source" not in props
         assert "client" not in props
+        assert "siem_search_fn" not in props
 
 
 def test_sanitize_telemetry_text_redacts_encoded_blobs_and_memdump_args():
@@ -760,5 +762,314 @@ def test_grounded_soar_review_workflow_executes_end_to_end():
     assert "compromised-user-account-response" in out
     assert "aGVsbG8gd29ybGQgdGVzdCBwYXlsb2Fk" not in out
     assert "<REDACTED_B64:len=32,sha256=" in out
+
+
+# ---------------------------------------------------------------------------
+# Cycle 1 (H1): Live Chronicle UDM Query Syntax & Schema Verifier Inside Docs
+# ---------------------------------------------------------------------------
+
+
+def test_find_udm_field_spans_detects_unprefixed_and_hallucinated_udm_fields():
+    from manager.tools.docs_review_tools import (
+        _extract_text_and_index_map,
+        _find_quote_indices,
+        find_udm_field_spans,
+    )
+
+    p1 = (
+        'Valid query: `metadata.event_type = "PROCESS_LAUNCH" AND '
+        'target.process.command_line = "powershell.exe" AND principal.ip = "10.0.0.1"`\n'
+    )
+    p2 = (
+        'Broken query 1: `metadata.event_type = "PROCESS_LAUNCH" AND '
+        'process.command_line = /.*-enc.*/ nocase AND principal.process.cmd_line != "cmd.exe"`\n'
+    )
+    p3 = (
+        'Broken query 2: `metadata.log_type = "GCP_CLOUDAUDIT" AND '
+        'resource.name = "projects/base-production" AND ip = "104.198.226.161"`\n'
+    )
+    doc = {
+        "documentId": "doc-udm-spans",
+        "title": "UDM Span Test",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": 1 + len(p1),
+                                "textRun": {"content": p1},
+                            }
+                        ]
+                    }
+                },
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1 + len(p1),
+                                "endIndex": 1 + len(p1) + len(p2),
+                                "textRun": {"content": p2},
+                            }
+                        ]
+                    }
+                },
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1 + len(p1) + len(p2),
+                                "endIndex": 1 + len(p1) + len(p2) + len(p3),
+                                "textRun": {"content": p3},
+                            }
+                        ]
+                    }
+                },
+            ]
+        },
+    }
+    plain_text, index_map = _extract_text_and_index_map(doc)
+    comments, edits, findings = find_udm_field_spans(plain_text, index_map)
+
+    assert len(findings) == 4
+    assert len(comments) == 4
+    assert len(edits) == 4
+
+    by_invalid = {f["invalid_field"]: f for f in findings}
+    assert set(by_invalid.keys()) == {
+        "process.command_line",
+        "principal.process.cmd_line",
+        "resource.name",
+        "ip",
+    }
+    assert by_invalid["process.command_line"]["canonical_field"] == "target.process.command_line"
+    assert (
+        by_invalid["principal.process.cmd_line"]["canonical_field"]
+        == "principal.process.command_line"
+    )
+    assert by_invalid["resource.name"]["canonical_field"] == "target.resource.name"
+    assert by_invalid["ip"]["canonical_field"] == "principal.ip"
+
+    # Verify exact 1-based UTF-16 span coordinates match _find_quote_indices for each defect
+    for field_name in ("resource.name", "principal.process.cmd_line"):
+        expected_span = _find_quote_indices(plain_text, index_map, field_name)
+        assert (
+            by_invalid[field_name]["start_index"],
+            by_invalid[field_name]["end_index"],
+        ) == expected_span
+
+
+def test_verify_udm_query_with_siem_repairs_and_executes_dry_run():
+    from manager.tools.docs_review_tools import verify_udm_query_with_siem
+
+    captured_calls: list[dict[str, Any]] = []
+
+    def fake_siem_search(
+        query: str,
+        start_time: str = "",
+        end_time: str = "",
+        max_events: int = 5,
+    ) -> dict[str, Any]:
+        captured_calls.append(
+            {
+                "query": query,
+                "start_time": start_time,
+                "end_time": end_time,
+                "max_events": max_events,
+            }
+        )
+        return {
+            "events": [
+                {"udm": {"metadata": {"eventType": "USER_RESOURCE_ACCESS"}}},
+                {"udm": {"metadata": {"eventType": "USER_RESOURCE_UPDATE_CONTENT"}}},
+            ]
+        }
+
+    broken_query = (
+        'metadata.log_type = "GCP_CLOUDAUDIT" AND '
+        'resource.name = "projects/base-production" AND ip = "104.198.226.161"'
+    )
+    res = verify_udm_query_with_siem(
+        broken_query,
+        start_time="2026-02-07T19:00:00Z",
+        end_time="2026-02-07T19:35:00Z",
+        max_events=10,
+        siem_search_fn=fake_siem_search,
+    )
+
+    assert res["status"] == "success"
+    assert res["siem_verified"] is True
+    assert res["event_count"] == 2
+    assert (
+        res["repaired_query"]
+        == 'metadata.log_type = "GCP_CLOUDAUDIT" AND '
+        'target.resource.name = "projects/base-production" AND principal.ip = "104.198.226.161"'
+    )
+    assert len(res["replacements"]) == 2
+    assert len(captured_calls) == 1
+    assert captured_calls[0]["query"] == res["repaired_query"]
+    assert captured_calls[0]["max_events"] == 10
+
+
+def test_verify_and_redline_udm_queries_in_doc_anchors_comments_and_suggest_edits():
+    from manager.tools.docs_review_tools import verify_and_redline_udm_queries_in_doc
+
+    p1 = (
+        "## Hunting Query\n"
+        '`metadata.log_type = "GCP_CLOUDAUDIT" AND resource.name = "projects/base-production" '
+        'AND ip = "104.198.226.161"`\n'
+    )
+    doc = {
+        "documentId": "doc-udm-live",
+        "title": "UDM Verifier Redline Test",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": 1 + len(p1),
+                                "textRun": {"content": p1},
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+    }
+    batch_calls: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=doc)
+        body = json.loads(request.content.decode("utf-8"))
+        batch_calls.append(body)
+        if "insertComment" in json.dumps(body):
+            return httpx.Response(
+                200,
+                json={
+                    "replies": [
+                        {"insertComment": {"commentId": f"c-udm-{i}"}}
+                        for i in range(len(body.get("requests", [])))
+                    ]
+                },
+            )
+        return httpx.Response(
+            200, json={"replies": [{} for _ in body.get("requests", [])]}
+        )
+
+    def fake_siem_search(query: str, **_kwargs: Any) -> dict[str, Any]:
+        return {"events": [{"id": f"ev-{i}"} for i in range(5)]}
+
+    transport = httpx.MockTransport(handler)
+    token_source = StaticTokenSource("adc-token")
+
+    res = verify_and_redline_udm_queries_in_doc(
+        "doc-udm-live",
+        run_live_siem_check=True,
+        siem_search_fn=fake_siem_search,
+        token_source=token_source,
+        transport=transport,
+    )
+
+    assert res["status"] == "success"
+    assert res["udm_findings_count"] == 2
+    assert len(res["siem_checks"]) == 1
+    assert res["siem_checks"][0]["siem_verified"] is True
+    assert res["siem_checks"][0]["event_count"] == 5
+    assert res["comments"]["inserted_count"] == 2
+    assert res["edits"]["applied_count"] == 2
+
+    # Verify ordering: insertComment batchUpdate first, writeMode="SUGGEST" batchUpdate second
+    assert len(batch_calls) == 2
+    comment_reqs = batch_calls[0]["requests"]
+    assert len(comment_reqs) == 2
+    assert "udm-field-list" in comment_reqs[0]["insertComment"]["content"]
+    assert "events_matched=5" in comment_reqs[0]["insertComment"]["content"]
+
+    edit_batch = batch_calls[1]
+    assert edit_batch["writeControl"] == {"writeMode": "SUGGEST"}
+    # Descending startIndex order: 'ip' (later in line) deleted/inserted before 'resource.name' (earlier)
+    first_del = edit_batch["requests"][0]["deleteContentRange"]["range"]["startIndex"]
+    second_del = edit_batch["requests"][2]["deleteContentRange"]["range"]["startIndex"]
+    assert first_del > second_del
+
+
+def test_review_google_doc_with_stage_a_deduplicates_udm_and_semantic_spans():
+    from manager.tools.docs_review_tools import review_google_doc_with_stage_a
+
+    p1 = (
+        'Run query: `metadata.event_type = "PROCESS_LAUNCH" AND '
+        'process.command_line = /.*-enc.*/ AND file.sha256 = "abcd"`\n'
+    )
+    doc = {
+        "documentId": "doc-dedup-udm",
+        "title": "Dedup UDM Stage A/B Test",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": 1 + len(p1),
+                                "textRun": {"content": p1},
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=doc)
+        body = json.loads(request.content.decode("utf-8"))
+        if "insertComment" in json.dumps(body):
+            return httpx.Response(
+                200,
+                json={
+                    "replies": [
+                        {"insertComment": {"commentId": f"c-dedup-{i}"}}
+                        for i in range(len(body.get("requests", [])))
+                    ]
+                },
+            )
+        return httpx.Response(
+            200, json={"replies": [{} for _ in body.get("requests", [])]}
+        )
+
+    transport = httpx.MockTransport(handler)
+    token_source = StaticTokenSource("adc-token")
+
+    # Caller explicitly supplies a semantic comment/edit for 'process.command_line',
+    # while leaving 'file.sha256' to be caught automatically by Stage A UDM detection.
+    res = review_google_doc_with_stage_a(
+        "doc-dedup-udm",
+        semantic_comments=[
+            {
+                "quote": "process.command_line",
+                "comment": "Custom caller comment for process.command_line.",
+            }
+        ],
+        semantic_edits=[
+            {
+                "quote": "process.command_line",
+                "replacement": "target.process.command_line",
+            }
+        ],
+        token_source=token_source,
+        transport=transport,
+    )
+
+    assert res["status"] == "success"
+    assert res["stage_a_udm_count"] == 2
+    # 1 deduplicated Stage A UDM edit (file.sha256) + 1 Stage B semantic edit (process.command_line) = 2
+    assert res["comments"]["inserted_count"] == 2
+    assert res["edits"]["applied_count"] == 2
+
 
 

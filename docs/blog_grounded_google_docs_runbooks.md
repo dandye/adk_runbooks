@@ -288,6 +288,19 @@ To close the loop directly on the playbooks in `SOC Runbooks`, `stage_runbook_up
 2. [`Runbook_Redline_suspicious-login-triage_Case_33287_33281_33283`](https://docs.google.com/document/d/1zY3mV2wHOUzIigZffYenXR7EexWvZCf1kgZlKbfWx6w/edit), ID `1zY3mV2wHOUzIigZffYenXR7EexWvZCf1kgZlKbfWx6w`, 13,135 UTF-16 chars, 3 anchored comments, 2 Suggested Edits, linked in SOAR Cases `33287` and `33283` comments `53` and `57`.
 3. [`Runbook_Redline_malware-incident-response_Case_33269_33280_33285`](https://docs.google.com/document/d/1gUovdKOjdmsdPiomvBd-iuRM6Bz8cM_M5RtToubtjKw/edit), ID `1gUovdKOjdmsdPiomvBd-iuRM6Bz8cM_M5RtToubtjKw`, 20,812 UTF-16 chars, 2 anchored comments, 2 Suggested Edits, linked in SOAR Cases `33269` and `33280` comments `55` and `56`.
 
+### Live Chronicle UDM query verification inside Google Docs (`verify_and_redline_udm_queries_in_doc`)
+
+Notice that across all six SOAR case studies above, every single draft report or runbook contained at least one unprefixed or hallucinated Chronicle UDM field (`resource.name`, `user.email_addresses`, `process.command_line`, `file.sha256`, or `ip`). Relying on a human or an LLM to spot every broken UDM field in Stage B leaves room for omissions, and even a syntactically valid UDM field path does not guarantee that the hunting query will actually match telemetry in Chronicle SIEM.
+
+In Cycle 1 (`H1`), we elevated Chronicle UDM query verification into Stage A (`find_udm_field_spans`) and paired it with live Chronicle SIEM dry-run execution (`verify_udm_query_with_siem` and `verify_and_redline_udm_queries_in_doc`):
+
+1. **Deterministic UTF-16 UDM field span extraction.** `find_udm_field_spans(plain_text, index_map)` scans UDM comparison clauses (`<field_token> (=|!=) ("..."|/regex/)`) in pure Python, maps 19 common unprefixed or hallucinated field tokens (`process.command_line`, `principal.process.cmd_line`, `resource.name`, `file.sha256`, `ip`, `hostname`, `user.email_addresses`, etc.) to their canonical Chronicle UDM paths, and computes exact 1-based UTF-16 `(start_index, end_index)` coordinates while deduplicating against any overlapping Stage B edits in `review_google_doc_with_stage_a()`.
+2. **Closed-loop SIEM dry-run verification.** When `run_live_siem_check=True`, `verify_and_redline_udm_queries_in_doc()` rewrites each defective query to its canonical UDM syntax, executes a live dry-run search against `us-chronicle.googleapis.com` (`secops-mcp_search_udm`), and stamps the anchored Google Docs comment with `[SIEM Dry-Run Verified: query='...', events_matched=N]`.
+3. **Catching semantic zero-hit traps.** Running `scripts/verify_cycle1_udm_doc_verifier.py` against [`Cycle1_H1_Live_UDM_Query_Verifier_Validation`](https://docs.google.com/document/d/16VJd9N-1c7ZP49xgI0hsVYyOwGpoJtoHPT8sYR-vg80/edit) (`16VJd9N-1c7ZP49xgI0hsVYyOwGpoJtoHPT8sYR-vg80`) detected 4 broken UDM field spans, staged 4 descending-index `writeMode="SUGGEST"` fixes, and verified 3 queries live against Argolis Chronicle SIEM:
+   - `metadata.log_type = "GCP_CLOUDAUDIT" AND ip = "104.198.226.161"` -> repaired to `principal.ip = "104.198.226.161"` (`events_matched=9`).
+   - `hostname = "wins-d19" AND process.command_line = /.*cmd.*/ nocase` -> repaired to `principal.hostname = "wins-d19" AND target.process.command_line = /.*cmd.*/ nocase` (`events_matched=12`).
+   - `metadata.log_type = "GCP_CLOUDAUDIT" AND resource.name = "projects/base-analytics/instances/prod-customers"` -> repaired to `target.resource.name = ...` (`siem_verified=True`, `events_matched=0`), immediately surfacing to the reviewer that while the repaired field name compiles cleanly, the literal Cloud SQL resource string requires value-level adjustment to match raw GCP Cloud Audit telemetry.
+
 ---
 
 ## Closing the postmortem-to-runbook loop
@@ -295,3 +308,4 @@ To close the loop directly on the playbooks in `SOC Runbooks`, `stage_runbook_up
 With runbooks stored in Google Drive, incident reports published to Google Docs, and verification grounded against Developer Knowledge MCP and Google Search, the postmortem graveyard disappears.
 
 When an incident commander finishes a postmortem, the review agent can audit the report for live C2 links, broken UDM syntax, and dangerous containment commands before the document leaves the SOC. Better yet, the agent can open the matching playbook in `SOC Runbooks` and stage the lessons learned from the incident as non-destructive Suggested Edits. The detection lead reviews the red-lined Google Doc over morning coffee, clicks Accept on the changes that hold up, and `DriveSkillRegistry` serves the hardened runbook on the next alert.
+

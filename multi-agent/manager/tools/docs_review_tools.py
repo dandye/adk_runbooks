@@ -96,6 +96,52 @@ _LIVE_URL_RE = re.compile(
     r"https?://[^\s)\]`\"'>]+"
 )
 
+DEFAULT_UDM_FIELD_LIST_URL = (
+    "https://docs.cloud.google.com/chronicle/docs/reference/udm-field-list"
+)
+
+VALID_UDM_TOP_LEVEL_PREFIXES: tuple[str, ...] = (
+    "metadata",
+    "principal",
+    "target",
+    "src",
+    "observer",
+    "intermediary",
+    "about",
+    "security_result",
+    "network",
+    "extensions",
+    "additional",
+)
+
+CANONICAL_UDM_FIELD_CORRECTIONS: dict[str, str] = {
+    "process.command_line": "target.process.command_line",
+    "process.cmd_line": "target.process.command_line",
+    "principal.process.cmd_line": "principal.process.command_line",
+    "target.process.cmd_line": "target.process.command_line",
+    "process.file.sha256": "target.process.file.sha256",
+    "file.sha256": "target.process.file.sha256",
+    "file.md5": "target.process.file.md5",
+    "file.path": "target.file.full_path",
+    "resource.name": "target.resource.name",
+    "resource.type": "target.resource.resource_type",
+    "user.userid": "principal.user.userid",
+    "user.email": "principal.user.email_addresses",
+    "user.email_addresses": "principal.user.email_addresses",
+    "event_type": "metadata.event_type",
+    "log_type": "metadata.log_type",
+    "ip": "principal.ip",
+    "hostname": "principal.hostname",
+    "network.http.url": "target.url",
+    "security_result.alert_name": "security_result.rule_name",
+}
+
+_UDM_COMPARISON_RE = re.compile(
+    r"(?<![A-Za-z0-9_.-])([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)"
+    r"(\s*(?:!=|=)\s*)"
+    r"(?:\"[^\r\n\"]*\"|'[^\r\n']*'|“[^\r\n”]*”|/[^\r\n/]+/(?:\s*nocase)?)"
+)
+
 _cache_lock = threading.Lock()
 _DOC_INDEX_CACHE: dict[str, tuple[str, list[int]]] = {}
 
@@ -792,6 +838,360 @@ def find_deterministic_indicator_spans(
     return comments, edits
 
 
+def _extract_udm_query_from_line(
+    plain_text: str, char_start: int, fallback_clause: str
+) -> str:
+    """Extracts the surrounding UDM query expression from the line containing ``char_start``."""
+    line_start = plain_text.rfind("\n", 0, char_start) + 1
+    line_end = plain_text.find("\n", char_start)
+    if line_end == -1:
+        line_end = len(plain_text)
+    line = plain_text[line_start:line_end].strip()
+
+    # Prefer backtick-delimited query expressions when present on the line
+    for bt_match in re.finditer(r"`([^`]+)`", line):
+        segment = bt_match.group(1).strip()
+        if fallback_clause in segment:
+            return segment
+
+    first_cmp = _UDM_COMPARISON_RE.search(line)
+    if first_cmp is not None:
+        candidate = line[first_cmp.start() :].strip().strip("`")
+        if candidate:
+            return candidate
+    return fallback_clause
+
+
+def find_udm_field_spans(
+    plain_text: str,
+    index_map: list[int],
+    *,
+    udm_doc_url: str = DEFAULT_UDM_FIELD_LIST_URL,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Scans document text for unprefixed or hallucinated Chronicle UDM fields without an LLM.
+
+    Matches UDM comparison clauses (``<field_token> (=|!=) ("..."|/regex/)``) and checks
+    ``<field_token>`` against :data:`CANONICAL_UDM_FIELD_CORRECTIONS` while ignoring
+    valid canonical UDM fields prefixed with :data:`VALID_UDM_TOP_LEVEL_PREFIXES`.
+
+    Returns:
+        ``(comments, edits, findings)`` using 1-based UTF-16 ``start_index`` and
+        ``end_index`` coordinates.
+    """
+    comments: list[dict[str, Any]] = []
+    edits: list[dict[str, Any]] = []
+    findings: list[dict[str, Any]] = []
+    if not plain_text or not index_map:
+        return comments, edits, findings
+
+    for match in _UDM_COMPARISON_RE.finditer(plain_text):
+        field_token = match.group(1)
+        canonical_field = CANONICAL_UDM_FIELD_CORRECTIONS.get(field_token)
+        if not canonical_field or canonical_field == field_token:
+            continue
+
+        char_start = match.start(1)
+        char_end = match.end(1) - 1
+        start_idx = index_map[char_start]
+        end_idx = index_map[char_end] + _utf16_code_unit_len(plain_text[char_end])
+        clause = match.group(0)
+        query_line = _extract_udm_query_from_line(plain_text, char_start, clause)
+
+        comments.append(
+            {
+                "start_index": start_idx,
+                "end_index": end_idx,
+                "quote": field_token,
+                "comment": (
+                    f"Deterministic Chronicle UDM Schema Check: '{field_token}' is not a valid "
+                    f"canonical Chronicle UDM field path. Use '{canonical_field}' ({udm_doc_url})."
+                ),
+            }
+        )
+        edits.append(
+            {
+                "start_index": start_idx,
+                "end_index": end_idx,
+                "quote": field_token,
+                "replacement": canonical_field,
+            }
+        )
+        findings.append(
+            {
+                "invalid_field": field_token,
+                "canonical_field": canonical_field,
+                "start_index": start_idx,
+                "end_index": end_idx,
+                "clause": clause,
+                "query_line": query_line,
+            }
+        )
+
+    return comments, edits, findings
+
+
+def _parse_siem_search_output(raw_res: Any) -> dict[str, Any]:
+    """Normalizes an MCP or Python ``search_udm`` response into a dictionary."""
+    if isinstance(raw_res, dict):
+        if "content" in raw_res and isinstance(raw_res["content"], list):
+            for block in raw_res["content"]:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    text = str(block.get("text") or "").strip()
+                    if text:
+                        try:
+                            parsed = json.loads(text)
+                            if isinstance(parsed, dict):
+                                return parsed
+                        except json.JSONDecodeError:
+                            return {"raw_text": text}
+        return raw_res
+    if isinstance(raw_res, str):
+        stripped = raw_res.strip()
+        if stripped.startswith("Error"):
+            raise RuntimeError(stripped)
+        try:
+            parsed = json.loads(stripped)
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            return {"raw_text": stripped}
+    return {"raw_result": raw_res}
+
+
+def verify_udm_query_with_siem(
+    query: str,
+    *,
+    start_time: str = "2026-02-07T00:00:00Z",
+    end_time: str = "2026-02-08T00:00:00Z",
+    max_events: int = 5,
+    siem_search_fn: Any = None,
+) -> dict[str, Any]:
+    """Repairs unprefixed/hallucinated UDM fields in ``query`` and runs a Chronicle SIEM dry-run.
+
+    Args:
+        query: Candidate Chronicle UDM query string.
+        start_time: ISO-8601 start time for the SIEM dry-run search window.
+        end_time: ISO-8601 end time for the SIEM dry-run search window.
+        max_events: Maximum UDM events to fetch during verification.
+        siem_search_fn: Optional callable for testing or direct MCP tool injection.
+
+    Returns:
+        dict with ``status``, ``original_query``, ``repaired_query``, ``replacements``,
+        ``siem_verified``, and ``event_count``.
+    """
+    replacements: list[dict[str, str]] = []
+
+    def _replace_clause(match: re.Match[str]) -> str:
+        field_token = match.group(1)
+        canonical_field = CANONICAL_UDM_FIELD_CORRECTIONS.get(field_token)
+        if not canonical_field or canonical_field == field_token:
+            return match.group(0)
+        replacements.append(
+            {
+                "invalid_field": field_token,
+                "canonical_field": canonical_field,
+            }
+        )
+        return canonical_field + match.group(0)[len(field_token) :]
+
+    repaired_query = _UDM_COMPARISON_RE.sub(_replace_clause, query)
+
+    try:
+        if siem_search_fn is not None:
+            try:
+                raw_res = siem_search_fn(
+                    query=repaired_query,
+                    start_time=start_time,
+                    end_time=end_time,
+                    max_events=max_events,
+                )
+            except TypeError:
+                raw_res = siem_search_fn(repaired_query)
+        else:
+            from .tools import execute_mcp_tool
+
+            raw_res = execute_mcp_tool(
+                "secops-mcp_search_udm",
+                {
+                    "query": repaired_query,
+                    "start_time": start_time,
+                    "end_time": end_time,
+                    "max_events": max_events,
+                },
+            )
+        parsed = _parse_siem_search_output(raw_res)
+        if "error" in parsed and "events" not in parsed:
+            return {
+                "status": "error",
+                "original_query": query,
+                "repaired_query": repaired_query,
+                "replacements": replacements,
+                "siem_verified": False,
+                "event_count": 0,
+                "message": str(parsed.get("error")),
+            }
+        events = parsed.get("events")
+        event_count = (
+            len(events)
+            if isinstance(events, list)
+            else int(parsed.get("event_count", 0) or 0)
+        )
+        return {
+            "status": "success",
+            "original_query": query,
+            "repaired_query": repaired_query,
+            "replacements": replacements,
+            "siem_verified": True,
+            "event_count": event_count,
+            "siem_response": parsed,
+        }
+    except Exception as err:
+        return {
+            "status": "error",
+            "original_query": query,
+            "repaired_query": repaired_query,
+            "replacements": replacements,
+            "siem_verified": False,
+            "event_count": 0,
+            "message": f"Chronicle SIEM UDM dry-run failed: {err}",
+        }
+
+
+def verify_and_redline_udm_queries_in_doc(
+    document_id: str,
+    *,
+    run_live_siem_check: bool = False,
+    start_time: str = "2026-02-07T00:00:00Z",
+    end_time: str = "2026-02-08T00:00:00Z",
+    max_events: int = 5,
+    udm_doc_url: str = DEFAULT_UDM_FIELD_LIST_URL,
+    siem_search_fn: Any = None,
+    tool_context: Any = None,
+    token_source: TokenSource | None = None,
+    quota_project: str | None = None,
+    transport: httpx.BaseTransport | None = None,
+) -> dict[str, Any]:
+    """Lints UDM queries in a Google Doc, optionally dry-runs them in Chronicle SIEM, and stages red-lines.
+
+    1. Calls :func:`read_google_doc` to build the 1-based UTF-16 character index map.
+    2. Calls :func:`find_udm_field_spans` to locate unprefixed or hallucinated UDM fields.
+    3. When ``run_live_siem_check=True`` (or ``siem_search_fn`` is provided), executes
+       :func:`verify_udm_query_with_siem` on each defective query and enriches the
+       anchored Google Docs comment with live SIEM verification metadata.
+    4. Anchors comments first via :func:`insert_doc_comments` and stages descending-index
+       Suggested Edits second via :func:`propose_doc_suggested_edits` (``writeMode="SUGGEST"``).
+    """
+    read_res = read_google_doc(
+        document_id,
+        tool_context=tool_context,
+        token_source=token_source,
+        quota_project=quota_project,
+        transport=transport,
+    )
+    if read_res.get("status") != "success":
+        return read_res
+
+    plain_text, index_map = _load_doc_index_state(document_id, tool_context=tool_context)
+    if plain_text is None or index_map is None:
+        return {
+            "status": "error",
+            "message": "Failed to load UTF-16 index map after read_google_doc.",
+        }
+
+    comments, edits, findings = find_udm_field_spans(
+        plain_text, index_map, udm_doc_url=udm_doc_url
+    )
+
+    siem_checks: list[dict[str, Any]] = []
+    if (run_live_siem_check or siem_search_fn is not None) and findings:
+        query_cache: dict[str, dict[str, Any]] = {}
+        for idx, finding in enumerate(findings):
+            q_line = str(finding.get("query_line") or finding.get("clause") or "")
+            if q_line not in query_cache:
+                siem_res = verify_udm_query_with_siem(
+                    q_line,
+                    start_time=start_time,
+                    end_time=end_time,
+                    max_events=max_events,
+                    siem_search_fn=siem_search_fn,
+                )
+                query_cache[q_line] = siem_res
+                siem_checks.append(siem_res)
+            else:
+                siem_res = query_cache[q_line]
+
+            if siem_res.get("siem_verified"):
+                comments[idx]["comment"] = (
+                    f"{comments[idx]['comment']} "
+                    f"[SIEM Dry-Run Verified: query='{siem_res['repaired_query']}', "
+                    f"events_matched={siem_res['event_count']}]"
+                )
+
+    comments_res: dict[str, Any] = {"status": "skipped", "inserted_count": 0, "comment_ids": []}
+    if comments:
+        comments_res = insert_doc_comments(
+            document_id,
+            comments,
+            tool_context=tool_context,
+            token_source=token_source,
+            quota_project=quota_project,
+            transport=transport,
+        )
+        if comments_res.get("status") != "success":
+            return {
+                "status": "error",
+                "message": f"insert_doc_comments failed: {comments_res.get('message')}",
+                "comments": comments_res,
+            }
+
+    edits_res: dict[str, Any] = {"status": "skipped", "applied_count": 0}
+    if edits:
+        edits_res = propose_doc_suggested_edits(
+            document_id,
+            edits,
+            tool_context=tool_context,
+            token_source=token_source,
+            quota_project=quota_project,
+            transport=transport,
+        )
+        if edits_res.get("status") != "success":
+            return {
+                "status": "error",
+                "message": f"propose_doc_suggested_edits failed: {edits_res.get('message')}",
+                "comments": comments_res,
+                "edits": edits_res,
+            }
+
+    return {
+        "status": "success",
+        "document_id": document_id,
+        "title": read_res.get("title", ""),
+        "char_count": read_res.get("char_count", 0),
+        "udm_findings_count": len(findings),
+        "findings": findings,
+        "siem_checks": siem_checks,
+        "comments": comments_res,
+        "edits": edits_res,
+    }
+
+
+def _resolve_item_span(
+    plain_text: str, index_map: list[int], item: dict[str, Any]
+) -> tuple[int, int] | None:
+    raw_start = item.get("start_index")
+    raw_end = item.get("end_index")
+    if isinstance(raw_start, int) and isinstance(raw_end, int) and 1 <= raw_start < raw_end:
+        return (raw_start, raw_end)
+    quote = str(item.get("quote") or "")
+    if quote:
+        return _find_quote_indices(plain_text, index_map, quote)
+    return None
+
+
+def _spans_overlap(span_a: tuple[int, int], span_b: tuple[int, int]) -> bool:
+    return max(span_a[0], span_b[0]) < min(span_a[1], span_b[1])
+
+
 def _parse_json_or_list(items: str | list[dict[str, Any]] | None) -> list[dict[str, Any]]:
     if items is None:
         return []
@@ -812,6 +1212,7 @@ def review_google_doc_with_stage_a(
     semantic_edits: str | list[dict[str, Any]] | None = None,
     tool_context: Any = None,
     *,
+    include_udm_stage_a: bool = True,
     token_source: TokenSource | None = None,
     quota_project: str | None = None,
     transport: httpx.BaseTransport | None = None,
@@ -819,14 +1220,16 @@ def review_google_doc_with_stage_a(
     """Executes the two-stage non-destructive review pipeline on a Google Doc.
 
     1. Calls :func:`read_google_doc` to populate the 1-based UTF-16 index map.
-    2. Runs Stage A (:func:`find_deterministic_indicator_spans`) to locate any
-       live untrusted URLs by numeric UTF-16 span without echoing them through
-       an LLM.
-    3. Merges Stage A comments and edits with Stage B ``semantic_comments`` and
-       ``semantic_edits``.
+    2. Runs Stage A (:func:`find_deterministic_indicator_spans` and, when
+       ``include_udm_stage_a=True``, :func:`find_udm_field_spans`) to locate any
+       live untrusted URLs and unprefixed/hallucinated Chronicle UDM fields by
+       numeric UTF-16 span without echoing them through an LLM.
+    3. Deduplicates Stage A UDM spans against overlapping Stage B
+       ``semantic_comments`` and ``semantic_edits`` so explicit caller red-lines
+       take precedence without causing overlapping-range errors.
     4. Anchors all comments first via :func:`insert_doc_comments`.
     5. Stages all Suggested Edits second via :func:`propose_doc_suggested_edits`
-       (sorted descending by ``startIndex`` under ``writeMode="SUGGEST"``).
+      (sorted descending by ``startIndex`` under ``writeMode="SUGGEST"``).
     """
     read_res = read_google_doc(
         document_id,
@@ -855,8 +1258,37 @@ def review_google_doc_with_stage_a(
     except json.JSONDecodeError as err:
         return {"status": "error", "message": f"Invalid semantic review JSON: {err}"}
 
-    all_comments = stage_a_comments + stage_b_comments
-    all_edits = stage_a_edits + stage_b_edits
+    stage_a_udm_count = 0
+    deduped_udm_comments: list[dict[str, Any]] = []
+    deduped_udm_edits: list[dict[str, Any]] = []
+    if include_udm_stage_a:
+        udm_comments, udm_edits, udm_findings = find_udm_field_spans(
+            plain_text, index_map
+        )
+        stage_a_udm_count = len(udm_findings)
+        existing_comment_spans = [
+            sp
+            for item in (stage_a_comments + stage_b_comments)
+            if (sp := _resolve_item_span(plain_text, index_map, item)) is not None
+        ]
+        existing_edit_spans = [
+            sp
+            for item in (stage_a_edits + stage_b_edits)
+            if (sp := _resolve_item_span(plain_text, index_map, item)) is not None
+        ]
+        for c_item in udm_comments:
+            c_span = (c_item["start_index"], c_item["end_index"])
+            if not any(_spans_overlap(c_span, ex) for ex in existing_comment_spans):
+                deduped_udm_comments.append(c_item)
+                existing_comment_spans.append(c_span)
+        for e_item in udm_edits:
+            e_span = (e_item["start_index"], e_item["end_index"])
+            if not any(_spans_overlap(e_span, ex) for ex in existing_edit_spans):
+                deduped_udm_edits.append(e_item)
+                existing_edit_spans.append(e_span)
+
+    all_comments = stage_a_comments + deduped_udm_comments + stage_b_comments
+    all_edits = stage_a_edits + deduped_udm_edits + stage_b_edits
 
     comments_res: dict[str, Any] = {"status": "skipped", "inserted_count": 0, "comment_ids": []}
     if all_comments:
@@ -899,6 +1331,7 @@ def review_google_doc_with_stage_a(
         "title": read_res.get("title", ""),
         "char_count": read_res.get("char_count", 0),
         "stage_a_url_count": len(stage_a_edits),
+        "stage_a_udm_count": stage_a_udm_count,
         "comments": comments_res,
         "edits": edits_res,
     }
@@ -977,6 +1410,7 @@ def stage_runbook_update_as_google_doc(
         "viewUrl": created.get("viewUrl", f"https://docs.google.com/document/d/{doc_id}/edit"),
         "char_count": review_res.get("char_count", 0),
         "stage_a_url_count": review_res.get("stage_a_url_count", 0),
+        "stage_a_udm_count": review_res.get("stage_a_udm_count", 0),
         "comments": review_res.get("comments", {}),
         "edits": review_res.get("edits", {}),
         "message": review_res.get("message", ""),
