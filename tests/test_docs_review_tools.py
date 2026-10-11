@@ -6169,3 +6169,510 @@ def test_export_accepted_doc_to_markdown_reconstructs_structure_and_frontmatter(
     assert fm["name"] == "compromised-user-account-response"
 
 
+# ---------------------------------------------------------------------------
+# Cycle 12 (H12): Automated YARA-L 2.0 meta: Block MITRE ATT&CK
+# Tactic/Technique Synthesis & Consistency Red-Liner in Google Docs
+# ---------------------------------------------------------------------------
+
+
+def test_infer_yaral2_mitre_from_events_and_extract_yaral2_meta_spec_multiline_and_collapsed():
+    """Verifies ``infer_yaral2_mitre_from_events`` across ``T1098.003``, ``T1059.001``,
+    ``T1059.003``, ``T1059.004``, ``T1003.001``, ``T1218.011``, and ``T1543.003``,
+    and verifies ``extract_yaral2_meta_spec`` 1-based UTF-16 spans on both multi-line
+    and Drive-collapsed single-line YARA-L 2.0 rules."""
+    from manager.tools.docs_review_tools import (
+        extract_yaral2_meta_spec,
+        infer_yaral2_mitre_from_events,
+    )
+
+    rules_and_expected = [
+        (
+            'rule gcp_sa_privilege_escalation_case_33278 {\n'
+            '  meta:\n'
+            '    author = "Chronicle SOC"\n'
+            '  events:\n'
+            '    $e.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+            '    $e.principal.ip = "104.198.226.161"\n'
+            '    $e.target.resource.name = "projects/base-production"\n'
+            '  condition:\n'
+            '    $e\n'
+            '}',
+            "T1098.003",
+            "Persistence / Privilege Escalation",
+            "https://attack.mitre.org/techniques/T1098/003/",
+        ),
+        (
+            'rule wins_d19_ps_stager {\n'
+            '  meta:\n'
+            '    mitre_attack_technique = "T1059.003"\n'
+            '  events:\n'
+            '    re.regex($e.target.process.command_line, `.*powershell.*`) nocase\n'
+            '  condition:\n'
+            '    $e\n'
+            '}',
+            "T1059.001",
+            "Execution",
+            "https://attack.mitre.org/techniques/T1059/001/",
+        ),
+        (
+            'rule wins_d19_cmd_exec {\n'
+            '  meta:\n'
+            '    author = "SOC"\n'
+            '  events:\n'
+            '    re.regex($e.target.process.command_line, `.*cmd\\.exe.*`) nocase\n'
+            '  condition:\n'
+            '    $e\n'
+            '}',
+            "T1059.003",
+            "Execution",
+            "https://attack.mitre.org/techniques/T1059/003/",
+        ),
+        (
+            'rule linux_reverse_shell {\n'
+            '  meta:\n'
+            '    author = "SOC"\n'
+            '  events:\n'
+            '    re.regex($e.target.process.command_line, `.*/bin/bash.*`) nocase\n'
+            '  condition:\n'
+            '    $e\n'
+            '}',
+            "T1059.004",
+            "Execution",
+            "https://attack.mitre.org/techniques/T1059/004/",
+        ),
+        (
+            'rule lsass_comsvcs_dump {\n'
+            '  meta:\n'
+            '    author = "SOC"\n'
+            '  events:\n'
+            '    re.regex($e.target.process.command_line, `.*comsvcs\\.dll.*MiniDump.*`) nocase\n'
+            '  condition:\n'
+            '    $e\n'
+            '}',
+            "T1003.001",
+            "Credential Access",
+            "https://attack.mitre.org/techniques/T1003/001/",
+        ),
+        (
+            'rule rundll32_proxy_exec {\n'
+            '  meta:\n'
+            '    author = "SOC"\n'
+            '  events:\n'
+            '    re.regex($e.target.process.command_line, `.*rundll32\\.exe.*`) nocase\n'
+            '  condition:\n'
+            '    $e\n'
+            '}',
+            "T1218.011",
+            "Defense Evasion",
+            "https://attack.mitre.org/techniques/T1218/011/",
+        ),
+        (
+            'rule wins_d19_derpservice_case_33280 {\n'
+            '  meta:\n'
+            '    author = "SOC"\n'
+            '  events:\n'
+            '    $e.principal.hostname = "wins-d19"\n'
+            '    re.regex($e.target.process.command_line, `.*DERPService.*`) nocase\n'
+            '  condition:\n'
+            '    $e\n'
+            '}',
+            "T1543.003",
+            "Persistence / Privilege Escalation",
+            "https://attack.mitre.org/techniques/T1543/003/",
+        ),
+    ]
+
+    for r_text, exp_id, exp_tactic, exp_url in rules_and_expected:
+        inf = infer_yaral2_mitre_from_events(r_text)
+        assert inf is not None
+        assert inf["canonical_id"] == exp_id
+        assert inf["tactic"] == exp_tactic
+        assert inf["reference_url"] == exp_url
+
+    multiline_rule = (
+        'rule sample_meta_rule {\n'
+        '  meta:\n'
+        '    author = "Chronicle SOC"\n'
+        '    severity = "HIGH"\n'
+        '  events:\n'
+        '    $e.principal.hostname = "wins-d19"\n'
+        '  condition:\n'
+        '    $e\n'
+        '}'
+    )
+    m_spec = extract_yaral2_meta_spec(multiline_rule)
+    assert m_spec["has_meta"] is True
+    assert m_spec["is_collapsed"] is False
+    assert m_spec["indent"] == "    "
+    assert len(m_spec["entries"]) == 2
+    sev_entry = m_spec["entries_by_key"]["severity"]
+    assert sev_entry["value"] == "HIGH"
+    assert (
+        multiline_rule[
+            sev_entry["value_inner_start_index"]
+            - 1 : sev_entry["value_inner_end_index"]
+            - 1
+        ]
+        == "HIGH"
+    )
+    assert m_spec["insertion_anchor"]["quote"] == 'severity = "HIGH"'
+
+    collapsed_rule = (
+        'rule collapsed_meta_rule { meta: author = "Chronicle SOC" '
+        'severity = "HIGH" events: $e.principal.hostname = "wins-d19" condition: $e }'
+    )
+    c_spec = extract_yaral2_meta_spec(collapsed_rule)
+    assert c_spec["has_meta"] is True
+    assert c_spec["is_collapsed"] is True
+    assert c_spec["indent"] == " "
+    assert len(c_spec["entries"]) == 2
+    assert c_spec["insertion_anchor"]["quote"] == 'severity = "HIGH"'
+
+
+def test_find_yaral2_meta_mitre_spans_missing_synthesis_and_consistency_repairs():
+    """Verifies ``find_yaral2_meta_mitre_spans`` across ``missing_meta_mitre_attribution``,
+    ``meta_mitre_technique_mismatch`` (including cross-family ``T1059.003`` -> ``T1098.003``
+    and ``T1543.003``), ``meta_mitre_tactic_mismatch``, and ``meta_mitre_url_mismatch``
+    (including dot-to-slash URL normalization) with ``0`` false positives on valid
+    ``meta:`` blocks."""
+    from manager.tools.docs_review_tools import find_yaral2_meta_mitre_spans
+
+    doc_text = (
+        'rule gcp_sa_privilege_escalation_missing_meta_case_33278 {\n'
+        '  meta:\n'
+        '    author = "Chronicle SOC"\n'
+        '    severity = "HIGH"\n'
+        '  events:\n'
+        '    $e.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $e.principal.ip = "104.198.226.161"\n'
+        '    $e.target.resource.name = "projects/base-production"\n'
+        '  condition:\n'
+        '    $e\n'
+        '}\n\n'
+        'rule wins_d19_powershell_inconsistent_meta_case_33269 {\n'
+        '  meta:\n'
+        '    author = "Chronicle SOC"\n'
+        '    mitre_attack_technique = "T1059.003"\n'
+        '    mitre_attack_tactic = "Initial Access"\n'
+        '    mitre_attack_url = "https://attack.mitre.org/techniques/T1059.003/"\n'
+        '  events:\n'
+        '    $e.principal.hostname = "wins-d19"\n'
+        '    re.regex($e.target.process.command_line, `.*powershell.*`) nocase\n'
+        '  condition:\n'
+        '    $e\n'
+        '}\n\n'
+        'rule wins_d19_derpservice_cross_family_meta_case_33280 {\n'
+        '  meta:\n'
+        '    author = "Chronicle SOC"\n'
+        '    mitre_attack_technique = "T1059.003"\n'
+        '    mitre_attack_tactic = "Defense Evasion"\n'
+        '    mitre_attack_url = "https://attack.mitre.org/techniques/T1059.001/"\n'
+        '  events:\n'
+        '    $e.principal.hostname = "wins-d19"\n'
+        '    re.regex($e.target.process.command_line, `.*DERPService.*`) nocase\n'
+        '  condition:\n'
+        '    $e\n'
+        '}\n\n'
+        'rule wins_d19_cmd_valid_meta_control {\n'
+        '  meta:\n'
+        '    author = "Chronicle SOC"\n'
+        '    mitre_attack_technique = "T1059.003"\n'
+        '    mitre_attack_tactic = "Execution"\n'
+        '    mitre_attack_url = "https://attack.mitre.org/techniques/T1059/003/"\n'
+        '  events:\n'
+        '    $e.principal.hostname = "wins-d19"\n'
+        '    re.regex($e.target.process.command_line, `.*cmd\\.exe.*`) nocase\n'
+        '  condition:\n'
+        '    $e\n'
+        '}\n'
+    )
+    mock_doc = _make_single_paragraph_doc(
+        "doc-meta-mitre", "Meta MITRE Test", doc_text
+    )
+    plain, idx_map = _extract_text_and_index_map(mock_doc)
+    comments, edits, findings = find_yaral2_meta_mitre_spans(
+        plain, idx_map, synthesize_missing_meta=True
+    )
+    # 1 synthesis in rule 1 + 3 mismatches in rule 2 + 3 mismatches in rule 3 + 0 in rule 4 = 7
+    assert len(findings) == 7
+    assert len(comments) == 7
+    assert len(edits) == 7
+
+    by_rule: dict[str, list[dict[str, Any]]] = {}
+    for f in findings:
+        by_rule.setdefault(f["rule_name"], []).append(f)
+
+    assert "wins_d19_cmd_valid_meta_control" not in by_rule
+    r1_f = by_rule["gcp_sa_privilege_escalation_missing_meta_case_33278"]
+    assert len(r1_f) == 1
+    assert r1_f[0]["defect_type"] == "missing_meta_mitre_attribution"
+    assert r1_f[0]["canonical_id"] == "T1098.003"
+    assert 'mitre_attack_technique = "T1098.003"' in r1_f[0]["replacement"]
+    assert (
+        'mitre_attack_tactic = "Persistence / Privilege Escalation"'
+        in r1_f[0]["replacement"]
+    )
+    assert (
+        'mitre_attack_url = "https://attack.mitre.org/techniques/T1098/003/"'
+        in r1_f[0]["replacement"]
+    )
+
+    r2_f = by_rule["wins_d19_powershell_inconsistent_meta_case_33269"]
+    assert [f["defect_type"] for f in r2_f] == [
+        "meta_mitre_technique_mismatch",
+        "meta_mitre_tactic_mismatch",
+        "meta_mitre_url_mismatch",
+    ]
+    assert [f["replacement"] for f in r2_f] == [
+        "T1059.001",
+        "Execution",
+        "https://attack.mitre.org/techniques/T1059/001/",
+    ]
+
+    r3_f = by_rule["wins_d19_derpservice_cross_family_meta_case_33280"]
+    assert [f["defect_type"] for f in r3_f] == [
+        "meta_mitre_technique_mismatch",
+        "meta_mitre_tactic_mismatch",
+        "meta_mitre_url_mismatch",
+    ]
+    assert [f["replacement"] for f in r3_f] == [
+        "T1543.003",
+        "Persistence / Privilege Escalation",
+        "https://attack.mitre.org/techniques/T1543/003/",
+    ]
+
+
+def test_find_yaral2_rule_spans_with_verify_meta_mitre_combines_meta_and_events_repairs():
+    """Verifies that ``find_yaral2_rule_spans(..., verify_meta_mitre=True, synthesize_missing_meta=True)``
+    produces non-overlapping UTF-16 spans across ``meta:``, ``events:``, ``outcome:``,
+    and ``condition:`` and synthesizes a unified ``repaired_rule_text``."""
+    from manager.tools.docs_review_tools import find_yaral2_rule_spans
+
+    rule_text = (
+        'rule gcp_combined_meta_and_schema_defects {\n'
+        '  meta:\n'
+        '    author = "Chronicle SOC"\n'
+        '    severity = "HIGH"\n'
+        '  strings:\n'
+        '    $e.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $e.ip = "104.198.226.161"\n'
+        '    $e.resource.name = "projects/base-production"\n'
+        '  condition:\n'
+        '    $event\n'
+        '}'
+    )
+    mock_doc = _make_single_paragraph_doc(
+        "doc-combined-meta", "Combined Meta + Schema", rule_text
+    )
+    plain, idx_map = _extract_text_and_index_map(mock_doc)
+    comments, edits, findings = find_yaral2_rule_spans(
+        plain,
+        idx_map,
+        verify_meta_mitre=True,
+        synthesize_missing_meta=True,
+    )
+    defect_types = [f["defect_type"] for f in findings]
+    assert defect_types == [
+        "missing_meta_mitre_attribution",
+        "yara_strings_section",
+        "invalid_udm_field",
+        "invalid_udm_field",
+        "condition_variable_mismatch",
+    ]
+    # Verify non-overlapping ascending spans
+    for i in range(len(edits) - 1):
+        assert edits[i]["end_index"] <= edits[i + 1]["start_index"]
+
+    repaired = findings[0]["repaired_rule_text"]
+    assert 'mitre_attack_technique = "T1098.003"' in repaired
+    assert 'mitre_attack_tactic = "Persistence / Privilege Escalation"' in repaired
+    assert (
+        'mitre_attack_url = "https://attack.mitre.org/techniques/T1098/003/"'
+        in repaired
+    )
+    assert "events:" in repaired
+    assert "$e.principal.ip" in repaired
+    assert "$e.target.resource.name" in repaired
+
+
+def test_verify_yaral2_rule_with_siem_compiles_synthesized_meta_mitre_block():
+    """Verifies that ``verify_yaral2_rule_with_siem(..., verify_meta_mitre=True, synthesize_missing_meta=True)``
+    passes the synthesized/repaired ``meta:`` MITRE rule to ``validate_rule`` and ``search_udm``."""
+    from manager.tools.docs_review_tools import verify_yaral2_rule_with_siem
+
+    rule_text = (
+        'rule wins_d19_derpservice_meta_siem_check {\n'
+        '  meta:\n'
+        '    author = "Chronicle SOC"\n'
+        '    severity = "HIGH"\n'
+        '  events:\n'
+        '    $e.principal.hostname = "wins-d19"\n'
+        '    re.regex($e.target.process.command_line, `.*DERPService.*`) nocase\n'
+        '  condition:\n'
+        '    $e\n'
+        '}'
+    )
+    compiled_rules: list[str] = []
+
+    def fake_validate(candidate_rule: str) -> dict[str, Any]:
+        compiled_rules.append(candidate_rule)
+        return {"success": True, "message": "Rule verified"}
+
+    def fake_search(query: str, start_time: str, end_time: str, max_events: int) -> dict[str, Any]:
+        return {"events": [{"udm": {"principal": {"hostname": "wins-d19"}}}], "total_events": 1}
+
+    res = verify_yaral2_rule_with_siem(
+        rule_text,
+        verify_meta_mitre=True,
+        synthesize_missing_meta=True,
+        siem_validate_fn=fake_validate,
+        siem_search_fn=fake_search,
+    )
+    assert res["status"] == "success"
+    assert res["compiler_verified"] is True
+    assert res["retrohunt_verified"] is True
+    assert res["retrohunt_event_count"] == 1
+    assert len(compiled_rules) == 1
+    assert 'mitre_attack_technique = "T1543.003"' in compiled_rules[0]
+    assert (
+        'mitre_attack_tactic = "Persistence / Privilege Escalation"'
+        in compiled_rules[0]
+    )
+    assert (
+        'mitre_attack_url = "https://attack.mitre.org/techniques/T1543/003/"'
+        in compiled_rules[0]
+    )
+
+
+def test_verify_and_redline_yaral2_rules_in_doc_meta_mitre_redlining_idempotency_and_adk_schema():
+    """Verifies end-to-end Google Docs commenting, descending-index ``writeMode="SUGGEST"``
+    edits, Pass 2 suggestion idempotency (``skipped_existing_suggestion_count``), and
+    ADK ``FunctionTool`` schema declaration for ``verify_meta_mitre`` and
+    ``synthesize_missing_meta``."""
+    from google.adk.tools.function_tool import FunctionTool
+    from manager.tools.docs_review_tools import (
+        verify_and_redline_yaral2_rules_in_doc,
+    )
+    from manager.tools.tools import (
+        verify_and_redline_yaral2_rules_in_doc as adk_verify_yaral2_tool,
+    )
+
+    fn_tool = FunctionTool(adk_verify_yaral2_tool)
+    decl = fn_tool._get_declaration()
+    schema_str = str(decl.parameters_json_schema or decl.parameters)
+    assert "verify_meta_mitre" in schema_str
+    assert "synthesize_missing_meta" in schema_str
+
+    doc_text = (
+        'rule gcp_sa_privilege_escalation_missing_meta_case_33278 {\n'
+        '  meta:\n'
+        '    author = "Chronicle SOC"\n'
+        '    severity = "HIGH"\n'
+        '  events:\n'
+        '    $e.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $e.principal.ip = "104.198.226.161"\n'
+        '    $e.target.resource.name = "projects/base-production"\n'
+        '  condition:\n'
+        '    $e\n'
+        '}\n\n'
+        'rule wins_d19_powershell_inconsistent_meta_case_33269 {\n'
+        '  meta:\n'
+        '    author = "Chronicle SOC"\n'
+        '    mitre_attack_technique = "T1059.003"\n'
+        '    mitre_attack_tactic = "Initial Access"\n'
+        '    mitre_attack_url = "https://attack.mitre.org/techniques/T1059.003/"\n'
+        '  events:\n'
+        '    $e.principal.hostname = "wins-d19"\n'
+        '    re.regex($e.target.process.command_line, `.*powershell.*`) nocase\n'
+        '  condition:\n'
+        '    $e\n'
+        '}\n'
+    )
+    mock_doc = _make_single_paragraph_doc(
+        "doc-h12-e2e", "Cycle 12 H12 E2E", doc_text
+    )
+    batch_calls: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=mock_doc)
+        payload = json.loads(request.content.decode("utf-8"))
+        batch_calls.append(payload)
+        if any("insertComment" in r for r in payload.get("requests", [])):
+            return httpx.Response(
+                200,
+                json={
+                    "replies": [
+                        {"insertComment": {"commentId": f"c-h12-{i}"}}
+                        for i in range(len(payload.get("requests", [])))
+                    ]
+                },
+            )
+        return httpx.Response(
+            200,
+            json={"replies": [{} for _ in payload.get("requests", [])]},
+        )
+
+    res = verify_and_redline_yaral2_rules_in_doc(
+        "doc-h12-e2e",
+        run_live_siem_check=True,
+        verify_meta_mitre=True,
+        synthesize_missing_meta=True,
+        siem_validate_fn=lambda rule_str: {"success": True, "message": "OK"},
+        siem_search_fn=lambda q, s, e, m: {"events": [{"udm": {}}], "total_events": 1},
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(handler),
+    )
+    assert res["status"] == "success"
+    assert res["yaral2_findings_count"] == 4
+    assert res["comments"]["inserted_count"] == 4
+    assert res["edits"]["applied_count"] == 4
+    assert len(batch_calls) == 2
+    assert "writeControl" not in batch_calls[0]
+    assert batch_calls[1]["writeControl"] == {"writeMode": "SUGGEST"}
+    delete_starts = [
+        req["deleteContentRange"]["range"]["startIndex"]
+        for req in batch_calls[1]["requests"]
+        if "deleteContentRange" in req
+    ]
+    assert delete_starts == sorted(delete_starts, reverse=True)
+
+    # Pass 2: simulate existing pending suggestion spanning the document
+    mock_doc_pass2 = {
+        "documentId": "doc-h12-e2e",
+        "title": "Cycle 12 H12 E2E",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": len(doc_text) + 1,
+                                "textRun": {
+                                    "content": doc_text,
+                                    "suggestedDeletionIds": ["suggest.h12.existing"],
+                                },
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+    }
+    res2 = verify_and_redline_yaral2_rules_in_doc(
+        "doc-h12-e2e",
+        run_live_siem_check=True,
+        verify_meta_mitre=True,
+        synthesize_missing_meta=True,
+        siem_validate_fn=lambda rule_str: {"success": True, "message": "OK"},
+        siem_search_fn=lambda q, s, e, m: {"events": [{"udm": {}}], "total_events": 1},
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(lambda req: httpx.Response(200, json=mock_doc_pass2)),
+    )
+    assert res2["yaral2_findings_count"] == 0
+    assert res2["skipped_existing_suggestion_count"] == 4
+    assert res2["comments"]["inserted_count"] == 0
+    assert res2["edits"]["applied_count"] == 0
+
+

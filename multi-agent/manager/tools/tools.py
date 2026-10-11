@@ -800,6 +800,8 @@ def verify_and_redline_yaral2_rules_in_doc(
     document_id: str,
     run_live_siem_check: bool = False,
     diagnose_zero_hit_retrohunt: bool = True,
+    verify_meta_mitre: bool = False,
+    synthesize_missing_meta: bool = False,
     start_time: str = "2026-02-07T00:00:00Z",
     end_time: str = "2026-02-08T00:00:00Z",
     tool_context: ToolContext = None,
@@ -828,7 +830,10 @@ def verify_and_redline_yaral2_rules_in_doc(
   (`unaggregated_outcome_in_match_rule`), `condition:` outcome threshold
   variable mismatches (`condition_outcome_variable_mismatch`), `not $e2`
   negation syntax (`invalid_condition_negation_syntax`, normalized to `!$e2`),
-  and single-event or multi-event `condition:` variable binding errors by exact
+  single-event or multi-event `condition:` variable binding errors, and optional
+  `meta:` MITRE ATT&CK attribution synthesis and consistency checks
+  (`missing_meta_mitre_attribution`, `meta_mitre_technique_mismatch`,
+  `meta_mitre_tactic_mismatch`, `meta_mitre_url_mismatch`) by exact
   1-based UTF-16 span. When `run_live_siem_check=True`, compiles the repaired
   YARA-L 2.0 rule against Chronicle SIEM (`validate_rule`), executes
   single-event, multi-event intersection, or non-existence (`$e1 and !$e2`
@@ -847,6 +852,8 @@ def verify_and_redline_yaral2_rules_in_doc(
                                   and dry-run its UDM predicates (or per-stream correlation queries) against live Chronicle SIEM.
       diagnose_zero_hit_retrohunt (bool): Whether to diagnose and stage compiler-verified
                                           pivots for 0-hit YARA-L 2.0 retrohunt predicates, cross-event join entity-role swaps, and uncalibrated outcome thresholds.
+      verify_meta_mitre (bool): Whether to verify `meta:` MITRE ATT&CK technique, tactic, and URL consistency against `events:` predicates.
+      synthesize_missing_meta (bool): Whether to synthesize missing `mitre_attack_technique`, `mitre_attack_tactic`, and `mitre_attack_url` entries in `meta:`.
       start_time (str): ISO-8601 start time for the SIEM retrohunt search window.
       end_time (str): ISO-8601 end time for the SIEM retrohunt search window.
 
@@ -859,6 +866,8 @@ def verify_and_redline_yaral2_rules_in_doc(
       document_id=document_id,
       run_live_siem_check=run_live_siem_check,
       diagnose_zero_hit_retrohunt=diagnose_zero_hit_retrohunt,
+      verify_meta_mitre=verify_meta_mitre,
+      synthesize_missing_meta=synthesize_missing_meta,
       start_time=start_time,
       end_time=end_time,
       tool_context=tool_context,

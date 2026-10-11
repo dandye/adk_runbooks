@@ -304,6 +304,16 @@ CANONICAL_MITRE_TECHNIQUES: dict[str, dict[str, str]] = {
         "short_name": "Pass the Hash",
         "tactic": "Lateral Movement",
     },
+    "T1543": {
+        "canonical_name": "Create or Modify System Process",
+        "short_name": "Create or Modify System Process",
+        "tactic": "Persistence / Privilege Escalation",
+    },
+    "T1543.003": {
+        "canonical_name": "Create or Modify System Process: Windows Service",
+        "short_name": "Windows Service",
+        "tactic": "Persistence / Privilege Escalation",
+    },
     "T1546.013": {
         "canonical_name": "Event Triggered Execution: PowerShell Profile",
         "short_name": "PowerShell Profile",
@@ -5072,6 +5082,757 @@ def _select_best_outcome_var_for_condition_token(
     return best_var
 
 
+_YARAL2_META_ENTRY_RE = re.compile(
+    r'([A-Za-z_][A-Za-z0-9_]*)[ \t]*=[ \t]*(?:"([^"\r\n]*)"|\'([^\'\r\n]*)\'|([^\s"\'\r\n]+))'
+)
+
+
+def extract_yaral2_meta_spec(
+    rule_text: str,
+    rule_char_start: int = 0,
+    full_plain_text: str | None = None,
+    index_map: list[int] | None = None,
+) -> dict[str, Any]:
+    """Parses the ``meta:`` section of a multi-line or Drive-collapsed single-line
+    YARA-L 2.0 (``YL2``) rule and returns ordered key-value entries with exact
+    1-based UTF-16 spans and an ``insertion_anchor`` for synthesizing missing keys.
+    """
+    src_text = full_plain_text if full_plain_text is not None else rule_text
+    if index_map is None:
+        index_map = _build_utf16_index_map(src_text)
+
+    def _local_span_to_utf16(local_s: int, local_e: int) -> tuple[int, int]:
+        if local_e <= local_s:
+            abs_s = rule_char_start + local_s
+            idx = index_map[abs_s] if 0 <= abs_s < len(index_map) else 1
+            return idx, idx
+        abs_s = rule_char_start + local_s
+        abs_e = rule_char_start + local_e - 1
+        s_idx = index_map[abs_s]
+        e_idx = index_map[abs_e] + _utf16_code_unit_len(src_text[abs_e])
+        return s_idx, e_idx
+
+    blocks = _iter_yaral2_rule_blocks(rule_text)
+    rule_name = str(blocks[0]["rule_name"]) if blocks else "unknown_rule"
+
+    sec_matches = list(_YARAL2_SECTION_HEADER_RE.finditer(rule_text))
+    meta_sec: dict[str, Any] | None = None
+    for i, sm in enumerate(sec_matches):
+        sec_name = sm.group(1).lower()
+        if sec_name != "meta":
+            continue
+        token_text = sm.group(0).lstrip(" \t")
+        token_local_start = sm.end() - len(token_text)
+        token_local_end = sm.end()
+        body_local_start = sm.end()
+        body_local_end = (
+            sec_matches[i + 1].start()
+            if i + 1 < len(sec_matches)
+            else max(body_local_start, rule_text.rfind("}"))
+        )
+        meta_sec = {
+            "token_text": token_text,
+            "token_start": token_local_start,
+            "token_end": token_local_end,
+            "body_start": body_local_start,
+            "body_end": body_local_end,
+            "body": rule_text[body_local_start:body_local_end],
+        }
+        break
+
+    if meta_sec is None:
+        return {
+            "rule_name": rule_name,
+            "has_meta": False,
+            "meta_token": "",
+            "local_meta_token_start": 0,
+            "local_meta_token_end": 0,
+            "meta_token_start_index": 1,
+            "meta_token_end_index": 1,
+            "is_collapsed": False,
+            "indent": "    ",
+            "entries": [],
+            "entries_by_key": {},
+            "insertion_anchor": None,
+        }
+
+    tok_start = int(meta_sec["token_start"])
+    tok_end = int(meta_sec["token_end"])
+    tok_s_idx, tok_e_idx = _local_span_to_utf16(tok_start, tok_end)
+    body_start = int(meta_sec["body_start"])
+    meta_body = str(meta_sec["body"])
+
+    entries: list[dict[str, Any]] = []
+    entries_by_key: dict[str, dict[str, Any]] = {}
+    for m in _YARAL2_META_ENTRY_RE.finditer(meta_body):
+        key = m.group(1).strip()
+        local_entry_start = body_start + m.start(0)
+        local_entry_end = body_start + m.end(0)
+        entry_text = rule_text[local_entry_start:local_entry_end]
+        if m.group(2) is not None:
+            val_str = m.group(2)
+            local_val_inner_start = body_start + m.start(2)
+            local_val_inner_end = body_start + m.end(2)
+            local_val_start = local_val_inner_start - 1
+            local_val_end = local_val_inner_end + 1
+        elif m.group(3) is not None:
+            val_str = m.group(3)
+            local_val_inner_start = body_start + m.start(3)
+            local_val_inner_end = body_start + m.end(3)
+            local_val_start = local_val_inner_start - 1
+            local_val_end = local_val_inner_end + 1
+        else:
+            val_str = m.group(4) or ""
+            local_val_inner_start = body_start + m.start(4)
+            local_val_inner_end = body_start + m.end(4)
+            local_val_start = local_val_inner_start
+            local_val_end = local_val_inner_end
+
+        e_s_idx, e_e_idx = _local_span_to_utf16(local_entry_start, local_entry_end)
+        v_s_idx, v_e_idx = _local_span_to_utf16(local_val_start, local_val_end)
+        vi_s_idx, vi_e_idx = _local_span_to_utf16(
+            local_val_inner_start, local_val_inner_end
+        )
+        entry_rec = {
+            "key": key,
+            "value": val_str,
+            "raw_value_literal": rule_text[local_val_start:local_val_end],
+            "entry_text": entry_text,
+            "local_entry_start": local_entry_start,
+            "local_entry_end": local_entry_end,
+            "entry_start_index": e_s_idx,
+            "entry_end_index": e_e_idx,
+            "local_value_start": local_val_start,
+            "local_value_end": local_val_end,
+            "value_start_index": v_s_idx,
+            "value_end_index": v_e_idx,
+            "local_value_inner_start": local_val_inner_start,
+            "local_value_inner_end": local_val_inner_end,
+            "value_inner_start_index": vi_s_idx,
+            "value_inner_end_index": vi_e_idx,
+        }
+        entries.append(entry_rec)
+        entries_by_key[key] = entry_rec
+
+    if entries:
+        first_rel = entries[0]["local_entry_start"] - body_start
+        is_collapsed = "\n" not in meta_body[:first_rel]
+        last_entry = entries[-1]
+        if is_collapsed:
+            indent = " "
+        else:
+            line_s = rule_text.rfind("\n", 0, last_entry["local_entry_start"]) + 1
+            prefix = rule_text[line_s : last_entry["local_entry_start"]]
+            indent = prefix if prefix and prefix.strip() == "" else "    "
+        insertion_anchor: dict[str, Any] = {
+            "anchor_kind": "last_entry",
+            "key": last_entry["key"],
+            "quote": last_entry["entry_text"],
+            "local_start": last_entry["local_entry_start"],
+            "local_end": last_entry["local_entry_end"],
+            "start_index": last_entry["entry_start_index"],
+            "end_index": last_entry["entry_end_index"],
+        }
+    else:
+        is_collapsed = "\n" not in meta_body
+        indent = " " if is_collapsed else "    "
+        insertion_anchor = {
+            "anchor_kind": "meta_header",
+            "key": "",
+            "quote": str(meta_sec["token_text"]),
+            "local_start": tok_start,
+            "local_end": tok_end,
+            "start_index": tok_s_idx,
+            "end_index": tok_e_idx,
+        }
+
+    return {
+        "rule_name": rule_name,
+        "has_meta": True,
+        "meta_token": str(meta_sec["token_text"]),
+        "local_meta_token_start": tok_start,
+        "local_meta_token_end": tok_end,
+        "meta_token_start_index": tok_s_idx,
+        "meta_token_end_index": tok_e_idx,
+        "is_collapsed": is_collapsed,
+        "indent": indent,
+        "entries": entries,
+        "entries_by_key": entries_by_key,
+        "insertion_anchor": insertion_anchor,
+    }
+
+
+def infer_yaral2_mitre_from_events(rule_text: str) -> dict[str, Any] | None:
+    """Deterministically infers the canonical MITRE ATT&CK technique, tactic, and
+    reference URL from a YARA-L 2.0 (``YL2``) rule's ``events:`` (or ``strings:``)
+    UDM predicates and rule identifier, deliberately excluding the ``meta:`` block
+    so stale or contradictory ``meta:`` text cannot bias inference.
+    """
+    if not rule_text or not rule_text.strip():
+        return None
+
+    blocks = _iter_yaral2_rule_blocks(rule_text)
+    rule_name = str(blocks[0]["rule_name"]) if blocks else ""
+    sec_matches = list(_YARAL2_SECTION_HEADER_RE.finditer(rule_text))
+    event_bodies: list[str] = []
+    for i, sm in enumerate(sec_matches):
+        sec_name = sm.group(1).lower()
+        if sec_name not in ("events", "strings"):
+            continue
+        body_start = sm.end()
+        body_end = (
+            sec_matches[i + 1].start()
+            if i + 1 < len(sec_matches)
+            else max(body_start, rule_text.rfind("}"))
+        )
+        event_bodies.append(rule_text[body_start:body_end])
+
+    ev_text = "\n".join(event_bodies).lower()
+    if not ev_text.strip():
+        return None
+    ctx = f"{rule_name.lower()}\n{ev_text}"
+
+    canonical_id: str | None = None
+    evidence_reason = ""
+
+    # 1. OS Credential Dumping (T1003.001 LSASS, T1003.003 NTDS, T1003.002 SAM)
+    if any(
+        kw in ev_text
+        for kw in (
+            "lsass",
+            "comsvcs.dll",
+            "minidump",
+            "procdump",
+            "sekurlsa",
+            "mimikatz",
+            "lsass.dmp",
+        )
+    ):
+        canonical_id = "T1003.001"
+        evidence_reason = (
+            "LSASS process memory dump predicates in events: (lsass / comsvcs.dll MiniDump)"
+        )
+    elif any(
+        kw in ev_text for kw in ("ntds.dit", "ntdsutil", "lsadump::dcsync", "dcsync")
+    ):
+        canonical_id = "T1003.003"
+        evidence_reason = "Active Directory NTDS.dit extraction predicates in events:"
+    elif any(
+        kw in ev_text for kw in ("hklm\\sam", "hklm\\\\sam", "sam.hiv", "reg save")
+    ):
+        canonical_id = "T1003.002"
+        evidence_reason = "Security Account Manager (SAM) hive extraction predicates in events:"
+
+    # 2. Create or Modify System Process: Windows Service (T1543.003)
+    elif any(
+        kw in ev_text
+        for kw in (
+            "derpservice",
+            "sc.exe create",
+            "sc create",
+            "new-service",
+            "service_creation",
+        )
+    ):
+        canonical_id = "T1543.003"
+        evidence_reason = (
+            "Windows Service creation/persistence predicates in events: (DERPService / sc.exe create)"
+        )
+
+    # 3. Command and Scripting Interpreter: PowerShell (T1059.001)
+    elif any(
+        kw in ev_text
+        for kw in (
+            "powershell",
+            "pwsh",
+            "-enc",
+            "-encodedcommand",
+            "invoke-expression",
+            "frombase64string",
+            "downloadstring",
+            "empire",
+        )
+    ):
+        canonical_id = "T1059.001"
+        evidence_reason = "PowerShell interpreter/stager execution predicates in events:"
+
+    # 4. System Binary Proxy Execution (T1218.*)
+    elif "rundll32" in ev_text:
+        canonical_id = "T1218.011"
+        evidence_reason = "rundll32.exe proxy execution predicates in events:"
+    elif "regsvr32" in ev_text or "scrobj.dll" in ev_text:
+        canonical_id = "T1218.010"
+        evidence_reason = "regsvr32.exe proxy execution predicates in events:"
+    elif "mshta" in ev_text or ".hta" in ev_text:
+        canonical_id = "T1218.005"
+        evidence_reason = "mshta.exe proxy execution predicates in events:"
+    elif "cmstp" in ev_text:
+        canonical_id = "T1218.003"
+        evidence_reason = "cmstp.exe proxy execution predicates in events:"
+
+    # 5. Command and Scripting Interpreter: Windows Command Shell (T1059.003)
+    elif any(
+        kw in ev_text
+        for kw in (
+            "cmd.exe",
+            "cmd\\.exe",
+            "cmd /c",
+            ".*cmd.*",
+            ".cmd.",
+            "batch script",
+            ".bat",
+        )
+    ):
+        canonical_id = "T1059.003"
+        evidence_reason = "Windows Command Shell (cmd.exe) execution predicates in events:"
+
+    # 6. Command and Scripting Interpreter: Unix Shell (T1059.004)
+    elif any(
+        kw in ev_text
+        for kw in ("/bin/bash", "/bin/sh", "bash -c", "bash -i", "/dev/tcp/", "zsh")
+    ):
+        canonical_id = "T1059.004"
+        evidence_reason = "Unix Shell (/bin/bash or /bin/sh) execution predicates in events:"
+
+    # 7. Account Manipulation: Additional Cloud Credentials (T1098.001)
+    elif any(
+        kw in ev_text
+        for kw in (
+            "serviceaccountkeys.create",
+            "createaccesskey",
+            "oauth client",
+            "additional cloud credentials",
+        )
+    ):
+        canonical_id = "T1098.001"
+        evidence_reason = "cloud credential or service account key creation predicates in events:"
+
+    # 8. Account Manipulation: Additional Cloud Roles (T1098.003)
+    elif any(
+        kw in ev_text
+        for kw in (
+            "setiampolicy",
+            "resource_permissions_change",
+            "roles/editor",
+            "roles/owner",
+            "roles/iam",
+            "role binding",
+        )
+    ) or (
+        "gcp_cloudaudit" in ev_text
+        and any(
+            kw in ctx
+            for kw in (
+                "privilege",
+                "role",
+                "iam",
+                "setiam",
+                "projects/base-production",
+                "projects/base-analytics",
+                "admin",
+            )
+        )
+    ):
+        canonical_id = "T1098.003"
+        evidence_reason = (
+            "cloud IAM role/policy modification predicates in events: (GCP_CLOUDAUDIT / SetIamPolicy / target.resource.name)"
+        )
+
+    # 9. Valid Accounts: Cloud Accounts (T1078.004)
+    elif any(
+        kw in ev_text
+        for kw in (
+            "gserviceaccount.com",
+            "serviceaccount:",
+            "workspace_activity",
+            "user_login",
+            "cloud_identity",
+            "okta",
+        )
+    ):
+        canonical_id = "T1078.004"
+        evidence_reason = "cloud identity or service account authentication predicates in events:"
+
+    if canonical_id is None or canonical_id not in CANONICAL_MITRE_TECHNIQUES:
+        return None
+
+    target_meta = CANONICAL_MITRE_TECHNIQUES[canonical_id]
+    return {
+        "canonical_id": canonical_id,
+        "canonical_name": target_meta["canonical_name"],
+        "short_name": target_meta["short_name"],
+        "tactic": target_meta["tactic"],
+        "reference_url": mitre_technique_url(canonical_id),
+        "evidence_reason": evidence_reason,
+    }
+
+
+def _find_rule_meta_mitre_defects(
+    rule_text: str,
+    rule_name: str,
+    *,
+    synthesize_missing_meta: bool = True,
+    yaral2_doc_url: str = DEFAULT_YARAL2_DOC_URL,
+) -> list[dict[str, Any]]:
+    """Evaluates a single YARA-L 2.0 rule's ``meta:`` block for missing MITRE ATT&CK
+    attribution keys and technique/tactic/URL consistency defects.
+    """
+    meta_spec = extract_yaral2_meta_spec(rule_text)
+    if not meta_spec.get("has_meta"):
+        return []
+
+    inferred = infer_yaral2_mitre_from_events(rule_text)
+    entries_by_key: dict[str, dict[str, Any]] = meta_spec["entries_by_key"]
+    tech_entry = entries_by_key.get("mitre_attack_technique")
+    tactic_entry = entries_by_key.get("mitre_attack_tactic")
+    url_entry = entries_by_key.get("mitre_attack_url")
+
+    effective_tech_id: str | None = None
+    evidence_reason = ""
+    if inferred is not None:
+        effective_tech_id = str(inferred["canonical_id"])
+        evidence_reason = str(inferred["evidence_reason"])
+    elif tech_entry is not None:
+        cited_raw = str(tech_entry["value"]).strip().upper()
+        if cited_raw in DEPRECATED_MITRE_TECHNIQUE_MAP:
+            effective_tech_id = DEPRECATED_MITRE_TECHNIQUE_MAP[cited_raw][
+                "canonical_id"
+            ]
+            evidence_reason = f"deprecated pre-subtechnique ID '{cited_raw}'"
+        elif cited_raw in CANONICAL_MITRE_TECHNIQUES:
+            effective_tech_id = cited_raw
+            evidence_reason = (
+                f"declared meta: mitre_attack_technique '{cited_raw}'"
+            )
+
+    if effective_tech_id is None or effective_tech_id not in CANONICAL_MITRE_TECHNIQUES:
+        return []
+
+    target_meta = CANONICAL_MITRE_TECHNIQUES[effective_tech_id]
+    canonical_name = str(target_meta["canonical_name"])
+    canonical_tactic = str(target_meta["tactic"])
+    canonical_url = mitre_technique_url(effective_tech_id)
+
+    defects: list[dict[str, Any]] = []
+    mismatched_keys: set[str] = set()
+
+    # (1) mitre_attack_technique mismatch (deprecated, sibling sub-technique, or cross-family)
+    if tech_entry is not None:
+        cited_tech = str(tech_entry["value"]).strip()
+        cited_tech_upper = cited_tech.upper()
+        if cited_tech_upper != effective_tech_id:
+            mismatched_keys.add("mitre_attack_technique")
+            if cited_tech_upper in DEPRECATED_MITRE_TECHNIQUE_MAP:
+                cited_label = DEPRECATED_MITRE_TECHNIQUE_MAP[cited_tech_upper][
+                    "deprecated_name"
+                ]
+            elif cited_tech_upper in CANONICAL_MITRE_TECHNIQUES:
+                cited_label = CANONICAL_MITRE_TECHNIQUES[cited_tech_upper][
+                    "canonical_name"
+                ]
+            else:
+                cited_label = cited_tech or "empty"
+            if int(tech_entry["local_value_inner_end"]) > int(
+                tech_entry["local_value_inner_start"]
+            ):
+                l_start = int(tech_entry["local_value_inner_start"])
+                l_end = int(tech_entry["local_value_inner_end"])
+                quote = cited_tech
+                replacement = effective_tech_id
+            else:
+                l_start = int(tech_entry["local_value_start"])
+                l_end = int(tech_entry["local_value_end"])
+                quote = str(tech_entry["raw_value_literal"])
+                replacement = f'"{effective_tech_id}"'
+            defects.append(
+                {
+                    "local_start": l_start,
+                    "local_end": l_end,
+                    "defect_type": "meta_mitre_technique_mismatch",
+                    "meta_key": "mitre_attack_technique",
+                    "quote": quote,
+                    "replacement": replacement,
+                    "invalid_field": cited_tech,
+                    "canonical_field": effective_tech_id,
+                    "canonical_id": effective_tech_id,
+                    "canonical_name": canonical_name,
+                    "tactic": canonical_tactic,
+                    "reference_url": canonical_url,
+                    "evidence_reason": evidence_reason,
+                    "comment": (
+                        f"Deterministic YARA-L 2.0 (YL2) meta: MITRE ATT&CK Technique Check in rule '{rule_name}': "
+                        f"meta: mitre_attack_technique '{cited_tech}' ({cited_label}) contradicts {evidence_reason}. "
+                        f"Replace '{quote}' with '{replacement}' ({canonical_name}, Tactic: {canonical_tactic}, "
+                        f"{canonical_url} | {yaral2_doc_url})."
+                    ),
+                }
+            )
+
+    # (2) mitre_attack_tactic mismatch
+    if tactic_entry is not None:
+        cited_tactic = str(tactic_entry["value"]).strip()
+        allowed_tactics = {canonical_tactic.lower()}
+        for part in canonical_tactic.split("/"):
+            p_clean = part.strip().lower()
+            if p_clean:
+                allowed_tactics.add(p_clean)
+        if cited_tactic.lower() not in allowed_tactics:
+            mismatched_keys.add("mitre_attack_tactic")
+            if int(tactic_entry["local_value_inner_end"]) > int(
+                tactic_entry["local_value_inner_start"]
+            ):
+                l_start = int(tactic_entry["local_value_inner_start"])
+                l_end = int(tactic_entry["local_value_inner_end"])
+                quote = cited_tactic
+                replacement = canonical_tactic
+            else:
+                l_start = int(tactic_entry["local_value_start"])
+                l_end = int(tactic_entry["local_value_end"])
+                quote = str(tactic_entry["raw_value_literal"])
+                replacement = f'"{canonical_tactic}"'
+            defects.append(
+                {
+                    "local_start": l_start,
+                    "local_end": l_end,
+                    "defect_type": "meta_mitre_tactic_mismatch",
+                    "meta_key": "mitre_attack_tactic",
+                    "quote": quote,
+                    "replacement": replacement,
+                    "invalid_field": cited_tactic,
+                    "canonical_field": canonical_tactic,
+                    "canonical_id": effective_tech_id,
+                    "canonical_name": canonical_name,
+                    "tactic": canonical_tactic,
+                    "reference_url": canonical_url,
+                    "evidence_reason": evidence_reason,
+                    "comment": (
+                        f"Deterministic YARA-L 2.0 (YL2) meta: MITRE ATT&CK Tactic Check in rule '{rule_name}': "
+                        f"meta: mitre_attack_tactic '{cited_tactic}' contradicts canonical technique "
+                        f"'{effective_tech_id}' ({canonical_name}), which belongs to tactic '{canonical_tactic}'. "
+                        f"Replace '{quote}' with '{replacement}' ({canonical_url} | {yaral2_doc_url})."
+                    ),
+                }
+            )
+
+    # (3) mitre_attack_url mismatch (dot-separated sub-technique 404 path or wrong technique URL)
+    if url_entry is not None:
+        cited_url = str(url_entry["value"]).strip()
+        if cited_url != canonical_url:
+            mismatched_keys.add("mitre_attack_url")
+            has_dot_subtech = bool(
+                re.search(r"/techniques/T\d{4}\.\d{3}", cited_url, re.IGNORECASE)
+            )
+            url_reason = (
+                "uses dot-separated sub-technique path (which returns HTTP 404 on attack.mitre.org instead of slash-delimited '/techniques/Txxxx/xxx/')"
+                if has_dot_subtech
+                else f"does not match canonical technique '{effective_tech_id}' ({canonical_name})"
+            )
+            if int(url_entry["local_value_inner_end"]) > int(
+                url_entry["local_value_inner_start"]
+            ):
+                l_start = int(url_entry["local_value_inner_start"])
+                l_end = int(url_entry["local_value_inner_end"])
+                quote = cited_url
+                replacement = canonical_url
+            else:
+                l_start = int(url_entry["local_value_start"])
+                l_end = int(url_entry["local_value_end"])
+                quote = str(url_entry["raw_value_literal"])
+                replacement = f'"{canonical_url}"'
+            defects.append(
+                {
+                    "local_start": l_start,
+                    "local_end": l_end,
+                    "defect_type": "meta_mitre_url_mismatch",
+                    "meta_key": "mitre_attack_url",
+                    "quote": quote,
+                    "replacement": replacement,
+                    "invalid_field": cited_url,
+                    "canonical_field": canonical_url,
+                    "canonical_id": effective_tech_id,
+                    "canonical_name": canonical_name,
+                    "tactic": canonical_tactic,
+                    "reference_url": canonical_url,
+                    "evidence_reason": evidence_reason,
+                    "comment": (
+                        f"Deterministic YARA-L 2.0 (YL2) meta: MITRE ATT&CK URL Check in rule '{rule_name}': "
+                        f"meta: mitre_attack_url '{cited_url}' {url_reason}. "
+                        f"Replace '{quote}' with '{replacement}' ({yaral2_doc_url})."
+                    ),
+                }
+            )
+
+    # (4) Synthesize missing mitre_attack_technique, mitre_attack_tactic, and mitre_attack_url
+    if synthesize_missing_meta and inferred is not None:
+        expected_pairs = [
+            ("mitre_attack_technique", effective_tech_id),
+            ("mitre_attack_tactic", canonical_tactic),
+            ("mitre_attack_url", canonical_url),
+        ]
+        missing_pairs = [
+            (k, v) for k, v in expected_pairs if k not in entries_by_key
+        ]
+        anchor = meta_spec.get("insertion_anchor")
+        if missing_pairs and isinstance(anchor, dict):
+            anchor_start = int(anchor["local_start"])
+            anchor_end = int(anchor["local_end"])
+            anchor_quote = str(anchor["quote"])
+            anchor_key = str(anchor.get("key") or "")
+            anchor_base_text = anchor_quote
+            # If the insertion anchor is itself one of the mismatched entries, fold its repair
+            # into the anchor replacement so no two edits overlap.
+            if anchor_key in mismatched_keys:
+                repaired_val_map = dict(expected_pairs)
+                if anchor_key in repaired_val_map:
+                    anchor_base_text = f'{anchor_key} = "{repaired_val_map[anchor_key]}"'
+                defects = [
+                    d
+                    for d in defects
+                    if not _spans_overlap(
+                        (int(d["local_start"]), int(d["local_end"])),
+                        (anchor_start, anchor_end),
+                    )
+                ]
+            if meta_spec["is_collapsed"]:
+                synthesized_suffix = " " + " ".join(
+                    f'{k} = "{v}"' for k, v in missing_pairs
+                )
+            else:
+                indent = str(meta_spec["indent"])
+                synthesized_suffix = "".join(
+                    f'\n{indent}{k} = "{v}"' for k, v in missing_pairs
+                )
+            replacement = anchor_base_text + synthesized_suffix
+            missing_key_names = [k for k, _ in missing_pairs]
+            defects.append(
+                {
+                    "local_start": anchor_start,
+                    "local_end": anchor_end,
+                    "defect_type": "missing_meta_mitre_attribution",
+                    "meta_key": ",".join(missing_key_names),
+                    "synthesized_keys": missing_key_names,
+                    "quote": anchor_quote,
+                    "replacement": replacement,
+                    "invalid_field": anchor_quote,
+                    "canonical_field": effective_tech_id,
+                    "canonical_id": effective_tech_id,
+                    "canonical_name": canonical_name,
+                    "tactic": canonical_tactic,
+                    "reference_url": canonical_url,
+                    "evidence_reason": evidence_reason,
+                    "comment": (
+                        f"Deterministic YARA-L 2.0 (YL2) meta: MITRE ATT&CK Attribution Synthesis in rule '{rule_name}': "
+                        f"meta: section omits {', '.join(missing_key_names)} for {evidence_reason}. "
+                        f"Add mitre_attack_technique = \"{effective_tech_id}\" ({canonical_name}), "
+                        f"mitre_attack_tactic = \"{canonical_tactic}\", and "
+                        f"mitre_attack_url = \"{canonical_url}\" ({canonical_url} | {yaral2_doc_url})."
+                    ),
+                }
+            )
+
+    defects.sort(key=lambda d: int(d["local_start"]))
+    return defects
+
+
+def find_yaral2_meta_mitre_spans(
+    plain_text: str,
+    index_map: list[int],
+    *,
+    synthesize_missing_meta: bool = True,
+    yaral2_doc_url: str = DEFAULT_YARAL2_DOC_URL,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Scans ``plain_text`` for YARA-L 2.0 (``YL2``) detection rules and computes
+    non-overlapping 1-based UTF-16 spans for ``meta:`` MITRE ATT&CK attribution
+    synthesis and consistency defects:
+    - ``missing_meta_mitre_attribution``
+    - ``meta_mitre_technique_mismatch``
+    - ``meta_mitre_tactic_mismatch``
+    - ``meta_mitre_url_mismatch``
+    """
+    comments: list[dict[str, Any]] = []
+    edits: list[dict[str, Any]] = []
+    findings: list[dict[str, Any]] = []
+    if not plain_text or not index_map:
+        return comments, edits, findings
+
+    for block in _iter_yaral2_rule_blocks(plain_text):
+        rule_name = str(block["rule_name"])
+        rule_char_start = int(block["char_start"])
+        rule_text = str(block["rule_text"])
+        meta_defects = _find_rule_meta_mitre_defects(
+            rule_text,
+            rule_name,
+            synthesize_missing_meta=synthesize_missing_meta,
+            yaral2_doc_url=yaral2_doc_url,
+        )
+        if not meta_defects:
+            continue
+
+        repaired_rule = rule_text
+        for defect in sorted(
+            meta_defects, key=lambda d: int(d["local_start"]), reverse=True
+        ):
+            l_s = int(defect["local_start"])
+            l_e = int(defect["local_end"])
+            repaired_rule = (
+                repaired_rule[:l_s]
+                + str(defect["replacement"])
+                + repaired_rule[l_e:]
+            )
+        repaired_rule = _normalize_yaral2_re_regex_calls(repaired_rule)
+
+        for defect in meta_defects:
+            abs_start = rule_char_start + int(defect["local_start"])
+            abs_end = rule_char_start + int(defect["local_end"]) - 1
+            start_idx = index_map[abs_start]
+            end_idx = index_map[abs_end] + _utf16_code_unit_len(
+                plain_text[abs_end]
+            )
+            quote = str(defect["quote"])
+            replacement = str(defect["replacement"])
+            comment_text = str(defect["comment"])
+
+            comments.append(
+                {
+                    "start_index": start_idx,
+                    "end_index": end_idx,
+                    "quote": quote,
+                    "comment": comment_text,
+                }
+            )
+            edits.append(
+                {
+                    "start_index": start_idx,
+                    "end_index": end_idx,
+                    "quote": quote,
+                    "replacement": replacement,
+                }
+            )
+            f_rec: dict[str, Any] = {
+                "rule_name": rule_name,
+                "defect_type": defect["defect_type"],
+                "meta_key": defect.get("meta_key", ""),
+                "invalid_field": defect["invalid_field"],
+                "canonical_field": defect["canonical_field"],
+                "canonical_id": defect["canonical_id"],
+                "canonical_name": defect["canonical_name"],
+                "tactic": defect["tactic"],
+                "reference_url": defect["reference_url"],
+                "evidence_reason": defect.get("evidence_reason", ""),
+                "quote": quote,
+                "replacement": replacement,
+                "start_index": start_idx,
+                "end_index": end_idx,
+                "original_rule_text": rule_text,
+                "repaired_rule_text": repaired_rule,
+            }
+            if "synthesized_keys" in defect:
+                f_rec["synthesized_keys"] = defect["synthesized_keys"]
+            findings.append(f_rec)
+
+    return comments, edits, findings
+
+
 def find_yaral2_rule_spans(
     plain_text: str,
     index_map: list[int],
@@ -5079,6 +5840,8 @@ def find_yaral2_rule_spans(
     udm_doc_url: str = DEFAULT_UDM_FIELD_LIST_URL,
     yaral2_doc_url: str = DEFAULT_YARAL2_DOC_URL,
     doc: dict[str, Any] | None = None,
+    verify_meta_mitre: bool = False,
+    synthesize_missing_meta: bool = False,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
     """Scans ``plain_text`` for single-event and multi-event YARA-L 2.0 (``YL2``) detection rules
     and computes 1-based UTF-16 spans.
@@ -5111,6 +5874,10 @@ def find_yaral2_rule_spans(
        (``multi_event_condition_mismatch``), ``outcome:`` threshold variable
        (``condition_outcome_variable_mismatch``), and non-existence negation syntax
        (``invalid_condition_negation_syntax``: ``not $e2`` -> ``!$e2``) condition errors.
+    7. Optional ``meta:`` block MITRE ATT&CK attribution synthesis and consistency checks
+       (when ``verify_meta_mitre=True``): ``missing_meta_mitre_attribution`` (when
+       ``synthesize_missing_meta=True``), ``meta_mitre_technique_mismatch``,
+       ``meta_mitre_tactic_mismatch``, and ``meta_mitre_url_mismatch``.
 
     Returns:
         ``(comments, edits, findings)`` with exact 1-based UTF-16 ``start_index`` and
@@ -5800,6 +6567,26 @@ def find_yaral2_rule_spans(
                     }
                 )
 
+        if verify_meta_mitre:
+            meta_defects = _find_rule_meta_mitre_defects(
+                rule_text,
+                rule_name,
+                synthesize_missing_meta=synthesize_missing_meta,
+                yaral2_doc_url=yaral2_doc_url,
+            )
+            for md in meta_defects:
+                m_start = int(md["local_start"])
+                m_end = int(md["local_end"])
+                if any(
+                    _spans_overlap(
+                        (int(d["local_start"]), int(d["local_end"])),
+                        (m_start, m_end),
+                    )
+                    for d in rule_defects
+                ):
+                    continue
+                rule_defects.append(md)
+
         if not rule_defects:
             continue
 
@@ -5866,6 +6653,17 @@ def find_yaral2_rule_spans(
                 "retrohunt_udm_query": retrohunt_query,
                 "retrohunt_clauses": retrohunt_clauses,
             }
+            for extra_key in (
+                "meta_key",
+                "canonical_id",
+                "canonical_name",
+                "tactic",
+                "reference_url",
+                "synthesized_keys",
+                "evidence_reason",
+            ):
+                if extra_key in defect:
+                    f_record[extra_key] = defect[extra_key]
             if "restored_regex" in defect:
                 f_record["restored_regex"] = defect["restored_regex"]
                 f_record["yaral2_backtick_regex"] = defect.get(
@@ -7953,6 +8751,8 @@ def verify_yaral2_rule_with_siem(
     *,
     run_retrohunt_check: bool = True,
     diagnose_zero_hit_retrohunt: bool = True,
+    verify_meta_mitre: bool = False,
+    synthesize_missing_meta: bool = False,
     start_time: str = "2026-02-07T00:00:00Z",
     end_time: str = "2026-02-08T00:00:00Z",
     max_events: int = 10,
@@ -7969,7 +8769,11 @@ def verify_yaral2_rule_with_siem(
     """
     synthetic_map = _build_utf16_index_map(rule_text)
     _comments, _edits, findings = find_yaral2_rule_spans(
-        rule_text, synthetic_map, doc=doc
+        rule_text,
+        synthetic_map,
+        doc=doc,
+        verify_meta_mitre=verify_meta_mitre,
+        synthesize_missing_meta=synthesize_missing_meta,
     )
 
     blocks = _iter_yaral2_rule_blocks(rule_text)
@@ -8187,6 +8991,8 @@ def verify_and_redline_yaral2_rules_in_doc(
     *,
     run_live_siem_check: bool = False,
     diagnose_zero_hit_retrohunt: bool = True,
+    verify_meta_mitre: bool = False,
+    synthesize_missing_meta: bool = False,
     start_time: str = "2026-02-07T00:00:00Z",
     end_time: str = "2026-02-08T00:00:00Z",
     max_events: int = 10,
@@ -8201,7 +9007,8 @@ def verify_and_redline_yaral2_rules_in_doc(
 ) -> dict[str, Any]:
     """Lints single-event and multi-event YARA-L 2.0 (``YL2``) rules (including ``outcome:``
     aggregations, ``if()`` conditionals, ``net.ip_in_range_cidr()`` CIDR calls, ``!$e2``
-    non-existence correlation, and ``condition:`` outcome threshold calibration) in a Google Doc,
+    non-existence correlation, ``condition:`` outcome threshold calibration, and optional
+    ``meta:`` MITRE ATT&CK attribution synthesis and consistency checks) in a Google Doc,
     optionally compiles and retrohunts them in Chronicle SIEM, and stages non-destructive
     Suggested Edits (``writeMode="SUGGEST"``).
 
@@ -8242,6 +9049,8 @@ def verify_and_redline_yaral2_rules_in_doc(
         udm_doc_url=udm_doc_url,
         yaral2_doc_url=yaral2_doc_url,
         doc=raw_doc,
+        verify_meta_mitre=verify_meta_mitre,
+        synthesize_missing_meta=synthesize_missing_meta,
     )
     pending_spans = _load_doc_pending_suggestion_spans(
         document_id, tool_context=tool_context
@@ -8300,6 +9109,8 @@ def verify_and_redline_yaral2_rules_in_doc(
                     orig_rule,
                     run_retrohunt_check=True,
                     diagnose_zero_hit_retrohunt=diagnose_zero_hit_retrohunt,
+                    verify_meta_mitre=verify_meta_mitre,
+                    synthesize_missing_meta=synthesize_missing_meta,
                     start_time=start_time,
                     end_time=end_time,
                     max_events=max_events,
