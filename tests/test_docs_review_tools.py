@@ -409,3 +409,109 @@ def test_adk_function_tool_declarations_for_docs_review_tools():
         assert "transport" not in props
         assert "token_source" not in props
         assert "client" not in props
+
+
+def test_sanitize_telemetry_text_redacts_encoded_blobs_and_memdump_args():
+    from manager.tools.docs_review_tools import sanitize_telemetry_text
+
+    raw_cmd = "powershell.exe -NoP -W Hidden -Enc aGVsbG8gd29ybGQgdGVzdCBwYXlsb2Fk"
+    sanitized = sanitize_telemetry_text(raw_cmd)
+    assert "aGVsbG8gd29ybGQgdGVzdCBwYXlsb2Fk" not in sanitized
+    assert "<REDACTED_B64:len=32,sha256=" in sanitized
+
+    raw_dump = "rundll32.exe C:\\Windows\\System32\\comsvcs.dll, MiniDump 624 C:\\temp\\out.dmp full"
+    sanitized_dump = sanitize_telemetry_text(raw_dump)
+    assert "624 C:\\temp\\out.dmp" not in sanitized_dump
+    assert "MiniDump <REDACTED_DUMP_ARGS:sha256=" in sanitized_dump
+
+
+def test_find_deterministic_indicator_spans_and_span_based_edits():
+    from manager.tools.docs_review_tools import (
+        _extract_text_and_index_map,
+        defang_url,
+        find_deterministic_indicator_spans,
+    )
+
+    assert defang_url("https://c2.badactor-example.com/auth") == "hxxps://c2[.]badactor-example[.]com/auth"
+
+    p1 = "Callback to https://c2.badactor-example.com/auth observed.\n"
+    p2 = "Reference: https://docs.cloud.google.com/iam/docs/service-accounts-disable-enable\n"
+    doc = {
+        "documentId": "doc-123",
+        "title": "Indicator Review Test",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": 1 + len(p1),
+                                "textRun": {"content": p1},
+                            }
+                        ]
+                    }
+                },
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1 + len(p1),
+                                "endIndex": 1 + len(p1) + len(p2),
+                                "textRun": {"content": p2},
+                            }
+                        ]
+                    }
+                },
+            ]
+        },
+    }
+    plain_text, index_map = _extract_text_and_index_map(doc)
+    comments, edits = find_deterministic_indicator_spans(plain_text, index_map)
+    assert len(comments) == 1
+    assert len(edits) == 1
+    assert edits[0]["replacement"] == "hxxps://c2[.]badactor-example[.]com/auth"
+    assert isinstance(edits[0]["start_index"], int)
+    assert isinstance(edits[0]["end_index"], int)
+
+    batch_calls: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=doc)
+        body = json.loads(request.content.decode("utf-8"))
+        batch_calls.append(body)
+        if "insertComment" in json.dumps(body):
+            return httpx.Response(
+                200,
+                json={"replies": [{"insertComment": {"commentId": "c-span-0"}}]},
+            )
+        return httpx.Response(200, json={"replies": [{} for _ in body.get("requests", [])]})
+
+    transport = httpx.MockTransport(handler)
+    token_source = StaticTokenSource("adc-token")
+    ctx = SimpleNamespace(state={})
+    read_google_doc("doc-123", tool_context=ctx, token_source=token_source, transport=transport)
+
+    comment_res = insert_doc_comments(
+        "doc-123",
+        comments,
+        tool_context=ctx,
+        token_source=token_source,
+        transport=transport,
+    )
+    assert comment_res["status"] == "success"
+    assert comment_res["inserted_count"] == 1
+
+    edit_res = propose_doc_suggested_edits(
+        "doc-123",
+        edits,
+        tool_context=ctx,
+        token_source=token_source,
+        transport=transport,
+    )
+    assert edit_res["status"] == "success"
+    assert edit_res["applied_count"] == 1
+    assert batch_calls[1]["writeControl"] == {"writeMode": "SUGGEST"}
+
+

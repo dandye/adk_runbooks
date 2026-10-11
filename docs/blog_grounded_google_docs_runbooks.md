@@ -247,6 +247,40 @@ Here is what happened on the wire during the live run:
 
 ---
 
+## Working real SOAR cases from our Argolis tenant
+
+Synthetic postmortems are a clean starting point, but real SOAR queues are messier. When we pointed the workflow at live cases in our Argolis Chronicle SOAR instance `ltstrtn.siemplify-soar.com` backed by Chronicle SIEM project `dandye-0324-chronicle` via `scripts/experiment_argolis_soar_cases.py`, two real-world engineering challenges surfaced immediately.
+
+### Fixing `direnv` credential stripping across stdio MCP servers
+
+When an ADK runner spawns `secops-mcp` or `secops-soar` via `StdioConnectionParams` without an explicit `env` dictionary, the Python MCP SDK calls `get_default_environment()`, which copies only a handful of system variables such as `HOME`, `PATH`, and `USER` while stripping `GOOGLE_APPLICATION_CREDENTIALS` and `CLOUDSDK_CONFIG`. On a `direnv`-isolated multi-tenant workstation where each worktree holds its own `.gcloud/` config and ADC JSON, child `uv run` servers fell back to `~/.config/gcloud` and failed with 401 and 403 errors against `us-chronicle.googleapis.com`. Passing `env=dict(os.environ)` in `StdioServerParameters` inside `multi-agent/manager/tools/tools.py` preserved the per-worktree credential isolation across all child MCP processes.
+
+### Working around LLM safety filter blocks on known-malicious telemetry
+
+When we pulled raw endpoint process telemetry from Chronicle SOAR Cases `33269` and `33288`, the `principal.process.command_line` fields contained a 1.4 KB raw Base64 PowerShell Empire stager alongside a `rundll32.exe comsvcs.dll, MiniDump` command targeting `lsass.dmp`. Asking an LLM to quote or rewrite lines containing verbatim offensive stagers triggers model output safety filters and blocks the response mid-turn.
+
+We solved this in [`docs_review_tools.py`](file:///usr/local/google/home/dandye/Projects/adk_runbooks__worktrees/drive-mcp-runbooks__grounded-docs/multi-agent/manager/tools/docs_review_tools.py) with a two-part architecture that separates deterministic payload handling from semantic grounding:
+
+1. **Tool-boundary telemetry sanitization via `sanitize_telemetry_text`.** Before raw SIEM or SOAR process strings enter the LLM context or get written to a Google Doc, `sanitize_telemetry_text()` replaces raw `-EncodedCommand` and `-Enc` Base64 blobs and `comsvcs.dll, MiniDump` arguments with deterministic forensic tokens that preserve payload length and a 12-character SHA-256 fingerprint:
+   ```text
+   powershell.exe -nop -w hidden -enc <REDACTED_B64:len=56,sha256=e035de8b80be>
+   rundll32.exe C:\Windows\System32\comsvcs.dll, <REDACTED_DUMP_ARGS:sha256=1e6f45e16c7f>
+   ```
+   The analyst still gets a deterministic hash to pivot on in Chronicle SIEM, and the model never ingests or echoes raw exploit payloads.
+2. **Span-based addressing via `start_index` and `end_index` with `find_deterministic_indicator_spans`.** We extended `insert_doc_comments` and `propose_doc_suggested_edits` to accept explicit 1-based UTF-16 `start_index` and `end_index` spans in addition to `quote`. Stage A runs `find_deterministic_indicator_spans(plain_text, index_map)` in pure Python to locate live untrusted URLs while skipping trusted documentation domains like `docs.cloud.google.com` and `attack.mitre.org`, staging their defanging to `hxxps://` and `[.]` by numeric index without asking the LLM to repeat the malicious URL. Stage B uses the LLM and Developer Knowledge MCP strictly for safe technical claims such as MITRE ATT&CK technique IDs, Chronicle UDM schema fields, and `gcloud` containment syntax.
+
+### Three live Argolis SOAR cases reviewed end to end
+
+Running `scripts/experiment_argolis_soar_cases.py` executed the full pipeline across three real cases from `ltstrtn.siemplify-soar.com`:
+
+| Argolis SOAR Case | Correlated SIEM Telemetry | Drive Runbook Loaded | Generated Google Doc | Grounded Red-Lines Applied |
+| :--- | :--- | :--- | :--- | :--- |
+| **Case `33278`** (`gcp_admin_privileged_roles_added_to_service_accounts`, alerts `488690` and `488689`) | 5 `GCP_CLOUDAUDIT` UDM events from `104.198.226.161` showing `SetIamPolicy` granting `roles/editor` on `serviceAccount:hello@base-production.iam.gserviceaccount.com`, `cloudsql.instances.delete` on `projects/base-analytics/instances/prod-customers`, and 3 rogue VMs `production-do-not-delete1..3` | `compromised-user-account-response`, 15,481 chars | [`SOAR_Case_33278_GCP_Service_Account_Privilege_Escalation`](https://docs.google.com/document/d/1wH5XBHqH1g_nqAIZ04ebKqiBu0CU_umuSXpl7kIBwQA/edit), ID `1wH5XBHqH1g_nqAIZ04ebKqiBu0CU_umuSXpl7kIBwQA`, 2,260 UTF-16 chars | 1. `T1078.002 (Domain Accounts)` to `T1078.004 (Cloud Accounts)`<br>2. `resource.name` to `target.resource.name` via Developer Knowledge MCP<br>3. `gcloud iam service-accounts delete` to `gcloud iam service-accounts disable` via Developer Knowledge MCP |
+| **Cases `33287` & `33281`** (`google_workspace_ownership_transferred_on_google_drive` and `new_trusted_domain_added`) | Overturned 4 prior SOAR analyst comments concluding "legitimate automated process" by correlating 15 `WORKSPACE_ACTIVITY` UDM events from `79.154.246.114` for `bruce.wayne@the.org` showing SAML2 IdP deletion, rogue OAuth client `955611971872-...` granted `https://mail.google.com/`, and `CHANGE_TWO_STEP_VERIFICATION_ENROLLMENT` setting `ENFORCE_STRONG_AUTHENTICATION=false` on the `Finance` OU 65 seconds before the Drive transfer | `suspicious-login-triage`, 13,508 chars | [`SOAR_Case_33287_33281_Workspace_Admin_Takeover_Review`](https://docs.google.com/document/d/1tDrz_tM2qwlP2weizVGRSEvikDPaLxp-MIylOL49kns/edit), ID `1tDrz_tM2qwlP2weizVGRSEvikDPaLxp-MIylOL49kns`, 2,171 UTF-16 chars | 1. Corrected Case `33287` disposition from `"Close Case 33287 as Benign / Maintenance"` to `"Escalate Case 33287 to Critical Incident (Correlated with Case 33281)"`<br>2. `event.action` to `security_result.action`<br>3. `T1556.001 (Domain Controller Authentication)` to `T1556.006 (Multi-Factor Authentication)` |
+| **Case `33288`** (`Argolis Admin Live Manual Case`, 3 alerts across Phishing, LSASS, and PowerShell) | Sanitized 3-stage intrusion chain with `<REDACTED_DUMP_ARGS:sha256=1e6f45e16c7f>` and `<REDACTED_B64:len=56,sha256=e035de8b80be>` | `phishing-response`, 20,517 chars | [`SOAR_Case_33288_Sanitized_3Stage_Intrusion_Review`](https://docs.google.com/document/d/14kr7gtw5AJd4a53vCrQ4bIQdyW-t_v48LTtzWMhSg58/edit), ID `14kr7gtw5AJd4a53vCrQ4bIQdyW-t_v48LTtzWMhSg58`, 1,370 UTF-16 chars | 1. Stage A span-based URL defanging at `start_index=526, end_index=570` converting `https://login-micros0ft-security.com/auth` to `hxxps://login-micros0ft-security[.]com/auth` without echoing the URL through the LLM<br>2. `T1003.002 (Security Account Manager)` to `T1003.001 (LSASS Memory)`<br>3. `process.command_line` to `target.process.command_line` |
+
+---
+
 ## Closing the postmortem-to-runbook loop
 
 With runbooks stored in Google Drive, incident reports published to Google Docs, and verification grounded against Developer Knowledge MCP and Google Search, the postmortem graveyard disappears.

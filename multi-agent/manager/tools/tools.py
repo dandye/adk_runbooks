@@ -365,6 +365,8 @@ def init_shared_mcp_tools():
   base_path = Path(__file__).resolve().parent.parent.parent.parent
   mcp_security_path = base_path / "external" / "mcp-security"
 
+  child_env = dict(os.environ)
+
   # Create MCPToolset instances directly
   siem_toolset = MCPToolset(
     connection_params=StdioConnectionParams(
@@ -380,6 +382,7 @@ def init_shared_mcp_tools():
             str(mcp_security_path / ".env"),
             "server.py"
           ],
+        env=child_env,
         ),
       timeout=TIMEOUT,
     ),
@@ -402,6 +405,7 @@ def init_shared_mcp_tools():
             "--integrations",
             "CSV,GoogleChronicle,Siemplify,SiemplifyUtilities"
           ],
+        env=child_env,
         ),
       timeout=TIMEOUT,
     ),
@@ -423,6 +427,7 @@ def init_shared_mcp_tools():
             str(mcp_security_path / ".env"),
             "server.py"
           ],
+        env=child_env,
         ),
       timeout=TIMEOUT,
     ),

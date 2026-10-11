@@ -28,13 +28,16 @@ New Google Docs Comments & Suggested Edits API*):
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
+import re
 import sys
 import threading
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
@@ -64,6 +67,35 @@ GOOGLE_DOC_MIME_TYPE = "application/vnd.google-apps.document"
 MARKDOWN_MIME_TYPE = "text/markdown"
 DEFAULT_DOCS_TIMEOUT_SECONDS = 30.0
 
+DEFAULT_TRUSTED_DOC_DOMAINS: tuple[str, ...] = (
+    "docs.cloud.google.com",
+    "cloud.google.com",
+    "console.cloud.google.com",
+    "attack.mitre.org",
+    "ltstrtn.backstory.chronicle.security",
+    "backstory.chronicle.security",
+    "chronicle.security",
+    "googleapis.com",
+    "googleusercontent.com",
+    "docs.google.com",
+    "drive.google.com",
+    "github.com",
+)
+
+_ENC_FLAG_RE = re.compile(
+    r"(-(?:e|en|enc|encodedcommand)\s+)([A-Za-z0-9+/=]{8,})",
+    re.IGNORECASE,
+)
+_STANDALONE_B64_RE = re.compile(
+    r"(?<![A-Za-z0-9+/=_-])([A-Za-z0-9+/]{64,}={0,2})(?![A-Za-z0-9+/=_-])"
+)
+_MEMDUMP_ARGS_RE = re.compile(
+    r"(?i)(\bMiniDump)\s+([^\r\n\"'`]+)"
+)
+_LIVE_URL_RE = re.compile(
+    r"https?://[^\s)\]`\"'>]+"
+)
+
 _cache_lock = threading.Lock()
 _DOC_INDEX_CACHE: dict[str, tuple[str, list[int]]] = {}
 
@@ -72,6 +104,62 @@ def clear_doc_index_cache() -> None:
     """Clears the in-process fallback index cache (used by tests)."""
     with _cache_lock:
         _DOC_INDEX_CACHE.clear()
+
+
+def _short_sha256(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()[:12]
+
+
+def sanitize_telemetry_text(text: str) -> str:
+    """Redacts raw Base64 stagers and sensitive memory-dump arguments at the tool boundary.
+
+    Replaces verbatim encoded payloads and credential-dump argument sequences with
+    deterministic forensic tokens (length + 12-char SHA-256 fingerprint) so LLMs
+    can reason over and edit incident reports without echoing weaponized strings
+    that trigger model output safety classifiers.
+    """
+    if not text:
+        return text
+
+    def _replace_enc_flag(match: re.Match[str]) -> str:
+        prefix, blob = match.group(1), match.group(2)
+        return f"{prefix}<REDACTED_B64:len={len(blob)},sha256={_short_sha256(blob)}>"
+
+    def _replace_standalone_b64(match: re.Match[str]) -> str:
+        blob = match.group(1)
+        return f"<REDACTED_B64:len={len(blob)},sha256={_short_sha256(blob)}>"
+
+    def _replace_memdump(match: re.Match[str]) -> str:
+        verb, args_str = match.group(1), match.group(2).strip()
+        if args_str.startswith("<REDACTED_"):
+            return match.group(0)
+        return f"{verb} <REDACTED_DUMP_ARGS:sha256={_short_sha256(args_str)}>"
+
+    sanitized = _ENC_FLAG_RE.sub(_replace_enc_flag, text)
+    sanitized = _STANDALONE_B64_RE.sub(_replace_standalone_b64, sanitized)
+    sanitized = _MEMDUMP_ARGS_RE.sub(_replace_memdump, sanitized)
+    return sanitized
+
+
+def defang_url(url: str) -> str:
+    """Defangs an HTTP(S) URL by replacing scheme and dots in the hostname."""
+    cleaned = url.rstrip(".,;:")
+    if cleaned.startswith("https://"):
+        scheme_replaced = "hxxps://" + cleaned[len("https://") :]
+    elif cleaned.startswith("http://"):
+        scheme_replaced = "hxxp://" + cleaned[len("http://") :]
+    else:
+        return url
+    scheme_sep = scheme_replaced.find("://") + 3
+    slash_pos = scheme_replaced.find("/", scheme_sep)
+    if slash_pos == -1:
+        host = scheme_replaced[scheme_sep:]
+        rest = ""
+    else:
+        host = scheme_replaced[scheme_sep:slash_pos]
+        rest = scheme_replaced[slash_pos:]
+    defanged_host = host.replace(".", "[.]")
+    return scheme_replaced[:scheme_sep] + defanged_host + rest
 
 
 def _utf16_code_unit_len(ch: str) -> int:
@@ -414,14 +502,22 @@ def insert_doc_comments(
             continue
         quote = str(item.get("quote") or "")
         text = str(item.get("comment") or "").strip()
-        if not quote or not text:
-            skipped.append(quote or "<empty quote>")
+        raw_start = item.get("start_index")
+        raw_end = item.get("end_index")
+        if not text:
+            skipped.append(quote or "<empty comment>")
             continue
-        span = _find_quote_indices(plain_text, index_map, quote)
-        if span is None:
-            skipped.append(quote[:80])
+        if isinstance(raw_start, int) and isinstance(raw_end, int) and 1 <= raw_start < raw_end:
+            start_idx, end_idx = raw_start, raw_end
+        elif quote:
+            span = _find_quote_indices(plain_text, index_map, quote)
+            if span is None:
+                skipped.append(quote[:80])
+                continue
+            start_idx, end_idx = span
+        else:
+            skipped.append("<empty quote>")
             continue
-        start_idx, end_idx = span
         requests_list.append(
             {
                 "insertComment": {
@@ -476,7 +572,7 @@ def insert_doc_comments(
 
 def propose_doc_suggested_edits(
     document_id: str,
-    edits: str | list[dict[str, str]],
+    edits: str | list[dict[str, Any]],
     tool_context: Any = None,
     *,
     token_source: TokenSource | None = None,
@@ -490,10 +586,15 @@ def propose_doc_suggested_edits(
     the ``batchUpdate`` payload do not shift UTF-16 character offsets for
     subsequent edits earlier in the document.
 
+    Each edit item may specify either:
+    - ``{"quote": "<exact substring to replace>", "replacement": "<proposed text>"}``
+    - ``{"start_index": <int>, "end_index": <int>, "replacement": "<proposed text>"}``
+      (1-based UTF-16 indices from ``read_google_doc``, avoiding any need to echo
+      suspicious command strings in LLM tool call arguments).
+
     Args:
         document_id: The Google Docs ``documentId``.
-        edits: JSON string or list of ``{"quote": "<exact substring to replace>",
-            "replacement": "<proposed replacement text>"}`` objects.
+        edits: JSON string or list of edit objects.
         tool_context: Optional ADK ``ToolContext``.
 
     Returns:
@@ -530,15 +631,25 @@ def propose_doc_suggested_edits(
             continue
         quote = str(item.get("quote") or "")
         replacement = item.get("replacement")
-        if not quote or replacement is None:
-            skipped.append(quote or "<empty quote>")
+        raw_start = item.get("start_index")
+        raw_end = item.get("end_index")
+        if replacement is None:
+            skipped.append(quote or "<missing replacement>")
             continue
-        span = _find_quote_indices(plain_text, index_map, quote)
-        if span is None:
-            skipped.append(quote[:80])
+        if isinstance(raw_start, int) and isinstance(raw_end, int) and 1 <= raw_start < raw_end:
+            start_idx, end_idx = raw_start, raw_end
+            label = quote or f"span[{start_idx}:{end_idx}]"
+        elif quote:
+            span = _find_quote_indices(plain_text, index_map, quote)
+            if span is None:
+                skipped.append(quote[:80])
+                continue
+            start_idx, end_idx = span
+            label = quote
+        else:
+            skipped.append("<empty quote>")
             continue
-        start_idx, end_idx = span
-        resolved.append((start_idx, end_idx, str(replacement), quote))
+        resolved.append((start_idx, end_idx, str(replacement), label))
 
     if not resolved:
         return {
@@ -616,3 +727,65 @@ def propose_doc_suggested_edits(
     if skipped:
         result["skipped"] = skipped
     return result
+
+
+def _is_trusted_domain(url: str, trusted_domains: tuple[str, ...]) -> bool:
+    try:
+        parsed = urlparse(url)
+        host = (parsed.hostname or "").lower()
+    except ValueError:
+        return False
+    if not host:
+        return False
+    return any(host == dom or host.endswith("." + dom) for dom in trusted_domains)
+
+
+def find_deterministic_indicator_spans(
+    plain_text: str,
+    index_map: list[int],
+    *,
+    trusted_domains: tuple[str, ...] = DEFAULT_TRUSTED_DOC_DOMAINS,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Scans document text for live untrusted URLs and raw encoded blobs without an LLM.
+
+    Returns ``(comments, edits)`` using 1-based UTF-16 ``start_index`` and
+    ``end_index`` coordinates so ``insert_doc_comments`` and
+    ``propose_doc_suggested_edits`` can stage red-lines directly via the Docs API.
+    """
+    comments: list[dict[str, Any]] = []
+    edits: list[dict[str, Any]] = []
+    if not plain_text or not index_map:
+        return comments, edits
+
+    for match in _LIVE_URL_RE.finditer(plain_text):
+        raw_url = match.group(0).rstrip(".,;:")
+        if _is_trusted_domain(raw_url, trusted_domains):
+            continue
+        char_start = match.start()
+        char_end = char_start + len(raw_url) - 1
+        start_idx = index_map[char_start]
+        end_idx = index_map[char_end] + _utf16_code_unit_len(plain_text[char_end])
+        defanged = defang_url(raw_url)
+        if defanged == raw_url:
+            continue
+        comments.append(
+            {
+                "start_index": start_idx,
+                "end_index": end_idx,
+                "comment": (
+                    "Deterministic Indicator Safety Check: Live external URL auto-linkifies "
+                    "in Google Docs and creates a click hazard for incident responders. "
+                    "Defang indicator scheme and hostname before distributing the report."
+                ),
+            }
+        )
+        edits.append(
+            {
+                "start_index": start_idx,
+                "end_index": end_idx,
+                "replacement": defanged,
+            }
+        )
+
+    return comments, edits
+
