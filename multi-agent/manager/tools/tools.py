@@ -40,6 +40,7 @@ from .docs_review_tools import (
     inspect_doc_suggestions as _inspect_doc_suggestions,
     propose_doc_suggested_edits as _propose_doc_suggested_edits,
     read_google_doc as _read_google_doc,
+    verify_and_redline_mitre_and_cve_in_doc as _verify_and_redline_mitre_and_cve_in_doc,
     verify_and_redline_udm_queries_in_doc as _verify_and_redline_udm_queries_in_doc,
     verify_and_redline_yaral2_rules_in_doc as _verify_and_redline_yaral2_rules_in_doc,
 )
@@ -784,6 +785,38 @@ def verify_and_redline_yaral2_rules_in_doc(
   )
 
 
+def verify_and_redline_mitre_and_cve_in_doc(
+    document_id: str,
+    run_web_grounding_check: bool = False,
+    tool_context: ToolContext = None,
+) -> dict:
+  """Verifies MITRE ATT&CK technique/sub-technique IDs and CISA KEV CVE citations in a Google Doc and stages red-lines.
+
+  Scans the Google Doc for MITRE ATT&CK (`Txxxx` / `Txxxx.xxx`) and CVE
+  (`CVE-YYYY-NNNN+`) tokens by exact 1-based UTF-16 span (`start_index`/`end_index`),
+  identifies deprecated ATT&CK IDs (`T1086`, `T1085`), sibling sub-technique
+  mismatches (`T1059.003` vs `T1059.001`, `T1003.002` vs `T1003.001`, `T1078.001`
+  vs `T1078.004`, `T1098.001` vs `T1098.003`, `T1218.010` vs `T1218.011`), and
+  cross-vendor CISA KEV CVE attribution swaps (`CVE-2024-21887` vs `CVE-2024-21762`),
+  anchors comments citing `attack.mitre.org`, `nvd.nist.gov`, and `cisa.gov` first,
+  and proposes non-destructive Suggested Edits (`writeMode="SUGGEST"`) second.
+
+  Args:
+      document_id (str): The Google Docs documentId.
+      run_web_grounding_check (bool): Whether to enrich comments with grounded
+                                      MITRE ATT&CK / NVD / CISA KEV verification metadata.
+
+  Returns:
+      dict: {"status", "document_id", "title", "char_count", "mitre_cve_findings_count",
+             "skipped_existing_suggestion_count", "findings", "grounding_checks", "comments", "edits"}.
+  """
+  return _verify_and_redline_mitre_and_cve_in_doc(
+      document_id=document_id,
+      run_web_grounding_check=run_web_grounding_check,
+      tool_context=tool_context,
+  )
+
+
 def get_agent_tools():
   """Initializes and returns MCP toolsets and progressive discovery tools.
 
@@ -823,6 +856,9 @@ def get_agent_tools():
   wrapped_verify_and_redline_yaral2_rules_in_doc = instrument_tool(
       verify_and_redline_yaral2_rules_in_doc
   )
+  wrapped_verify_and_redline_mitre_and_cve_in_doc = instrument_tool(
+      verify_and_redline_mitre_and_cve_in_doc
+  )
   wrapped_inspect_doc_suggestions = instrument_tool(inspect_doc_suggestions)
   wrapped_export_accepted_doc_to_markdown = instrument_tool(
       export_accepted_doc_to_markdown
@@ -854,6 +890,7 @@ def get_agent_tools():
       wrapped_post_reviewed_doc_to_soar_case,
       wrapped_verify_and_redline_udm_queries_in_doc,
       wrapped_verify_and_redline_yaral2_rules_in_doc,
+      wrapped_verify_and_redline_mitre_and_cve_in_doc,
       wrapped_inspect_doc_suggestions,
       wrapped_export_accepted_doc_to_markdown,
       wrapped_get_current_time,

@@ -75,6 +75,8 @@ DEFAULT_TRUSTED_DOC_DOMAINS: tuple[str, ...] = (
     "cloud.google.com",
     "console.cloud.google.com",
     "attack.mitre.org",
+    "nvd.nist.gov",
+    "cisa.gov",
     "ltstrtn.backstory.chronicle.security",
     "backstory.chronicle.security",
     "chronicle.security",
@@ -104,6 +106,245 @@ DEFAULT_UDM_FIELD_LIST_URL = (
 )
 DEFAULT_YARAL2_DOC_URL = (
     "https://docs.cloud.google.com/chronicle/docs/detection/yara-l-2-0-syntax"
+)
+MITRE_ATTACK_BASE_URL = "https://attack.mitre.org/techniques"
+NVD_CVE_BASE_URL = "https://nvd.nist.gov/vuln/detail"
+CISA_KEV_CATALOG_URL = "https://www.cisa.gov/known-exploited-vulnerabilities-catalog"
+
+
+def mitre_technique_url(technique_id: str) -> str:
+    """Converts a MITRE ATT&CK technique ID (e.g. ``T1059.001`` or ``T1059``) to its canonical URL."""
+    cleaned = str(technique_id or "").strip().upper()
+    if "." in cleaned:
+        parent, sub = cleaned.split(".", 1)
+        return f"{MITRE_ATTACK_BASE_URL}/{parent}/{sub}/"
+    return f"{MITRE_ATTACK_BASE_URL}/{cleaned}/"
+
+
+def nvd_cve_url(cve_id: str) -> str:
+    """Converts a CVE ID (e.g. ``CVE-2024-21762``) to its canonical NIST NVD detail URL."""
+    cleaned = str(cve_id or "").strip().upper()
+    return f"{NVD_CVE_BASE_URL}/{cleaned}"
+
+
+DEPRECATED_MITRE_TECHNIQUE_MAP: dict[str, dict[str, str]] = {
+    "T1086": {
+        "canonical_id": "T1059.001",
+        "canonical_name": "Command and Scripting Interpreter: PowerShell",
+        "short_name": "PowerShell",
+        "deprecated_name": "PowerShell",
+        "tactic": "Execution",
+    },
+    "T1085": {
+        "canonical_id": "T1218.011",
+        "canonical_name": "System Binary Proxy Execution: Rundll32",
+        "short_name": "Rundll32",
+        "deprecated_name": "Rundll32",
+        "tactic": "Defense Evasion",
+    },
+    "T1117": {
+        "canonical_id": "T1218.010",
+        "canonical_name": "System Binary Proxy Execution: Regsvr32",
+        "short_name": "Regsvr32",
+        "deprecated_name": "Regsvr32",
+        "tactic": "Defense Evasion",
+    },
+    "T1170": {
+        "canonical_id": "T1218.005",
+        "canonical_name": "System Binary Proxy Execution: Mshta",
+        "short_name": "Mshta",
+        "deprecated_name": "Mshta",
+        "tactic": "Defense Evasion",
+    },
+    "T1064": {
+        "canonical_id": "T1059",
+        "canonical_name": "Command and Scripting Interpreter",
+        "short_name": "Command and Scripting Interpreter",
+        "deprecated_name": "Scripting",
+        "tactic": "Execution",
+    },
+    "T1100": {
+        "canonical_id": "T1505.003",
+        "canonical_name": "Server Software Component: Web Shell",
+        "short_name": "Web Shell",
+        "deprecated_name": "Web Shell",
+        "tactic": "Persistence",
+    },
+    "T1075": {
+        "canonical_id": "T1550.002",
+        "canonical_name": "Use Alternate Authentication Material: Pass the Hash",
+        "short_name": "Pass the Hash",
+        "deprecated_name": "Pass the Hash",
+        "tactic": "Lateral Movement",
+    },
+    "T1504": {
+        "canonical_id": "T1546.013",
+        "canonical_name": "Event Triggered Execution: PowerShell Profile",
+        "short_name": "PowerShell Profile",
+        "deprecated_name": "PowerShell Profile",
+        "tactic": "Persistence",
+    },
+}
+
+CANONICAL_MITRE_TECHNIQUES: dict[str, dict[str, str]] = {
+    "T1059": {
+        "canonical_name": "Command and Scripting Interpreter",
+        "short_name": "Command and Scripting Interpreter",
+        "tactic": "Execution",
+    },
+    "T1059.001": {
+        "canonical_name": "Command and Scripting Interpreter: PowerShell",
+        "short_name": "PowerShell",
+        "tactic": "Execution",
+    },
+    "T1059.003": {
+        "canonical_name": "Command and Scripting Interpreter: Windows Command Shell",
+        "short_name": "Windows Command Shell",
+        "tactic": "Execution",
+    },
+    "T1059.004": {
+        "canonical_name": "Command and Scripting Interpreter: Unix Shell",
+        "short_name": "Unix Shell",
+        "tactic": "Execution",
+    },
+    "T1003": {
+        "canonical_name": "OS Credential Dumping",
+        "short_name": "OS Credential Dumping",
+        "tactic": "Credential Access",
+    },
+    "T1003.001": {
+        "canonical_name": "OS Credential Dumping: LSASS Memory",
+        "short_name": "LSASS Memory",
+        "tactic": "Credential Access",
+    },
+    "T1003.002": {
+        "canonical_name": "OS Credential Dumping: Security Account Manager",
+        "short_name": "Security Account Manager",
+        "tactic": "Credential Access",
+    },
+    "T1003.003": {
+        "canonical_name": "OS Credential Dumping: NTDS",
+        "short_name": "NTDS",
+        "tactic": "Credential Access",
+    },
+    "T1078": {
+        "canonical_name": "Valid Accounts",
+        "short_name": "Valid Accounts",
+        "tactic": "Initial Access / Privilege Escalation",
+    },
+    "T1078.001": {
+        "canonical_name": "Valid Accounts: Default Accounts",
+        "short_name": "Default Accounts",
+        "tactic": "Initial Access / Privilege Escalation",
+    },
+    "T1078.002": {
+        "canonical_name": "Valid Accounts: Domain Accounts",
+        "short_name": "Domain Accounts",
+        "tactic": "Initial Access / Privilege Escalation",
+    },
+    "T1078.003": {
+        "canonical_name": "Valid Accounts: Local Accounts",
+        "short_name": "Local Accounts",
+        "tactic": "Initial Access / Privilege Escalation",
+    },
+    "T1078.004": {
+        "canonical_name": "Valid Accounts: Cloud Accounts",
+        "short_name": "Cloud Accounts",
+        "tactic": "Initial Access / Privilege Escalation",
+    },
+    "T1098": {
+        "canonical_name": "Account Manipulation",
+        "short_name": "Account Manipulation",
+        "tactic": "Persistence / Privilege Escalation",
+    },
+    "T1098.001": {
+        "canonical_name": "Account Manipulation: Additional Cloud Credentials",
+        "short_name": "Additional Cloud Credentials",
+        "tactic": "Persistence / Privilege Escalation",
+    },
+    "T1098.003": {
+        "canonical_name": "Account Manipulation: Additional Cloud Roles",
+        "short_name": "Additional Cloud Roles",
+        "tactic": "Persistence / Privilege Escalation",
+    },
+    "T1218": {
+        "canonical_name": "System Binary Proxy Execution",
+        "short_name": "System Binary Proxy Execution",
+        "tactic": "Defense Evasion",
+    },
+    "T1218.003": {
+        "canonical_name": "System Binary Proxy Execution: CMSTP",
+        "short_name": "CMSTP",
+        "tactic": "Defense Evasion",
+    },
+    "T1218.005": {
+        "canonical_name": "System Binary Proxy Execution: Mshta",
+        "short_name": "Mshta",
+        "tactic": "Defense Evasion",
+    },
+    "T1218.010": {
+        "canonical_name": "System Binary Proxy Execution: Regsvr32",
+        "short_name": "Regsvr32",
+        "tactic": "Defense Evasion",
+    },
+    "T1218.011": {
+        "canonical_name": "System Binary Proxy Execution: Rundll32",
+        "short_name": "Rundll32",
+        "tactic": "Defense Evasion",
+    },
+    "T1505.003": {
+        "canonical_name": "Server Software Component: Web Shell",
+        "short_name": "Web Shell",
+        "tactic": "Persistence",
+    },
+    "T1550.002": {
+        "canonical_name": "Use Alternate Authentication Material: Pass the Hash",
+        "short_name": "Pass the Hash",
+        "tactic": "Lateral Movement",
+    },
+    "T1546.013": {
+        "canonical_name": "Event Triggered Execution: PowerShell Profile",
+        "short_name": "PowerShell Profile",
+        "tactic": "Persistence",
+    },
+}
+
+CANONICAL_CISA_KEV_CATALOG: dict[str, dict[str, Any]] = {
+    "CVE-2024-21762": {
+        "vendor": "Fortinet",
+        "product": "FortiOS SSL VPN",
+        "vulnerability_name": "Fortinet FortiOS Out-of-Bounds Write Vulnerability",
+        "cwe": "CWE-787",
+        "vendor_keywords": ("fortinet", "fortios", "fortigate"),
+    },
+    "CVE-2024-21887": {
+        "vendor": "Ivanti",
+        "product": "Connect Secure and Policy Secure",
+        "vulnerability_name": "Ivanti Connect Secure and Policy Secure Command Injection Vulnerability",
+        "cwe": "CWE-77",
+        "vendor_keywords": ("ivanti", "connect secure", "policy secure", "pulse secure"),
+    },
+    "CVE-2023-46805": {
+        "vendor": "Ivanti",
+        "product": "Connect Secure and Policy Secure",
+        "vulnerability_name": "Ivanti Connect Secure and Policy Secure Authentication Bypass Vulnerability",
+        "cwe": "CWE-287",
+        "vendor_keywords": ("ivanti", "connect secure", "policy secure", "pulse secure"),
+    },
+    "CVE-2024-3400": {
+        "vendor": "Palo Alto Networks",
+        "product": "PAN-OS GlobalProtect",
+        "vulnerability_name": "Palo Alto Networks PAN-OS Command Injection Vulnerability",
+        "cwe": "CWE-77",
+        "vendor_keywords": ("palo alto", "pan-os", "panos", "globalprotect"),
+    },
+}
+
+_MITRE_TECHNIQUE_RE = re.compile(
+    r"(?<![A-Za-z0-9_./-])(T\d{4}(?:\.\d{3})?)(?![A-Za-z0-9_]|(?:\.\d))"
+)
+_CVE_ID_RE = re.compile(
+    r"(?<![A-Za-z0-9_./-])(CVE-\d{4}-\d{4,7})(?![A-Za-z0-9_-])"
 )
 
 VALID_UDM_TOP_LEVEL_PREFIXES: tuple[str, ...] = (
@@ -2184,6 +2425,682 @@ def verify_and_redline_yaral2_rules_in_doc(
     }
 
 
+def _extract_mitre_cve_clause_context(
+    plain_text: str,
+    token_start: int,
+    token_end: int,
+    same_line_spans: list[tuple[int, int]],
+    rule_blocks: list[dict[str, Any]],
+) -> tuple[str, str, str]:
+    """Returns ``(clause_context, full_line, paren_label)`` for a MITRE or CVE token."""
+    line_start = plain_text.rfind("\n", 0, token_start) + 1
+    line_end = plain_text.find("\n", token_start)
+    if line_end == -1:
+        line_end = len(plain_text)
+    full_line = plain_text[line_start:line_end]
+
+    # Check for an immediate parenthetical label right after the token, e.g. T1059.003 (PowerShell)
+    tail = plain_text[token_end:line_end]
+    paren_match = re.match(r"^\s*\(([^()\r\n]{2,90})\)", tail)
+    paren_label = paren_match.group(1).strip() if paren_match else ""
+
+    # If multiple tokens of the same type appear on the same line (e.g. a collapsed
+    # YARA-L 2.0 rule block or multi-column line), scope clause_context to the segment
+    # surrounding this token so adjacent tokens do not cross-contaminate.
+    if len(same_line_spans) > 1:
+        seg_start = line_start
+        seg_end = line_end
+        for idx, (s_start, s_end) in enumerate(same_line_spans):
+            if s_start == token_start and s_end == token_end:
+                if idx > 0:
+                    seg_start = same_line_spans[idx - 1][1]
+                if idx + 1 < len(same_line_spans):
+                    seg_end = same_line_spans[idx + 1][0]
+                break
+        clause_context = plain_text[seg_start:seg_end]
+    else:
+        clause_context = full_line
+        # If this token is on a standalone meta: line inside a multi-line YARA-L 2.0 rule block
+        # that only cites this single MITRE/CVE token, include the rule block context.
+        for rb in rule_blocks:
+            rb_start = int(rb["char_start"])
+            rb_end = int(rb["char_end"])
+            if rb_start <= token_start < rb_end:
+                rb_text = str(rb["rule_text"])
+                if len(_MITRE_TECHNIQUE_RE.findall(rb_text)) <= 1:
+                    clause_context = full_line + "\n" + rb_text
+                break
+
+    return clause_context, full_line, paren_label
+
+
+def _disambiguate_mitre_technique(
+    tech_id: str,
+    clause_context: str,
+    paren_label: str,
+) -> dict[str, str] | None:
+    """Evaluates ``tech_id`` against ``DEPRECATED_MITRE_TECHNIQUE_MAP`` and sibling
+    sub-technique disambiguation rules."""
+    # (a) Deprecated / revoked pre-subtechnique ATT&CK IDs
+    dep = DEPRECATED_MITRE_TECHNIQUE_MAP.get(tech_id)
+    if dep is not None:
+        canonical_id = dep["canonical_id"]
+        canonical_name = dep["canonical_name"]
+        tactic = dep["tactic"]
+        dep_name = dep["deprecated_name"]
+        canon_url = mitre_technique_url(canonical_id)
+        dep_url = mitre_technique_url(tech_id)
+        return {
+            "defect_type": "deprecated_mitre_id",
+            "invalid_id": tech_id,
+            "canonical_id": canonical_id,
+            "canonical_name": canonical_name,
+            "tactic": tactic,
+            "reference_url": canon_url,
+            "secondary_url": dep_url,
+            "comment": (
+                f"Deterministic MITRE ATT&CK Taxonomy Check: '{tech_id}' ({dep_name}, {dep_url}) "
+                f"is a revoked/deprecated pre-subtechnique ATT&CK identifier. Replace '{tech_id}' "
+                f"with '{canonical_id}' ({canonical_name}, Tactic: {tactic}, {canon_url})."
+            ),
+        }
+
+    ctx = clause_context.lower()
+    plabel = paren_label.lower().strip()
+    cited_meta = CANONICAL_MITRE_TECHNIQUES.get(tech_id, {})
+    cited_name = cited_meta.get("canonical_name", tech_id)
+
+    canonical_id: str | None = None
+    reason_detail = ""
+
+    # (b.1) T1059 Command and Scripting Interpreter family
+    if tech_id.startswith("T1059"):
+        ps_indicators = (
+            "powershell",
+            "pwsh",
+            "-enc",
+            "-encodedcommand",
+            "-nop",
+            "-w hidden",
+            "-windowstyle hidden",
+            "invoke-expression",
+            "frombase64string",
+            "empire",
+        )
+        cmd_indicators = ("cmd.exe", "cmd /c", "batch script", ".bat")
+        unix_indicators = ("/bin/bash", "/bin/sh", "bash -c", "bash -i", "zsh")
+
+        has_ps = any(k in ctx for k in ps_indicators) or "powershell" in plabel
+        has_cmd = any(k in ctx for k in cmd_indicators) or "windows command shell" in plabel
+        has_unix = any(k in ctx for k in unix_indicators) or "unix shell" in plabel
+
+        if tech_id in ("T1059.003", "T1059.004", "T1059") and has_ps:
+            canonical_id = "T1059.001"
+            reason_detail = "PowerShell execution telemetry/stager activity"
+        elif tech_id in ("T1059.001", "T1059.004") and has_cmd and not has_ps:
+            canonical_id = "T1059.003"
+            reason_detail = "Windows Command Shell (cmd.exe) execution telemetry"
+        elif tech_id in ("T1059.001", "T1059.003") and has_unix and not has_ps and not has_cmd:
+            canonical_id = "T1059.004"
+            reason_detail = "Unix Shell (/bin/sh or /bin/bash) execution telemetry"
+
+    # (b.2) T1003 OS Credential Dumping family
+    elif tech_id.startswith("T1003"):
+        lsass_indicators = (
+            "lsass",
+            "comsvcs.dll",
+            "minidump",
+            "procdump",
+            "sekurlsa",
+            "mimikatz",
+            "lsass.dmp",
+        )
+        ntds_indicators = ("ntds.dit", "ntdsutil")
+        sam_indicators = ("hklm\\sam", "sam hive", "reg save")
+
+        has_lsass = any(k in ctx for k in lsass_indicators) or "lsass" in plabel
+        has_ntds = any(k in ctx for k in ntds_indicators) or "ntds" in plabel
+        has_sam = (
+            any(k in ctx for k in sam_indicators)
+            or "security account manager" in plabel
+            or plabel == "sam"
+        )
+
+        if tech_id in ("T1003.002", "T1003.003", "T1003") and has_lsass:
+            canonical_id = "T1003.001"
+            reason_detail = "LSASS process memory dump telemetry (comsvcs.dll MiniDump / lsass)"
+        elif tech_id in ("T1003.001", "T1003.002", "T1003") and has_ntds and not has_lsass:
+            canonical_id = "T1003.003"
+            reason_detail = "Active Directory NTDS.dit credential extraction telemetry"
+        elif tech_id in ("T1003.001", "T1003.003") and has_sam and not has_lsass and not has_ntds:
+            canonical_id = "T1003.002"
+            reason_detail = "Security Account Manager (SAM) hive extraction telemetry"
+
+    # (b.3) T1078 Valid Accounts family
+    elif tech_id.startswith("T1078"):
+        cloud_acct_indicators = (
+            "gserviceaccount.com",
+            "serviceaccount:",
+            "gcp",
+            "google workspace",
+            "workspace admin",
+            "cloud account",
+            "cloud identity",
+            "iam service account",
+            "entra id",
+            "azure ad",
+            "aws iam",
+            "okta",
+        )
+        has_cloud_acct = (
+            any(k in ctx for k in cloud_acct_indicators) or "cloud account" in plabel
+        )
+        if tech_id in ("T1078.001", "T1078.002", "T1078.003", "T1078") and has_cloud_acct:
+            canonical_id = "T1078.004"
+            reason_detail = "GCP IAM service account or cloud identity compromise"
+
+    # (b.4) T1098 Account Manipulation family
+    elif tech_id.startswith("T1098"):
+        cloud_role_indicators = (
+            "setiampolicy",
+            "roles/editor",
+            "roles/owner",
+            "roles/iam",
+            "roles/",
+            "role binding",
+            "iam role",
+            "additional cloud roles",
+            "privileged role",
+        )
+        cloud_cred_indicators = (
+            "serviceaccountkeys.create",
+            "createaccesskey",
+            "oauth client",
+            "additional cloud credentials",
+        )
+        has_cloud_role = (
+            any(k in ctx for k in cloud_role_indicators)
+            or "additional cloud roles" in plabel
+        )
+        has_cloud_cred = (
+            any(k in ctx for k in cloud_cred_indicators)
+            or "additional cloud credentials" in plabel
+        )
+        if tech_id in ("T1098.001", "T1098") and has_cloud_role:
+            canonical_id = "T1098.003"
+            reason_detail = "cloud IAM role binding manipulation (SetIamPolicy / roles/ grant)"
+        elif tech_id == "T1098.003" and has_cloud_cred and not has_cloud_role:
+            canonical_id = "T1098.001"
+            reason_detail = "cloud credential or key creation manipulation"
+
+    # (b.5) T1218 System Binary Proxy Execution family
+    elif tech_id.startswith("T1218"):
+        has_rundll32 = "rundll32" in ctx or "rundll32" in plabel
+        has_regsvr32 = "regsvr32" in ctx or "scrobj.dll" in ctx or "regsvr32" in plabel
+        has_mshta = "mshta" in ctx or ".hta" in ctx or "mshta" in plabel
+        has_cmstp = "cmstp" in ctx or "cmstp" in plabel
+
+        if (
+            tech_id in ("T1218.010", "T1218.005", "T1218.003", "T1218")
+            and has_rundll32
+            and not has_regsvr32
+            and not has_mshta
+            and not has_cmstp
+        ):
+            canonical_id = "T1218.011"
+            reason_detail = "rundll32.exe proxy execution telemetry"
+        elif (
+            tech_id in ("T1218.011", "T1218.005", "T1218.003", "T1218")
+            and has_regsvr32
+            and not has_rundll32
+            and not has_mshta
+            and not has_cmstp
+        ):
+            canonical_id = "T1218.010"
+            reason_detail = "regsvr32.exe proxy execution telemetry"
+        elif (
+            tech_id in ("T1218.011", "T1218.010", "T1218.003", "T1218")
+            and has_mshta
+            and not has_rundll32
+            and not has_regsvr32
+            and not has_cmstp
+        ):
+            canonical_id = "T1218.005"
+            reason_detail = "mshta.exe proxy execution telemetry"
+        elif (
+            tech_id in ("T1218.011", "T1218.010", "T1218.005", "T1218")
+            and has_cmstp
+            and not has_rundll32
+            and not has_regsvr32
+            and not has_mshta
+        ):
+            canonical_id = "T1218.003"
+            reason_detail = "cmstp.exe proxy execution telemetry"
+
+    # (b.6) Explicit parenthetical label contradiction fallback
+    if canonical_id is None and plabel:
+        for cand_id, cand_meta in CANONICAL_MITRE_TECHNIQUES.items():
+            if cand_id == tech_id:
+                continue
+            short_lower = cand_meta["short_name"].lower()
+            canon_lower = cand_meta["canonical_name"].lower()
+            if plabel == short_lower or plabel == canon_lower:
+                canonical_id = cand_id
+                reason_detail = f"explicit parenthetical technique label '({paren_label})'"
+                break
+
+    if canonical_id is None or canonical_id == tech_id:
+        return None
+
+    target_meta = CANONICAL_MITRE_TECHNIQUES[canonical_id]
+    canonical_name = target_meta["canonical_name"]
+    tactic = target_meta["tactic"]
+    canon_url = mitre_technique_url(canonical_id)
+    cited_url = mitre_technique_url(tech_id)
+    return {
+        "defect_type": "mitre_subtechnique_mismatch",
+        "invalid_id": tech_id,
+        "canonical_id": canonical_id,
+        "canonical_name": canonical_name,
+        "tactic": tactic,
+        "reference_url": canon_url,
+        "secondary_url": cited_url,
+        "comment": (
+            f"Deterministic MITRE ATT&CK Sub-Technique Check: '{tech_id}' ({cited_name}) "
+            f"does not match observed {reason_detail}. Replace '{tech_id}' with "
+            f"'{canonical_id}' ({canonical_name}, Tactic: {tactic}, {canon_url})."
+        ),
+    }
+
+
+def _disambiguate_cve_id(
+    cve_id: str,
+    clause_context: str,
+) -> dict[str, str] | None:
+    """Evaluates ``cve_id`` against ``CANONICAL_CISA_KEV_CATALOG`` for cross-vendor attribution swaps."""
+    cited_meta = CANONICAL_CISA_KEV_CATALOG.get(cve_id)
+    if cited_meta is None:
+        return None
+
+    ctx = clause_context.lower()
+    # If the clause explicitly names the cited CVE's own vendor/product, preserve it.
+    if any(kw in ctx for kw in cited_meta["vendor_keywords"]):
+        return None
+
+    canonical_cve: str | None = None
+    if any(kw in ctx for kw in ("fortinet", "fortios", "fortigate")):
+        canonical_cve = "CVE-2024-21762"
+    elif any(kw in ctx for kw in ("palo alto", "pan-os", "panos", "globalprotect")):
+        canonical_cve = "CVE-2024-3400"
+    elif any(kw in ctx for kw in ("ivanti", "connect secure", "policy secure", "pulse secure")):
+        if "authentication bypass" in ctx or "auth bypass" in ctx or "cwe-287" in ctx:
+            canonical_cve = "CVE-2023-46805"
+        else:
+            canonical_cve = "CVE-2024-21887"
+
+    if canonical_cve is None or canonical_cve == cve_id:
+        return None
+
+    target_meta = CANONICAL_CISA_KEV_CATALOG[canonical_cve]
+    canon_nvd_url = nvd_cve_url(canonical_cve)
+    cited_nvd_url = nvd_cve_url(cve_id)
+    return {
+        "defect_type": "cve_vendor_mismatch",
+        "invalid_id": cve_id,
+        "canonical_id": canonical_cve,
+        "canonical_name": f"{target_meta['vendor']} {target_meta['product']} ({target_meta['vulnerability_name']})",
+        "tactic": f"{target_meta['vendor']} ({target_meta['cwe']})",
+        "reference_url": canon_nvd_url,
+        "secondary_url": CISA_KEV_CATALOG_URL,
+        "comment": (
+            f"Deterministic CISA KEV / NVD CVE Attribution Check: '{cve_id}' belongs to "
+            f"{cited_meta['vendor']} {cited_meta['product']} ({cited_meta['vulnerability_name']}, "
+            f"{cited_nvd_url}), not {target_meta['vendor']} {target_meta['product']}. "
+            f"Replace '{cve_id}' with '{canonical_cve}' ({target_meta['vulnerability_name']}, "
+            f"{target_meta['cwe']}, {canon_nvd_url} | {CISA_KEV_CATALOG_URL})."
+        ),
+    }
+
+
+def find_mitre_and_cve_spans(
+    plain_text: str,
+    index_map: list[int],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Scans ``plain_text`` for MITRE ATT&CK technique IDs (``Txxxx(.xxx)``) and CVE IDs
+    (``CVE-YYYY-NNNN+``) and identifies deterministic taxonomy and attribution defects.
+
+    Detects three defect classes without echoing surrounding offensive command lines:
+    1. ``deprecated_mitre_id``: revoked/superseded pre-subtechnique ATT&CK IDs
+       (e.g. ``T1086`` -> ``T1059.001`` PowerShell, ``T1085`` -> ``T1218.011`` Rundll32).
+    2. ``mitre_subtechnique_mismatch``: sibling sub-technique or parenthetical label
+       contradictions (e.g. ``T1059.003`` paired with PowerShell telemetry -> ``T1059.001``;
+       ``T1003.002`` paired with ``comsvcs.dll, MiniDump`` / ``lsass`` -> ``T1003.001``;
+       ``T1078.001`` paired with GCP IAM service accounts -> ``T1078.004``;
+       ``T1098.001`` paired with ``SetIamPolicy`` / ``roles/editor`` -> ``T1098.003``;
+       ``T1218.010`` paired with ``rundll32.exe`` -> ``T1218.011``).
+    3. ``cve_vendor_mismatch``: cross-vendor CISA KEV CVE swaps (e.g. ``CVE-2024-21887``
+       Ivanti Connect Secure attributed to Fortinet FortiOS SSL VPN -> ``CVE-2024-21762``).
+
+    Returns:
+        ``(comments, edits, findings)`` with exact 1-based UTF-16 ``start_index`` and
+        ``end_index`` spans and canonical ``attack.mitre.org``, ``nvd.nist.gov``, and
+        ``cisa.gov`` citations.
+    """
+    comments: list[dict[str, Any]] = []
+    edits: list[dict[str, Any]] = []
+    findings: list[dict[str, Any]] = []
+    if not plain_text or not index_map:
+        return comments, edits, findings
+
+    rule_blocks = _iter_yaral2_rule_blocks(plain_text)
+
+    mitre_matches = list(_MITRE_TECHNIQUE_RE.finditer(plain_text))
+    cve_matches = list(_CVE_ID_RE.finditer(plain_text))
+
+    # Group spans by line start so multi-token lines can isolate per-token clauses
+    mitre_spans_by_line: dict[int, list[tuple[int, int]]] = {}
+    for m in mitre_matches:
+        l_start = plain_text.rfind("\n", 0, m.start(1)) + 1
+        mitre_spans_by_line.setdefault(l_start, []).append((m.start(1), m.end(1)))
+
+    cve_spans_by_line: dict[int, list[tuple[int, int]]] = {}
+    for m in cve_matches:
+        l_start = plain_text.rfind("\n", 0, m.start(1)) + 1
+        cve_spans_by_line.setdefault(l_start, []).append((m.start(1), m.end(1)))
+
+    raw_items: list[tuple[int, dict[str, Any], dict[str, Any], dict[str, Any]]] = []
+
+    for m in mitre_matches:
+        tech_id = m.group(1).upper()
+        char_start = m.start(1)
+        char_end = m.end(1)
+        l_start = plain_text.rfind("\n", 0, char_start) + 1
+        clause_ctx, full_line, paren_label = _extract_mitre_cve_clause_context(
+            plain_text,
+            char_start,
+            char_end,
+            mitre_spans_by_line.get(l_start, []),
+            rule_blocks,
+        )
+        verdict = _disambiguate_mitre_technique(tech_id, clause_ctx, paren_label)
+        if verdict is None:
+            continue
+        start_idx = index_map[char_start]
+        end_idx = index_map[char_end - 1] + _utf16_code_unit_len(plain_text[char_end - 1])
+        quote = plain_text[char_start:char_end]
+        replacement = verdict["canonical_id"]
+        comment_obj = {
+            "start_index": start_idx,
+            "end_index": end_idx,
+            "quote": quote,
+            "comment": verdict["comment"],
+        }
+        edit_obj = {
+            "start_index": start_idx,
+            "end_index": end_idx,
+            "quote": quote,
+            "replacement": replacement,
+        }
+        finding_obj = {
+            "defect_type": verdict["defect_type"],
+            "invalid_id": quote,
+            "canonical_id": replacement,
+            "canonical_name": verdict["canonical_name"],
+            "tactic": verdict["tactic"],
+            "reference_url": verdict["reference_url"],
+            "secondary_url": verdict["secondary_url"],
+            "quote": quote,
+            "replacement": replacement,
+            "start_index": start_idx,
+            "end_index": end_idx,
+            "rationale": verdict["comment"],
+            "comment": verdict["comment"],
+            "context_line": sanitize_telemetry_text(full_line.strip()),
+        }
+        raw_items.append((start_idx, comment_obj, edit_obj, finding_obj))
+
+    for m in cve_matches:
+        cve_id = m.group(1).upper()
+        char_start = m.start(1)
+        char_end = m.end(1)
+        l_start = plain_text.rfind("\n", 0, char_start) + 1
+        clause_ctx, full_line, _paren_label = _extract_mitre_cve_clause_context(
+            plain_text,
+            char_start,
+            char_end,
+            cve_spans_by_line.get(l_start, []),
+            rule_blocks,
+        )
+        verdict = _disambiguate_cve_id(cve_id, clause_ctx)
+        if verdict is None:
+            continue
+        start_idx = index_map[char_start]
+        end_idx = index_map[char_end - 1] + _utf16_code_unit_len(plain_text[char_end - 1])
+        quote = plain_text[char_start:char_end]
+        replacement = verdict["canonical_id"]
+        comment_obj = {
+            "start_index": start_idx,
+            "end_index": end_idx,
+            "quote": quote,
+            "comment": verdict["comment"],
+        }
+        edit_obj = {
+            "start_index": start_idx,
+            "end_index": end_idx,
+            "quote": quote,
+            "replacement": replacement,
+        }
+        finding_obj = {
+            "defect_type": verdict["defect_type"],
+            "invalid_id": quote,
+            "canonical_id": replacement,
+            "canonical_name": verdict["canonical_name"],
+            "tactic": verdict["tactic"],
+            "reference_url": verdict["reference_url"],
+            "secondary_url": verdict["secondary_url"],
+            "quote": quote,
+            "replacement": replacement,
+            "start_index": start_idx,
+            "end_index": end_idx,
+            "rationale": verdict["comment"],
+            "comment": verdict["comment"],
+            "context_line": sanitize_telemetry_text(full_line.strip()),
+        }
+        raw_items.append((start_idx, comment_obj, edit_obj, finding_obj))
+
+    raw_items.sort(key=lambda item: item[0])
+    for _s_idx, c_obj, e_obj, f_obj in raw_items:
+        comments.append(c_obj)
+        edits.append(e_obj)
+        findings.append(f_obj)
+
+    return comments, edits, findings
+
+
+def _run_mitre_cve_grounding_check(
+    finding: dict[str, Any],
+    *,
+    web_verifier_fn: Any = None,
+) -> dict[str, Any]:
+    """Executes an optional grounding check for a MITRE ATT&CK or CVE finding."""
+    invalid_id = str(finding.get("invalid_id") or "")
+    canonical_id = str(finding.get("canonical_id") or "")
+    canonical_name = str(finding.get("canonical_name") or "")
+    ref_url = str(finding.get("reference_url") or "")
+
+    if web_verifier_fn is not None:
+        try:
+            raw_res = web_verifier_fn(finding)
+        except TypeError:
+            raw_res = web_verifier_fn(canonical_id)
+        if isinstance(raw_res, dict):
+            summary = _strip_non_ascii_symbols(
+                str(
+                    raw_res.get("summary")
+                    or raw_res.get("verification")
+                    or f"{invalid_id} -> {canonical_id} ({canonical_name}) verified via {ref_url}"
+                )
+            )
+            return {
+                "invalid_id": invalid_id,
+                "canonical_id": canonical_id,
+                "verified": bool(raw_res.get("verified", True)),
+                "summary": summary,
+                "reference_url": str(raw_res.get("reference_url") or ref_url),
+            }
+        summary = _strip_non_ascii_symbols(str(raw_res))
+        return {
+            "invalid_id": invalid_id,
+            "canonical_id": canonical_id,
+            "verified": True,
+            "summary": summary,
+            "reference_url": ref_url,
+        }
+
+    return {
+        "invalid_id": invalid_id,
+        "canonical_id": canonical_id,
+        "verified": True,
+        "summary": (
+            f"Canonical taxonomy mapping {invalid_id} -> {canonical_id} "
+            f"({canonical_name}) verified ({ref_url})"
+        ),
+        "reference_url": ref_url,
+    }
+
+
+def verify_and_redline_mitre_and_cve_in_doc(
+    document_id: str,
+    *,
+    run_web_grounding_check: bool = False,
+    web_verifier_fn: Any = None,
+    tool_context: Any = None,
+    token_source: TokenSource | None = None,
+    quota_project: str | None = None,
+    transport: httpx.BaseTransport | None = None,
+) -> dict[str, Any]:
+    """Verifies MITRE ATT&CK technique/sub-technique IDs and CISA KEV CVE citations
+    inside a Google Doc and stages non-destructive Suggested Edits (``writeMode="SUGGEST"``).
+
+    1. Calls :func:`read_google_doc` to populate the 1-based UTF-16 index map and
+       ``pending_suggestion_spans``.
+    2. Calls :func:`find_mitre_and_cve_spans` and skips any span overlapping an
+       existing pending suggestion (``skipped_existing_suggestion_count``).
+    3. When ``run_web_grounding_check=True`` (or ``web_verifier_fn`` is provided),
+       enriches anchored comments with grounded MITRE ATT&CK / NVD / CISA KEV
+       verification metadata.
+    4. Anchors comments first via :func:`insert_doc_comments` and stages descending-index
+       ``writeMode="SUGGEST"`` edits second via :func:`propose_doc_suggested_edits`.
+    """
+    read_res = read_google_doc(
+        document_id,
+        tool_context=tool_context,
+        token_source=token_source,
+        quota_project=quota_project,
+        transport=transport,
+    )
+    if read_res.get("status") != "success":
+        return read_res
+
+    plain_text, index_map = _load_doc_index_state(document_id, tool_context=tool_context)
+    if plain_text is None or index_map is None:
+        return {
+            "status": "error",
+            "message": "Failed to load UTF-16 index map after read_google_doc.",
+        }
+
+    raw_comments, raw_edits, raw_findings = find_mitre_and_cve_spans(
+        plain_text, index_map
+    )
+    pending_spans = _load_doc_pending_suggestion_spans(
+        document_id, tool_context=tool_context
+    )
+
+    comments: list[dict[str, Any]] = []
+    edits: list[dict[str, Any]] = []
+    findings: list[dict[str, Any]] = []
+    skipped_existing_suggestion_count = 0
+    for c_item, e_item, f_item in zip(raw_comments, raw_edits, raw_findings):
+        f_span = (int(f_item["start_index"]), int(f_item["end_index"]))
+        if any(_spans_overlap(f_span, p_span) for p_span in pending_spans):
+            skipped_existing_suggestion_count += 1
+            continue
+        comments.append(c_item)
+        edits.append(e_item)
+        findings.append(f_item)
+
+    grounding_checks: list[dict[str, Any]] = []
+    if (run_web_grounding_check or web_verifier_fn is not None) and findings:
+        check_cache: dict[tuple[str, str], dict[str, Any]] = {}
+        for idx, finding in enumerate(findings):
+            key = (str(finding["invalid_id"]), str(finding["canonical_id"]))
+            if key not in check_cache:
+                g_check = _run_mitre_cve_grounding_check(
+                    finding, web_verifier_fn=web_verifier_fn
+                )
+                check_cache[key] = g_check
+                grounding_checks.append(g_check)
+            else:
+                g_check = check_cache[key]
+            if g_check.get("verified"):
+                comments[idx]["comment"] = (
+                    f"{comments[idx]['comment']} "
+                    f"[Grounded MITRE/CVE Verification: {g_check['summary']}]"
+                )
+
+    comments_res: dict[str, Any] = {
+        "status": "skipped",
+        "inserted_count": 0,
+        "comment_ids": [],
+    }
+    if comments:
+        comments_res = insert_doc_comments(
+            document_id,
+            comments,
+            tool_context=tool_context,
+            token_source=token_source,
+            quota_project=quota_project,
+            transport=transport,
+        )
+        if comments_res.get("status") != "success":
+            return {
+                "status": "error",
+                "message": f"insert_doc_comments failed: {comments_res.get('message')}",
+                "comments": comments_res,
+            }
+
+    edits_res: dict[str, Any] = {"status": "skipped", "applied_count": 0}
+    if edits:
+        edits_res = propose_doc_suggested_edits(
+            document_id,
+            edits,
+            tool_context=tool_context,
+            token_source=token_source,
+            quota_project=quota_project,
+            transport=transport,
+        )
+        if edits_res.get("status") != "success":
+            return {
+                "status": "error",
+                "message": f"propose_doc_suggested_edits failed: {edits_res.get('message')}",
+                "comments": comments_res,
+                "edits": edits_res,
+            }
+
+    return {
+        "status": "success",
+        "document_id": document_id,
+        "title": read_res.get("title", ""),
+        "char_count": read_res.get("char_count", 0),
+        "mitre_cve_findings_count": len(findings),
+        "skipped_existing_suggestion_count": skipped_existing_suggestion_count,
+        "findings": findings,
+        "grounding_checks": grounding_checks,
+        "comments": comments_res,
+        "edits": edits_res,
+    }
+
+
 def _resolve_item_span(
     plain_text: str, index_map: list[int], item: dict[str, Any]
 ) -> tuple[int, int] | None:
@@ -2223,6 +3140,7 @@ def review_google_doc_with_stage_a(
     *,
     include_udm_stage_a: bool = True,
     include_yaral2_stage_a: bool = True,
+    include_mitre_cve_stage_a: bool = True,
     token_source: TokenSource | None = None,
     quota_project: str | None = None,
     transport: httpx.BaseTransport | None = None,
@@ -2232,14 +3150,15 @@ def review_google_doc_with_stage_a(
     1. Calls :func:`read_google_doc` to populate the 1-based UTF-16 index map
        and ``pending_suggestion_spans``.
     2. Runs Stage A (:func:`find_deterministic_indicator_spans`,
-       :func:`find_udm_field_spans` when ``include_udm_stage_a=True``, and
-       :func:`find_yaral2_rule_spans` when ``include_yaral2_stage_a=True``) to
-       locate live untrusted URLs, standalone Chronicle UDM field defects, and
-       YARA-L 2.0 rule defects by numeric UTF-16 span without echoing them
-       through an LLM.
-    3. Deduplicates Stage A UDM and YARA-L 2.0 spans against overlapping Stage B
-       ``semantic_comments`` and ``semantic_edits`` and skips any span that
-       overlaps an existing pending suggestion (multi-pass idempotency).
+       :func:`find_udm_field_spans` when ``include_udm_stage_a=True``,
+       :func:`find_yaral2_rule_spans` when ``include_yaral2_stage_a=True``, and
+       :func:`find_mitre_and_cve_spans` when ``include_mitre_cve_stage_a=True``)
+       to locate live untrusted URLs, standalone Chronicle UDM field defects,
+       YARA-L 2.0 rule defects, and MITRE ATT&CK / CVE defects by numeric UTF-16
+       span without echoing them through an LLM.
+    3. Deduplicates Stage A UDM, YARA-L 2.0, and MITRE/CVE spans against
+       overlapping Stage B ``semantic_comments`` and ``semantic_edits`` and skips
+       any span that overlaps an existing pending suggestion (multi-pass idempotency).
     4. Anchors all comments first via :func:`insert_doc_comments`.
     5. Stages all Suggested Edits second via :func:`propose_doc_suggested_edits`
        (sorted descending by ``startIndex`` under ``writeMode="SUGGEST"``).
@@ -2324,16 +3243,37 @@ def review_google_doc_with_stage_a(
                 deduped_yaral2_edits.append(e_item)
                 existing_edit_spans.append(e_span)
 
+    stage_a_mitre_cve_count = 0
+    deduped_mitre_cve_comments: list[dict[str, Any]] = []
+    deduped_mitre_cve_edits: list[dict[str, Any]] = []
+    if include_mitre_cve_stage_a:
+        mc_comments, mc_edits, mc_findings = find_mitre_and_cve_spans(
+            plain_text, index_map
+        )
+        stage_a_mitre_cve_count = len(mc_findings)
+        for c_item in mc_comments:
+            c_span = (c_item["start_index"], c_item["end_index"])
+            if not any(_spans_overlap(c_span, ex) for ex in existing_comment_spans):
+                deduped_mitre_cve_comments.append(c_item)
+                existing_comment_spans.append(c_span)
+        for e_item in mc_edits:
+            e_span = (e_item["start_index"], e_item["end_index"])
+            if not any(_spans_overlap(e_span, ex) for ex in existing_edit_spans):
+                deduped_mitre_cve_edits.append(e_item)
+                existing_edit_spans.append(e_span)
+
     raw_all_comments = (
         stage_a_comments
         + deduped_udm_comments
         + deduped_yaral2_comments
+        + deduped_mitre_cve_comments
         + stage_b_comments
     )
     raw_all_edits = (
         stage_a_edits
         + deduped_udm_edits
         + deduped_yaral2_edits
+        + deduped_mitre_cve_edits
         + stage_b_edits
     )
 
@@ -2400,6 +3340,7 @@ def review_google_doc_with_stage_a(
         "stage_a_url_count": len(stage_a_edits),
         "stage_a_udm_count": stage_a_udm_count,
         "stage_a_yaral2_count": stage_a_yaral2_count,
+        "stage_a_mitre_cve_count": stage_a_mitre_cve_count,
         "skipped_existing_suggestion_count": skipped_existing_suggestion_count,
         "comments": comments_res,
         "edits": edits_res,
@@ -2481,6 +3422,7 @@ def stage_runbook_update_as_google_doc(
         "stage_a_url_count": review_res.get("stage_a_url_count", 0),
         "stage_a_udm_count": review_res.get("stage_a_udm_count", 0),
         "stage_a_yaral2_count": review_res.get("stage_a_yaral2_count", 0),
+        "stage_a_mitre_cve_count": review_res.get("stage_a_mitre_cve_count", 0),
         "comments": review_res.get("comments", {}),
         "edits": review_res.get("edits", {}),
         "message": review_res.get("message", ""),

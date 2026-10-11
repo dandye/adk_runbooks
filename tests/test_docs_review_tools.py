@@ -402,6 +402,7 @@ def test_adk_function_tool_declarations_for_docs_review_tools():
         "post_reviewed_doc_to_soar_case",
         "verify_and_redline_udm_queries_in_doc",
         "verify_and_redline_yaral2_rules_in_doc",
+        "verify_and_redline_mitre_and_cve_in_doc",
         "inspect_doc_suggestions",
         "export_accepted_doc_to_markdown",
     ):
@@ -418,6 +419,7 @@ def test_adk_function_tool_declarations_for_docs_review_tools():
         assert "client" not in props
         assert "siem_search_fn" not in props
         assert "siem_validate_fn" not in props
+        assert "web_verifier_fn" not in props
         assert "skill_content_override" not in props
 
 
@@ -1967,6 +1969,287 @@ def test_review_google_doc_with_stage_a_includes_and_deduplicates_yaral2_spans()
     assert res["status"] == "success"
     assert res["stage_a_yaral2_count"] == 1
     assert res["edits"]["applied_count"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Cycle 4 (H4): Deterministic + Grounded MITRE ATT&CK & CVE/KEV Span Verifier
+# ---------------------------------------------------------------------------
+
+
+def test_find_mitre_and_cve_spans_detects_deprecated_ids_subtechnique_mismatches_and_cve_swaps():
+    """Verifies exact 1-based UTF-16 span computation across deprecated ATT&CK IDs
+    (``T1086``, ``T1085``), sibling sub-technique mismatches (``T1059.003`` ->
+    ``T1059.001``, ``T1003.002`` -> ``T1003.001``, ``T1078.001`` -> ``T1078.004``,
+    ``T1098.001`` -> ``T1098.003``, ``T1218.010`` -> ``T1218.011``), valid technique
+    preservation (zero false positives on valid ``T1059.001`` or ``CVE-2024-21762``
+    citations), and cross-vendor CISA KEV CVE swaps (``CVE-2024-21887`` on FortiOS
+    -> ``CVE-2024-21762``)."""
+    from manager.tools.docs_review_tools import (
+        CISA_KEV_CATALOG_URL,
+        _extract_text_and_index_map,
+        find_mitre_and_cve_spans,
+        mitre_technique_url,
+        nvd_cve_url,
+    )
+
+    assert (
+        mitre_technique_url("T1059.001")
+        == "https://attack.mitre.org/techniques/T1059/001/"
+    )
+    assert (
+        mitre_technique_url("T1059")
+        == "https://attack.mitre.org/techniques/T1059/"
+    )
+    assert (
+        nvd_cve_url("CVE-2024-21762")
+        == "https://nvd.nist.gov/vuln/detail/CVE-2024-21762"
+    )
+
+    body = (
+        "# Incident Postmortem & YARA-L 2.0 Meta Taxonomy Review\n"
+        "1. Valid PowerShell citation: T1059.001 (Command and Scripting Interpreter: PowerShell) "
+        "https://attack.mitre.org/techniques/T1059/001/\n"
+        "2. Valid Fortinet KEV citation: CVE-2024-21762 on Fortinet FortiOS SSL VPN "
+        "https://nvd.nist.gov/vuln/detail/CVE-2024-21762\n"
+        "3. Deprecated PowerShell ID in Case 33269: T1086 (PowerShell Empire stager)\n"
+        "4. Deprecated Rundll32 ID in Case 33288: T1085 (Rundll32 execution)\n"
+        "5. Sibling PowerShell mismatch: T1059.003 observed with powershell.exe -NoP -W Hidden -Enc payload\n"
+        "6. Sibling LSASS dump mismatch: T1003.002 observed with rundll32.exe C:\\Windows\\System32\\comsvcs.dll, MiniDump\n"
+        "7. Cloud account mismatch in Case 33278: T1078.001 used by GCP IAM service account base-service-account@base-production.iam.gserviceaccount.com\n"
+        "8. Cloud IAM role binding mismatch: T1098.001 observed during SetIamPolicy granting roles/editor\n"
+        "9. System binary proxy mismatch: T1218.010 observed for rundll32.exe proxy execution\n"
+        "10. Cross-vendor CISA KEV swap: CVE-2024-21887 exploited on Fortinet FortiOS SSL VPN out-of-bounds write\n"
+    )
+    doc = _make_single_paragraph_doc("doc-mitre-cve", "MITRE & CVE Span Test", body)
+    plain_text, index_map = _extract_text_and_index_map(doc)
+
+    comments, edits, findings = find_mitre_and_cve_spans(plain_text, index_map)
+
+    assert len(findings) == 8
+    assert len(comments) == 8
+    assert len(edits) == 8
+
+    # Ensure valid citations in lines 1 and 2 were not flagged
+    by_invalid = {f["invalid_id"]: f for f in findings}
+    assert "T1059.001" not in by_invalid
+    assert "CVE-2024-21762" not in by_invalid
+
+    expected_mappings = {
+        "T1086": ("deprecated_mitre_id", "T1059.001"),
+        "T1085": ("deprecated_mitre_id", "T1218.011"),
+        "T1059.003": ("mitre_subtechnique_mismatch", "T1059.001"),
+        "T1003.002": ("mitre_subtechnique_mismatch", "T1003.001"),
+        "T1078.001": ("mitre_subtechnique_mismatch", "T1078.004"),
+        "T1098.001": ("mitre_subtechnique_mismatch", "T1098.003"),
+        "T1218.010": ("mitre_subtechnique_mismatch", "T1218.011"),
+        "CVE-2024-21887": ("cve_vendor_mismatch", "CVE-2024-21762"),
+    }
+    assert set(by_invalid.keys()) == set(expected_mappings.keys())
+    for inv_id, (exp_type, exp_canon) in expected_mappings.items():
+        finding = by_invalid[inv_id]
+        assert finding["defect_type"] == exp_type
+        assert finding["canonical_id"] == exp_canon
+        # Confirm exact 1-based UTF-16 span slices back to the exact invalid token
+        s_idx = finding["start_index"]
+        e_idx = finding["end_index"]
+        assert plain_text[s_idx - 1 : e_idx - 1] == inv_id
+
+    # Verify canonical URLs in comment rationales
+    cve_finding = by_invalid["CVE-2024-21887"]
+    assert "https://nvd.nist.gov/vuln/detail/CVE-2024-21762" in cve_finding["rationale"]
+    assert CISA_KEV_CATALOG_URL in cve_finding["rationale"]
+    ps_finding = by_invalid["T1086"]
+    assert "https://attack.mitre.org/techniques/T1059/001/" in ps_finding["rationale"]
+
+
+def test_verify_and_redline_mitre_and_cve_in_doc_anchors_comments_and_suggest_edits_with_idempotency():
+    """Verifies ``verify_and_redline_mitre_and_cve_in_doc`` executes
+    ``insertComment`` before descending-index ``writeMode="SUGGEST"`` edits,
+    enriches comments when ``web_verifier_fn`` is provided, and skips spans
+    overlapping existing ``suggest.*`` ranges on a second pass."""
+    from manager.tools.docs_review_tools import verify_and_redline_mitre_and_cve_in_doc
+
+    doc_text = (
+        "Postmortem Attribution:\n"
+        "- Case 33269 PowerShell Empire stager: T1086\n"
+        "- Case 33288 LSASS comsvcs.dll MiniDump: T1003.002\n"
+        "- Edge VPN perimeter advisory on Fortinet FortiOS SSL VPN: CVE-2024-21887\n"
+    )
+    mock_doc = _make_single_paragraph_doc(
+        "doc-mitre-cve-live", "Postmortem MITRE & CVE", doc_text
+    )
+    batch_calls: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=mock_doc)
+        payload = json.loads(request.content.decode("utf-8"))
+        batch_calls.append(payload)
+        if "insertComment" in json.dumps(payload):
+            return httpx.Response(
+                200,
+                json={
+                    "replies": [
+                        {"insertComment": {"commentId": f"c-mitre-{i}"}}
+                        for i in range(len(payload.get("requests", [])))
+                    ]
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "documentId": "doc-mitre-cve-live",
+                "replies": [{} for _ in payload.get("requests", [])],
+            },
+        )
+
+    transport = httpx.MockTransport(handler)
+    token_source = StaticTokenSource("adc-token")
+
+    verifier_calls: list[dict[str, Any]] = []
+
+    def fake_web_verifier(finding: dict[str, Any]) -> dict[str, Any]:
+        verifier_calls.append(finding)
+        return {
+            "verified": True,
+            "summary": f"Confirmed canonical {finding['canonical_id']} ({finding['canonical_name']})",
+            "url": finding["reference_url"],
+        }
+
+    res = verify_and_redline_mitre_and_cve_in_doc(
+        "doc-mitre-cve-live",
+        run_web_grounding_check=True,
+        web_verifier_fn=fake_web_verifier,
+        token_source=token_source,
+        transport=transport,
+    )
+
+    assert res["status"] == "success"
+    assert res["mitre_cve_findings_count"] == 3
+    assert res["skipped_existing_suggestion_count"] == 0
+    assert res["comments"]["inserted_count"] == 3
+    assert res["edits"]["applied_count"] == 3
+    assert len(res["grounding_checks"]) == 3
+    assert len(verifier_calls) == 3
+
+    # Verify ordering: comments first (no writeControl), SUGGEST edits second
+    assert len(batch_calls) == 2
+    assert "writeControl" not in batch_calls[0]
+    assert batch_calls[1]["writeControl"] == {"writeMode": "SUGGEST"}
+
+    for req in batch_calls[0]["requests"]:
+        body_str = req["insertComment"]["content"]
+        assert "[Grounded MITRE/CVE Verification:" in body_str
+
+    # Verify descending startIndex ordering on deleteContentRange requests
+    delete_starts = [
+        req["deleteContentRange"]["range"]["startIndex"]
+        for req in batch_calls[1]["requests"]
+        if "deleteContentRange" in req
+    ]
+    assert delete_starts == sorted(delete_starts, reverse=True)
+
+    # Second pass: simulate existing pending suggestion spanning the entire document
+    mock_doc_with_suggestions = {
+        "documentId": "doc-mitre-cve-live",
+        "title": "Postmortem MITRE & CVE",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": len(doc_text) + 1,
+                                "textRun": {
+                                    "content": doc_text,
+                                    "suggestedDeletionIds": ["suggest.existing.mitre"],
+                                },
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+    }
+    batch_calls.clear()
+    transport2 = httpx.MockTransport(
+        lambda req: httpx.Response(200, json=mock_doc_with_suggestions)
+    )
+    res2 = verify_and_redline_mitre_and_cve_in_doc(
+        "doc-mitre-cve-live",
+        run_web_grounding_check=True,
+        web_verifier_fn=fake_web_verifier,
+        token_source=token_source,
+        transport=transport2,
+    )
+    assert res2["mitre_cve_findings_count"] == 0
+    assert res2["skipped_existing_suggestion_count"] == 3
+    assert res2["comments"]["inserted_count"] == 0
+    assert res2["edits"]["applied_count"] == 0
+    assert len(batch_calls) == 0
+
+
+def test_review_google_doc_with_stage_a_includes_and_deduplicates_mitre_cve_spans():
+    """Verifies ``review_google_doc_with_stage_a`` automatically runs
+    ``find_mitre_and_cve_spans`` (``stage_a_mitre_cve_count``) and deduplicates
+    against overlapping Stage B ``semantic_comments`` / ``semantic_edits``."""
+    from manager.tools.docs_review_tools import (
+        find_mitre_and_cve_spans,
+        review_google_doc_with_stage_a,
+    )
+
+    doc_text = (
+        "Incident Summary:\n"
+        "- Deprecated PowerShell Empire technique: T1086\n"
+        "- Swapped Fortinet FortiOS SSL VPN KEV advisory: CVE-2024-21887\n"
+    )
+    mock_doc = _make_single_paragraph_doc(
+        "doc-stage-a-mitre", "Stage A MITRE & CVE", doc_text
+    )
+    plain, idx_map = _extract_text_and_index_map(mock_doc)
+    _, mitre_edits, _ = find_mitre_and_cve_spans(plain, idx_map)
+    assert len(mitre_edits) == 2
+    t1086_span = mitre_edits[0]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=mock_doc)
+        payload = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(
+            200,
+            json={
+                "documentId": "doc-stage-a-mitre",
+                "replies": [{} for _ in payload.get("requests", [])],
+            },
+        )
+
+    # Pass an overlapping Stage B edit/comment for T1086 while leaving CVE-2024-21887 to Stage A
+    res = review_google_doc_with_stage_a(
+        "doc-stage-a-mitre",
+        semantic_comments=[
+            {
+                "start_index": t1086_span["start_index"],
+                "end_index": t1086_span["end_index"],
+                "comment": "Custom caller comment for T1086.",
+            }
+        ],
+        semantic_edits=[
+            {
+                "start_index": t1086_span["start_index"],
+                "end_index": t1086_span["end_index"],
+                "replacement": "T1059.001",
+            }
+        ],
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(handler),
+    )
+
+    assert res["status"] == "success"
+    assert res["stage_a_mitre_cve_count"] == 2
+    # 1 Stage A edit (CVE-2024-21887) + 1 deduplicated Stage B edit (T1086) = 2 total
+    assert res["comments"]["inserted_count"] == 2
+    assert res["edits"]["applied_count"] == 2
 
 
 
