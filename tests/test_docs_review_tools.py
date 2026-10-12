@@ -9680,4 +9680,278 @@ def test_review_google_doc_with_stage_a_includes_runbook_promotion_stage_a() -> 
     assert res["edits"]["applied_count"] == 4
 
 
+# ---------------------------------------------------------------------------
+# Cycle 19 (H20): Stateful Local Google Docs Kix AST Simulator & Quantitative
+# Grounded Review Benchmark with HDA Attribution
+# ---------------------------------------------------------------------------
+
+
+def test_local_google_docs_simulator_drive_markdown_import_ast_and_italic_regex() -> None:
+    """H20 Suite 1: Verifies that LocalGoogleDocsSimulator.create_or_reset_doc(...,
+    simulate_drive_markdown_import=True) produces accurate 1-based UTF-16
+    startIndex/endIndex coordinates, HEADING_1..6 styles, paragraph.bullet lists,
+    Markdown tables, collapsed YAML frontmatter, and textStyle.italic=True stripped
+    regex wildcards (/.cmd./), and that reconstruct_markdown_from_doc_ast and
+    find_italic_corrupted_regex_spans recover them losslessly."""
+    from manager.tools.docs_review_tools import (
+        LocalGoogleDocsSimulator,
+        _extract_text_and_index_map,
+        find_italic_corrupted_regex_spans,
+        reconstruct_markdown_from_doc_ast,
+    )
+
+    md_text = (
+        "---\n"
+        "name: compromised-user-account-response\n"
+        "description: Standardized cloud account containment runbook.\n"
+        "---\n\n"
+        "# Phase 1: Triage & Telemetry\n"
+        "## Step 1.1: UDM Hunting\n"
+        "- Execute UDM query: `target.process.command_line = /.*cmd\\.exe.*/ nocase`\n"
+        "- Verify source host\n"
+        "1. First ordered action\n"
+        "2. Second ordered action\n\n"
+        "| Entity | Role |\n"
+        "| --- | --- |\n"
+        "| wins-d19 | Compromised Host |\n"
+    )
+    sim = LocalGoogleDocsSimulator()
+    doc = sim.create_or_reset_doc(
+        "doc-sim-import",
+        "Simulated Drive Import",
+        md_text,
+        simulate_drive_markdown_import=True,
+    )
+    plain, idx_map = _extract_text_and_index_map(doc)
+    assert len(plain) == len(idx_map)
+    assert idx_map[0] == 1
+    # Collapsed YAML frontmatter on line 1 (no --- delimiters)
+    assert plain.startswith(
+        "name: compromised-user-account-response description: Standardized cloud account containment runbook.\n"
+    )
+    # Paired *...* inside /.*cmd\.exe.*/ was stripped into italic /.cmd\.exe./
+    assert "/.cmd\\.exe./" in plain
+
+    comments, edits, findings = find_italic_corrupted_regex_spans(doc)
+    assert len(findings) == 1
+    assert findings[0]["defect_type"] == "italic_corrupted_regex_wildcard"
+    assert findings[0]["quote"] == "/.cmd\\.exe./"
+    assert findings[0]["replacement"] == "/.*cmd\\.exe.*/"
+    assert edits[0]["quote"] == "/.cmd\\.exe./"
+    assert edits[0]["replacement"] == "/.*cmd\\.exe.*/"
+
+    recon = reconstruct_markdown_from_doc_ast(doc)
+    assert recon["headings_reconstructed_count"] == 2
+    assert recon["list_items_reconstructed_count"] == 4
+    assert recon["tables_reconstructed_count"] == 1
+    assert recon["italic_regex_wildcards_recovered_count"] == 1
+    assert "# Phase 1: Triage & Telemetry" in recon["markdown"]
+    assert "## Step 1.1: UDM Hunting" in recon["markdown"]
+    assert "/.*cmd\\.exe.*/" in recon["markdown"]
+    assert "| wins-d19 | Compromised Host |" in recon["markdown"]
+
+
+def test_local_google_docs_simulator_stateful_suggest_edits_and_multi_pass_idempotency() -> None:
+    """H20 Suite 2: Verifies that running review_google_doc_with_stage_a against
+    simulator.as_httpx_transport() mutates the simulator's Kix AST in place with
+    paired suggestedDeletionIds and suggestedInsertionIds textRuns,
+    inspect_doc_suggestions extracts exact baseline_text, accepted_text, and unified
+    diff, and a second pass of review_google_doc_with_stage_a skips all pending
+    suggestions (skipped_existing_suggestion_count > 0, applied_count == 0)."""
+    from skills.drive_registry import StaticTokenSource
+    from manager.tools.docs_review_tools import (
+        LocalGoogleDocsSimulator,
+        clear_doc_index_cache,
+        inspect_doc_suggestions,
+        review_google_doc_with_stage_a,
+    )
+
+    clear_doc_index_cache()
+    sim = LocalGoogleDocsSimulator()
+    transport = sim.as_httpx_transport()
+    token_source = StaticTokenSource("sim-token")
+
+    doc_md = (
+        "# Incident Review Draft\n"
+        "- C2 URL: https://evil-c2.example.org/stage2.ps1\n"
+        '- UDM query: `ip = "104.198.226.161" AND target.process.command_line = /.*powershell.*/ nocase`\n'
+    )
+    sim.create_or_reset_doc(
+        "doc-sim-stateful",
+        "Stateful Suggest Test",
+        doc_md,
+        simulate_drive_markdown_import=True,
+    )
+
+    pass1 = review_google_doc_with_stage_a(
+        "doc-sim-stateful",
+        token_source=token_source,
+        transport=transport,
+    )
+    assert pass1["status"] == "success"
+    assert pass1["stage_a_url_count"] == 1
+    assert pass1["stage_a_udm_count"] == 2
+    assert pass1["stage_a_italic_regex_count"] == 1
+    assert pass1["edits"]["applied_count"] == 3
+    assert pass1["comments"]["inserted_count"] == 3
+
+    inspected = inspect_doc_suggestions(
+        "doc-sim-stateful",
+        token_source=token_source,
+        transport=transport,
+    )
+    assert inspected["suggestion_count"] == 3
+    assert "https://evil-c2.example.org/stage2.ps1" in inspected["baseline_text"]
+    assert "hxxps://evil-c2[.]example[.]org/stage2.ps1" in inspected["accepted_text"]
+    assert "principal.ip" in inspected["accepted_text"]
+    assert "/.*powershell.*/" in inspected["accepted_text"]
+    assert "(baseline)" in inspected["unified_diff"]
+
+    # Pass 2 against the same stateful simulator document must be 100% idempotent
+    pass2 = review_google_doc_with_stage_a(
+        "doc-sim-stateful",
+        token_source=token_source,
+        transport=transport,
+    )
+    assert pass2["status"] == "success"
+    assert pass2["edits"]["applied_count"] == 0
+    assert pass2["comments"]["inserted_count"] == 0
+    assert pass2["skipped_existing_suggestion_count"] == 3
+
+
+def test_local_google_docs_simulator_comments_lifecycle_and_export_gate() -> None:
+    """H20 Suite 3: Verifies that insert_doc_comments populates stateful Kix comments
+    in LocalGoogleDocsSimulator, list_doc_comments returns unresolved_comment_count > 0,
+    export_accepted_doc_to_markdown(..., require_resolved_comments=True) blocks until
+    simulator.resolve_comment(...) is called, and then exports valid Markdown."""
+    from skills.drive_registry import StaticTokenSource
+    from manager.tools.docs_review_tools import (
+        LocalGoogleDocsSimulator,
+        clear_doc_index_cache,
+        export_accepted_doc_to_markdown,
+        list_doc_comments,
+        review_google_doc_with_stage_a,
+    )
+
+    clear_doc_index_cache()
+    sim = LocalGoogleDocsSimulator()
+    transport = sim.as_httpx_transport()
+    token_source = StaticTokenSource("sim-token")
+
+    sim.create_or_reset_doc(
+        "doc-sim-comments",
+        "Comments Lifecycle Test",
+        "# Triage Steps\n- Query `ip = \"104.198.226.161\"`\n",
+        simulate_drive_markdown_import=True,
+    )
+    rev = review_google_doc_with_stage_a(
+        "doc-sim-comments",
+        token_source=token_source,
+        transport=transport,
+    )
+    assert rev["comments"]["inserted_count"] == 1
+    assert rev["edits"]["applied_count"] == 1
+
+    listed = list_doc_comments(
+        "doc-sim-comments",
+        token_source=token_source,
+        transport=transport,
+    )
+    assert listed["status"] == "success"
+    assert listed["unresolved_comment_count"] == 1
+    assert listed["resolved_comment_count"] == 0
+    comment_id = listed["unresolved_comments"][0]["id"]
+
+    blocked = export_accepted_doc_to_markdown(
+        "doc-sim-comments",
+        require_resolved_comments=True,
+        publish_to_drive=False,
+        token_source=token_source,
+        transport=transport,
+    )
+    assert blocked["status"] == "blocked_unresolved_comments"
+    assert blocked["unresolved_comment_count"] == 1
+
+    sim.resolve_comment("doc-sim-comments", comment_id)
+    exported = export_accepted_doc_to_markdown(
+        "doc-sim-comments",
+        require_resolved_comments=True,
+        publish_to_drive=False,
+        token_source=token_source,
+        transport=transport,
+    )
+    assert exported["status"] == "success"
+    assert exported["unresolved_comment_count"] == 0
+    assert exported["resolved_comment_count"] == 1
+    assert "# Triage Steps" in exported["accepted_markdown"]
+    assert 'principal.ip = "104.198.226.161"' in exported["accepted_markdown"]
+
+
+def test_evaluate_infosec_doc_reviewer_all_scenarios_precision_recall_and_idempotency(
+    tmp_path,
+) -> None:
+    """H20 Suite 4: Executes evaluate_infosec_doc_reviewer across all 6 seeded
+    scenarios (BENCH-01 through BENCH-06) and verifies span_precision == 1.0,
+    defect_recall == 1.0, false_positive_rate == 0.0, safety_refusal_rate == 0.0,
+    and pass2_idempotency_rate == 1.0."""
+    from manager.tools.docs_review_tools import evaluate_infosec_doc_reviewer
+
+    report_path = tmp_path / "h20_benchmark_scorecard.md"
+    res = evaluate_infosec_doc_reviewer(
+        scenario_ids="all",
+        include_hda_ablation=True,
+        output_report_path=str(report_path),
+    )
+    assert res["status"] == "success"
+    assert res["scenario_count"] == 6
+    assert res["total_expected_defects"] == 32
+    assert res["true_positive_edits"] == 32
+    assert res["false_positive_edits"] == 0
+    assert res["false_negative_defects"] == 0
+    assert res["span_precision"] == 1.0
+    assert res["defect_recall"] == 1.0
+    assert res["f1_score"] == 1.0
+    assert res["false_positive_rate"] == 0.0
+    assert res["safety_refusal_rate"] == 0.0
+    assert res["safety_hazard_catch_rate"] == 1.0
+    assert res["pass2_idempotency_rate"] == 1.0
+    assert res["negative_controls_preserved"] == res["total_negative_controls"]
+    assert report_path.exists()
+    assert "BENCH-01-UDM-AND-ITALIC-WILDCARD" in report_path.read_text(encoding="utf-8")
+
+
+def test_evaluate_infosec_doc_reviewer_hda_attribution_and_adk_tool_schema() -> None:
+    """H20 Suite 5: Verifies 4-way Harness-Delta Attribution (Delta_G, Delta_T,
+    Delta_A, Delta_total), verifies integration with audit_runbook_promotion_readiness,
+    and validates the ADK FunctionTool declaration for evaluate_infosec_doc_reviewer."""
+    from google.adk.tools.function_tool import FunctionTool
+    from manager.tools.docs_review_tools import evaluate_infosec_doc_reviewer
+    from manager.tools import tools as tools_module
+
+    res = evaluate_infosec_doc_reviewer(
+        scenario_ids="all",
+        include_hda_ablation=True,
+    )
+    hda = res["hda_attribution"]
+    assert hda["delta_T"] > 0.0
+    assert hda["delta_G"] > 0.0
+    assert hda["delta_A"] > 0.0
+    assert round(hda["delta_T"] + hda["delta_G"] + hda["delta_A"], 4) == hda["delta_total"]
+    assert hda["delta_total"] == 1.0
+
+    gate = res["rrsi_promotion_gate_check"]
+    assert gate["generalized_runbook_promotion_ready"] is True
+    assert gate["generalized_runbook_decision"] == "PROMOTED"
+    assert gate["overfitted_control_promotion_ready"] is False
+    assert gate["overfitted_control_decision"] == "REJECTED_ROLLBACK"
+
+    ft = FunctionTool(tools_module.evaluate_infosec_doc_reviewer)
+    decl = ft._get_declaration()
+    assert decl.name == "evaluate_infosec_doc_reviewer"
+    props = (decl.parameters_json_schema or {}).get("properties", {})
+    assert "scenario_ids" in props
+    assert "include_hda_ablation" in props
+    assert "output_report_path" in props
+
+
 

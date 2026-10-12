@@ -38,6 +38,7 @@ from .docs_review_tools import (
     audit_and_redline_claim_evidence_and_campaign_in_doc as _audit_and_redline_claim_evidence_and_campaign_in_doc,
     audit_and_redline_runbook_promotion_in_doc as _audit_and_redline_runbook_promotion_in_doc,
     create_google_doc as _create_google_doc,
+    evaluate_infosec_doc_reviewer as _evaluate_infosec_doc_reviewer,
     export_accepted_doc_to_markdown as _export_accepted_doc_to_markdown,
     insert_doc_comments as _insert_doc_comments,
     inspect_doc_suggestions as _inspect_doc_suggestions,
@@ -1196,6 +1197,41 @@ def audit_and_redline_runbook_promotion_in_doc(
   )
 
 
+def evaluate_infosec_doc_reviewer(
+    scenario_ids: str = "all",
+    include_hda_ablation: bool = True,
+    output_report_path: str = "",
+) -> dict:
+  """Executes the quantitative InfoSec Google Docs review benchmark across seeded H1-H19 scenarios.
+
+  Runs each selected scenario (`BENCH-01-UDM-AND-ITALIC-WILDCARD` through
+  `BENCH-06-WIKISKILL-RRSI-RUNBOOK-PROMOTION`) against the stateful in-memory
+  Google Docs Kix AST + Drive Comments simulator (`LocalGoogleDocsSimulator`),
+  evaluating Pass 1 UTF-16 span precision, defect catch recall, F1 score,
+  false-positive rate on negative controls, safety hazard refusal rate, Pass 2
+  multi-pass idempotency, and 4-way Harness-Delta Attribution (`delta_G`,
+  `delta_T`, `delta_A`, `delta_total`) wired into the RRSI/WikiSkill runbook
+  promotion gate.
+
+  Args:
+      scenario_ids (str): "all" (default), comma-separated scenario IDs, or JSON list of scenario IDs.
+      include_hda_ablation (bool): Whether to compute 4-way Harness-Delta Attribution (`delta_G`, `delta_T`, `delta_A`) and evaluate the RRSI runbook promotion gate.
+      output_report_path (str): Optional local file path to save the Markdown benchmark scorecard.
+
+  Returns:
+      dict: {"status", "scenario_count", "total_expected_defects", "true_positive_edits",
+             "false_positive_edits", "false_negative_defects", "span_precision",
+             "defect_recall", "f1_score", "false_positive_rate", "safety_refusal_rate",
+             "pass2_idempotency_rate", "validation_score_delta", "hda_attribution",
+             "rrsi_promotion_gate_check", "scenarios", "benchmark_markdown", "output_report_path"}.
+  """
+  return _evaluate_infosec_doc_reviewer(
+      scenario_ids=scenario_ids,
+      include_hda_ablation=include_hda_ablation,
+      output_report_path=output_report_path,
+  )
+
+
 def get_agent_tools():
   """Initializes and returns MCP toolsets and progressive discovery tools.
 
@@ -1253,6 +1289,9 @@ def get_agent_tools():
   wrapped_audit_and_redline_runbook_promotion_in_doc = instrument_tool(
       audit_and_redline_runbook_promotion_in_doc
   )
+  wrapped_evaluate_infosec_doc_reviewer = instrument_tool(
+      evaluate_infosec_doc_reviewer
+  )
   wrapped_inspect_doc_suggestions = instrument_tool(inspect_doc_suggestions)
   wrapped_list_doc_comments = instrument_tool(list_doc_comments)
   wrapped_export_accepted_doc_to_markdown = instrument_tool(
@@ -1291,6 +1330,7 @@ def get_agent_tools():
       wrapped_audit_and_redline_claim_evidence_and_campaign_in_doc,
       wrapped_analyze_and_redline_detection_coverage_gaps_in_doc,
       wrapped_audit_and_redline_runbook_promotion_in_doc,
+      wrapped_evaluate_infosec_doc_reviewer,
       wrapped_inspect_doc_suggestions,
       wrapped_list_doc_comments,
       wrapped_export_accepted_doc_to_markdown,
