@@ -27,3 +27,7 @@ multi-agent/reports/Alert_Report_*.md
 multi-agent/reports/Case_Report_*.md
 multi-agent/reports/Detection_Rule_Validation_*.md
 multi-agent/reports/Investigation_Report_*.md
+
+# Isolated direnv and gcloud state (Argolis)
+.gcloud/
+.envrc
