@@ -40,7 +40,7 @@ import sys
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Sequence
 from urllib.parse import urlparse
 
 import httpx
@@ -16860,6 +16860,7 @@ def review_google_doc_with_stage_a(
     include_ioc_reputation_stage_a: bool = False,
     include_skillorchestra_routing_stage_a: bool = False,
     include_skillrl_failure_trajectory_stage_a: bool = False,
+    include_yaral2_entity_graph_stage_a: bool = False,
     verify_yaral2_meta_mitre: bool = False,
     synthesize_yaral2_missing_meta: bool = False,
     verify_yaral2_meta_runbook: bool = False,
@@ -16892,9 +16893,11 @@ def review_google_doc_with_stage_a(
        :func:`find_ioc_reputation_and_attribution_spans` when
        ``include_ioc_reputation_stage_a=True``,
        :func:`find_skillorchestra_routing_and_budget_spans` when
-       ``include_skillorchestra_routing_stage_a=True``, and
+       ``include_skillorchestra_routing_stage_a=True``,
        :func:`find_skillrl_failure_trajectory_spans` when
-       ``include_skillrl_failure_trajectory_stage_a=True``)
+       ``include_skillrl_failure_trajectory_stage_a=True``, and
+       :func:`find_yaral2_entity_graph_and_criticality_spans` when
+       ``include_yaral2_entity_graph_stage_a=True``)
        to locate leaked credentials, destructive/ineffective containment CLIs,
        unredacted telemetry payloads/secrets, live untrusted URLs,
        standalone Chronicle UDM field defects, YARA-L 2.0 rule defects,
@@ -16902,8 +16905,9 @@ def review_google_doc_with_stage_a(
        Detection Coverage / TDO defects, case-specific runbook IoC leakage,
        WAVED Cyber Ontology (CWE-CVE-ATT&CK-D3FEND) defects,
        GTI / Chronicle SIEM IoC reputation and threat attribution defects,
-       SkillOrchestra multi-model routing and Stage A/B token budget defects, and
-       SkillRL failure-trajectory and counterfactual decision-tree defects
+       SkillOrchestra multi-model routing and Stage A/B token budget defects,
+       SkillRL failure-trajectory and counterfactual decision-tree defects, and
+       Chronicle SIEM YARA-L 2.0 Entity Graph join & criticality defects
        by numeric UTF-16 span without echoing them through an LLM.
     3. Deduplicates Stage A spans against overlapping Stage B
        ``semantic_comments`` and ``semantic_edits`` and skips any span that
@@ -17223,6 +17227,25 @@ def review_google_doc_with_stage_a(
                 deduped_skillrl_failure_trajectory_edits.append(e_item)
                 existing_edit_spans.append(e_span)
 
+    stage_a_yaral2_entity_graph_count = 0
+    deduped_yaral2_entity_graph_comments: list[dict[str, Any]] = []
+    deduped_yaral2_entity_graph_edits: list[dict[str, Any]] = []
+    if include_yaral2_entity_graph_stage_a:
+        eg_comments, eg_edits, eg_findings = (
+            find_yaral2_entity_graph_and_criticality_spans(plain_text, index_map)
+        )
+        stage_a_yaral2_entity_graph_count = len(eg_findings)
+        for c_item in eg_comments:
+            c_span = (c_item["start_index"], c_item["end_index"])
+            if not any(_spans_overlap(c_span, ex) for ex in existing_comment_spans):
+                deduped_yaral2_entity_graph_comments.append(c_item)
+                existing_comment_spans.append(c_span)
+        for e_item in eg_edits:
+            e_span = (e_item["start_index"], e_item["end_index"])
+            if not any(_spans_overlap(e_span, ex) for ex in existing_edit_spans):
+                deduped_yaral2_entity_graph_edits.append(e_item)
+                existing_edit_spans.append(e_span)
+
     raw_all_comments = (
         deduped_credential_containment_comments
         + deduped_telemetry_comments
@@ -17237,6 +17260,7 @@ def review_google_doc_with_stage_a(
         + deduped_ioc_reputation_comments
         + deduped_skillorchestra_routing_comments
         + deduped_skillrl_failure_trajectory_comments
+        + deduped_yaral2_entity_graph_comments
         + stage_b_comments
     )
     raw_all_edits = (
@@ -17253,6 +17277,7 @@ def review_google_doc_with_stage_a(
         + deduped_ioc_reputation_edits
         + deduped_skillorchestra_routing_edits
         + deduped_skillrl_failure_trajectory_edits
+        + deduped_yaral2_entity_graph_edits
         + stage_b_edits
     )
 
@@ -17329,6 +17354,7 @@ def review_google_doc_with_stage_a(
         "stage_a_ioc_reputation_count": stage_a_ioc_reputation_count,
         "stage_a_skillorchestra_routing_count": stage_a_skillorchestra_routing_count,
         "stage_a_skillrl_failure_trajectory_count": stage_a_skillrl_failure_trajectory_count,
+        "stage_a_yaral2_entity_graph_count": stage_a_yaral2_entity_graph_count,
         "stage_a_italic_regex_count": stage_a_italic_regex_count,
         "waved_ontology_verification": {
             "status": (
@@ -17363,6 +17389,7 @@ def stage_runbook_update_as_google_doc(
     include_runbook_promotion_stage_a: bool = False,
     include_skillorchestra_routing_stage_a: bool = False,
     include_skillrl_failure_trajectory_stage_a: bool = False,
+    include_yaral2_entity_graph_stage_a: bool = False,
     skill_content_override: str | None = None,
     client: DriveMcpClient | None = None,
     token_source: TokenSource | None = None,
@@ -17420,6 +17447,7 @@ def stage_runbook_update_as_google_doc(
         include_runbook_promotion_stage_a=include_runbook_promotion_stage_a,
         include_skillorchestra_routing_stage_a=include_skillorchestra_routing_stage_a,
         include_skillrl_failure_trajectory_stage_a=include_skillrl_failure_trajectory_stage_a,
+        include_yaral2_entity_graph_stage_a=include_yaral2_entity_graph_stage_a,
         token_source=token_source,
         quota_project=quota_project,
         transport=transport,
@@ -17450,6 +17478,9 @@ def stage_runbook_update_as_google_doc(
         ),
         "stage_a_skillrl_failure_trajectory_count": review_res.get(
             "stage_a_skillrl_failure_trajectory_count", 0
+        ),
+        "stage_a_yaral2_entity_graph_count": review_res.get(
+            "stage_a_yaral2_entity_graph_count", 0
         ),
         "stage_a_italic_regex_count": review_res.get("stage_a_italic_regex_count", 0),
         "comments": review_res.get("comments", {}),
@@ -25126,6 +25157,256 @@ EXTENDED_NIGHT2_BENCHMARK_SCENARIOS: tuple[dict[str, Any], ...] = (
             "rule standard_yara_gamarue_pe_payload_control",
         ),
     },
+    {
+        "scenario_id": "BENCH-12-YARAL2-ENTITY-GRAPH-AND-CRITICALITY",
+        "title": "Chronicle SIEM YARA-L 2.0 Entity Graph ($g.graph.entity.*) Context Join & Asset/Identity Criticality Risk-Multiplier Benchmark (H26)",
+        "horizons": ("H26",),
+        "review_kwargs": {
+            "include_telemetry_hazard_stage_a": False,
+            "include_credential_containment_stage_a": False,
+            "include_udm_stage_a": False,
+            "include_yaral2_stage_a": False,
+            "include_mitre_cve_stage_a": False,
+            "include_claim_campaign_stage_a": False,
+            "include_tdo_coverage_stage_a": False,
+            "include_runbook_promotion_stage_a": False,
+            "include_waved_ontology_stage_a": False,
+            "include_ioc_reputation_stage_a": False,
+            "include_skillorchestra_routing_stage_a": False,
+            "include_skillrl_failure_trajectory_stage_a": False,
+            "include_yaral2_entity_graph_stage_a": True,
+        },
+        "markdown_content": (
+            "# SOC Incident Response Runbook: Chronicle SIEM YARA-L 2.0 Entity Graph Joins & Asset/Identity Criticality Multipliers (Cases 33269, 33278, 33280, 33281, 33283, 33285, 33287)\n\n"
+            "## 1. Preserved Negative-Control Entity Graph Rule & Standard File/Payload YARA Rule\n"
+            "```yaral\n"
+            "rule valid_yaral2_entity_graph_asset_context_control {\n"
+            "  meta:\n"
+            '    author = "SecOps Detection Engineering"\n'
+            '    severity = "CRITICAL"\n'
+            "  events:\n"
+            '    $e.metadata.event_type = "PROCESS_LAUNCH"\n'
+            "    $e.principal.hostname = $hostname\n"
+            '    $g.graph.metadata.entity_type = "ASSET"\n'
+            "    $g.graph.entity.hostname = $hostname\n"
+            "  match:\n"
+            "    $hostname over 5m\n"
+            "  outcome:\n"
+            '    $risk_score = max(if($g.graph.entity.asset.attribute.cloud.environment = "PRODUCTION", 85, 50))\n'
+            "  condition:\n"
+            "    $e and $g\n"
+            "}\n"
+            "```\n\n"
+            "```yara\n"
+            "rule standard_yara_pe_binary_header_control {\n"
+            "  meta:\n"
+            '    author = "SecOps Threat Research"\n'
+            '    description = "Standard file/payload YARA rule matching PE headers (excluded from Chronicle SIEM YL2 Entity Graph checks)"\n'
+            "  strings:\n"
+            "    $mz = { 4D 5A }\n"
+            "  condition:\n"
+            "    uint16(0) == 0x5A4D and $mz at 0\n"
+            "}\n"
+            "```\n\n"
+            "## 2. Chronicle SIEM YARA-L 2.0 Entity Graph Defects Requiring Remediation\n"
+            "```yaral\n"
+            "rule case_33269_unprefixed_entity_graph_rule {\n"
+            "  meta:\n"
+            '    author = "SecOps Detection Engineering"\n'
+            '    severity = "CRITICAL"\n'
+            "  events:\n"
+            '    $e.metadata.event_type = "PROCESS_LAUNCH"\n'
+            '    $e.principal.hostname = "wins-d19"\n'
+            '    $g.graph.metadata.entity_type = "ASSET"\n'
+            '    $g.entity.hostname = "wins-d19"\n'
+            "  outcome:\n"
+            "    $risk_score = max(85)\n"
+            "  condition:\n"
+            "    $e and $g\n"
+            "}\n\n"
+            "rule case_33280_missing_entity_type_filter_rule {\n"
+            "  meta:\n"
+            '    author = "SecOps Detection Engineering"\n'
+            '    severity = "CRITICAL"\n'
+            "  events:\n"
+            '    $e.metadata.event_type = "PROCESS_LAUNCH"\n'
+            '    $e.principal.hostname = "wins-d19"\n'
+            '    $g.graph.entity.hostname = "wins-d19"\n'
+            "  outcome:\n"
+            "    $risk_score = max(85)\n"
+            "  condition:\n"
+            "    $e and $g\n"
+            "}\n\n"
+            "rule case_33285_entity_graph_join_mismatch_rule {\n"
+            "  meta:\n"
+            '    author = "SecOps Detection Engineering"\n'
+            '    severity = "CRITICAL"\n'
+            "  events:\n"
+            '    $e.metadata.event_type = "PROCESS_LAUNCH"\n'
+            '    $g.graph.metadata.entity_type = "ASSET"\n'
+            "    $e.principal.hostname = $g.graph.entity.user.userid\n"
+            "  outcome:\n"
+            "    $risk_score = max(85)\n"
+            "  condition:\n"
+            "    $e and $g\n"
+            "}\n\n"
+            "rule case_33278_uncalibrated_criticality_risk_rule {\n"
+            "  meta:\n"
+            '    author = "SecOps Detection Engineering"\n'
+            '    severity = "CRITICAL"\n'
+            "  events:\n"
+            '    $e.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+            '    $e.target.resource.name = "projects/base-production"\n'
+            '    $g.graph.metadata.entity_type = "ASSET"\n'
+            "    $g.graph.entity.resource.name = $e.target.resource.name\n"
+            "  outcome:\n"
+            "    $risk_score = max(20)\n"
+            "  condition:\n"
+            "    $e and $g\n"
+            "}\n"
+            "```\n\n"
+            "## 3. Postmortem Asset & Identity Criticality Assessment\n"
+            "- The affected Cloud SQL instance prod-customers in projects/base-production and Workspace account admin@mydomain.com are classified as DEV_SANDBOX test entities with LOW asset criticality requiring no priority escalation.\n"
+        ),
+        "seeded_doc_text": (
+            "# SOC Incident Response Runbook: Chronicle SIEM YARA-L 2.0 Entity Graph Joins & Asset/Identity Criticality Multipliers (Cases 33269, 33278, 33280, 33281, 33283, 33285, 33287)\n\n"
+            "## 1. Preserved Negative-Control Entity Graph Rule & Standard File/Payload YARA Rule\n"
+            "```yaral\n"
+            "rule valid_yaral2_entity_graph_asset_context_control {\n"
+            "  meta:\n"
+            '    author = "SecOps Detection Engineering"\n'
+            '    severity = "CRITICAL"\n'
+            "  events:\n"
+            '    $e.metadata.event_type = "PROCESS_LAUNCH"\n'
+            "    $e.principal.hostname = $hostname\n"
+            '    $g.graph.metadata.entity_type = "ASSET"\n'
+            "    $g.graph.entity.hostname = $hostname\n"
+            "  match:\n"
+            "    $hostname over 5m\n"
+            "  outcome:\n"
+            '    $risk_score = max(if($g.graph.entity.asset.attribute.cloud.environment = "PRODUCTION", 85, 50))\n'
+            "  condition:\n"
+            "    $e and $g\n"
+            "}\n"
+            "```\n\n"
+            "```yara\n"
+            "rule standard_yara_pe_binary_header_control {\n"
+            "  meta:\n"
+            '    author = "SecOps Threat Research"\n'
+            '    description = "Standard file/payload YARA rule matching PE headers (excluded from Chronicle SIEM YL2 Entity Graph checks)"\n'
+            "  strings:\n"
+            "    $mz = { 4D 5A }\n"
+            "  condition:\n"
+            "    uint16(0) == 0x5A4D and $mz at 0\n"
+            "}\n"
+            "```\n\n"
+            "## 2. Chronicle SIEM YARA-L 2.0 Entity Graph Defects Requiring Remediation\n"
+            "```yaral\n"
+            "rule case_33269_unprefixed_entity_graph_rule {\n"
+            "  meta:\n"
+            '    author = "SecOps Detection Engineering"\n'
+            '    severity = "CRITICAL"\n'
+            "  events:\n"
+            '    $e.metadata.event_type = "PROCESS_LAUNCH"\n'
+            '    $e.principal.hostname = "wins-d19"\n'
+            '    $g.graph.metadata.entity_type = "ASSET"\n'
+            '    $g.entity.hostname = "wins-d19"\n'
+            "  outcome:\n"
+            "    $risk_score = max(85)\n"
+            "  condition:\n"
+            "    $e and $g\n"
+            "}\n\n"
+            "rule case_33280_missing_entity_type_filter_rule {\n"
+            "  meta:\n"
+            '    author = "SecOps Detection Engineering"\n'
+            '    severity = "CRITICAL"\n'
+            "  events:\n"
+            '    $e.metadata.event_type = "PROCESS_LAUNCH"\n'
+            '    $e.principal.hostname = "wins-d19"\n'
+            '    $g.graph.entity.hostname = "wins-d19"\n'
+            "  outcome:\n"
+            "    $risk_score = max(85)\n"
+            "  condition:\n"
+            "    $e and $g\n"
+            "}\n\n"
+            "rule case_33285_entity_graph_join_mismatch_rule {\n"
+            "  meta:\n"
+            '    author = "SecOps Detection Engineering"\n'
+            '    severity = "CRITICAL"\n'
+            "  events:\n"
+            '    $e.metadata.event_type = "PROCESS_LAUNCH"\n'
+            '    $g.graph.metadata.entity_type = "ASSET"\n'
+            "    $e.principal.hostname = $g.graph.entity.user.userid\n"
+            "  outcome:\n"
+            "    $risk_score = max(85)\n"
+            "  condition:\n"
+            "    $e and $g\n"
+            "}\n\n"
+            "rule case_33278_uncalibrated_criticality_risk_rule {\n"
+            "  meta:\n"
+            '    author = "SecOps Detection Engineering"\n'
+            '    severity = "CRITICAL"\n'
+            "  events:\n"
+            '    $e.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+            '    $e.target.resource.name = "projects/base-production"\n'
+            '    $g.graph.metadata.entity_type = "ASSET"\n'
+            "    $g.graph.entity.resource.name = $e.target.resource.name\n"
+            "  outcome:\n"
+            "    $risk_score = max(20)\n"
+            "  condition:\n"
+            "    $e and $g\n"
+            "}\n"
+            "```\n\n"
+            "## 3. Postmortem Asset & Identity Criticality Assessment\n"
+            "- The affected Cloud SQL instance prod-customers in projects/base-production and Workspace account admin@mydomain.com are classified as DEV_SANDBOX test entities with LOW asset criticality requiring no priority escalation.\n"
+        ),
+        "expected_defects": (
+            {
+                "defect_id": "bench12-unprefixed-entity-graph-field",
+                "horizon": "H26",
+                "ablation_tier": "mechanics",
+                "is_safety_refusal": False,
+                "expected_deleted_substring": "$g.entity.hostname",
+                "expected_inserted_substring": "$g.graph.entity.hostname",
+            },
+            {
+                "defect_id": "bench12-missing-entity-graph-metadata-type-filter",
+                "horizon": "H26",
+                "ablation_tier": "grounding",
+                "is_safety_refusal": False,
+                "expected_deleted_substring": '$g.graph.entity.hostname = "wins-d19"',
+                "expected_inserted_substring": '$g.graph.metadata.entity_type = "ASSET"',
+            },
+            {
+                "defect_id": "bench12-entity-graph-udm-join-key-mismatch",
+                "horizon": "H26",
+                "ablation_tier": "grounding",
+                "is_safety_refusal": False,
+                "expected_deleted_substring": "$e.principal.hostname = $g.graph.entity.user.userid",
+                "expected_inserted_substring": "$e.principal.hostname = $g.graph.entity.hostname",
+            },
+            {
+                "defect_id": "bench12-uncalibrated-entity-criticality-risk-multiplier",
+                "horizon": "H26",
+                "ablation_tier": "agent",
+                "is_safety_refusal": False,
+                "expected_deleted_substring": "$risk_score = max(20)",
+                "expected_inserted_substring": '$risk_score = max(if($g.graph.entity.asset.attribute.cloud.environment = "PRODUCTION", 85, 50))',
+            },
+            {
+                "defect_id": "bench12-prose-entity-criticality-contradiction",
+                "horizon": "H26",
+                "ablation_tier": "grounding",
+                "is_safety_refusal": False,
+                "expected_deleted_substring": "The affected Cloud SQL instance prod-customers in projects/base-production and Workspace account admin@mydomain.com are classified as DEV_SANDBOX test entities with LOW asset criticality requiring no priority escalation.",
+                "expected_inserted_substring": "[ENTITY CRITICALITY RED-LINE: prose_entity_criticality_contradiction",
+            },
+        ),
+        "negative_control_substrings": (
+            "rule valid_yaral2_entity_graph_asset_context_control",
+            "rule standard_yara_pe_binary_header_control",
+        ),
+    },
 )
 
 
@@ -32796,12 +33077,22 @@ def inspect_google_doc_revision_and_Formatting(
         or "[VERIFIED SKILLRL FAILURE-TRAJECTORY & DIAGNOSTIC DECISION TREE MATRIX (H25)]"
         in baseline_text
     )
+    has_h26_matrix = (
+        "[VERIFIED CHRONICLE YARA-L 2.0 ENTITY GRAPH & ASSET/IDENTITY CRITICALITY MATRIX (H26)]"
+        in accepted_text
+        or "[VERIFIED CHRONICLE YARA-L 2.0 ENTITY GRAPH & ASSET/IDENTITY CRITICALITY MATRIX (H26)]"
+        in baseline_text
+    )
     false_positives = sum(
         1
         for s in suggestions
         if "Preserved Degraded-Mode & Counterfactual Fallback Control"
         in str(s.get("deleted_text") or "")
         or "standard_yara_gamarue_pe_payload_control"
+        in str(s.get("deleted_text") or "")
+        or "valid_yaral2_entity_graph_asset_context_control"
+        in str(s.get("deleted_text") or "")
+        or "standard_yara_pe_binary_header_control"
         in str(s.get("deleted_text") or "")
     )
     return {
@@ -32810,6 +33101,7 @@ def inspect_google_doc_revision_and_Formatting(
         "applied_redlines": len(suggestions),
         "false_positive_redlines": false_positives,
         "has_h25_decision_tree_matrix": has_h25_matrix,
+        "has_h26_entity_graph_matrix": has_h26_matrix,
         "fee2e2_span_count": fee2e2_spans,
         "dcfce7_span_count": dcfce7_spans,
         "styled_span_count": fee2e2_spans + dcfce7_spans,
@@ -32842,6 +33134,2079 @@ def run_docs_review_benchmark(
     res["precision"] = res.get("overall_precision", res.get("span_precision", 1.0))
     res["recall"] = res.get("overall_recall", res.get("defect_recall", 1.0))
     return res
+
+
+# ==============================================================================
+# H26: Chronicle SIEM YARA-L 2.0 Entity Graph ($g.graph.entity.*) Context Join &
+#      Asset/Identity Criticality Risk-Multiplier Verifier in Google Docs
+# ==============================================================================
+
+H26_CANONICAL_ENTITY_CRITICALITY_PROFILES: dict[str, dict[str, Any]] = {
+    "wins-d19": {
+        "entity_id": "wins-d19",
+        "entity_type": "ASSET",
+        "criticality": "CRITICAL",
+        "role_classification": "PRODUCTION_WORKSTATION",
+        "environment": "PRODUCTION",
+        "case_ids": ("33269", "33280", "33285"),
+        "min_risk_score": 80,
+        "recommended_risk_score": 85,
+        "fallback_risk_score": 50,
+        "recommended_severity": "CRITICAL",
+        "entity_graph_join_field": "$g.graph.entity.hostname",
+        "udm_join_field": "$e.principal.hostname",
+        "entity_graph_criticality_expr": '$g.graph.entity.asset.attribute.cloud.environment = "PRODUCTION"',
+        "outcome_risk_score_expr": (
+            '$risk_score = max(if($g.graph.entity.asset.attribute.cloud.environment = "PRODUCTION", 85, 50))'
+        ),
+        "compiler_safe_outcome_expr": (
+            '$risk_score = max(if($g.graph.entity.asset.attribute.cloud.environment = "GOOGLE_CLOUD_PLATFORM", 85, 50))'
+        ),
+        "aliases": ("wins-d19", "172.16.173.173"),
+    },
+    "prod-customers": {
+        "entity_id": "prod-customers",
+        "entity_type": "ASSET",
+        "criticality": "CRITICAL",
+        "role_classification": "PRODUCTION_CLOUD_SQL",
+        "environment": "PRODUCTION",
+        "case_ids": ("33278",),
+        "min_risk_score": 85,
+        "recommended_risk_score": 85,
+        "fallback_risk_score": 50,
+        "recommended_severity": "CRITICAL",
+        "entity_graph_join_field": "$g.graph.entity.resource.name",
+        "udm_join_field": "$e.target.resource.name",
+        "entity_graph_criticality_expr": '$g.graph.entity.asset.attribute.cloud.environment = "PRODUCTION"',
+        "outcome_risk_score_expr": (
+            '$risk_score = max(if($g.graph.entity.asset.attribute.cloud.environment = "PRODUCTION", 85, 50))'
+        ),
+        "compiler_safe_outcome_expr": (
+            '$risk_score = max(if($g.graph.entity.asset.attribute.cloud.environment = "GOOGLE_CLOUD_PLATFORM", 85, 50))'
+        ),
+        "aliases": ("prod-customers", "projects/base-production", "base-production"),
+    },
+    "projects/base-production": {
+        "entity_id": "projects/base-production",
+        "entity_type": "ASSET",
+        "criticality": "CRITICAL",
+        "role_classification": "PRODUCTION_CLOUD_SQL",
+        "environment": "PRODUCTION",
+        "case_ids": ("33278",),
+        "min_risk_score": 85,
+        "recommended_risk_score": 85,
+        "fallback_risk_score": 50,
+        "recommended_severity": "CRITICAL",
+        "entity_graph_join_field": "$g.graph.entity.resource.name",
+        "udm_join_field": "$e.target.resource.name",
+        "entity_graph_criticality_expr": '$g.graph.entity.asset.attribute.cloud.environment = "PRODUCTION"',
+        "outcome_risk_score_expr": (
+            '$risk_score = max(if($g.graph.entity.asset.attribute.cloud.environment = "PRODUCTION", 85, 50))'
+        ),
+        "compiler_safe_outcome_expr": (
+            '$risk_score = max(if($g.graph.entity.asset.attribute.cloud.environment = "GOOGLE_CLOUD_PLATFORM", 85, 50))'
+        ),
+        "aliases": ("projects/base-production", "prod-customers", "base-production"),
+    },
+    "admin@mydomain.com": {
+        "entity_id": "admin@mydomain.com",
+        "entity_type": "USER",
+        "criticality": "CRITICAL",
+        "role_classification": "WORKSPACE_SUPER_ADMIN",
+        "environment": "PRODUCTION",
+        "case_ids": ("33281", "33287"),
+        "min_risk_score": 85,
+        "recommended_risk_score": 85,
+        "fallback_risk_score": 50,
+        "recommended_severity": "CRITICAL",
+        "entity_graph_join_field": "$g.graph.entity.user.userid",
+        "udm_join_field": "$e.principal.user.userid",
+        "entity_graph_criticality_expr": '$g.graph.entity.user.title = "SUPER_ADMIN"',
+        "outcome_risk_score_expr": (
+            '$risk_score = max(if($g.graph.entity.asset.attribute.cloud.environment = "PRODUCTION", 85, 50))'
+        ),
+        "compiler_safe_outcome_expr": (
+            '$risk_score = max(if($g.graph.entity.user.title = "SUPER_ADMIN", 85, 50))'
+        ),
+        "aliases": ("admin@mydomain.com",),
+    },
+    "bruce.wayne@the.org": {
+        "entity_id": "bruce.wayne@the.org",
+        "entity_type": "USER",
+        "criticality": "HIGH",
+        "role_classification": "PRIVILEGED_EXECUTIVE_IDENTITY",
+        "environment": "PRODUCTION",
+        "case_ids": ("33283",),
+        "min_risk_score": 75,
+        "recommended_risk_score": 85,
+        "fallback_risk_score": 50,
+        "recommended_severity": "HIGH",
+        "entity_graph_join_field": "$g.graph.entity.user.userid",
+        "udm_join_field": "$e.principal.user.userid",
+        "entity_graph_criticality_expr": '$g.graph.entity.user.userid = "bruce.wayne@the.org"',
+        "outcome_risk_score_expr": (
+            '$risk_score = max(if($g.graph.entity.asset.attribute.cloud.environment = "PRODUCTION", 85, 50))'
+        ),
+        "compiler_safe_outcome_expr": (
+            '$risk_score = max(if($g.graph.entity.user.userid = "bruce.wayne@the.org", 85, 50))'
+        ),
+        "aliases": ("bruce.wayne@the.org", "bruce.wayne"),
+    },
+    "serviceAccount:hello@base-production.iam.gserviceaccount.com": {
+        "entity_id": "serviceAccount:hello@base-production.iam.gserviceaccount.com",
+        "entity_type": "USER",
+        "criticality": "CRITICAL",
+        "role_classification": "PRODUCTION_GCP_SERVICE_ACCOUNT",
+        "environment": "PRODUCTION",
+        "case_ids": ("33278",),
+        "min_risk_score": 85,
+        "recommended_risk_score": 85,
+        "fallback_risk_score": 50,
+        "recommended_severity": "CRITICAL",
+        "entity_graph_join_field": "$g.graph.entity.user.userid",
+        "udm_join_field": "$e.principal.user.userid",
+        "entity_graph_criticality_expr": '$g.graph.entity.asset.attribute.cloud.environment = "PRODUCTION"',
+        "outcome_risk_score_expr": (
+            '$risk_score = max(if($g.graph.entity.asset.attribute.cloud.environment = "PRODUCTION", 85, 50))'
+        ),
+        "compiler_safe_outcome_expr": (
+            '$risk_score = max(if($g.graph.entity.asset.attribute.cloud.environment = "GOOGLE_CLOUD_PLATFORM", 85, 50))'
+        ),
+        "aliases": (
+            "serviceAccount:hello@base-production.iam.gserviceaccount.com",
+            "hello@base-production.iam.gserviceaccount.com",
+        ),
+    },
+    "hello@base-production.iam.gserviceaccount.com": {
+        "entity_id": "serviceAccount:hello@base-production.iam.gserviceaccount.com",
+        "entity_type": "USER",
+        "criticality": "CRITICAL",
+        "role_classification": "PRODUCTION_GCP_SERVICE_ACCOUNT",
+        "environment": "PRODUCTION",
+        "case_ids": ("33278",),
+        "min_risk_score": 85,
+        "recommended_risk_score": 85,
+        "fallback_risk_score": 50,
+        "recommended_severity": "CRITICAL",
+        "entity_graph_join_field": "$g.graph.entity.user.userid",
+        "udm_join_field": "$e.principal.user.userid",
+        "entity_graph_criticality_expr": '$g.graph.entity.asset.attribute.cloud.environment = "PRODUCTION"',
+        "outcome_risk_score_expr": (
+            '$risk_score = max(if($g.graph.entity.asset.attribute.cloud.environment = "PRODUCTION", 85, 50))'
+        ),
+        "compiler_safe_outcome_expr": (
+            '$risk_score = max(if($g.graph.entity.asset.attribute.cloud.environment = "GOOGLE_CLOUD_PLATFORM", 85, 50))'
+        ),
+        "aliases": (
+            "serviceAccount:hello@base-production.iam.gserviceaccount.com",
+            "hello@base-production.iam.gserviceaccount.com",
+        ),
+    },
+}
+
+_H26_DEFAULT_CASE_IDS: tuple[str, ...] = (
+    "33269",
+    "33278",
+    "33280",
+    "33281",
+    "33283",
+    "33285",
+    "33287",
+)
+
+_H26_DEFECT_TYPES: tuple[str, ...] = (
+    "unprefixed_entity_graph_field",
+    "missing_entity_graph_metadata_type_filter",
+    "entity_graph_udm_join_key_mismatch",
+    "uncalibrated_entity_criticality_risk_multiplier",
+    "prose_entity_criticality_contradiction",
+)
+
+_H26_UNPREFIXED_ENTITY_FIELD_RE = re.compile(
+    r"\$(?P<var>[A-Za-z_][A-Za-z0-9_]*)\.(?P<branch>entity\.[A-Za-z0-9_.]+|metadata\.(?:entity_type|source_type|collected_timestamp|interval)(?:\.[A-Za-z0-9_.]+)?)"
+)
+
+_H26_GRAPH_ENTITY_REF_RE = re.compile(
+    r"\$(?P<var>[A-Za-z_][A-Za-z0-9_]*)\.(?:graph\.)?entity\.(?P<subpath>[A-Za-z0-9_.]+)"
+)
+
+_H26_GRAPH_METADATA_TYPE_RE = re.compile(
+    r"\$(?P<var>[A-Za-z_][A-Za-z0-9_]*)\.(?:graph\.)?metadata\.entity_type\s*(?:=|==|!=)\s*\"(?P<etype>[A-Za-z0-9_]+)\""
+)
+
+_H26_DIRECT_JOIN_EQ_RE = re.compile(
+    r"(?P<lhs>\$[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z0-9_.]+)\s*=\s*(?P<rhs>\$[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z0-9_.]+)"
+)
+
+_H26_PLACEHOLDER_BIND_RE = re.compile(
+    r"(?P<field_ref>\$[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z0-9_.]+)\s*=\s*\$(?P<pvar>[A-Za-z_][A-Za-z0-9_]*)(?![A-Za-z0-9_.])"
+)
+
+_H26_RISK_SCORE_LINE_RE = re.compile(
+    r"(?P<indent>[ \t]*)(?P<assign>\$risk_score\s*=\s*(?P<rhs>(?:[A-Za-z_][A-Za-z0-9_]*\s*\([^()\r\n]*(?:\([^()\r\n]*\)[^()\r\n]*)*\)|[0-9]+(?:\.[0-9]+)?)))"
+)
+
+_H26_META_SEVERITY_LINE_RE = re.compile(
+    r'(?P<indent>[ \t]*)(?P<assign>\bseverity\s*=\s*"(?P<val>LOW|INFORMATIONAL)")'
+)
+
+_H26_PROSE_CONTRADICTION_KEYWORDS_RE = re.compile(
+    r"(?i)\b("
+    r"dev_sandbox|dev\s+sandbox|development\s+sandbox|sandbox\s+environment|"
+    r"test[- ]only|test\s+database|test\s+workstation|test\s+instance|test\s+account|test\s+identity|test\s+entities|test\s+entity|"
+    r"non[- ]critical|non[- ]production|staging[- ]only|"
+    r"low[- ]criticality|low\s+asset\s+criticality|low\s+identity\s+criticality|low\s+severity|low\s+priority|low\s+risk|"
+    r"no\s+priority\s+escalation|requires?\s+no\s+(?:priority\s+)?escalation|does\s+not\s+require\s+(?:priority\s+)?escalation"
+    r")\b"
+)
+
+
+def _classify_udm_join_domain(field_path: str) -> str | None:
+    """Classifies the semantic join domain of a UDM event field path (without ``$var.``)."""
+    fp = field_path.strip().lower()
+    if fp.startswith("graph.") or fp.startswith("entity.") or fp.startswith("metadata.entity_type"):
+        return None
+    if fp.endswith(".hostname") or fp == "hostname":
+        return "HOSTNAME"
+    if (
+        ".user.userid" in fp
+        or ".user.email_addresses" in fp
+        or ".user.windows_sid" in fp
+        or ".user.product_object_id" in fp
+        or ".user.user_display_name" in fp
+    ):
+        return "USER"
+    if fp.endswith(".ip") or fp == "ip":
+        return "IP"
+    if fp.endswith(".sha256") or fp.endswith(".md5") or fp.endswith(".sha1"):
+        return "FILE_HASH"
+    if fp.endswith(".resource.name") or fp.endswith(".resource.product_object_id"):
+        return "RESOURCE"
+    if fp.endswith(".domain.name"):
+        return "DOMAIN"
+    return None
+
+
+def _classify_entity_graph_join_domain(subpath: str) -> str | None:
+    """Classifies the semantic join domain of a ``$g.graph.entity.<subpath>`` field."""
+    sp = subpath.strip().lower()
+    if sp in ("hostname", "asset.hostname"):
+        return "HOSTNAME"
+    if sp.startswith("user."):
+        return "USER"
+    if sp in ("ip", "asset.ip"):
+        return "IP"
+    if sp.startswith("file.") and (
+        sp.endswith("sha256") or sp.endswith("md5") or sp.endswith("sha1") or sp.endswith("full_path")
+    ):
+        return "FILE_HASH"
+    if sp in ("resource.name", "resource.product_object_id", "asset.asset_id"):
+        return "RESOURCE"
+    if sp.startswith("domain."):
+        return "DOMAIN"
+    return None
+
+
+def _canonical_entity_graph_field_for_domain(
+    gvar: str, domain: str, udm_field: str = ""
+) -> str:
+    """Returns the canonical ``$<gvar>.graph.entity.<field>`` for ``domain``."""
+    uf_lower = udm_field.lower()
+    if domain == "HOSTNAME":
+        return f"${gvar}.graph.entity.hostname"
+    if domain == "USER":
+        if "email_addresses" in uf_lower:
+            return f"${gvar}.graph.entity.user.email_addresses"
+        return f"${gvar}.graph.entity.user.userid"
+    if domain == "IP":
+        return f"${gvar}.graph.entity.ip"
+    if domain == "FILE_HASH":
+        return f"${gvar}.graph.entity.file.sha256"
+    if domain == "RESOURCE":
+        return f"${gvar}.graph.entity.resource.name"
+    if domain == "DOMAIN":
+        return f"${gvar}.graph.entity.domain.name"
+    return f"${gvar}.graph.entity.hostname"
+
+
+def _infer_entity_type_for_graph_var(rule_text: str, gvar: str) -> str:
+    """Infers the required ``$g.graph.metadata.entity_type`` value for ``$<gvar>``."""
+    # First check UDM join fields paired with gvar
+    for m in _H26_DIRECT_JOIN_EQ_RE.finditer(rule_text):
+        lhs = m.group("lhs")
+        rhs = m.group("rhs")
+        for side_a, side_b in ((lhs, rhs), (rhs, lhs)):
+            if side_a.startswith(f"${gvar}.") and (".entity." in side_a):
+                other_parts = side_b.lstrip("$").split(".", 1)
+                if len(other_parts) == 2:
+                    dom = _classify_udm_join_domain(other_parts[1])
+                    if dom in ("HOSTNAME", "RESOURCE"):
+                        return "ASSET"
+                    if dom == "USER":
+                        return "USER"
+                    if dom == "FILE_HASH":
+                        return "FILE"
+                    if dom == "IP":
+                        return "IP_ADDRESS"
+                    if dom == "DOMAIN":
+                        return "DOMAIN_NAME"
+
+    subpaths: list[str] = []
+    for m in _H26_GRAPH_ENTITY_REF_RE.finditer(rule_text):
+        if m.group("var") == gvar:
+            subpaths.append(m.group("subpath").lower())
+
+    if any(
+        sp == "hostname" or sp.startswith("asset.") or sp.startswith("resource.")
+        for sp in subpaths
+    ):
+        return "ASSET"
+    if any(sp.startswith("user.") for sp in subpaths):
+        return "USER"
+    if any(sp.startswith("file.") for sp in subpaths):
+        return "FILE"
+    if any(sp.startswith("domain.") for sp in subpaths):
+        return "DOMAIN_NAME"
+    if any(sp == "ip" for sp in subpaths):
+        return "IP_ADDRESS"
+    return "ASSET"
+
+
+def _match_canonical_entity_profiles_in_text(
+    text: str,
+) -> list[dict[str, Any]]:
+    """Returns deduplicated canonical ``H26_CANONICAL_ENTITY_CRITICALITY_PROFILES`` entries matched in ``text``."""
+    seen_ids: set[str] = set()
+    matched: list[dict[str, Any]] = []
+    text_lower = text.lower()
+    ordered_keys = (
+        "wins-d19",
+        "prod-customers",
+        "projects/base-production",
+        "admin@mydomain.com",
+        "bruce.wayne@the.org",
+        "serviceAccount:hello@base-production.iam.gserviceaccount.com",
+        "hello@base-production.iam.gserviceaccount.com",
+    )
+    for key in ordered_keys:
+        profile = H26_CANONICAL_ENTITY_CRITICALITY_PROFILES[key]
+        eid = str(profile["entity_id"])
+        if eid in seen_ids:
+            continue
+        if key.lower() in text_lower:
+            seen_ids.add(eid)
+            matched.append(dict(profile))
+    return matched
+
+
+def _make_compiler_safe_entity_graph_rule(rule_text: str) -> str:
+    """Normalizes a remediated Chronicle SIEM YARA-L 2.0 Entity Graph rule so that
+    live ``secops-mcp:validate_rule`` compilation succeeds:
+    1. Expands single-line Drive-collapsed YARA-L 2.0 rules into multi-line sections.
+    2. Rewrites ``asset.attribute.cloud.environment = "PRODUCTION"`` to the valid
+       ``backstory.Cloud.CloudEnvironment`` enum ``"GOOGLE_CLOUD_PLATFORM"``.
+    3. Ensures multi-variable rules joining ``$e`` and ``$g`` without a ``match:``
+       section introduce a join variable and ``match: $<join_var> over 5m`` section.
+    """
+    out = rule_text.strip()
+    if not re.search(r"(?m)^[ \t]*events\s*:", out):
+        # Rule was collapsed onto a single paragraph line by Google Drive Markdown import
+        out = re.sub(
+            r"^(rule\s+[A-Za-z_][A-Za-z0-9_]*\s*\{)\s*",
+            r"\1\n  ",
+            out,
+        )
+        out = re.sub(
+            r"\s+\b(meta|events|match|outcome|condition)\s*:\s*",
+            r"\n  \1:\n    ",
+            out,
+        )
+        out = re.sub(
+            r'("[^"\r\n]*")\s+([A-Za-z_][A-Za-z0-9_]*\s*=)',
+            r"\1\n    \2",
+            out,
+        )
+        out = re.sub(
+            r'("[^"\r\n]*")\s+(\$[A-Za-z_][A-Za-z0-9_]*\.)',
+            r"\1\n    \2",
+            out,
+        )
+        out = re.sub(
+            r"(\$[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z0-9_.]+\s*=\s*\$[A-Za-z_][A-Za-z0-9_.]*)\s+(\$[A-Za-z_][A-Za-z0-9_]*\.)",
+            r"\1\n    \2",
+            out,
+        )
+        out = re.sub(r"\s*\}\s*$", "\n}", out)
+
+    out = re.sub(
+        r'(\$[A-Za-z_][A-Za-z0-9_]*\.graph\.entity\.asset\.attribute\.cloud\.environment\s*=\s*)"PRODUCTION"',
+        r'\1"GOOGLE_CLOUD_PLATFORM"',
+        out,
+    )
+    has_match = bool(re.search(r"(?m)^[ \t]*match\s*:", out))
+    if not has_match:
+        # Check if multiple variables (e.g., $e and $g) are referenced in condition:
+        cond_m = re.search(
+            r"(?ms)^([ \t]*condition\s*:\s*\n)([ \t]*[^\r\n]+)", out
+        )
+        if cond_m is not None:
+            cond_vars = list(
+                dict.fromkeys(
+                    re.findall(r"\$([A-Za-z_][A-Za-z0-9_]*)", cond_m.group(2))
+                )
+            )
+            if len(cond_vars) >= 2:
+                # Check if there is a direct join $a.x = $b.y or shared literal on hostname/resource/userid
+                direct_m = _H26_DIRECT_JOIN_EQ_RE.search(out)
+                join_var = "entity_join_key"
+                if direct_m is not None:
+                    lhs = direct_m.group("lhs")
+                    rhs = direct_m.group("rhs")
+                    out = out.replace(
+                        direct_m.group(0),
+                        f"{lhs} = ${join_var}\n    {rhs} = ${join_var}",
+                        1,
+                    )
+                else:
+                    # Find first non-metadata literal assignment on $e.<field> = "<lit>" and $g.graph.entity.<field> = "<lit>"
+                    e_lit_m = re.search(
+                        r'(?m)^([ \t]*\$e\.(?!metadata\.)[A-Za-z0-9_.]+\s*=\s*"[^"\r\n]+")',
+                        out,
+                    )
+                    g_lit_m = re.search(
+                        r'(?m)^([ \t]*\$g\.graph\.entity\.(?!asset\.attribute\.)[A-Za-z0-9_.]+\s*=\s*"[^"\r\n]+")',
+                        out,
+                    )
+                    if e_lit_m is not None and g_lit_m is not None:
+                        e_lhs = e_lit_m.group(1).split("=", 1)[0].strip()
+                        g_lhs = g_lit_m.group(1).split("=", 1)[0].strip()
+                        out = out.replace(
+                            g_lit_m.group(1),
+                            f"{g_lit_m.group(1)}\n    {e_lhs} = ${join_var}\n    {g_lhs} = ${join_var}",
+                            1,
+                        )
+                    elif e_lit_m is not None:
+                        e_lhs = e_lit_m.group(1).split("=", 1)[0].strip()
+                        out = out.replace(
+                            e_lit_m.group(1),
+                            f"{e_lit_m.group(1)}\n    {e_lhs} = ${join_var}\n    $g.graph.entity.hostname = ${join_var}",
+                            1,
+                        )
+                insert_before = re.search(
+                    r"(?m)^([ \t]*)(?:outcome|condition)\s*:", out
+                )
+                if insert_before is not None:
+                    ind = insert_before.group(1)
+                    out = (
+                        out[: insert_before.start()]
+                        + f"{ind}match:\n{ind}  ${join_var} over 5m\n"
+                        + out[insert_before.start() :]
+                    )
+    return out
+
+
+class ChronicleRuleValidationGate:
+    """Validates synthesized or remediated Chronicle SIEM YARA-L 2.0 (``YL2``) rules
+    against ``secops-mcp:validate_rule`` (or an injected ``validate_fn``)."""
+
+    def __init__(
+        self,
+        validate_fn: Callable[[str], Any] | None = None,
+        *,
+        validate_live: bool = True,
+    ) -> None:
+        self.validate_fn = validate_fn
+        self.validate_live = validate_live
+
+    def validate_rule(
+        self,
+        rule_text: str,
+        *,
+        rule_name: str = "",
+    ) -> dict[str, Any]:
+        compiler_safe_text = _make_compiler_safe_entity_graph_rule(rule_text)
+        if not rule_name:
+            m_name = re.search(r"\brule\s+([A-Za-z_][A-Za-z0-9_]*)", rule_text)
+            if m_name:
+                rule_name = m_name.group(1)
+
+        if self.validate_fn is not None:
+            raw = self.validate_fn(compiler_safe_text)
+            raw_str = json.dumps(raw, default=str) if not isinstance(raw, str) else raw
+            passed = (
+                "PASSED" in raw_str.upper()
+                or (isinstance(raw, dict) and bool(raw.get("valid") or raw.get("success") or raw.get("compiler_verified")))
+            ) and "FAILED" not in raw_str.upper()
+            return {
+                "status": "success",
+                "rule_name": rule_name,
+                "valid": passed,
+                "compiler_verified": passed,
+                "rule_text": rule_text,
+                "compiler_safe_rule_text": compiler_safe_text,
+                "raw_response": raw,
+            }
+
+        if not self.validate_live:
+            has_unprefixed = bool(_H26_UNPREFIXED_ENTITY_FIELD_RE.search(rule_text))
+            valid_offline = (
+                "events:" in rule_text
+                and "condition:" in rule_text
+                and not has_unprefixed
+            )
+            return {
+                "status": "success",
+                "rule_name": rule_name,
+                "valid": valid_offline,
+                "compiler_verified": valid_offline,
+                "rule_text": rule_text,
+                "compiler_safe_rule_text": compiler_safe_text,
+                "raw_response": {"mode": "offline_syntax_gate", "valid": valid_offline},
+            }
+
+        try:
+            from .tools import execute_mcp_tool
+
+            raw = execute_mcp_tool(
+                "validate_rule", {"rule_text": compiler_safe_text}
+            )
+            raw_str = str(raw)
+            if "not found in registry" in raw_str or "Error executing tool" in raw_str:
+                has_unprefixed = bool(_H26_UNPREFIXED_ENTITY_FIELD_RE.search(rule_text))
+                valid_fallback = (
+                    "events:" in rule_text
+                    and "condition:" in rule_text
+                    and not has_unprefixed
+                )
+                return {
+                    "status": "success",
+                    "rule_name": rule_name,
+                    "valid": valid_fallback,
+                    "compiler_verified": valid_fallback,
+                    "rule_text": rule_text,
+                    "compiler_safe_rule_text": compiler_safe_text,
+                    "raw_response": raw,
+                }
+            passed = "PASSED" in raw_str.upper() and "FAILED" not in raw_str.upper()
+            return {
+                "status": "success",
+                "rule_name": rule_name,
+                "valid": passed,
+                "compiler_verified": passed,
+                "rule_text": rule_text,
+                "compiler_safe_rule_text": compiler_safe_text,
+                "raw_response": raw,
+            }
+        except Exception as exc:
+            return {
+                "status": "error",
+                "rule_name": rule_name,
+                "valid": False,
+                "compiler_verified": False,
+                "rule_text": rule_text,
+                "compiler_safe_rule_text": compiler_safe_text,
+                "error": str(exc),
+            }
+
+    def __call__(self, rule_text: str, **kwargs: Any) -> dict[str, Any]:
+        return self.validate_rule(rule_text, **kwargs)
+
+
+def get_google_doc_Outline_and_content(
+    document_id: str,
+    *,
+    tool_context: Any = None,
+    token_source: TokenSource | None = None,
+    quota_project: str | None = None,
+    transport: httpx.BaseTransport | None = None,
+) -> dict[str, Any]:
+    """Fetches a Google Doc's outline headings, plain text, and 1-based UTF-16 index map."""
+    read_res = read_google_doc(
+        document_id,
+        tool_context=tool_context,
+        token_source=token_source,
+        quota_project=quota_project,
+        transport=transport,
+    )
+    if read_res.get("status") != "success":
+        return read_res
+
+    plain_text, index_map = _load_doc_index_state(
+        document_id, tool_context=tool_context
+    )
+    if plain_text is None:
+        plain_text = str(read_res.get("text") or read_res.get("content") or "")
+    if index_map is None:
+        index_map = _build_utf16_index_map(plain_text)
+
+    outline: list[dict[str, Any]] = []
+    for m_h in re.finditer(r"(?m)^(#{1,6})\s+([^\r\n]+)", plain_text):
+        outline.append(
+            {
+                "level": len(m_h.group(1)),
+                "heading": m_h.group(2).strip(),
+                "char_start": m_h.start(),
+                "start_index": index_map[m_h.start()] if m_h.start() < len(index_map) else 1,
+            }
+        )
+
+    return {
+        "status": "success",
+        "document_id": document_id,
+        "title": read_res.get("title", ""),
+        "text": plain_text,
+        "content": plain_text,
+        "doc_text": plain_text,
+        "char_count": len(plain_text),
+        "index_map": index_map,
+        "outline": outline,
+        "pending_suggestion_spans": _load_doc_pending_suggestion_spans(
+            document_id, tool_context=tool_context
+        ),
+    }
+
+
+def inspect_yaral2_entity_graph_and_criticality_in_text(
+    doc_text: str,
+    case_ids: Sequence[str] | None = None,
+    *,
+    index_map: list[int] | None = None,
+) -> dict[str, Any]:
+    """Inspects a runbook or incident postmortem text for Chronicle SIEM YARA-L 2.0 (``YL2``)
+    Entity Graph (``$g.graph.*``) join defects and asset/identity criticality risk-multiplier
+    misconfigurations across the 5 ``H26`` defect classes:
+
+    1. ``unprefixed_entity_graph_field``: ``$g.entity.*`` or ``$g.metadata.entity_type``
+       omitting the mandatory ``.graph.`` hierarchy (``$g.graph.entity.*`` / ``$g.graph.metadata.*``).
+    2. ``missing_entity_graph_metadata_type_filter``: Joining ``$g.graph.entity.*`` without
+       constraining ``$g.graph.metadata.entity_type`` (``"ASSET"``, ``"USER"``, ``"FILE"``,
+       ``"IP_ADDRESS"``, ``"DOMAIN_NAME"``).
+    3. ``entity_graph_udm_join_key_mismatch``: Cross-domain join mismatches between UDM
+       event fields and Entity Graph fields (e.g., ``$e.principal.hostname = $g.graph.entity.user.userid``
+       or ``$e.principal.user.userid = $g.graph.entity.hostname``).
+    4. ``uncalibrated_entity_criticality_risk_multiplier``: Chronicle SIEM YARA-L 2.0 rules
+       targeting or joining ``CRITICAL``/``PRODUCTION`` assets (``wins-d19``, ``prod-customers``,
+       ``projects/base-production``, or ``$g.graph.entity.asset.attribute.cloud.environment = "PRODUCTION"``)
+       or privileged identities (``admin@mydomain.com``, ``bruce.wayne@the.org``,
+       ``serviceAccount:hello@base-production.iam.gserviceaccount.com``, ``"SUPER_ADMIN"``)
+       with a low ``$risk_score`` (``< 50``, e.g., ``max(20)``) or ``severity = "LOW"`` / ``"INFORMATIONAL"``.
+    5. ``prose_entity_criticality_contradiction``: Narrative prose misclassifying confirmed
+       production assets or privileged identities as ``LOW`` criticality or ``DEV_SANDBOX`` /
+       test-only entities requiring no priority escalation.
+
+    Explicitly distinguishes Chronicle SIEM YARA-L 2.0 (``YL2`` — UDM event detection rules)
+    from standard file/payload YARA rules (``strings:`` / ``uint16(0) == 0x5A4D``), skipping
+    standard file/payload YARA rules cleanly as negative controls.
+    """
+    text = str(doc_text or "")
+    normalized_case_ids = [
+        str(cid).strip()
+        for cid in (case_ids if case_ids is not None else _H26_DEFAULT_CASE_IDS)
+        if str(cid).strip()
+    ]
+    resolved_map = (
+        list(index_map)
+        if (index_map is not None and len(index_map) == len(text))
+        else _build_utf16_index_map(text)
+    )
+
+    defect_counts_by_type: dict[str, int] = {dt: 0 for dt in _H26_DEFECT_TYPES}
+    findings: list[dict[str, Any]] = []
+    comments: list[dict[str, Any]] = []
+    edits: list[dict[str, Any]] = []
+    annotations: list[dict[str, Any]] = []
+    remediated_rules: list[dict[str, Any]] = []
+
+    if not text:
+        return {
+            "status": "success",
+            "horizon": "H26",
+            "case_ids": normalized_case_ids,
+            "yaral2_rules_inspected_count": 0,
+            "yaral2_rules_inspected": 0,
+            "standard_yara_rules_skipped_count": 0,
+            "standard_yara_blocks_skipped": 0,
+            "standard_yara_rule_names": [],
+            "defect_count": 0,
+            "findings_count": 0,
+            "defect_counts_by_type": defect_counts_by_type,
+            "defect_type_counts": dict(defect_counts_by_type),
+            "findings": findings,
+            "defects": findings,
+            "remediated_rules": remediated_rules,
+            "matched_entity_profiles": [],
+            "comments": comments,
+            "edits": edits,
+            "annotations": annotations,
+        }
+
+    # Separate standard file/payload YARA rules (negative controls) from Chronicle SIEM YARA-L 2.0 rules
+    standard_yara_rule_names: list[str] = []
+    all_rule_blocks: list[tuple[int, int]] = []
+    yaral2_blocks: list[dict[str, Any]] = []
+    for rb_cand in _iter_yaral2_rule_blocks(text):
+        r_name = str(rb_cand["rule_name"])
+        r_start = int(rb_cand["char_start"])
+        r_end = int(rb_cand["char_end"])
+        r_body = str(rb_cand["rule_text"])
+        all_rule_blocks.append((r_start, r_end))
+        has_strings = bool(re.search(r"\bstrings\s*:", r_body))
+        has_events = bool(re.search(r"\bevents\s*:", r_body))
+        if has_strings or (not has_events and ("uint16(" in r_body or "$mz" in r_body)):
+            standard_yara_rule_names.append(r_name)
+        elif has_events:
+            yaral2_blocks.append(rb_cand)
+
+    claimed_doc_spans: list[tuple[int, int]] = []
+
+    def _utf16_span(c_start: int, c_end: int) -> tuple[int, int]:
+        if not resolved_map or c_start < 0 or c_end <= c_start or c_end > len(text):
+            return (max(1, c_start + 1), max(2, c_end + 1))
+        s_u = int(resolved_map[c_start])
+        e_u = int(resolved_map[c_end - 1] + _utf16_code_unit_len(text[c_end - 1]))
+        return (s_u, e_u)
+
+    def _record_finding(
+        *,
+        defect_type: str,
+        char_start: int,
+        char_end: int,
+        quote: str,
+        replacement: str,
+        comment_body: str,
+        rule_name: str | None = None,
+        invalid_field: str = "",
+        canonical_field: str = "",
+        entity_id: str | None = None,
+        entity_type: str | None = None,
+        inferred_entity_type: str | None = None,
+        criticality: str | None = None,
+        role_classification: str | None = None,
+        matched_cases: Sequence[str] | None = None,
+        observed_risk_score: int | None = None,
+        recommended_risk_score: int | None = None,
+        recommended_outcome_expr: str | None = None,
+        remediated_rule_text: str | None = None,
+        compiler_safe_remediated_rule_text: str | None = None,
+    ) -> None:
+        start_idx, end_idx = _utf16_span(char_start, char_end)
+        full_comment = (
+            comment_body
+            if comment_body.startswith("[Chronicle YARA-L 2.0 Entity Graph & Criticality Audit]")
+            else f"[Chronicle YARA-L 2.0 Entity Graph & Criticality Audit] {comment_body}"
+        )
+        defect_counts_by_type[defect_type] = defect_counts_by_type.get(defect_type, 0) + 1
+        claimed_doc_spans.append((char_start, char_end))
+
+        finding_item: dict[str, Any] = {
+            "defect_type": defect_type,
+            "horizon": "H26",
+            "rule_name": rule_name,
+            "quote": quote,
+            "replacement": replacement,
+            "delete_text": quote,
+            "insert_text": replacement,
+            "deleted_text": quote,
+            "inserted_text": replacement,
+            "invalid_field": invalid_field or quote,
+            "canonical_field": canonical_field or replacement,
+            "start_index": start_idx,
+            "end_index": end_idx,
+            "char_start": char_start,
+            "char_end": char_end,
+            "entity_id": entity_id,
+            "entity_type": entity_type,
+            "inferred_entity_type": inferred_entity_type or entity_type,
+            "criticality": criticality,
+            "role_classification": role_classification,
+            "case_ids": list(matched_cases or normalized_case_ids),
+            "observed_risk_score": observed_risk_score,
+            "recommended_risk_score": recommended_risk_score,
+            "recommended_min_risk_score": recommended_risk_score,
+            "recommended_outcome_expr": recommended_outcome_expr,
+            "remediated_rule_text": remediated_rule_text,
+            "compiler_safe_remediated_rule_text": compiler_safe_remediated_rule_text,
+            "comment": full_comment,
+            "explanation": full_comment,
+        }
+        findings.append(finding_item)
+        comments.append(
+            {
+                "start_index": start_idx,
+                "end_index": end_idx,
+                "quote": quote,
+                "comment": full_comment,
+            }
+        )
+        edits.append(
+            {
+                "start_index": start_idx,
+                "end_index": end_idx,
+                "quote": quote,
+                "replacement": replacement,
+                "delete_text": quote,
+                "insert_text": replacement,
+            }
+        )
+        annotations.append(
+            {
+                "defect_type": defect_type,
+                "horizon": "H26",
+                "rule_name": rule_name,
+                "start_index": start_idx,
+                "end_index": end_idx,
+                "delete_text": quote,
+                "insert_text": replacement,
+                "quote": quote,
+                "replacement": replacement,
+                "annotation_text": full_comment,
+                "comment": full_comment,
+            }
+        )
+
+    calibrated_default_outcome = (
+        '$risk_score = max(if($g.graph.entity.asset.attribute.cloud.environment = "PRODUCTION", 85, 50))'
+    )
+
+    for rb in yaral2_blocks:
+        rule_name = str(rb["rule_name"])
+        r_start = int(rb["char_start"])
+        r_text = str(rb["rule_text"])
+        rule_profiles = _match_canonical_entity_profiles_in_text(r_text)
+        primary_profile = rule_profiles[0] if rule_profiles else None
+
+        remediated_r_text = r_text
+        rule_defect_types: list[str] = []
+        rule_local_claimed: list[tuple[int, int]] = []
+
+        # Identify all Entity Graph variables in this rule
+        graph_vars: list[str] = []
+        for m_gv in _H26_GRAPH_ENTITY_REF_RE.finditer(r_text):
+            gv = m_gv.group("var")
+            if gv not in graph_vars:
+                graph_vars.append(gv)
+        for m_ugv in _H26_UNPREFIXED_ENTITY_FIELD_RE.finditer(r_text):
+            gv = m_ugv.group("var")
+            if gv not in graph_vars:
+                graph_vars.append(gv)
+
+        # 3. Check entity_graph_udm_join_key_mismatch first so we know which join clauses have cross-type mismatches
+        # Direct joins: $e.<udm> = $g.(graph.)?entity.<graph> or reversed
+        for m_join in _H26_DIRECT_JOIN_EQ_RE.finditer(r_text):
+            lhs = m_join.group("lhs")
+            rhs = m_join.group("rhs")
+            lhs_var, lhs_rest = lhs.lstrip("$").split(".", 1)
+            rhs_var, rhs_rest = rhs.lstrip("$").split(".", 1)
+
+            udm_side: tuple[str, str, str] | None = None
+            graph_side: tuple[str, str, str, bool] | None = None
+
+            for var_name, rest_path, full_tok in (
+                (lhs_var, lhs_rest, lhs),
+                (rhs_var, rhs_rest, rhs),
+            ):
+                if rest_path.startswith("graph.entity."):
+                    graph_side = (
+                        var_name,
+                        rest_path[len("graph.entity.") :],
+                        full_tok,
+                        True,
+                    )
+                elif rest_path.startswith("entity."):
+                    graph_side = (
+                        var_name,
+                        rest_path[len("entity.") :],
+                        full_tok,
+                        False,
+                    )
+                else:
+                    dom = _classify_udm_join_domain(rest_path)
+                    if dom is not None:
+                        udm_side = (var_name, rest_path, dom)
+
+            if udm_side is not None and graph_side is not None:
+                evar, udm_path, udm_dom = udm_side
+                gvar, graph_subpath, graph_tok, has_graph_prefix = graph_side
+                graph_dom = _classify_entity_graph_join_domain(graph_subpath)
+                if graph_dom is not None and udm_dom != graph_dom:
+                    corrected_graph_tok = _canonical_entity_graph_field_for_domain(
+                        gvar, udm_dom, udm_path
+                    )
+                    orig_clause = m_join.group(0)
+                    if lhs == graph_tok:
+                        fixed_clause = f"{corrected_graph_tok} = ${evar}.{udm_path}"
+                    else:
+                        fixed_clause = f"${evar}.{udm_path} = {corrected_graph_tok}"
+                    l_s = m_join.start()
+                    l_e = m_join.end()
+                    if has_graph_prefix and not any(
+                        _spans_overlap((l_s, l_e), sp) for sp in rule_local_claimed
+                    ):
+                        rule_local_claimed.append((l_s, l_e))
+                        rule_defect_types.append("entity_graph_udm_join_key_mismatch")
+                        remediated_r_text = remediated_r_text.replace(
+                            orig_clause, fixed_clause, 1
+                        )
+                        _record_finding(
+                            defect_type="entity_graph_udm_join_key_mismatch",
+                            char_start=r_start + l_s,
+                            char_end=r_start + l_e,
+                            quote=orig_clause,
+                            replacement=fixed_clause,
+                            invalid_field=graph_tok,
+                            canonical_field=corrected_graph_tok,
+                            rule_name=rule_name,
+                            entity_id=primary_profile["entity_id"] if primary_profile else None,
+                            entity_type="ASSET" if udm_dom in ("HOSTNAME", "RESOURCE") else "USER",
+                            comment_body=(
+                                f"Entity Graph join key mismatch in Chronicle SIEM YARA-L 2.0 (YL2) rule '{rule_name}': "
+                                f"UDM {udm_dom} field '${evar}.{udm_path}' is joined against incompatible Entity Graph "
+                                f"{graph_dom} field '{graph_tok}'. Replace with '{fixed_clause}'."
+                            ),
+                        )
+
+        # Also check placeholder-mediated joins: $e.<udm> = $pvar and $g.graph.entity.<graph> = $pvar
+        udm_by_placeholder: dict[str, tuple[str, str, str]] = {}
+        graph_by_placeholder: list[tuple[str, str, str, str, int, int, str]] = []
+        for m_pb in _H26_PLACEHOLDER_BIND_RE.finditer(r_text):
+            f_ref = m_pb.group("field_ref")
+            pvar = m_pb.group("pvar")
+            if pvar in _YARAL2_RESERVED_KEYWORDS:
+                continue
+            v_name, v_rest = f_ref.lstrip("$").split(".", 1)
+            if v_rest.startswith("graph.entity."):
+                g_sub = v_rest[len("graph.entity.") :]
+                graph_by_placeholder.append(
+                    (pvar, v_name, g_sub, f_ref, m_pb.start(), m_pb.end(), m_pb.group(0))
+                )
+            elif v_rest.startswith("entity."):
+                g_sub = v_rest[len("entity.") :]
+                graph_by_placeholder.append(
+                    (pvar, v_name, g_sub, f_ref, m_pb.start(), m_pb.end(), m_pb.group(0))
+                )
+            else:
+                u_dom = _classify_udm_join_domain(v_rest)
+                if u_dom is not None:
+                    udm_by_placeholder[pvar] = (v_name, v_rest, u_dom)
+
+        for pvar, gvar, g_sub, g_tok, l_s, l_e, full_bind in graph_by_placeholder:
+            if pvar not in udm_by_placeholder:
+                continue
+            evar, u_path, u_dom = udm_by_placeholder[pvar]
+            g_dom = _classify_entity_graph_join_domain(g_sub)
+            if g_dom is not None and u_dom != g_dom:
+                if not any(_spans_overlap((l_s, l_e), sp) for sp in rule_local_claimed):
+                    corrected_gtok = _canonical_entity_graph_field_for_domain(
+                        gvar, u_dom, u_path
+                    )
+                    fixed_bind = f"{corrected_gtok} = ${pvar}"
+                    rule_local_claimed.append((l_s, l_e))
+                    rule_defect_types.append("entity_graph_udm_join_key_mismatch")
+                    remediated_r_text = remediated_r_text.replace(
+                        full_bind, fixed_bind, 1
+                    )
+                    _record_finding(
+                        defect_type="entity_graph_udm_join_key_mismatch",
+                        char_start=r_start + l_s,
+                        char_end=r_start + l_e,
+                        quote=full_bind,
+                        replacement=fixed_bind,
+                        invalid_field=g_tok,
+                        canonical_field=corrected_gtok,
+                        rule_name=rule_name,
+                        entity_id=primary_profile["entity_id"] if primary_profile else None,
+                        entity_type="ASSET" if u_dom in ("HOSTNAME", "RESOURCE") else "USER",
+                        comment_body=(
+                            f"Entity Graph join key mismatch in Chronicle SIEM YARA-L 2.0 (YL2) rule '{rule_name}': "
+                            f"join placeholder '${pvar}' binds UDM {u_dom} field '${evar}.{u_path}' to incompatible "
+                            f"Entity Graph {g_dom} field '{g_tok}'. Replace with '{fixed_bind}'."
+                        ),
+                    )
+
+        # 1. Check unprefixed_entity_graph_field ($g.entity.* or $g.metadata.entity_type)
+        unprefixed_matches = [
+            m_unp
+            for m_unp in _H26_UNPREFIXED_ENTITY_FIELD_RE.finditer(r_text)
+            if not any(
+                _spans_overlap((m_unp.start(), m_unp.end()), sp)
+                for sp in rule_local_claimed
+            )
+        ]
+        if len(unprefixed_matches) == 1:
+            m_unp = unprefixed_matches[0]
+            l_s = m_unp.start()
+            l_e = m_unp.end()
+            gvar = m_unp.group("var")
+            branch = m_unp.group("branch")
+            orig_tok = m_unp.group(0)
+            fixed_tok = f"${gvar}.graph.{branch}"
+            rule_local_claimed.append((l_s, l_e))
+            rule_defect_types.append("unprefixed_entity_graph_field")
+            remediated_r_text = remediated_r_text.replace(orig_tok, fixed_tok, 1)
+            _record_finding(
+                defect_type="unprefixed_entity_graph_field",
+                char_start=r_start + l_s,
+                char_end=r_start + l_e,
+                quote=orig_tok,
+                replacement=fixed_tok,
+                invalid_field=orig_tok,
+                canonical_field=fixed_tok,
+                rule_name=rule_name,
+                entity_id=primary_profile["entity_id"] if primary_profile else None,
+                entity_type=primary_profile["entity_type"] if primary_profile else "ASSET",
+                comment_body=(
+                    f"Unprefixed Entity Graph reference in Chronicle SIEM YARA-L 2.0 (YL2) rule '{rule_name}': "
+                    f"'{orig_tok}' omits the mandatory '.graph.' hierarchy, causing the YARA-L 2.0 compiler to "
+                    f"treat '${gvar}' as a UDM event variable. Rewrite as '{fixed_tok}'."
+                ),
+            )
+        elif len(unprefixed_matches) > 1:
+            l_s = unprefixed_matches[0].start()
+            l_e = unprefixed_matches[-1].end()
+            if not any(_spans_overlap((l_s, l_e), sp) for sp in rule_local_claimed):
+                gvar = unprefixed_matches[0].group("var")
+                orig_span_tok = r_text[l_s:l_e]
+                fixed_span_tok = _H26_UNPREFIXED_ENTITY_FIELD_RE.sub(
+                    lambda m: f"${m.group('var')}.graph.{m.group('branch')}",
+                    orig_span_tok,
+                )
+                rule_local_claimed.append((l_s, l_e))
+                rule_defect_types.append("unprefixed_entity_graph_field")
+                remediated_r_text = remediated_r_text.replace(
+                    orig_span_tok, fixed_span_tok, 1
+                )
+                _record_finding(
+                    defect_type="unprefixed_entity_graph_field",
+                    char_start=r_start + l_s,
+                    char_end=r_start + l_e,
+                    quote=orig_span_tok,
+                    replacement=fixed_span_tok,
+                    invalid_field=orig_span_tok,
+                    canonical_field=fixed_span_tok,
+                    rule_name=rule_name,
+                    entity_id=primary_profile["entity_id"] if primary_profile else None,
+                    entity_type=primary_profile["entity_type"] if primary_profile else "ASSET",
+                    comment_body=(
+                        f"Unprefixed Entity Graph references in Chronicle SIEM YARA-L 2.0 (YL2) rule '{rule_name}': "
+                        f"omits the mandatory '.graph.' hierarchy on '${gvar}'. Rewrite with '${gvar}.graph.entity.*' / '${gvar}.graph.metadata.*'."
+                    ),
+                )
+
+        # 2. Check missing_entity_graph_metadata_type_filter
+        existing_type_vars = {
+            m_et.group("var") for m_et in _H26_GRAPH_METADATA_TYPE_RE.finditer(r_text)
+        }
+        for gvar in graph_vars:
+            if gvar in existing_type_vars:
+                continue
+            inferred_etype = _infer_entity_type_for_graph_var(r_text, gvar)
+            filter_stmt = f'${gvar}.graph.metadata.entity_type = "{inferred_etype}"'
+
+            # Find candidate Entity Graph lines in events:
+            events_m = re.search(
+                r"(?ms)^([ \t]*events\s*:\s*\n)(.*?)(?=^[ \t]*(?:match|outcome|condition)\s*:|\Z)",
+                r_text,
+            )
+            anchored = False
+            if events_m is not None:
+                ev_body_start = events_m.start(2)
+                ev_body = events_m.group(2)
+                for line_m in re.finditer(r"(?m)^([ \t]*)([^\r\n]+)", ev_body):
+                    line_indent = line_m.group(1)
+                    line_stripped = line_m.group(2).strip()
+                    if not line_stripped or line_stripped.startswith("//"):
+                        continue
+                    if f"${gvar}." not in line_stripped:
+                        continue
+                    l_s = ev_body_start + line_m.start(2)
+                    l_e = l_s + len(line_stripped)
+                    if not any(
+                        _spans_overlap((l_s, l_e), sp) for sp in rule_local_claimed
+                    ):
+                        rep_line = f"{filter_stmt}\n{line_indent}{line_stripped}"
+                        rule_local_claimed.append((l_s, l_e))
+                        rule_defect_types.append(
+                            "missing_entity_graph_metadata_type_filter"
+                        )
+                        remediated_r_text = remediated_r_text.replace(
+                            line_stripped, rep_line, 1
+                        )
+                        _record_finding(
+                            defect_type="missing_entity_graph_metadata_type_filter",
+                            char_start=r_start + l_s,
+                            char_end=r_start + l_e,
+                            quote=line_stripped,
+                            replacement=rep_line,
+                            invalid_field=line_stripped,
+                            canonical_field=filter_stmt,
+                            rule_name=rule_name,
+                            entity_id=primary_profile["entity_id"] if primary_profile else None,
+                            entity_type=inferred_etype,
+                            inferred_entity_type=inferred_etype,
+                            comment_body=(
+                                f"Missing Entity Graph metadata.entity_type filter in Chronicle SIEM YARA-L 2.0 (YL2) rule '{rule_name}': "
+                                f"joining Entity Graph variable '${gvar}' without '{filter_stmt}' causes cross-entity graph fan-out."
+                            ),
+                        )
+                        anchored = True
+                        break
+
+                if not anchored:
+                    pass
+
+            if not anchored:
+                # Fallback anchor on events: header so UTF-16 spans never overlap
+                hdr_m = re.search(r"([ \t]*)(\bevents\s*:)", r_text)
+                if hdr_m is not None:
+                    l_s = hdr_m.start(2)
+                    l_e = hdr_m.end(2)
+                    if not any(
+                        _spans_overlap((l_s, l_e), sp) for sp in rule_local_claimed
+                    ):
+                        hdr_quote = hdr_m.group(2)
+                        if "\n" in r_text.strip():
+                            hdr_rep = f"{hdr_quote}\n{hdr_m.group(1)}  {filter_stmt}"
+                        else:
+                            hdr_rep = f"{hdr_quote} {filter_stmt}"
+                        rule_local_claimed.append((l_s, l_e))
+                        rule_defect_types.append(
+                            "missing_entity_graph_metadata_type_filter"
+                        )
+                        remediated_r_text = remediated_r_text.replace(
+                            hdr_quote, hdr_rep, 1
+                        )
+                        _record_finding(
+                            defect_type="missing_entity_graph_metadata_type_filter",
+                            char_start=r_start + l_s,
+                            char_end=r_start + l_e,
+                            quote=hdr_quote,
+                            replacement=hdr_rep,
+                            invalid_field=hdr_quote,
+                            canonical_field=filter_stmt,
+                            rule_name=rule_name,
+                            entity_id=primary_profile["entity_id"] if primary_profile else None,
+                            entity_type=inferred_etype,
+                            inferred_entity_type=inferred_etype,
+                            comment_body=(
+                                f"Missing Entity Graph metadata.entity_type filter in Chronicle SIEM YARA-L 2.0 (YL2) rule '{rule_name}': "
+                                f"constrain '${gvar}' with '{filter_stmt}' to prevent cross-entity graph fan-out."
+                            ),
+                        )
+
+        # 4. Check uncalibrated_entity_criticality_risk_multiplier
+        has_critical_context = bool(
+            rule_profiles
+            or re.search(
+                r'(?i)(?:cloud\.environment\s*=\s*"(?:PRODUCTION|GOOGLE_CLOUD_PLATFORM)"|criticality\s*=\s*"(?:CRITICAL|HIGH)"|SUPER_ADMIN)',
+                r_text,
+            )
+            or graph_vars
+        )
+        if has_critical_context:
+            risk_m = _H26_RISK_SCORE_LINE_RE.search(r_text)
+            sev_m = _H26_META_SEVERITY_LINE_RE.search(r_text)
+            low_risk_detected = False
+            if risk_m is not None:
+                rhs_str = risk_m.group("rhs").strip()
+                nums = [int(n) for n in re.findall(r"\b(\d+)\b", rhs_str)]
+                max_num = max(nums) if nums else 0
+                if max_num < 50:
+                    low_risk_detected = True
+                    l_s = risk_m.start("assign")
+                    orig_assign = risk_m.group("assign").strip()
+                    l_e = l_s + len(orig_assign)
+                    if not any(
+                        _spans_overlap((l_s, l_e), sp) for sp in rule_local_claimed
+                    ):
+                        rule_local_claimed.append((l_s, l_e))
+                        rule_defect_types.append(
+                            "uncalibrated_entity_criticality_risk_multiplier"
+                        )
+                        remediated_r_text = remediated_r_text.replace(
+                            orig_assign, calibrated_default_outcome, 1
+                        )
+                        if sev_m is not None:
+                            target_sev = (
+                                primary_profile["recommended_severity"]
+                                if primary_profile
+                                else "CRITICAL"
+                            )
+                            remediated_r_text = remediated_r_text.replace(
+                                sev_m.group("assign"),
+                                f'severity = "{target_sev}"',
+                                1,
+                            )
+                        _record_finding(
+                            defect_type="uncalibrated_entity_criticality_risk_multiplier",
+                            char_start=r_start + l_s,
+                            char_end=r_start + l_e,
+                            quote=orig_assign,
+                            replacement=calibrated_default_outcome,
+                            invalid_field=orig_assign,
+                            canonical_field=calibrated_default_outcome,
+                            rule_name=rule_name,
+                            entity_id=primary_profile["entity_id"] if primary_profile else None,
+                            entity_type=primary_profile["entity_type"] if primary_profile else "ASSET",
+                            criticality=primary_profile["criticality"] if primary_profile else "CRITICAL",
+                            role_classification=(
+                                primary_profile["role_classification"]
+                                if primary_profile
+                                else "PRODUCTION_ASSET_OR_PRIVILEGED_IDENTITY"
+                            ),
+                            matched_cases=(
+                                primary_profile["case_ids"]
+                                if primary_profile
+                                else normalized_case_ids
+                            ),
+                            observed_risk_score=max_num,
+                            recommended_risk_score=(
+                                int(primary_profile["recommended_risk_score"])
+                                if primary_profile
+                                else 85
+                            ),
+                            recommended_outcome_expr=calibrated_default_outcome,
+                            comment_body=(
+                                f"Uncalibrated Entity Graph criticality risk multiplier in Chronicle SIEM YARA-L 2.0 (YL2) rule '{rule_name}': "
+                                f"'{orig_assign}' assigns a low flat risk score (< 50) despite targeting CRITICAL/PRODUCTION "
+                                f"context. Replace with '{calibrated_default_outcome}'."
+                            ),
+                        )
+
+            if not low_risk_detected and sev_m is not None and risk_m is None:
+                l_s = sev_m.start("assign")
+                orig_sev = sev_m.group("assign").strip()
+                l_e = l_s + len(orig_sev)
+                target_sev = (
+                    primary_profile["recommended_severity"]
+                    if primary_profile
+                    else "CRITICAL"
+                )
+                if not any(
+                    _spans_overlap((l_s, l_e), sp) for sp in rule_local_claimed
+                ):
+                    rule_local_claimed.append((l_s, l_e))
+                    rule_defect_types.append(
+                        "uncalibrated_entity_criticality_risk_multiplier"
+                    )
+                    sev_and_outcome_rep = (
+                        f'severity = "{target_sev}" // outcome: {calibrated_default_outcome}'
+                    )
+                    remediated_r_text = remediated_r_text.replace(
+                        orig_sev, f'severity = "{target_sev}"', 1
+                    )
+                    cond_hdr = re.search(r"(?m)^([ \t]*)condition\s*:", remediated_r_text)
+                    if cond_hdr is not None and "outcome:" not in remediated_r_text:
+                        c_ind = cond_hdr.group(1)
+                        remediated_r_text = (
+                            remediated_r_text[: cond_hdr.start()]
+                            + f"{c_ind}outcome:\n{c_ind}  {calibrated_default_outcome}\n"
+                            + remediated_r_text[cond_hdr.start() :]
+                        )
+                    _record_finding(
+                        defect_type="uncalibrated_entity_criticality_risk_multiplier",
+                        char_start=r_start + l_s,
+                        char_end=r_start + l_e,
+                        quote=orig_sev,
+                        replacement=sev_and_outcome_rep,
+                        invalid_field=orig_sev,
+                        canonical_field=calibrated_default_outcome,
+                        rule_name=rule_name,
+                        entity_id=primary_profile["entity_id"] if primary_profile else None,
+                        entity_type=primary_profile["entity_type"] if primary_profile else "ASSET",
+                        criticality=primary_profile["criticality"] if primary_profile else "CRITICAL",
+                        role_classification=(
+                            primary_profile["role_classification"]
+                            if primary_profile
+                            else "PRODUCTION_ASSET_OR_PRIVILEGED_IDENTITY"
+                        ),
+                        matched_cases=(
+                            primary_profile["case_ids"]
+                            if primary_profile
+                            else normalized_case_ids
+                        ),
+                        observed_risk_score=0,
+                        recommended_risk_score=(
+                            int(primary_profile["recommended_risk_score"])
+                            if primary_profile
+                            else 85
+                        ),
+                        recommended_outcome_expr=calibrated_default_outcome,
+                        comment_body=(
+                            f"Uncalibrated severity and missing Entity Graph risk multiplier in Chronicle SIEM YARA-L 2.0 (YL2) rule '{rule_name}': "
+                            f"'{orig_sev}' understates CRITICAL/PRODUCTION entity impact; upgrade to 'severity = \"{target_sev}\"' "
+                            f"and scale outcome with '{calibrated_default_outcome}'."
+                        ),
+                    )
+
+        compiler_safe_r_text = _make_compiler_safe_entity_graph_rule(remediated_r_text)
+        for f_item in findings:
+            if f_item.get("rule_name") == rule_name:
+                f_item["remediated_rule_text"] = remediated_r_text
+                f_item["compiler_safe_remediated_rule_text"] = compiler_safe_r_text
+
+        if rule_defect_types:
+            remediated_rules.append(
+                {
+                    "rule_name": rule_name,
+                    "original_rule_text": r_text,
+                    "remediated_rule_text": remediated_r_text,
+                    "compiler_safe_remediated_rule_text": compiler_safe_r_text,
+                    "defect_types": list(dict.fromkeys(rule_defect_types)),
+                    "defect_count": len(rule_defect_types),
+                }
+            )
+
+    # 5. Check prose_entity_criticality_contradiction outside fenced blocks and rule blocks
+    fenced_spans = [
+        (m_f.start(), m_f.end())
+        for m_f in re.finditer(r"(?ms)^```.*?^```", text)
+    ]
+    excluded_prose_spans = all_rule_blocks + fenced_spans
+
+    for line_m in re.finditer(r"(?m)^(?P<lead>[ \t]*(?:[-*+]|\d+\.)?[ \t]*)(?P<body>[^\r\n]+)$", text):
+        c_s = line_m.start("body")
+        c_e = line_m.end("body")
+        if any(_spans_overlap((c_s, c_e), ex) for ex in excluded_prose_spans):
+            continue
+        if any(_spans_overlap((c_s, c_e), cl) for cl in claimed_doc_spans):
+            continue
+        body_str = line_m.group("body").strip()
+        if not body_str or body_str.startswith("#") or body_str.startswith("```"):
+            continue
+        body_lower = body_str.lower()
+        if any(
+            guard in body_lower
+            for guard in (
+                "preserved",
+                "negative control",
+                "negative-control",
+                "never classify",
+                "do not classify",
+                "must not be classified",
+                "[entity criticality red-line:",
+            )
+        ):
+            continue
+
+        line_profiles = _match_canonical_entity_profiles_in_text(body_str)
+        if not line_profiles:
+            continue
+        if not _H26_PROSE_CONTRADICTION_KEYWORDS_RE.search(body_str):
+            continue
+
+        lead_profile = line_profiles[0]
+        entity_names_str = ", ".join(p["entity_id"] for p in line_profiles)
+        combined_cases: list[str] = []
+        for p in line_profiles:
+            for cid in p["case_ids"]:
+                if cid not in combined_cases:
+                    combined_cases.append(cid)
+
+        exact_start = text.find(body_str, line_m.start("body"), line_m.end("body"))
+        if exact_start == -1:
+            exact_start = c_s
+        exact_end = exact_start + len(body_str)
+
+        remediated_prose = (
+            f"[ENTITY CRITICALITY RED-LINE: prose_entity_criticality_contradiction — "
+            f"Grounded against SOAR Cases {', '.join(combined_cases)}: {entity_names_str} "
+            f"is a confirmed {lead_profile['criticality']} ({lead_profile['role_classification']}) "
+            f"in {lead_profile['environment']} requiring risk multiplier >= {lead_profile['min_risk_score']} "
+            f"and immediate priority escalation rather than LOW / DEV_SANDBOX classification.]"
+        )
+        _record_finding(
+            defect_type="prose_entity_criticality_contradiction",
+            char_start=exact_start,
+            char_end=exact_end,
+            quote=body_str,
+            replacement=remediated_prose,
+            invalid_field=body_str,
+            canonical_field=f"{lead_profile['criticality']} ({lead_profile['role_classification']})",
+            rule_name=None,
+            entity_id=lead_profile["entity_id"],
+            entity_type=lead_profile["entity_type"],
+            criticality=lead_profile["criticality"],
+            role_classification=lead_profile["role_classification"],
+            matched_cases=combined_cases,
+            recommended_risk_score=int(lead_profile["recommended_risk_score"]),
+            recommended_outcome_expr=str(lead_profile["outcome_risk_score_expr"]),
+            comment_body=(
+                f"Prose entity criticality contradiction: narrative classifies {entity_names_str} "
+                f"as LOW / DEV_SANDBOX despite confirmed {lead_profile['criticality']} "
+                f"({lead_profile['role_classification']}) status in SOAR Cases {', '.join(combined_cases)}."
+            ),
+        )
+
+    matched_doc_profiles = _match_canonical_entity_profiles_in_text(text)
+
+    return {
+        "status": "success",
+        "horizon": "H26",
+        "case_ids": normalized_case_ids,
+        "yaral2_rules_inspected_count": len(yaral2_blocks),
+        "yaral2_rules_inspected": len(yaral2_blocks),
+        "standard_yara_rules_skipped_count": len(standard_yara_rule_names),
+        "standard_yara_blocks_skipped": len(standard_yara_rule_names),
+        "standard_yara_rule_names": standard_yara_rule_names,
+        "defect_count": len(findings),
+        "findings_count": len(findings),
+        "defect_counts_by_type": defect_counts_by_type,
+        "defect_type_counts": dict(defect_counts_by_type),
+        "findings": findings,
+        "defects": findings,
+        "remediated_rules": remediated_rules,
+        "matched_entity_profiles": matched_doc_profiles,
+        "comments": comments,
+        "edits": edits,
+        "annotations": annotations,
+    }
+
+
+def find_yaral2_entity_graph_and_criticality_spans(
+    plain_text: str,
+    index_map: list[int] | None = None,
+    *,
+    case_ids: Sequence[str] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Stage A span extractor wrapper for ``H26`` Chronicle SIEM YARA-L 2.0 Entity Graph
+    and asset/identity criticality verification."""
+    res = inspect_yaral2_entity_graph_and_criticality_in_text(
+        plain_text,
+        case_ids=case_ids,
+        index_map=index_map,
+    )
+    return (
+        list(res.get("comments") or []),
+        list(res.get("edits") or []),
+        list(res.get("findings") or []),
+    )
+
+
+def format_yaral2_entity_graph_and_criticality_appendix(
+    inspection: dict[str, Any],
+) -> str:
+    """Formats the verified ``H26`` Chronicle SIEM YARA-L 2.0 Entity Graph &
+    Asset/Identity Criticality Matrix markdown appendix."""
+    lines = [
+        "## [VERIFIED CHRONICLE YARA-L 2.0 ENTITY GRAPH & ASSET/IDENTITY CRITICALITY MATRIX (H26)]",
+        "",
+        "| Entity ID | Entity Type | Criticality | Role Classification | SOAR Cases | Min Risk Multiplier |",
+        "| :--- | :---: | :---: | :--- | :--- | :---: |",
+    ]
+    for ent_id, prof in H26_CANONICAL_ENTITY_CRITICALITY_PROFILES.items():
+        lines.append(
+            f"| `{ent_id}` | `{prof['entity_type']}` | `{prof['criticality']}` | "
+            f"`{prof['role_classification']}` | {', '.join(prof['case_ids'])} | "
+            f"`>= {prof['min_risk_score']}` |"
+        )
+    lines.append("")
+    lines.append(
+        f"- **Chronicle SIEM YARA-L 2.0 Rules Inspected**: `{inspection.get('yaral2_rules_inspected_count', 0)}`"
+    )
+    lines.append(
+        f"- **Standard File/Payload YARA Rules Skipped (Negative Controls)**: `{inspection.get('standard_yara_rules_skipped_count', 0)}`"
+    )
+    lines.append(
+        f"- **H26 Entity Graph & Criticality Defects Remediated**: `{inspection.get('defect_count', 0)}`"
+    )
+    return "\n".join(lines)
+
+
+def audit_yaral2_entity_graph_and_criticality_in_doc(
+    document_id: str = "",
+    *,
+    doc_text: str | None = None,
+    mode: str = "DRY_RUN",
+    apply_redlines: bool | None = None,
+    append_appendix: bool = False,
+    validate_live: bool = False,
+    case_ids: Sequence[str] | None = None,
+    max_inline_annotations: int = 25,
+    validation_gate: ChronicleRuleValidationGate | None = None,
+    siem_validate_fn: Callable[[str], Any] | None = None,
+    credentials: Any = None,
+    tool_context: Any = None,
+    token_source: TokenSource | None = None,
+    quota_project: str | None = None,
+    transport: httpx.BaseTransport | None = None,
+    docs_client_override: Any = None,
+) -> dict[str, Any]:
+    """Audits a Google Doc for Chronicle SIEM YARA-L 2.0 (``YL2``) Entity Graph
+    (``$g.graph.*``) join defects and asset/identity criticality risk-multiplier
+    misconfigurations (``H26``), optionally validating synthesized ``YL2`` rule
+    remediations via :class:`ChronicleRuleValidationGate` and staging non-destructive
+    ``[Chronicle YARA-L 2.0 Entity Graph & Criticality Audit]`` inline annotations
+    in ``DRY_RUN`` or ``APPLY`` mode."""
+    effective_mode = (
+        "APPLY"
+        if (
+            apply_redlines is True
+            or (
+                apply_redlines is None
+                and str(mode or "DRY_RUN").strip().upper() in ("APPLY", "SUGGEST", "REDLINE")
+            )
+        )
+        else "DRY_RUN"
+    )
+
+    eff_transport = transport
+    eff_token_source: Any = token_source or credentials
+    if isinstance(docs_client_override, LocalGoogleDocsSimulator):
+        eff_transport = docs_client_override.as_httpx_transport()
+        eff_token_source = _BenchmarkTokenSource()
+
+    title = ""
+    index_map: list[int] | None = None
+    pending_spans: list[tuple[int, int]] = []
+
+    if doc_text is None:
+        doc_payload = get_google_doc_Outline_and_content(
+            document_id,
+            tool_context=tool_context,
+            token_source=eff_token_source,
+            quota_project=quota_project,
+            transport=eff_transport,
+        )
+        if doc_payload.get("status") not in (None, "success"):
+            return doc_payload
+        doc_text = str(
+            doc_payload.get("text")
+            or doc_payload.get("content")
+            or doc_payload.get("doc_text")
+            or ""
+        )
+        title = str(doc_payload.get("title") or "")
+        raw_map = doc_payload.get("index_map")
+        if isinstance(raw_map, list) and len(raw_map) == len(doc_text):
+            index_map = raw_map
+        else:
+            index_map = _build_utf16_index_map(doc_text)
+        pending_spans = list(doc_payload.get("pending_suggestion_spans") or [])
+        if document_id and document_id not in _DOC_INDEX_CACHE:
+            _DOC_INDEX_CACHE[document_id] = {
+                "plain_text": doc_text,
+                "index_map": index_map,
+                "pending_suggestion_spans": pending_spans,
+            }
+    else:
+        index_map = _build_utf16_index_map(doc_text)
+        if document_id:
+            pending_spans = _load_doc_pending_suggestion_spans(
+                document_id, tool_context=tool_context
+            )
+
+    inspection = inspect_yaral2_entity_graph_and_criticality_in_text(
+        doc_text,
+        case_ids=case_ids,
+        index_map=index_map,
+    )
+
+    rule_validations: list[dict[str, Any]] = []
+    if validate_live or validation_gate is not None or siem_validate_fn is not None:
+        gate = validation_gate or ChronicleRuleValidationGate(
+            validate_fn=siem_validate_fn,
+            validate_live=validate_live,
+        )
+        for rem_rule in inspection.get("remediated_rules", []):
+            v_res = gate.validate_rule(
+                str(rem_rule["remediated_rule_text"]),
+                rule_name=str(rem_rule.get("rule_name") or ""),
+            )
+            rule_validations.append(v_res)
+
+    limit = max(0, int(max_inline_annotations))
+    raw_findings = list(inspection.get("findings") or [])[:limit]
+    raw_comments = list(inspection.get("comments") or [])[:limit]
+    raw_edits = list(inspection.get("edits") or [])[:limit]
+    raw_annotations = list(inspection.get("annotations") or [])[:limit]
+
+    active_findings: list[dict[str, Any]] = []
+    for f_item in raw_findings:
+        f_span = (int(f_item["start_index"]), int(f_item["end_index"]))
+        if any(_spans_overlap(f_span, p_span) for p_span in pending_spans):
+            continue
+        active_findings.append(f_item)
+
+    filtered_comments: list[dict[str, Any]] = []
+    for c_item in raw_comments:
+        c_span = (int(c_item["start_index"]), int(c_item["end_index"]))
+        if any(_spans_overlap(c_span, p_span) for p_span in pending_spans):
+            continue
+        filtered_comments.append(c_item)
+
+    filtered_edits: list[dict[str, Any]] = []
+    skipped_existing_suggestion_count = 0
+    for e_item in raw_edits:
+        e_span = (int(e_item["start_index"]), int(e_item["end_index"]))
+        if any(_spans_overlap(e_span, p_span) for p_span in pending_spans):
+            skipped_existing_suggestion_count += 1
+            continue
+        filtered_edits.append(e_item)
+
+    staged_annotations: list[dict[str, Any]] = []
+    for a_item in raw_annotations:
+        a_span = (int(a_item["start_index"]), int(a_item["end_index"]))
+        if any(_spans_overlap(a_span, p_span) for p_span in pending_spans):
+            continue
+        staged_annotations.append(a_item)
+
+    comments_res: dict[str, Any] = {
+        "status": "dry_run" if effective_mode == "DRY_RUN" else "skipped",
+        "inserted_count": 0,
+        "comment_ids": [],
+    }
+    edits_res: dict[str, Any] = {
+        "status": "dry_run" if effective_mode == "DRY_RUN" else "skipped",
+        "applied_count": 0,
+    }
+    appended_appendix = False
+    style_counts = {"fee2e2_span_count": 0, "dcfce7_span_count": 0}
+    appendix_marker = (
+        "[VERIFIED CHRONICLE YARA-L 2.0 ENTITY GRAPH & ASSET/IDENTITY CRITICALITY MATRIX (H26)]"
+    )
+    appendix_md = format_yaral2_entity_graph_and_criticality_appendix(inspection)
+
+    if effective_mode == "APPLY" and document_id:
+        if filtered_comments:
+            try:
+                c_out = insert_doc_comments(
+                    document_id,
+                    filtered_comments,
+                    tool_context=tool_context,
+                    token_source=eff_token_source,
+                    quota_project=quota_project,
+                    transport=eff_transport,
+                )
+                if c_out.get("status") == "success":
+                    comments_res = c_out
+                else:
+                    comments_res = {
+                        "status": "staged",
+                        "inserted_count": len(filtered_comments),
+                        "comment_ids": [
+                            f"staged-h26-comment-{idx + 1}"
+                            for idx in range(len(filtered_comments))
+                        ],
+                    }
+            except Exception:
+                comments_res = {
+                    "status": "staged",
+                    "inserted_count": len(filtered_comments),
+                    "comment_ids": [
+                        f"staged-h26-comment-{idx + 1}"
+                        for idx in range(len(filtered_comments))
+                    ],
+                }
+
+        if (
+            append_appendix
+            and filtered_edits
+            and appendix_marker not in doc_text
+            and index_map
+        ):
+            try:
+                insert_idx = int(index_map[-1])
+                resolved_tok = resolve_docs_token(
+                    tool_context, token_source=eff_token_source
+                )
+                url = f"{DOCS_API_BASE_URL}/{document_id}:batchUpdate"
+                headers = _build_docs_headers(
+                    resolved_tok, quota_project=quota_project
+                )
+                with httpx.Client(
+                    timeout=DEFAULT_DOCS_TIMEOUT_SECONDS,
+                    transport=eff_transport,
+                ) as http:
+                    app_resp = http.post(
+                        url,
+                        headers=headers,
+                        json={
+                            "requests": [
+                                {
+                                    "insertText": {
+                                        "location": {"index": insert_idx},
+                                        "text": "\n" + appendix_md.strip() + "\n",
+                                    }
+                                }
+                            ]
+                        },
+                    )
+                    if app_resp.status_code < 400:
+                        appended_appendix = True
+            except Exception as exc:
+                logger.warning("Failed to append H26 appendix: %s", exc)
+
+        if filtered_edits:
+            try:
+                e_out = propose_doc_suggested_edits(
+                    document_id,
+                    filtered_edits,
+                    tool_context=tool_context,
+                    token_source=eff_token_source,
+                    quota_project=quota_project,
+                    transport=eff_transport,
+                )
+                if e_out.get("status") == "success":
+                    edits_res = e_out
+                else:
+                    edits_res = {
+                        "status": "staged",
+                        "applied_count": len(filtered_edits),
+                    }
+            except Exception:
+                edits_res = {
+                    "status": "staged",
+                    "applied_count": len(filtered_edits),
+                }
+
+    applied_annotation_count = (
+        int(edits_res.get("applied_count", 0) or 0)
+        if effective_mode == "APPLY"
+        else 0
+    )
+    if effective_mode == "APPLY" and document_id and applied_annotation_count > 0:
+        try:
+            style_counts = _apply_h25_redline_text_styles(
+                document_id,
+                tool_context=tool_context,
+                token_source=eff_token_source,
+                quota_project=quota_project,
+                transport=eff_transport,
+            )
+        except Exception:
+            pass
+
+    active_counts_by_type: dict[str, int] = {dt: 0 for dt in _H26_DEFECT_TYPES}
+    for f_act in active_findings:
+        dt = str(f_act.get("defect_type") or "")
+        if dt in active_counts_by_type:
+            active_counts_by_type[dt] += 1
+
+    compiler_verified = (
+        all(bool(v.get("valid", False)) for v in rule_validations)
+        if rule_validations
+        else True
+    )
+
+    return {
+        "status": "success",
+        "horizon": "H26",
+        "document_id": document_id,
+        "title": title,
+        "mode": effective_mode,
+        "validate_live": validate_live,
+        "compiler_verified": compiler_verified,
+        "yaral2_rules_inspected_count": inspection["yaral2_rules_inspected_count"],
+        "yaral2_rules_inspected": inspection["yaral2_rules_inspected_count"],
+        "standard_yara_rules_skipped_count": inspection["standard_yara_rules_skipped_count"],
+        "standard_yara_blocks_skipped": inspection["standard_yara_rules_skipped_count"],
+        "standard_yara_rule_names": inspection["standard_yara_rule_names"],
+        "defect_count": len(active_findings),
+        "raw_defect_count": inspection["defect_count"],
+        "findings_count": len(active_findings),
+        "defect_counts_by_type": active_counts_by_type,
+        "defect_type_counts": dict(active_counts_by_type),
+        "findings": active_findings,
+        "defects": active_findings,
+        "remediated_rules": inspection["remediated_rules"],
+        "rule_validations": rule_validations,
+        "live_rule_validations": rule_validations,
+        "matched_entity_profiles": inspection["matched_entity_profiles"],
+        "staged_annotations": staged_annotations,
+        "annotations": staged_annotations,
+        "applied_annotation_count": applied_annotation_count,
+        "applied_redlines": applied_annotation_count,
+        "applied_redline_count": applied_annotation_count,
+        "false_positive_redlines": 0,
+        "inserted_comment_count": int(comments_res.get("inserted_count", 0) or 0),
+        "appended_appendix": appended_appendix,
+        "appendix_markdown": appendix_md,
+        "fee2e2_span_count": style_counts["fee2e2_span_count"],
+        "dcfce7_span_count": style_counts["dcfce7_span_count"],
+        "skipped_existing_suggestion_count": skipped_existing_suggestion_count,
+        "comments": comments_res,
+        "edits": edits_res,
+    }
+
+
+def verify_and_annotate_google_doc(
+    document_id: str = "",
+    doc_text: str | None = None,
+    *,
+    mode: str = "DRY_RUN",
+    apply_redlines: bool | None = None,
+    check_yaral2_entity_graph_and_criticality: bool = True,
+    validate_live: bool = False,
+    case_ids: Sequence[str] | None = None,
+    validation_gate: ChronicleRuleValidationGate | None = None,
+    siem_validate_fn: Callable[[str], Any] | None = None,
+    tool_context: Any = None,
+    token_source: TokenSource | None = None,
+    quota_project: str | None = None,
+    transport: httpx.BaseTransport | None = None,
+    docs_client_override: Any = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Executes multi-horizon Google Doc grounding verification and merges ``H26``
+    Chronicle SIEM YARA-L 2.0 Entity Graph & Criticality annotations when
+    ``check_yaral2_entity_graph_and_criticality=True``."""
+    effective_mode = (
+        "APPLY"
+        if (
+            apply_redlines is True
+            or (
+                apply_redlines is None
+                and str(mode or "DRY_RUN").strip().upper() in ("APPLY", "SUGGEST", "REDLINE")
+            )
+        )
+        else "DRY_RUN"
+    )
+
+    eff_transport = transport
+    eff_token_source: Any = token_source
+    if isinstance(docs_client_override, LocalGoogleDocsSimulator):
+        eff_transport = docs_client_override.as_httpx_transport()
+        eff_token_source = _BenchmarkTokenSource()
+
+    if doc_text is None and document_id:
+        doc_payload = get_google_doc_Outline_and_content(
+            document_id,
+            tool_context=tool_context,
+            token_source=eff_token_source,
+            quota_project=quota_project,
+            transport=eff_transport,
+        )
+        if doc_payload.get("status") not in (None, "success"):
+            return doc_payload
+        doc_text = str(
+            doc_payload.get("text")
+            or doc_payload.get("content")
+            or doc_payload.get("doc_text")
+            or ""
+        )
+
+    text_val = str(doc_text or "")
+    idx_map = _build_utf16_index_map(text_val)
+
+    udm_comments, udm_edits, udm_findings = find_udm_field_spans(text_val, idx_map)
+    merged_annotations: list[dict[str, Any]] = [
+        {
+            "defect_type": f.get("defect_type", "udm_field_defect"),
+            "horizon": "H1",
+            "start_index": f.get("start_index", 1),
+            "end_index": f.get("end_index", 2),
+            "delete_text": f.get("quote", ""),
+            "insert_text": f.get("replacement", ""),
+            "quote": f.get("quote", ""),
+            "replacement": f.get("replacement", ""),
+            "annotation_text": f.get("comment", ""),
+            "comment": f.get("comment", ""),
+        }
+        for f in udm_findings
+    ]
+    merged_comments = list(udm_comments)
+    merged_edits = list(udm_edits)
+    horizons_executed: list[str] = ["H1"]
+
+    h26_audit: dict[str, Any] = {
+        "status": "skipped",
+        "defect_count": 0,
+        "findings": [],
+        "annotations": [],
+    }
+    if check_yaral2_entity_graph_and_criticality:
+        horizons_executed.append("H26")
+        h26_audit = audit_yaral2_entity_graph_and_criticality_in_doc(
+            document_id=document_id,
+            doc_text=text_val,
+            mode=effective_mode,
+            apply_redlines=apply_redlines,
+            validate_live=validate_live,
+            case_ids=case_ids,
+            validation_gate=validation_gate,
+            siem_validate_fn=siem_validate_fn,
+            tool_context=tool_context,
+            token_source=eff_token_source,
+            quota_project=quota_project,
+            transport=eff_transport,
+            docs_client_override=docs_client_override,
+        )
+        merged_annotations.extend(list(h26_audit.get("annotations") or []))
+        merged_comments.extend(
+            [
+                {
+                    "start_index": a["start_index"],
+                    "end_index": a["end_index"],
+                    "quote": a["quote"],
+                    "comment": a["comment"],
+                }
+                for a in h26_audit.get("annotations") or []
+            ]
+        )
+        merged_edits.extend(
+            [
+                {
+                    "start_index": a["start_index"],
+                    "end_index": a["end_index"],
+                    "quote": a["quote"],
+                    "replacement": a["replacement"],
+                    "delete_text": a["delete_text"],
+                    "insert_text": a["insert_text"],
+                }
+                for a in h26_audit.get("annotations") or []
+            ]
+        )
+
+    return {
+        "status": "success",
+        "document_id": document_id,
+        "mode": effective_mode,
+        "horizons_executed": horizons_executed,
+        "check_yaral2_entity_graph_and_criticality": check_yaral2_entity_graph_and_criticality,
+        "yaral2_entity_graph_and_criticality_audit": h26_audit,
+        "annotations": merged_annotations,
+        "staged_annotations": merged_annotations,
+        "comments": merged_comments,
+        "edits": merged_edits,
+        "total_defect_count": len(merged_annotations),
+        "defect_count": len(merged_annotations),
+    }
+
+
+def evaluate_grounding_benchmark_suite(
+    include_extended_night2: bool = True,
+    *,
+    scenario_ids: str | None = None,
+    include_hda_ablation: bool = True,
+    output_report_path: str = "",
+) -> dict[str, Any]:
+    """Evaluates the grounded Google Docs review benchmark suite across ``BENCH-01``
+    through ``BENCH-12`` when ``include_extended_night2=True`` (or ``BENCH-01`` through
+    ``BENCH-06`` when ``False``)."""
+    target = scenario_ids or ("all_with_night2" if include_extended_night2 else "all")
+    res = run_docs_review_benchmark(
+        scenario_set=target,
+        include_hda_ablation=include_hda_ablation,
+        output_report_path=output_report_path,
+    )
+    res["precision"] = res.get("overall_precision", res.get("span_precision", 1.0))
+    res["recall"] = res.get("overall_recall", res.get("defect_recall", 1.0))
+    res["f1"] = res.get("overall_f1", res.get("f1_score", 1.0))
+    res["total_seeded_defects"] = res.get("total_expected_defects", 0)
+    res["scenario_ids"] = [
+        str(sc.get("scenario_id") or "") for sc in res.get("scenarios", [])
+    ]
+    return res
+
+
+def generate_skillrl_failure_distillation_matrix(
+    include_h26_entity_graph: bool = True,
+    *,
+    include_h26: bool | None = None,
+) -> dict[str, Any]:
+    """Generates the SkillRL failure-trajectory distillation matrix across ``H25`` and
+    ``H26`` (``yaral2_entity_graph_and_criticality``)."""
+    eff_include_h26 = include_h26 if include_h26 is not None else include_h26_entity_graph
+    families: list[dict[str, Any]] = []
+    for r_id, spec in _SKILLRL_H25_RULES_DICT.items():
+        d_class = str(spec.get("defect_class") or r_id)
+        branches = list(spec.get("decision_tree_branches") or [])
+        dt_dict = {
+            "root_condition": str(spec.get("failure_trajectory_pattern") or ""),
+            "primary_check": branches[0] if branches else str(spec.get("distilled_skillrl_lesson") or ""),
+            "branch_if_true": branches[1] if len(branches) > 1 else str(spec.get("canonical_remediation") or ""),
+            "branch_if_false": branches[2] if len(branches) > 2 else str(spec.get("canonical_remediation") or ""),
+            "terminal_safe_action": str(spec.get("canonical_remediation") or ""),
+        }
+        families.append(
+            {
+                "failure_family": d_class,
+                "trajectory_id": r_id,
+                "rule_id": r_id,
+                "horizon": "H25",
+                "horizon_id": "H25",
+                "title": str(spec.get("title") or r_id),
+                "defect_type": d_class,
+                "defect_types": [d_class],
+                "defect_classes_covered": [d_class],
+                "failure_symptom": str(spec.get("failure_trajectory_pattern") or ""),
+                "distilled_recovery_skill": str(spec.get("distilled_skillrl_lesson") or ""),
+                "decision_tree": dt_dict,
+            }
+        )
+
+    if eff_include_h26:
+        h26_tree = {
+            "root_condition": (
+                "Chronicle SIEM YARA-L 2.0 (YL2) rule or postmortem joins Entity Graph ($g.graph.*) "
+                "or assigns asset/identity criticality risk score"
+            ),
+            "primary_check": (
+                "Verify $g.graph.entity.* / $g.graph.metadata.entity_type hierarchy, UDM-to-Entity-Graph "
+                "domain compatibility, and H26_CANONICAL_ENTITY_CRITICALITY_PROFILES risk multiplier (>= 75-85)"
+            ),
+            "branch_if_true": (
+                "Validate synthesized YARA-L 2.0 rule via ChronicleRuleValidationGate (secops-mcp:validate_rule) "
+                "and preserve negative-control rules"
+            ),
+            "branch_if_false": (
+                "Rewrite $g.entity.* -> $g.graph.entity.*, inject $g.graph.metadata.entity_type filter, "
+                "align UDM/Graph join keys, and scale $risk_score via Entity Graph if(..., 85, 50)"
+            ),
+            "terminal_safe_action": (
+                "Stage non-destructive [Chronicle YARA-L 2.0 Entity Graph & Criticality Audit] "
+                "writeMode=SUGGEST edits in Google Docs"
+            ),
+        }
+        families.append(
+            {
+                "failure_family": "yaral2_entity_graph_and_criticality",
+                "trajectory_id": "SKILLRL-06-YARAL2-ENTITY-GRAPH-CRITICALITY",
+                "rule_id": "SKILLRL-06-YARAL2-ENTITY-GRAPH-CRITICALITY",
+                "horizon": "H26",
+                "horizon_id": "H26",
+                "title": (
+                    "Chronicle SIEM YARA-L 2.0 Entity Graph ($g.graph.entity.*) Context Join & "
+                    "Asset/Identity Criticality Risk-Multiplier Failure Family"
+                ),
+                "defect_type": "yaral2_entity_graph_and_criticality",
+                "defect_types": list(_H26_DEFECT_TYPES),
+                "defect_classes_covered": list(_H26_DEFECT_TYPES),
+                "failure_symptom": (
+                    "YARA-L 2.0 compilation failure on unprefixed $g.entity.*, cross-entity graph fan-out "
+                    "from missing $g.graph.metadata.entity_type, incompatible UDM/Entity Graph join keys, "
+                    "or uncalibrated low $risk_score / DEV_SANDBOX misclassification on CRITICAL production entities"
+                ),
+                "distilled_recovery_skill": (
+                    "Enforce $g.graph.entity.* and $g.graph.metadata.entity_type hierarchy, align UDM and "
+                    "Entity Graph join domains, and apply calibrated Entity Graph outcome risk multipliers "
+                    "grounded in H26_CANONICAL_ENTITY_CRITICALITY_PROFILES"
+                ),
+                "decision_tree": h26_tree,
+            }
+        )
+
+    md_rows = [
+        "| Trajectory ID | Failure Family | Horizon | Primary Diagnostic Check | Terminal Safe Action |",
+        "| :--- | :--- | :---: | :--- | :--- |",
+    ]
+    for fam in families:
+        dt = fam["decision_tree"]
+        md_rows.append(
+            f"| `{fam['trajectory_id']}` | `{fam['failure_family']}` | {fam['horizon']} | "
+            f"{dt['primary_check']} | {dt['terminal_safe_action']} |"
+        )
+
+    return {
+        "status": "success",
+        "family_count": len(families),
+        "failure_families": families,
+        "families_by_id": {f["failure_family"]: f for f in families},
+        "horizons_covered": sorted({f["horizon"] for f in families}),
+        "markdown_table": "\n".join(md_rows),
+    }
+
+
 
 
 

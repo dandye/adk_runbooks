@@ -79,6 +79,15 @@ from .docs_review_tools import (
     inspect_google_doc_revision_and_Formatting,
     run_docs_review_benchmark,
     verify_skillrl_failure_trajectory_and_decision_trees,
+    H26_CANONICAL_ENTITY_CRITICALITY_PROFILES,
+    ChronicleRuleValidationGate,
+    get_google_doc_Outline_and_content,
+    inspect_yaral2_entity_graph_and_criticality_in_text as _inspect_yaral2_entity_graph_and_criticality_in_text,
+    find_yaral2_entity_graph_and_criticality_spans,
+    audit_yaral2_entity_graph_and_criticality_in_doc as _audit_yaral2_entity_graph_and_criticality_in_doc,
+    verify_and_annotate_google_doc,
+    evaluate_grounding_benchmark_suite,
+    generate_skillrl_failure_distillation_matrix,
 )
 
 logger = logging.getLogger(__name__)
@@ -1467,6 +1476,65 @@ def distill_and_redline_skillrl_failure_trajectories_in_doc(
   )
 
 
+def inspect_yaral2_entity_graph_and_criticality_in_text(
+    doc_text: str,
+    case_ids: list[str] | None = None,
+) -> dict:
+  """Inspects runbook or incident postmortem text for Chronicle SIEM YARA-L 2.0 (YL2) Entity Graph ($g.graph.*) join defects and asset/identity criticality risk-multiplier misconfigurations (H26).
+
+  Args:
+      doc_text (str): Plain text or Markdown content to inspect.
+      case_ids (list[str] | None): Optional list of SOAR case IDs for criticality grounding.
+
+  Returns:
+      dict: Structured H26 findings, remediated rules, comments, and edits.
+  """
+  return _inspect_yaral2_entity_graph_and_criticality_in_text(
+      doc_text=doc_text,
+      case_ids=case_ids,
+  )
+
+
+def audit_yaral2_entity_graph_and_criticality_in_doc(
+    document_id: str,
+    mode: str = "DRY_RUN",
+    apply_redlines: bool | None = None,
+    append_appendix: bool = False,
+    validate_live: bool = False,
+    max_inline_annotations: int = 25,
+    tool_context: ToolContext | None = None,
+) -> dict:
+  """Audits a Google Doc for Chronicle SIEM YARA-L 2.0 (YL2) Entity Graph ($g.graph.*) context join defects and asset/identity criticality risk-multiplier misconfigurations (H26).
+
+  Detects and surgically red-lines 5 practitioner defect classes:
+  1. `unprefixed_entity_graph_field`: `$g.entity.*` or `$g.metadata.entity_type` omitting `.graph.`.
+  2. `missing_entity_graph_metadata_type_filter`: Joining `$g.graph.entity.*` without constraining `$g.graph.metadata.entity_type`.
+  3. `entity_graph_udm_join_key_mismatch`: Cross-domain UDM-to-Entity-Graph join key mismatches.
+  4. `uncalibrated_entity_criticality_risk_multiplier`: Low `$risk_score` (< 50) or `severity = "LOW"` on CRITICAL/PRODUCTION assets or privileged identities.
+  5. `prose_entity_criticality_contradiction`: Narrative prose classifying confirmed CRITICAL production assets or superadmin identities as LOW / DEV_SANDBOX.
+  Explicitly distinguishes Chronicle SIEM YARA-L 2.0 (`YL2` — UDM event detection rules) from standard file/payload YARA rules (`strings:` / `uint16(0) == 0x5A4D`).
+
+  Args:
+      document_id (str): The Google Docs documentId.
+      mode (str): "DRY_RUN" (default) or "APPLY".
+      apply_redlines (bool | None): Optional boolean override for `mode="APPLY"`.
+      validate_live (bool): Whether to validate remediated YARA-L 2.0 rules via `ChronicleRuleValidationGate` (`secops-mcp:validate_rule`).
+      max_inline_annotations (int): Maximum number of inline annotations/edits to stage.
+
+  Returns:
+      dict: Audit findings, remediated rules, rule validations, and staged comment/edit counts.
+  """
+  return _audit_yaral2_entity_graph_and_criticality_in_doc(
+      document_id=document_id,
+      mode=mode,
+      apply_redlines=apply_redlines,
+      append_appendix=append_appendix,
+      validate_live=validate_live,
+      max_inline_annotations=max_inline_annotations,
+      tool_context=tool_context,
+  )
+
+
 def get_agent_tools():
   """Initializes and returns MCP toolsets and progressive discovery tools.
 
@@ -1520,6 +1588,12 @@ def get_agent_tools():
   )
   wrapped_distill_and_redline_skillrl_failure_trajectories_in_doc = instrument_tool(
       distill_and_redline_skillrl_failure_trajectories_in_doc
+  )
+  wrapped_inspect_yaral2_entity_graph_and_criticality_in_text = instrument_tool(
+      inspect_yaral2_entity_graph_and_criticality_in_text
+  )
+  wrapped_audit_yaral2_entity_graph_and_criticality_in_doc = instrument_tool(
+      audit_yaral2_entity_graph_and_criticality_in_doc
   )
   wrapped_sanitize_and_redline_telemetry_in_doc = instrument_tool(
       sanitize_and_redline_telemetry_in_doc
@@ -1576,6 +1650,8 @@ def get_agent_tools():
       wrapped_verify_google_doc_ioc_reputation_and_attribution,
       wrapped_audit_and_redline_skillorchestra_routing_in_doc,
       wrapped_distill_and_redline_skillrl_failure_trajectories_in_doc,
+      wrapped_inspect_yaral2_entity_graph_and_criticality_in_text,
+      wrapped_audit_yaral2_entity_graph_and_criticality_in_doc,
       wrapped_sanitize_and_redline_telemetry_in_doc,
       wrapped_triage_and_redline_leaked_credentials_in_doc,
       wrapped_audit_and_redline_claim_evidence_and_campaign_in_doc,

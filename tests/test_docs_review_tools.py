@@ -11534,13 +11534,16 @@ class TestCycle24SkillRLFailureTrajectoryAndDecisionTree:
         include_hda_ablation=True,
     )
     assert res_all["status"] == "success"
-    assert res_all["scenario_count"] == 11
-    assert res_all["total_expected_defects"] == 58
-    assert res_all["true_positive_edits"] == 58
+    assert res_all["scenario_count"] >= 11
+    assert res_all["total_expected_defects"] >= 58
+    assert res_all["true_positive_edits"] == res_all["total_expected_defects"]
     assert res_all["false_positive_edits"] == 0
     assert res_all["false_negative_defects"] == 0
-    assert res_all["total_negative_controls"] == 23
-    assert res_all["negative_controls_preserved"] == 23
+    assert res_all["total_negative_controls"] >= 23
+    assert (
+        res_all["negative_controls_preserved"]
+        == res_all["total_negative_controls"]
+    )
     assert res_all["overall_precision"] == 1.0
     assert res_all["overall_recall"] == 1.0
     assert res_all["overall_f1"] == 1.0
@@ -11561,5 +11564,484 @@ class TestCycle24SkillRLFailureTrajectoryAndDecisionTree:
     assert "failure_traces_json" in props
     assert "apply_redlines" in props
     assert "append_appendix" in props
+
+
+class TestCycle25Yaral2EntityGraphAndCriticality:
+  """Cycle 25 (H26): Chronicle SIEM YARA-L 2.0 Entity Graph ($g.graph.entity.*)
+  Context Join & Asset/Identity Criticality Risk-Multiplier Verifier in Google Docs."""
+
+  def test_detects_unprefixed_entity_graph_field_and_synthesizes_graph_prefix_fix(
+      self,
+  ):
+    from manager.tools.docs_review_tools import (
+        inspect_yaral2_entity_graph_and_criticality_in_text,
+    )
+
+    doc_text = (
+        "# Runbook: Chronicle SIEM YARA-L 2.0 Entity Graph Asset Context Join\n\n"
+        "```yaral\n"
+        "rule wins_d19_unprefixed_graph_join {\n"
+        "  meta:\n"
+        '    author = "Detection Engineering"\n'
+        '    severity = "HIGH"\n'
+        "  events:\n"
+        '    $e.metadata.event_type = "PROCESS_LAUNCH"\n'
+        '    $g.metadata.entity_type = "ASSET"\n'
+        "    $e.principal.hostname = $g.entity.hostname\n"
+        "  match:\n"
+        "    $e.principal.hostname over 5m\n"
+        "  outcome:\n"
+        '    $risk_score = max(if($g.graph.entity.asset.attribute.cloud.environment = "PRODUCTION", 85, 50))\n'
+        "  condition:\n"
+        "    $e and $g\n"
+        "}\n"
+        "```\n"
+    )
+    res = inspect_yaral2_entity_graph_and_criticality_in_text(doc_text)
+    assert res["status"] == "success"
+    unprefixed = [
+        f
+        for f in res["findings"]
+        if f["defect_type"] == "unprefixed_entity_graph_field"
+    ]
+    assert len(unprefixed) == 1
+    assert unprefixed[0]["delete_text"] == (
+        '$g.metadata.entity_type = "ASSET"\n'
+        "    $e.principal.hostname = $g.entity.hostname"
+    )
+    assert unprefixed[0]["insert_text"] == (
+        '$g.graph.metadata.entity_type = "ASSET"\n'
+        "    $e.principal.hostname = $g.graph.entity.hostname"
+    )
+    assert "$g.graph.entity.hostname" in unprefixed[0]["remediated_rule_text"]
+
+  def test_detects_missing_entity_graph_metadata_type_filter(self):
+    from manager.tools.docs_review_tools import (
+        inspect_yaral2_entity_graph_and_criticality_in_text,
+    )
+
+    doc_text = (
+        "# Runbook: Workspace Admin Context Join\n\n"
+        "```yaral\n"
+        "rule workspace_admin_missing_entity_type {\n"
+        "  meta:\n"
+        '    author = "Detection Engineering"\n'
+        '    severity = "HIGH"\n'
+        "  events:\n"
+        '    $e.metadata.event_type = "USER_LOGIN"\n'
+        "    $e.target.user.email_addresses = $g.graph.entity.user.email_addresses\n"
+        "  match:\n"
+        "    $e.target.user.email_addresses over 5m\n"
+        "  outcome:\n"
+        "    $risk_score = max(85)\n"
+        "  condition:\n"
+        "    $e and $g\n"
+        "}\n"
+        "```\n"
+    )
+    res = inspect_yaral2_entity_graph_and_criticality_in_text(doc_text)
+    assert res["status"] == "success"
+    missing_type = [
+        f
+        for f in res["findings"]
+        if f["defect_type"] == "missing_entity_graph_metadata_type_filter"
+    ]
+    assert len(missing_type) == 1
+    assert missing_type[0]["inferred_entity_type"] == "USER"
+    assert (
+        '$g.graph.metadata.entity_type = "USER"'
+        in missing_type[0]["insert_text"]
+    )
+
+  def test_detects_entity_graph_udm_join_key_mismatch(self):
+    from manager.tools.docs_review_tools import (
+        inspect_yaral2_entity_graph_and_criticality_in_text,
+    )
+
+    doc_text = (
+        "# Runbook: Cross-Type Entity Graph Join Defect\n\n"
+        "```yaral\n"
+        "rule cross_type_join_defect {\n"
+        "  meta:\n"
+        '    author = "Detection Engineering"\n'
+        '    severity = "HIGH"\n'
+        "  events:\n"
+        '    $e.metadata.event_type = "PROCESS_LAUNCH"\n'
+        '    $g.graph.metadata.entity_type = "ASSET"\n'
+        "    $e.principal.hostname = $g.graph.entity.user.userid\n"
+        "    $e.principal.user.userid = $g.graph.entity.hostname\n"
+        "  match:\n"
+        "    $e.principal.hostname over 5m\n"
+        "  outcome:\n"
+        "    $risk_score = max(85)\n"
+        "  condition:\n"
+        "    $e and $g\n"
+        "}\n"
+        "```\n"
+    )
+    res = inspect_yaral2_entity_graph_and_criticality_in_text(doc_text)
+    assert res["status"] == "success"
+    mismatches = [
+        f
+        for f in res["findings"]
+        if f["defect_type"] == "entity_graph_udm_join_key_mismatch"
+    ]
+    assert len(mismatches) == 2
+    replacements = [m["insert_text"] for m in mismatches]
+    assert "$e.principal.hostname = $g.graph.entity.hostname" in replacements
+    assert (
+        "$e.principal.user.userid = $g.graph.entity.user.userid" in replacements
+    )
+
+  def test_detects_uncalibrated_entity_criticality_risk_multiplier(self):
+    from manager.tools.docs_review_tools import (
+        inspect_yaral2_entity_graph_and_criticality_in_text,
+    )
+
+    doc_text = (
+        "# Runbook: Production Cloud SQL & Critical Workstation Risk Scoring\n\n"
+        "```yaral\n"
+        "rule prod_customers_low_risk_score {\n"
+        "  meta:\n"
+        '    author = "Detection Engineering"\n'
+        '    severity = "LOW"\n'
+        "  events:\n"
+        '    $e.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $e.target.resource.name = "projects/base-production/instances/prod-customers"\n'
+        '    $g.graph.metadata.entity_type = "ASSET"\n'
+        "    $e.target.resource.name = $g.graph.entity.resource.name\n"
+        '    $g.graph.entity.asset.attribute.cloud.environment = "PRODUCTION"\n'
+        "  match:\n"
+        "    $e.target.resource.name over 5m\n"
+        "  outcome:\n"
+        "    $risk_score = max(20)\n"
+        "  condition:\n"
+        "    $e and $g\n"
+        "}\n"
+        "```\n"
+    )
+    res = inspect_yaral2_entity_graph_and_criticality_in_text(doc_text)
+    assert res["status"] == "success"
+    uncal = [
+        f
+        for f in res["findings"]
+        if f["defect_type"] == "uncalibrated_entity_criticality_risk_multiplier"
+    ]
+    assert len(uncal) == 1
+    assert uncal[0]["observed_risk_score"] == 20
+    assert uncal[0]["recommended_min_risk_score"] >= 85
+    assert (
+        '$risk_score = max(if($g.graph.entity.asset.attribute.cloud.environment = "PRODUCTION", 85, 50))'
+        == uncal[0]["insert_text"]
+    )
+    assert "33278" in uncal[0]["case_ids"]
+
+  def test_detects_prose_entity_criticality_contradiction(self):
+    from manager.tools.docs_review_tools import (
+        inspect_yaral2_entity_graph_and_criticality_in_text,
+    )
+
+    doc_text = (
+        "# Incident Triage Postmortem\n\n"
+        "Because `projects/base-production` (`prod-customers`), workstation `wins-d19`, "
+        "and Workspace identity `admin@mydomain.com` are classified as `LOW` criticality "
+        "`DEV_SANDBOX` test-only assets, no priority escalation is required.\n"
+    )
+    res = inspect_yaral2_entity_graph_and_criticality_in_text(doc_text)
+    assert res["status"] == "success"
+    prose = [
+        f
+        for f in res["findings"]
+        if f["defect_type"] == "prose_entity_criticality_contradiction"
+    ]
+    assert len(prose) == 1
+    assert "CRITICAL" in prose[0]["insert_text"]
+    assert "PRODUCTION" in prose[0]["insert_text"]
+    assert "33278" in prose[0]["case_ids"]
+    assert "33269" in prose[0]["case_ids"]
+    assert "33281" in prose[0]["case_ids"]
+
+  def test_ignores_valid_yaral2_entity_graph_rule_and_standard_file_yara_negative_control(
+      self,
+  ):
+    from manager.tools.docs_review_tools import (
+        inspect_yaral2_entity_graph_and_criticality_in_text,
+    )
+
+    doc_text = (
+        "# Clean Runbook: Valid YARA-L 2.0 Entity Graph & Standard YARA Negative Controls\n\n"
+        "```yaral\n"
+        "rule valid_wins_d19_entity_graph_context_join {\n"
+        "  meta:\n"
+        '    author = "Detection Engineering"\n'
+        '    severity = "CRITICAL"\n'
+        "  events:\n"
+        '    $e.metadata.event_type = "PROCESS_LAUNCH"\n'
+        '    $e.principal.hostname = "wins-d19"\n'
+        '    $g.graph.metadata.entity_type = "ASSET"\n'
+        "    $e.principal.hostname = $g.graph.entity.hostname\n"
+        "  match:\n"
+        "    $e.principal.hostname over 5m\n"
+        "  outcome:\n"
+        '    $risk_score = max(if($g.graph.entity.asset.attribute.cloud.environment = "PRODUCTION", 85, 50))\n'
+        "  condition:\n"
+        "    $e and $g\n"
+        "}\n"
+        "```\n\n"
+        "```yara\n"
+        "rule Malicious_PE_Dropper_File_Signature {\n"
+        "  meta:\n"
+        '    description = "Standard file/payload YARA rule negative control"\n'
+        "  strings:\n"
+        '    $mz = "MZ"\n'
+        '    $s1 = "comsvcs.dll" ascii wide\n'
+        "  condition:\n"
+        "    uint16(0) == 0x5A4D and $s1\n"
+        "}\n"
+        "```\n"
+    )
+    res = inspect_yaral2_entity_graph_and_criticality_in_text(doc_text)
+    assert res["status"] == "success"
+    assert res["defect_count"] == 0
+    assert res["findings"] == []
+    assert res["standard_yara_blocks_skipped"] == 1
+    assert res["yaral2_rules_inspected"] == 1
+
+  def test_audit_yaral2_entity_graph_and_criticality_in_doc_dry_run_and_apply_idempotency(
+      self,
+  ):
+    from manager.tools.docs_review_tools import (
+        EXTENDED_NIGHT2_BENCHMARK_SCENARIOS,
+        LocalGoogleDocsSimulator,
+        audit_yaral2_entity_graph_and_criticality_in_doc,
+    )
+
+    bench12 = next(
+        s
+        for s in EXTENDED_NIGHT2_BENCHMARK_SCENARIOS
+        if s["scenario_id"] == "BENCH-12-YARAL2-ENTITY-GRAPH-AND-CRITICALITY"
+    )
+    sim = LocalGoogleDocsSimulator(
+        doc_id="SIM-BENCH-12",
+        title=bench12["title"],
+        initial_text=bench12["seeded_doc_text"],
+    )
+
+    # DRY_RUN mode: detects all 5 defects without mutating the document
+    res_dry = audit_yaral2_entity_graph_and_criticality_in_doc(
+        document_id="SIM-BENCH-12",
+        mode="DRY_RUN",
+        docs_client_override=sim,
+    )
+    assert res_dry["status"] == "success"
+    assert res_dry["mode"] == "DRY_RUN"
+    assert res_dry["defect_count"] == 5
+    assert res_dry["applied_redlines"] == 0
+    assert res_dry["appended_appendix"] is False
+
+    # APPLY mode Pass 1: applies 5 non-destructive suggested edits and appends H26 appendix
+    res_apply1 = audit_yaral2_entity_graph_and_criticality_in_doc(
+        document_id="SIM-BENCH-12",
+        mode="APPLY",
+        append_appendix=True,
+        docs_client_override=sim,
+    )
+    assert res_apply1["status"] == "success"
+    assert res_apply1["mode"] == "APPLY"
+    assert res_apply1["defect_count"] == 5
+    assert res_apply1["applied_redlines"] == 5
+    assert res_apply1["appended_appendix"] is True
+
+    updated_text = sim.get_plain_text()
+    assert (
+        "## [VERIFIED CHRONICLE YARA-L 2.0 ENTITY GRAPH & ASSET/IDENTITY CRITICALITY MATRIX (H26)]"
+        in updated_text
+    )
+    for nc_sub in bench12["negative_control_substrings"]:
+      assert nc_sub in updated_text
+
+    # APPLY mode Pass 2: idempotency check (0 new active defects, 5 skipped existing suggestions)
+    res_apply2 = audit_yaral2_entity_graph_and_criticality_in_doc(
+        document_id="SIM-BENCH-12",
+        mode="APPLY",
+        append_appendix=True,
+        docs_client_override=sim,
+    )
+    assert res_apply2["status"] == "success"
+    assert res_apply2["defect_count"] == 0
+    assert res_apply2["skipped_existing_suggestion_count"] == 5
+    assert res_apply2["applied_redlines"] == 0
+    assert res_apply2["appended_appendix"] is False
+
+  def test_live_chronicle_rule_validation_gate_integration_for_entity_graph_remediation(
+      self,
+  ):
+    from manager.tools.docs_review_tools import (
+        ChronicleRuleValidationGate,
+        EXTENDED_NIGHT2_BENCHMARK_SCENARIOS,
+        LocalGoogleDocsSimulator,
+        audit_yaral2_entity_graph_and_criticality_in_doc,
+    )
+
+    captured_rules: list[str] = []
+
+    def fake_validator(rule_text: str) -> dict[str, Any]:
+      captured_rules.append(rule_text)
+      # Verify the compiler-safe entity graph rule contains $g.graph.* and a match: section
+      assert "$g.graph.metadata.entity_type" in rule_text
+      assert "$g.entity." not in rule_text
+      assert "$g.metadata." not in rule_text
+      assert "match:" in rule_text
+      return {"valid": True, "raw_output": "Rule validation PASSED"}
+
+    gate = ChronicleRuleValidationGate(validate_fn=fake_validator)
+    bench12 = next(
+        s
+        for s in EXTENDED_NIGHT2_BENCHMARK_SCENARIOS
+        if s["scenario_id"] == "BENCH-12-YARAL2-ENTITY-GRAPH-AND-CRITICALITY"
+    )
+    sim = LocalGoogleDocsSimulator(
+        doc_id="SIM-GATE-12",
+        title=bench12["title"],
+        initial_text=bench12["seeded_doc_text"],
+    )
+    res = audit_yaral2_entity_graph_and_criticality_in_doc(
+        document_id="SIM-GATE-12",
+        mode="DRY_RUN",
+        validate_live=True,
+        validation_gate=gate,
+        docs_client_override=sim,
+    )
+    assert res["status"] == "success"
+    assert len(res["live_rule_validations"]) == 4
+    assert all(v["valid"] is True for v in res["live_rule_validations"])
+    assert len(captured_rules) == 4
+
+  def test_verify_and_annotate_google_doc_includes_h26_entity_graph_and_criticality(
+      self,
+  ):
+    from manager.tools.docs_review_tools import (
+        EXTENDED_NIGHT2_BENCHMARK_SCENARIOS,
+        LocalGoogleDocsSimulator,
+        review_google_doc_with_stage_a,
+        verify_and_annotate_google_doc,
+    )
+
+    bench12 = next(
+        s
+        for s in EXTENDED_NIGHT2_BENCHMARK_SCENARIOS
+        if s["scenario_id"] == "BENCH-12-YARAL2-ENTITY-GRAPH-AND-CRITICALITY"
+    )
+    sim = LocalGoogleDocsSimulator(
+        doc_id="SIM-VERIFY-H26",
+        title=bench12["title"],
+        initial_text=bench12["seeded_doc_text"],
+    )
+    res = verify_and_annotate_google_doc(
+        document_id="SIM-VERIFY-H26",
+        mode="DRY_RUN",
+        check_yaral2_entity_graph_and_criticality=True,
+        docs_client_override=sim,
+    )
+    assert res["status"] == "success"
+    assert res["check_yaral2_entity_graph_and_criticality"] is True
+    assert "H26" in res["horizons_executed"]
+    assert res["total_defect_count"] == 5
+
+    sim_stage_a = LocalGoogleDocsSimulator(
+        doc_id="SIM-STAGE-A-B12",
+        title=bench12["title"],
+        initial_text=bench12["seeded_doc_text"],
+    )
+    res_stage_a = review_google_doc_with_stage_a(
+        "SIM-STAGE-A-B12",
+        include_telemetry_hazard_stage_a=False,
+        include_credential_containment_stage_a=False,
+        include_udm_stage_a=False,
+        include_yaral2_stage_a=False,
+        include_mitre_cve_stage_a=False,
+        include_waved_ontology_stage_a=False,
+        include_ioc_reputation_stage_a=False,
+        include_skillorchestra_routing_stage_a=False,
+        include_skillrl_failure_trajectory_stage_a=False,
+        include_yaral2_entity_graph_stage_a=True,
+        token_source=lambda: "sim-tok",
+        transport=sim_stage_a.as_httpx_transport(),
+    )
+    assert res_stage_a["status"] == "success"
+    assert res_stage_a["stage_a_yaral2_entity_graph_count"] == 5
+    assert res_stage_a["edits"]["applied_count"] == 5
+
+  def test_benchmark_suite_bench_12_and_skillrl_h26_distillation(self):
+    from google.adk.tools.function_tool import FunctionTool
+    from manager.tools.docs_review_tools import (
+        evaluate_grounding_benchmark_suite,
+        generate_skillrl_failure_distillation_matrix,
+    )
+    from manager.tools.tools import (
+        audit_yaral2_entity_graph_and_criticality_in_doc as audit_tool_fn,
+        inspect_yaral2_entity_graph_and_criticality_in_text as inspect_tool_fn,
+    )
+
+    res_b12 = evaluate_grounding_benchmark_suite(
+        scenario_ids="BENCH-12-YARAL2-ENTITY-GRAPH-AND-CRITICALITY",
+        include_hda_ablation=True,
+    )
+    assert res_b12["status"] == "success"
+    assert res_b12["scenario_count"] == 1
+    assert res_b12["total_expected_defects"] == 5
+    assert res_b12["true_positive_edits"] == 5
+    assert res_b12["false_positive_edits"] == 0
+    assert res_b12["false_negative_defects"] == 0
+    assert res_b12["total_negative_controls"] == 2
+    assert res_b12["negative_controls_preserved"] == 2
+    assert res_b12["overall_precision"] == 1.0
+    assert res_b12["overall_recall"] == 1.0
+    assert res_b12["overall_f1"] == 1.0
+    assert res_b12["overall_negative_control_pass_rate"] == 1.0
+    assert res_b12["pass2_idempotency_rate"] == 1.0
+    assert res_b12["google_drive_write_calls"] == 0
+
+    res_all = evaluate_grounding_benchmark_suite(
+        scenario_ids="all_with_night2",
+        include_hda_ablation=True,
+    )
+    assert res_all["status"] == "success"
+    assert res_all["scenario_count"] == 12
+    assert res_all["total_expected_defects"] == 63
+    assert res_all["true_positive_edits"] == 63
+    assert res_all["false_positive_edits"] == 0
+    assert res_all["false_negative_defects"] == 0
+    assert res_all["total_negative_controls"] == 25
+    assert res_all["negative_controls_preserved"] == 25
+    assert res_all["overall_precision"] == 1.0
+    assert res_all["overall_recall"] == 1.0
+    assert res_all["overall_f1"] == 1.0
+    assert res_all["overall_negative_control_pass_rate"] == 1.0
+    assert res_all["pass2_idempotency_rate"] == 1.0
+    assert res_all["overall_hda_error"] == 0.0
+    assert res_all["google_drive_write_calls"] == 0
+
+    matrix = generate_skillrl_failure_distillation_matrix(include_h26=True)
+    assert matrix["status"] == "success"
+    assert "H26" in matrix["horizons_covered"]
+    h26_family = next(
+        f for f in matrix["failure_families"] if f["horizon_id"] == "H26"
+    )
+    assert h26_family["rule_id"] == "SKILLRL-06-YARAL2-ENTITY-GRAPH-CRITICALITY"
+    assert len(h26_family["defect_classes_covered"]) == 5
+
+    for fn, expected_name in [
+        (
+            inspect_tool_fn,
+            "inspect_yaral2_entity_graph_and_criticality_in_text",
+        ),
+        (audit_tool_fn, "audit_yaral2_entity_graph_and_criticality_in_doc"),
+    ]:
+      ft = FunctionTool(fn)
+      decl = ft._get_declaration()
+      assert decl is not None
+      assert decl.name == expected_name
+
 
 
