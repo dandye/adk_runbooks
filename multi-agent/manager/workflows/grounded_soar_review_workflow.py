@@ -20,6 +20,7 @@ from .common import save_workflow_report_to_disk
 from ..tools.docs_review_tools import (
     format_soar_doc_review_comment,
     sanitize_telemetry_text,
+    verify_post_accept_secops_doc_readiness,
 )
 
 
@@ -41,6 +42,14 @@ class GroundedSOARReviewInput(BaseModel):
         default="",
         description="Optional Google Doc URL for the staged runbook red-line draft",
     )
+    doc_text: str = Field(
+        default="",
+        description="Optional raw Markdown/Google Doc text for counterfactual pre-vs-post accept 5-pillar readiness verification",
+    )
+    verify_post_accept_readiness: bool = Field(
+        default=True,
+        description="When True, computes counterfactual pre-vs-post accept 5-pillar readiness synthesis",
+    )
 
 
 class SanitizedSOARReviewPayload(BaseModel):
@@ -50,6 +59,8 @@ class SanitizedSOARReviewPayload(BaseModel):
     has_redacted_artifacts: bool
     doc_url: str
     runbook_doc_url: str
+    doc_text: str = ""
+    verify_post_accept_readiness: bool = True
 
 
 class GroundedSOARReviewOutcome(BaseModel):
@@ -58,6 +69,15 @@ class GroundedSOARReviewOutcome(BaseModel):
     redline_items: List[str]
     soar_comment: str
     report_markdown: str
+    pre_accept_verdict: str = "APPROVED_FOR_SOC_EXECUTION"
+    post_accept_verdict: str = "APPROVED_FOR_SOC_EXECUTION"
+    pre_accept_readiness_score: float = 100.0
+    post_accept_readiness_score: float = 100.0
+    readiness_score_delta: float = 0.0
+    resolved_defect_count: int = 0
+    residual_defect_count: int = 0
+    ready_for_promotion_after_accept: bool = True
+    signoff_badge_markdown: str = ""
 
 
 def sanitize_soar_telemetry_node(
@@ -72,6 +92,8 @@ def sanitize_soar_telemetry_node(
         has_redacted_artifacts=has_redacted,
         doc_url=inp.doc_url.strip(),
         runbook_doc_url=inp.runbook_doc_url.strip(),
+        doc_text=inp.doc_text or "",
+        verify_post_accept_readiness=bool(inp.verify_post_accept_readiness),
     )
 
 
@@ -84,14 +106,38 @@ def grounded_review_mode_router(payload: SanitizedSOARReviewPayload) -> Event:
     return Event(route=route, output=payload)
 
 
+def _compute_post_accept_readiness_for_payload(
+    payload: SanitizedSOARReviewPayload,
+) -> dict:
+    if not payload.verify_post_accept_readiness or not (payload.doc_text or "").strip():
+        return {
+            "pre_accept_verdict": "APPROVED_FOR_SOC_EXECUTION",
+            "post_accept_verdict": "APPROVED_FOR_SOC_EXECUTION",
+            "pre_accept_readiness_score": 100.0,
+            "post_accept_readiness_score": 100.0,
+            "readiness_score_delta": 0.0,
+            "resolved_defect_count": 0,
+            "residual_defect_count": 0,
+            "ready_for_promotion_after_accept": True,
+            "signoff_badge_markdown": "",
+        }
+    return verify_post_accept_secops_doc_readiness(
+        doc_text=payload.doc_text,
+        doc_title=f"SOAR_Case_{payload.case_id}_Grounded_Review",
+    )
+
+
 def handle_two_stage_sanitized_branch(
     payload: SanitizedSOARReviewPayload,
 ) -> GroundedSOARReviewOutcome:
+    r_info = _compute_post_accept_readiness_for_payload(payload)
     redlines = [
         f"Stage A deterministic sanitizer redacted offensive payload tokens in Case {payload.case_id}",
         "Stage A span-based scanner defanged untrusted external URLs via UTF-16 start_index/end_index",
         f"Stage B Developer Knowledge MCP verified Chronicle UDM fields and containment syntax for {payload.skill_name}",
     ]
+    if r_info.get("signoff_badge_markdown"):
+        redlines.append(str(r_info["signoff_badge_markdown"]))
     soar_comment = format_soar_doc_review_comment(
         case_id=payload.case_id,
         doc_title=f"SOAR_Case_{payload.case_id}_Grounded_Review",
@@ -100,7 +146,17 @@ def handle_two_stage_sanitized_branch(
         redline_summary=redlines,
         runbook_doc_url=payload.runbook_doc_url,
     )
-    md = f"""# Grounded SOAR Case Review Report (Two-Stage Sanitized Mode)
+    readiness_section = ""
+    if r_info.get("signoff_badge_markdown"):
+        readiness_section = (
+            "\n\n## 3b. Counterfactual Post-Accept 5-Pillar Readiness Sign-Off (H29)\n"
+            f"- **Pre-Accept Verdict:** `{r_info['pre_accept_verdict']}` (`{r_info['pre_accept_readiness_score']:.2f}/100.00`)\n"
+            f"- **Post-Accept Verdict:** `{r_info['post_accept_verdict']}` (`{r_info['post_accept_readiness_score']:.2f}/100.00`, delta `+{r_info['readiness_score_delta']:.2f}`)\n"
+            f"- **Resolved Defects:** `{r_info['resolved_defect_count']}` | **Residual Defects:** `{r_info['residual_defect_count']}`\n"
+            f"- **Sign-Off Badge:** {r_info['signoff_badge_markdown']}"
+        )
+    md = (
+        f"""# Grounded SOAR Case Review Report (Two-Stage Sanitized Mode)
 
 ## 1. Case & Runbook Context
 - **SOAR Case ID:** `{payload.case_id}`
@@ -113,23 +169,39 @@ def handle_two_stage_sanitized_branch(
 ```
 
 ## 3. Staged Red-Lines (`insertComment` + `writeMode="SUGGEST"`)
-""" + "\n".join(f"- {item}" for item in redlines) + f"\n\n## 4. SOAR Timeline Comment\n```text\n{soar_comment}\n```\n"
+"""
+        + "\n".join(f"- {item}" for item in redlines)
+        + readiness_section
+        + f"\n\n## 4. SOAR Timeline Comment\n```text\n{soar_comment}\n```\n"
+    )
     return GroundedSOARReviewOutcome(
         payload=payload,
         review_mode="TWO_STAGE_SANITIZED_REVIEW",
         redline_items=redlines,
         soar_comment=soar_comment,
         report_markdown=md,
+        pre_accept_verdict=str(r_info["pre_accept_verdict"]),
+        post_accept_verdict=str(r_info["post_accept_verdict"]),
+        pre_accept_readiness_score=float(r_info["pre_accept_readiness_score"]),
+        post_accept_readiness_score=float(r_info["post_accept_readiness_score"]),
+        readiness_score_delta=float(r_info["readiness_score_delta"]),
+        resolved_defect_count=int(r_info["resolved_defect_count"]),
+        residual_defect_count=int(r_info["residual_defect_count"]),
+        ready_for_promotion_after_accept=bool(r_info["ready_for_promotion_after_accept"]),
+        signoff_badge_markdown=str(r_info.get("signoff_badge_markdown") or ""),
     )
 
 
 def handle_semantic_grounded_branch(
     payload: SanitizedSOARReviewPayload,
 ) -> GroundedSOARReviewOutcome:
+    r_info = _compute_post_accept_readiness_for_payload(payload)
     redlines = [
         f"Stage B Developer Knowledge MCP verified Chronicle UDM fields and gcloud IAM syntax for Case {payload.case_id}",
         f"Staged Suggested Edits against {payload.skill_name} using descending startIndex ordering",
     ]
+    if r_info.get("signoff_badge_markdown"):
+        redlines.append(str(r_info["signoff_badge_markdown"]))
     soar_comment = format_soar_doc_review_comment(
         case_id=payload.case_id,
         doc_title=f"SOAR_Case_{payload.case_id}_Grounded_Review",
@@ -138,7 +210,17 @@ def handle_semantic_grounded_branch(
         redline_summary=redlines,
         runbook_doc_url=payload.runbook_doc_url,
     )
-    md = f"""# Grounded SOAR Case Review Report (Semantic Grounded Mode)
+    readiness_section = ""
+    if r_info.get("signoff_badge_markdown"):
+        readiness_section = (
+            "\n\n## 3b. Counterfactual Post-Accept 5-Pillar Readiness Sign-Off (H29)\n"
+            f"- **Pre-Accept Verdict:** `{r_info['pre_accept_verdict']}` (`{r_info['pre_accept_readiness_score']:.2f}/100.00`)\n"
+            f"- **Post-Accept Verdict:** `{r_info['post_accept_verdict']}` (`{r_info['post_accept_readiness_score']:.2f}/100.00`, delta `+{r_info['readiness_score_delta']:.2f}`)\n"
+            f"- **Resolved Defects:** `{r_info['resolved_defect_count']}` | **Residual Defects:** `{r_info['residual_defect_count']}`\n"
+            f"- **Sign-Off Badge:** {r_info['signoff_badge_markdown']}"
+        )
+    md = (
+        f"""# Grounded SOAR Case Review Report (Semantic Grounded Mode)
 
 ## 1. Case & Runbook Context
 - **SOAR Case ID:** `{payload.case_id}`
@@ -151,13 +233,26 @@ def handle_semantic_grounded_branch(
 ```
 
 ## 3. Staged Red-Lines (`insertComment` + `writeMode="SUGGEST"`)
-""" + "\n".join(f"- {item}" for item in redlines) + f"\n\n## 4. SOAR Timeline Comment\n```text\n{soar_comment}\n```\n"
+"""
+        + "\n".join(f"- {item}" for item in redlines)
+        + readiness_section
+        + f"\n\n## 4. SOAR Timeline Comment\n```text\n{soar_comment}\n```\n"
+    )
     return GroundedSOARReviewOutcome(
         payload=payload,
         review_mode="SEMANTIC_GROUNDED_REVIEW",
         redline_items=redlines,
         soar_comment=soar_comment,
         report_markdown=md,
+        pre_accept_verdict=str(r_info["pre_accept_verdict"]),
+        post_accept_verdict=str(r_info["post_accept_verdict"]),
+        pre_accept_readiness_score=float(r_info["pre_accept_readiness_score"]),
+        post_accept_readiness_score=float(r_info["post_accept_readiness_score"]),
+        readiness_score_delta=float(r_info["readiness_score_delta"]),
+        resolved_defect_count=int(r_info["resolved_defect_count"]),
+        residual_defect_count=int(r_info["residual_defect_count"]),
+        ready_for_promotion_after_accept=bool(r_info["ready_for_promotion_after_accept"]),
+        signoff_badge_markdown=str(r_info.get("signoff_badge_markdown") or ""),
     )
 
 

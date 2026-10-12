@@ -1194,6 +1194,8 @@ def run_grounded_soar_review_workflow(
     raw_telemetry_summary: str = "",
     doc_url: str = "",
     runbook_doc_url: str = "",
+    doc_text: str = "",
+    verify_post_accept_readiness: bool = True,
 ) -> str:
     """Executes ADK Graph Workflow: grounded_soar_review_workflow."""
     from ..workflows.grounded_soar_review_workflow import (
@@ -1211,6 +1213,8 @@ def run_grounded_soar_review_workflow(
         raw_telemetry_summary=raw_telemetry_summary,
         doc_url=doc_url,
         runbook_doc_url=runbook_doc_url,
+        doc_text=doc_text,
+        verify_post_accept_readiness=verify_post_accept_readiness,
     )
     curr = sanitize_soar_telemetry_node(inp)
     route_ev = grounded_review_mode_router(curr)

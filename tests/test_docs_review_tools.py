@@ -12688,13 +12688,13 @@ class TestCycle27MasterCrossHorizonSynthesisAndBenchmark:
 
     suite = evaluate_verification_benchmark_suite(include_extended_night2=True)
     assert suite["status"] == "success"
-    assert suite["scenario_count"] == 14
-    assert suite["total_seeded_defects"] == 73
-    assert suite["TP"] == 73
+    assert suite["scenario_count"] == 15
+    assert suite["total_seeded_defects"] == 78
+    assert suite["TP"] == 78
     assert suite["FP"] == 0
     assert suite["FN"] == 0
-    assert suite["total_negative_controls"] == 29
-    assert suite["TN"] == 29
+    assert suite["total_negative_controls"] == 31
+    assert suite["TN"] == 31
     assert suite["micro_precision"] == 1.0
     assert suite["micro_recall"] == 1.0
     assert suite["micro_f1"] == 1.0
@@ -12705,7 +12705,7 @@ class TestCycle27MasterCrossHorizonSynthesisAndBenchmark:
       self,
   ) -> None:
     """5. Verifies `SKILLRL-08-MASTER-CROSS-PILLAR-READINESS-GATE` is present
-    (`8` total rules across `H25`..`H28`)."""
+    (`8` total rules across `H25`..`H28` when `include_h29_data_table_export=False`)."""
     from manager.tools.docs_review_tools import (
         generate_skillrl_failure_distillation_matrix,
     )
@@ -12714,6 +12714,7 @@ class TestCycle27MasterCrossHorizonSynthesisAndBenchmark:
         include_h26_entity_graph=True,
         include_h27_soar_actuation=True,
         include_h28_master_synthesis=True,
+        include_h29_data_table_export=False,
     )
     assert matrix["status"] == "success"
     assert matrix["rule_count"] == 8
@@ -12730,28 +12731,28 @@ class TestCycle27MasterCrossHorizonSynthesisAndBenchmark:
       self,
   ) -> None:
     """6. Verifies `generate_master_evolution_synthesis_report()` returns
-    structured telemetry for all 28 horizons (`H1`-`H28`), 5 capability pillars,
-    14 benchmark scenarios, and 8 `SkillRL` rules."""
+    structured telemetry for all 29 horizons (`H1`-`H29`), 5 capability pillars,
+    15 benchmark scenarios, and 9 `SkillRL` rules."""
     from manager.tools.docs_review_tools import (
         generate_master_evolution_synthesis_report,
     )
 
     report = generate_master_evolution_synthesis_report()
     assert report["status"] == "success"
-    assert report["total_cycles_completed"] == 27
-    assert report["total_horizons_completed"] == 28
-    assert len(report["horizons"]) == 28
+    assert report["total_cycles_completed"] == 28
+    assert report["total_horizons_completed"] == 29
+    assert len(report["horizons"]) == 29
     assert report["horizon_ids"][0] == "H1"
-    assert report["horizon_ids"][-1] == "H28"
+    assert report["horizon_ids"][-1] == "H29"
     assert report["capability_pillar_count"] == 5
     assert len(report["capability_pillars"]) == 5
-    assert report["scenario_count"] == 14
-    assert report["total_seeded_defects"] == 73
-    assert report["total_negative_controls"] == 29
+    assert report["scenario_count"] == 15
+    assert report["total_seeded_defects"] == 78
+    assert report["total_negative_controls"] == 31
     assert report["micro_precision"] == 1.0
     assert report["micro_recall"] == 1.0
     assert report["micro_f1"] == 1.0
-    assert report["skillrl_rule_count"] == 8
+    assert report["skillrl_rule_count"] == 9
 
   def test_verify_and_annotate_google_doc_includes_master_readiness_summary(
       self,
@@ -12832,6 +12833,340 @@ class TestCycle27MasterCrossHorizonSynthesisAndBenchmark:
     assert audit_res["highlights_applied"] == 5
     assert audit_res["comments_created"] == 5
     assert audit_res["executive_banner_inserted"] is True
+
+
+class TestCycle28Yaral2DataTableExportAndPostAcceptWorkflow:
+  """Cycle 28 (H29) unit tests for Chronicle SIEM YARA-L 2.0 Data Table Export,
+  Entity Graph Threat Associations, :verifyRuleText / legacy:legacyFetchAlertsView,
+  STIX 2.1 Sightings, and Counterfactual Post-Accept Readiness Sign-Off Workflow."""
+
+  def test_inspect_yaral2_data_table_export_and_alert_stream_detects_all_5_defect_classes_and_ignores_standard_yara(
+      self,
+  ) -> None:
+    """1. Verifies detection of all 5 H29 defect classes while ignoring standard
+    file/payload YARA rules (`strings:` / `uint16(0) == 0x5A4D`) and preserving
+    valid scalar-`match:` Data Table export controls."""
+    from manager.tools.docs_review_tools import (
+        EXTENDED_NIGHT2_BENCHMARK_SCENARIOS,
+        inspect_yaral2_data_table_export_and_alert_stream_in_text,
+    )
+
+    bench15 = next(
+        sc
+        for sc in EXTENDED_NIGHT2_BENCHMARK_SCENARIOS
+        if sc["scenario_id"]
+        == "BENCH-15-YARAL2-EXPORT-DATA-TABLE-AND-STIX-SIGHTINGS"
+    )
+    res = inspect_yaral2_data_table_export_and_alert_stream_in_text(
+        bench15["markdown_content"]
+    )
+    assert res["status"] == "success"
+    assert res["horizon"] == "H29"
+    assert res["defect_count"] == 5
+    assert res["standard_yara_blocks_ignored_count"] == 1
+    assert set(res["defect_classes_detected"]) == {
+        "yaral2_export_array_strings_type_mismatch",
+        "yaral2_export_missing_key_column_or_undeclared_var",
+        "invalid_entity_threat_verdict_info_field",
+        "chronicle_verify_rule_and_legacy_alerts_endpoint_misuse",
+        "unverified_stix21_sightings_and_post_accept_signoff_gate",
+    }
+    assert res["remediated_rule_count"] >= 1
+    remediated_rule = res["remediated_rules"][0]["remediated_rule_text"]
+    assert "match:" in remediated_rule
+    assert "$ioc_value, $entity_type, $threat_actors over 1h" in remediated_rule
+    assert "$threat_actor_list = array_distinct(" in remediated_rule
+    assert "verdict_info.malicious_count > 0" in remediated_rule
+    assert "verdict_info.verdict" not in remediated_rule
+
+  def test_verify_post_accept_secops_doc_readiness_transitions_blocked_to_approved(
+      self,
+  ) -> None:
+    """2. Verifies counterfactual post-accept readiness transitions
+    `BENCH-15-YARAL2-EXPORT-DATA-TABLE-AND-STIX-SIGHTINGS` and
+    `BENCH-14-MASTER-COMPOSITE-SECOPS-SYNTHESIS` from `BLOCKED_CRITICAL_DEFECTS`
+    to `APPROVED_FOR_SOC_EXECUTION` (`post_accept_score == 100.0`,
+    `residual_defect_count == 0`)."""
+    from manager.tools.docs_review_tools import (
+        EXTENDED_NIGHT2_BENCHMARK_SCENARIOS,
+        verify_post_accept_secops_doc_readiness,
+    )
+
+    for scenario_id in (
+        "BENCH-15-YARAL2-EXPORT-DATA-TABLE-AND-STIX-SIGHTINGS",
+        "BENCH-14-MASTER-COMPOSITE-SECOPS-SYNTHESIS",
+    ):
+      scenario = next(
+          sc
+          for sc in EXTENDED_NIGHT2_BENCHMARK_SCENARIOS
+          if sc["scenario_id"] == scenario_id
+      )
+      readiness = verify_post_accept_secops_doc_readiness(
+          doc_text=scenario["markdown_content"],
+          doc_title=scenario["title"],
+      )
+      assert readiness["status"] == "success"
+      assert readiness["pre_accept_verdict"] == "BLOCKED_CRITICAL_DEFECTS"
+      assert readiness["post_accept_verdict"] == "APPROVED_FOR_SOC_EXECUTION"
+      assert readiness["pre_accept_score"] < 100.0
+      assert readiness["post_accept_score"] == 100.0
+      assert readiness["readiness_score_delta"] > 0.0
+      assert readiness["resolved_defect_count"] >= 5
+      assert readiness["residual_defect_count"] == 0
+      assert readiness["signoff_gate_passed"] is True
+      assert "APPROVED_FOR_SOC_EXECUTION" in readiness["signoff_badge_markdown"]
+
+  def test_bench_15_yaral2_export_data_table_and_stix_sightings_perfect_f1_and_15_scenario_suite(
+      self,
+  ) -> None:
+    """3. Verifies `BENCH-15-YARAL2-EXPORT-DATA-TABLE-AND-STIX-SIGHTINGS` achieves
+    `TP == 5`, `FP == 0`, `FN == 0`, `TN == 2`, `f1 == 1.0`, `pass2_idempotent == True`,
+    and full suite `evaluate_verification_benchmark_suite(include_extended_night2=True)`
+    achieves `15` scenarios, `78` seeded defects, `31` negative controls, and
+    `micro_f1 == 1.0`."""
+    from manager.tools.docs_review_tools import (
+        evaluate_benchmark_scenario,
+        evaluate_verification_benchmark_suite,
+    )
+
+    b15 = evaluate_benchmark_scenario(
+        "BENCH-15-YARAL2-EXPORT-DATA-TABLE-AND-STIX-SIGHTINGS"
+    )
+    assert b15["status"] == "success"
+    assert b15["TP"] == 5
+    assert b15["FP"] == 0
+    assert b15["FN"] == 0
+    assert b15["TN"] == 2
+    assert b15["precision"] == 1.0
+    assert b15["recall"] == 1.0
+    assert b15["f1"] == 1.0
+    assert b15["pass2_idempotent"] is True
+
+    suite = evaluate_verification_benchmark_suite(include_extended_night2=True)
+    assert suite["status"] == "success"
+    assert suite["scenario_count"] == 15
+    assert suite["total_seeded_defects"] == 78
+    assert suite["TP"] == 78
+    assert suite["FP"] == 0
+    assert suite["FN"] == 0
+    assert suite["total_negative_controls"] == 31
+    assert suite["TN"] == 31
+    assert suite["micro_f1"] == 1.0
+
+  def test_grounded_soar_review_workflow_two_stage_and_semantic_branches_include_post_accept_readiness(
+      self,
+  ) -> None:
+    """4. Verifies `GroundedSOARReviewInput`, `GroundedSOARReviewOutcome`, and
+    `run_grounded_soar_review_workflow` populate `pre_accept_verdict`,
+    `post_accept_verdict`, `pre_accept_readiness_score`,
+    `post_accept_readiness_score`, `resolved_defect_count`, and readiness badge
+    in `report_markdown` and `soar_comment` while preserving backward compatibility."""
+    from manager.tools.docs_review_tools import EXTENDED_NIGHT2_BENCHMARK_SCENARIOS
+    from manager.tools.workflow_tools import run_grounded_soar_review_workflow
+    from manager.workflows.grounded_soar_review_workflow import (
+        GroundedSOARReviewInput,
+        handle_semantic_grounded_branch,
+        handle_two_stage_sanitized_branch,
+        sanitize_soar_telemetry_node,
+    )
+
+    bench15 = next(
+        sc
+        for sc in EXTENDED_NIGHT2_BENCHMARK_SCENARIOS
+        if sc["scenario_id"]
+        == "BENCH-15-YARAL2-EXPORT-DATA-TABLE-AND-STIX-SIGHTINGS"
+    )
+
+    # Test semantic grounded branch directly with doc_text
+    inp = GroundedSOARReviewInput(
+        case_id="33269",
+        skill_name="malware-incident-response",
+        doc_text=bench15["markdown_content"],
+        verify_post_accept_readiness=True,
+    )
+    sanitized = sanitize_soar_telemetry_node(inp)
+    outcome = handle_semantic_grounded_branch(sanitized)
+    assert outcome.pre_accept_verdict == "BLOCKED_CRITICAL_DEFECTS"
+    assert outcome.post_accept_verdict == "APPROVED_FOR_SOC_EXECUTION"
+    assert outcome.pre_accept_readiness_score < 100.0
+    assert outcome.post_accept_readiness_score == 100.0
+    assert outcome.resolved_defect_count >= 5
+    assert "APPROVED_FOR_SOC_EXECUTION" in outcome.report_markdown
+    assert "APPROVED_FOR_SOC_EXECUTION" in outcome.soar_comment
+
+    # Test two-stage sanitized branch with doc_text
+    outcome_two_stage = handle_two_stage_sanitized_branch(sanitized)
+    assert outcome_two_stage.pre_accept_verdict == "BLOCKED_CRITICAL_DEFECTS"
+    assert outcome_two_stage.post_accept_verdict == "APPROVED_FOR_SOC_EXECUTION"
+    assert outcome_two_stage.post_accept_readiness_score == 100.0
+    assert outcome_two_stage.resolved_defect_count >= 5
+    assert "APPROVED_FOR_SOC_EXECUTION" in outcome_two_stage.report_markdown
+
+    # Test tool wrapper with doc_text
+    tool_res = run_grounded_soar_review_workflow(
+        case_id="33269",
+        skill_name="malware-incident-response",
+        doc_text=bench15["markdown_content"],
+        verify_post_accept_readiness=True,
+    )
+    assert "BLOCKED_CRITICAL_DEFECTS" in tool_res
+    assert "APPROVED_FOR_SOC_EXECUTION" in tool_res
+    assert "100.00/100.00" in tool_res
+
+  def test_generate_skillrl_failure_distillation_matrix_includes_h29_rule_9(
+      self,
+  ) -> None:
+    """5. Verifies `SKILLRL-09-YARAL2-DATA-TABLE-EXPORT-AND-ALERT-STREAM-SAFETY`
+    is present (`9` total rules across `H25`..`H29`)."""
+    from manager.tools.docs_review_tools import (
+        generate_skillrl_failure_distillation_matrix,
+    )
+
+    matrix = generate_skillrl_failure_distillation_matrix()
+    assert matrix["status"] == "success"
+    assert matrix["rule_count"] == 9
+    assert matrix["family_count"] == 9
+    assert matrix["horizons_covered"] == ["H25", "H26", "H27", "H28", "H29"]
+    assert (
+        "SKILLRL-09-YARAL2-DATA-TABLE-EXPORT-AND-ALERT-STREAM-SAFETY"
+        in matrix["rule_ids"]
+    )
+    h29_rule = matrix["rules_by_id"][
+        "SKILLRL-09-YARAL2-DATA-TABLE-EXPORT-AND-ALERT-STREAM-SAFETY"
+    ]
+    assert h29_rule["horizon_id"] == "H29"
+    assert len(h29_rule["defect_classes_covered"]) == 5
+
+  def test_review_google_doc_with_stage_a_and_verify_and_annotate_include_h29(
+      self,
+  ) -> None:
+    """6. Verifies `review_google_doc_with_stage_a(include_yaral2_data_table_export_stage_a=True)`
+    and `verify_and_annotate_google_doc(check_yaral2_data_table_export_and_alert_stream=True)`
+    surface `H29` findings and descending-offset edits."""
+    from manager.tools.docs_review_tools import (
+        EXTENDED_NIGHT2_BENCHMARK_SCENARIOS,
+        LocalGoogleDocsSimulator,
+        clear_doc_index_cache,
+        review_google_doc_with_stage_a,
+        verify_and_annotate_google_doc,
+    )
+
+    bench15 = next(
+        sc
+        for sc in EXTENDED_NIGHT2_BENCHMARK_SCENARIOS
+        if sc["scenario_id"]
+        == "BENCH-15-YARAL2-EXPORT-DATA-TABLE-AND-STIX-SIGHTINGS"
+    )
+    ann = verify_and_annotate_google_doc(
+        doc_text=bench15["markdown_content"],
+        check_yaral2_data_table_export_and_alert_stream=True,
+    )
+    assert ann["status"] == "success"
+    assert "H29" in ann["horizons_executed"]
+    assert ann["yaral2_data_table_export_audit"]["defect_count"] == 5
+
+    sim = LocalGoogleDocsSimulator()
+    clear_doc_index_cache()
+    sim.create_or_reset_doc(
+        "sim-doc-stage-a-h29",
+        bench15["title"],
+        bench15["markdown_content"],
+        simulate_drive_markdown_import=True,
+    )
+    stage_a_res = review_google_doc_with_stage_a(
+        document_id="sim-doc-stage-a-h29",
+        include_yaral2_data_table_export_stage_a=True,
+        docs_client_override=sim,
+    )
+    assert stage_a_res["status"] == "success"
+    assert stage_a_res["stage_a_yaral2_data_table_export_defects"] == 5
+    assert stage_a_res["edits_proposed"] >= 5
+
+  def test_audit_yaral2_data_table_export_and_alert_stream_in_doc_simulator_and_live_gate(
+      self,
+  ) -> None:
+    """7. Verifies `audit_yaral2_data_table_export_and_alert_stream_in_doc` stages
+    descending-index comments and edits on `LocalGoogleDocsSimulator` and validates
+    remediated YARA-L 2.0 rules via `ChronicleRuleValidationGate`."""
+    from manager.tools.docs_review_tools import (
+        EXTENDED_NIGHT2_BENCHMARK_SCENARIOS,
+        LocalGoogleDocsSimulator,
+        audit_yaral2_data_table_export_and_alert_stream_in_doc,
+        clear_doc_index_cache,
+    )
+
+    bench15 = next(
+        sc
+        for sc in EXTENDED_NIGHT2_BENCHMARK_SCENARIOS
+        if sc["scenario_id"]
+        == "BENCH-15-YARAL2-EXPORT-DATA-TABLE-AND-STIX-SIGHTINGS"
+    )
+    sim = LocalGoogleDocsSimulator()
+    clear_doc_index_cache()
+    sim.create_or_reset_doc(
+        "sim-doc-audit-h29",
+        bench15["title"],
+        bench15["markdown_content"],
+        simulate_drive_markdown_import=True,
+    )
+
+    def _mock_validate_fn(rule_text: str) -> dict:
+      return {"valid": True, "syntax_valid": True, "rule_length": len(rule_text)}
+
+    res = audit_yaral2_data_table_export_and_alert_stream_in_doc(
+        document_id="sim-doc-audit-h29",
+        mode="APPLY",
+        append_appendix=True,
+        validate_live=True,
+        validate_fn=_mock_validate_fn,
+        docs_client_override=sim,
+    )
+    assert res["status"] == "success"
+    assert res["horizon"] == "H29"
+    assert res["defect_count"] == 5
+    assert res["comments_inserted"] == 5
+    assert res["edits_staged"] == 5
+    assert res["appendix_appended"] is True
+    assert len(res["rule_validations"]) >= 1
+    assert res["rule_validations"][0]["remediated_valid"] is True
+
+  def test_h29_adk_tool_declarations_and_workflow_tool_registration(
+      self,
+  ) -> None:
+    """8. Verifies ADK `FunctionTool` declarations for
+    `inspect_yaral2_data_table_export_and_alert_stream_in_text`,
+    `audit_yaral2_data_table_export_and_alert_stream_in_doc`,
+    `verify_post_accept_secops_doc_readiness`, and `run_grounded_soar_review_workflow`."""
+    from google.adk.tools.function_tool import FunctionTool
+    from manager.tools.tools import (
+        audit_yaral2_data_table_export_and_alert_stream_in_doc as tool_audit_h29,
+        inspect_yaral2_data_table_export_and_alert_stream_in_text as tool_inspect_h29,
+        verify_post_accept_secops_doc_readiness as tool_verify_post_accept,
+    )
+    from manager.tools.workflow_tools import run_grounded_soar_review_workflow
+
+    for fn, expected_name in [
+        (
+            tool_inspect_h29,
+            "inspect_yaral2_data_table_export_and_alert_stream_in_text",
+        ),
+        (
+            tool_audit_h29,
+            "audit_yaral2_data_table_export_and_alert_stream_in_doc",
+        ),
+        (
+            tool_verify_post_accept,
+            "verify_post_accept_secops_doc_readiness",
+        ),
+        (
+            run_grounded_soar_review_workflow,
+            "run_grounded_soar_review_workflow",
+        ),
+    ]:
+      ft = FunctionTool(fn)
+      decl = ft._get_declaration()
+      assert decl is not None
+      assert decl.name == expected_name
 
 
 

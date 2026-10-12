@@ -1,0 +1,160 @@
+{
+  "cycle": 28,
+  "horizon_id": "H29",
+  "title": "Chronicle SIEM YARA-L 2.0 Data Table Export (export: %<table>.write_row), Entity Threat Associations ($g.graph.metadata.threat.associations), :verifyRuleText / legacy:legacyFetchAlertsView & STIX 2.1 Sightings Verifier + Counterfactual Post-Accept Readiness Sign-Off Workflow (BENCH-15)",
+  "timestamp_epoch": 1791807947,
+  "elapsed_seconds": 35.03,
+  "new_google_docs_created": 0,
+  "reused_google_doc_id": "1xWqRXooknTaEUVKyjjWYE1tHsRxES6B86y8cDf1csEE",
+  "bench15_evaluation": {
+    "scenario_id": "BENCH-15-YARAL2-EXPORT-DATA-TABLE-AND-STIX-SIGHTINGS",
+    "TP": 5,
+    "FP": 0,
+    "FN": 0,
+    "TN": 2,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "pass2_idempotent": true
+  },
+  "full_benchmark_suite": {
+    "scenario_count": 15,
+    "total_seeded_defects": 78,
+    "TP": 78,
+    "FP": 0,
+    "FN": 0,
+    "total_negative_controls": 31,
+    "TN": 31,
+    "micro_precision": 1.0,
+    "micro_recall": 1.0,
+    "micro_f1": 1.0
+  },
+  "skillrl_distillation_matrix": {
+    "rule_count": 9,
+    "horizons_covered": [
+      "H25",
+      "H26",
+      "H27",
+      "H28",
+      "H29"
+    ],
+    "rule_ids": [
+      "SKILLRL-01-MCP-OUTAGE-FALLBACK",
+      "SKILLRL-02-ZERO-HIT-UDM-ABLATION",
+      "SKILLRL-03-BENIGN-TWIN-COUNTERFACTUAL",
+      "SKILLRL-04-SAFETY-FILTER-SPAN-ISOLATION",
+      "SKILLRL-05-YARAL2-FAILURE-RECOVERY-META",
+      "SKILLRL-06-YARAL2-ENTITY-GRAPH-CRITICALITY",
+      "SKILLRL-07-SOAR-ACTUATION-PREFLIGHT-SAFETY",
+      "SKILLRL-08-MASTER-CROSS-PILLAR-READINESS-GATE",
+      "SKILLRL-09-YARAL2-DATA-TABLE-EXPORT-AND-ALERT-STREAM-SAFETY"
+    ]
+  },
+  "chronicle_siem_mcp_validation": {
+    "validate_rule_result": {
+      "rule_name": "ioc_threat_actor_attribution_export_h29",
+      "raw_response": "{'content': [{'type': 'text', 'text': 'Rule Validation Results:\\n\\n Rule validation PASSED\\nThe rule syntax is correct and ready for testing or deployment.\\n'}], 'structuredContent': {'result': 'Rule Validation Results:\\n\\n Rule validation PASSED\\nThe rule syntax is correct and ready for testing or deployment.\\n'}, 'isError': False}",
+      "valid": true
+    },
+    "udm_probe_results": {
+      "wins_d19_powershell": {
+        "query": "metadata.event_type = \"PROCESS_LAUNCH\" AND principal.hostname = \"wins-d19\"",
+        "total_events": 1,
+        "preview": "{'content': [{'type': 'text', 'text': '{\\n  \"events\": [\\n    {\\n      \"name\": \"projects/dandye-0324-chronicle/locations/us/instances/7e977ce4-f45d-43b2-aea0-52f8b66acd80/events/AAAAAHTJVZBByezsM2bHWe7zCl4AAAAABgAAACAAAAA%3D\",\\n      \"udm\": {\\n        \"metadata\": {\\n          \"productLogId\": \"1366207"
+      },
+      "workspace_superadmin_79_154_246_114": {
+        "query": "metadata.log_type = \"WORKSPACE_ACTIVITY\" AND principal.ip = \"79.154.246.114\"",
+        "total_events": 1,
+        "preview": "{'content': [{'type': 'text', 'text': '{\\n  \"events\": [\\n    {\\n      \"name\": \"projects/dandye-0324-chronicle/locations/us/instances/7e977ce4-f45d-43b2-aea0-52f8b66acd80/events/AAAAAEFM7PNOu9AoN9rmPZT%2FuWcAAAAADgAAACIAAAA%3D\",\\n      \"udm\": {\\n        \"metadata\": {\\n          \"productLogId\": \"-8601"
+      },
+      "gcp_cloudsql_104_198_226_161": {
+        "query": "metadata.log_type = \"GCP_CLOUDAUDIT\" AND principal.ip = \"104.198.226.161\"",
+        "total_events": 1,
+        "preview": "{'content': [{'type': 'text', 'text': '{\\n  \"events\": [\\n    {\\n      \"name\": \"projects/dandye-0324-chronicle/locations/us/instances/7e977ce4-f45d-43b2-aea0-52f8b66acd80/events/AAAAANvCLeasSSBn8zFeo%2BHOGOQAAAAADgAAAAIAAAA%3D\",\\n      \"udm\": {\\n        \"metadata\": {\\n          \"productLogId\": \"-5tp1"
+      }
+    }
+  },
+  "argolis_chronicle_data_table_probe": {
+    "argolis_project_id": "dandye-0324-chronicle",
+    "argolis_instance_id": "7e977ce4-f45d-43b2-aea0-52f8b66acd80",
+    "data_table_id": "ioc_threat_actor_attributions",
+    "data_table_resource_name": "projects/dandye-0324-chronicle/locations/us/instances/7e977ce4-f45d-43b2-aea0-52f8b66acd80/dataTables/ioc_threat_actor_attributions",
+    "data_table_http_status": 200,
+    "data_table_live_verified": true,
+    "data_table_columns": [
+      {
+        "originalColumn": "ioc_value",
+        "columnType": "STRING",
+        "keyColumn": true
+      },
+      {
+        "originalColumn": "entity_type",
+        "columnType": "STRING",
+        "keyColumn": true
+      },
+      {
+        "originalColumn": "threat_actors",
+        "columnType": "STRING",
+        "keyColumn": false
+      },
+      {
+        "originalColumn": "first_seen",
+        "columnType": "STRING",
+        "keyColumn": false
+      },
+      {
+        "originalColumn": "last_seen",
+        "columnType": "STRING",
+        "keyColumn": false
+      },
+      {
+        "originalColumn": "sighting_count",
+        "columnType": "STRING",
+        "keyColumn": false
+      }
+    ],
+    "verify_rule_http_status": 200,
+    "verify_rule_response": {
+      "success": true,
+      "allowedRunFrequencies": [
+        "HOURLY_CUSTOMIZABLE",
+        "DAILY"
+      ],
+      "inputsUsed": {
+        "usesUdm": true,
+        "usesEntity": true
+      }
+    },
+    "verify_rule_success": true
+  },
+  "live_google_doc_validation": {
+    "document_id": "1xWqRXooknTaEUVKyjjWYE1tHsRxES6B86y8cDf1csEE",
+    "new_docs_created": 0,
+    "pass1_defect_count": 5,
+    "pass1_defect_counts_by_type": {
+      "yaral2_export_array_strings_type_mismatch": 1,
+      "yaral2_export_missing_key_column_or_undeclared_var": 1,
+      "invalid_entity_threat_verdict_info_field": 1,
+      "chronicle_verify_rule_and_legacy_alerts_endpoint_misuse": 1,
+      "unverified_stix21_sightings_and_post_accept_signoff_gate": 1
+    },
+    "pass1_comments_inserted": 5,
+    "pass1_edits_staged": 5,
+    "pass1_appendix_appended": true,
+    "pass1_standard_yara_ignored": 1,
+    "pass2_edits_staged": 0,
+    "pass2_skipped_existing_suggestions": 5,
+    "live_suggestion_count": 5
+  },
+  "counterfactual_post_accept_readiness": {
+    "pre_accept_verdict": "BLOCKED_CRITICAL_DEFECTS",
+    "post_accept_verdict": "APPROVED_FOR_SOC_EXECUTION",
+    "pre_accept_readiness_score": 45.75,
+    "post_accept_readiness_score": 100.0,
+    "readiness_score_delta": 54.25,
+    "resolved_defect_count": 5,
+    "residual_defect_count": 0,
+    "signoff_gate_passed": true,
+    "signoff_badge_markdown": "[COUNTERFACTUAL POST-ACCEPT 5-PILLAR READINESS SIGN-OFF (H29): `BLOCKED_CRITICAL_DEFECTS` (45.75/100.00, 5 defects) -> `APPROVED_FOR_SOC_EXECUTION` (100.00/100.00, 0 residual defects, +54.25 delta, 5 resolved)]"
+  }
+}

@@ -103,6 +103,12 @@ from .docs_review_tools import (
     highlight_doc_passages,
     create_anchored_doc_comment,
     insert_executive_summary_banner,
+    H29_CANONICAL_DATA_TABLE_EXPORT_AND_ALERT_STREAM_CATALOG,
+    inspect_yaral2_data_table_export_and_alert_stream_in_text as _inspect_yaral2_data_table_export_and_alert_stream_in_text,
+    find_yaral2_data_table_export_and_alert_stream_spans,
+    format_yaral2_data_table_export_and_alert_stream_appendix,
+    audit_yaral2_data_table_export_and_alert_stream_in_doc as _audit_yaral2_data_table_export_and_alert_stream_in_doc,
+    verify_post_accept_secops_doc_readiness as _verify_post_accept_secops_doc_readiness,
 )
 
 logger = logging.getLogger(__name__)
@@ -1660,12 +1666,101 @@ def audit_master_secops_doc_readiness_in_doc(
 
 
 def generate_master_evolution_synthesis_report() -> dict:
-  """Generates the complete Master Evolution Synthesis Report across all 27 cycles (H1-H28), 14 benchmark scenarios (73 seeded defects, 29 negative controls), and 8 SkillRL failure-distilled guardrails.
+  """Generates the complete Master Evolution Synthesis Report across all 28 cycles (H1-H29), 15 benchmark scenarios (78 seeded defects, 31 negative controls), and 9 SkillRL failure-distilled guardrails.
 
   Returns:
-      dict: Structured synthesis report across all 28 horizons, 5 capability pillars, 14 benchmark scenarios, and 8 SkillRL rules.
+      dict: Structured synthesis report across all 29 horizons, 5 capability pillars, 15 benchmark scenarios, and 9 SkillRL rules.
   """
   return _generate_master_evolution_synthesis_report()
+
+
+def inspect_yaral2_data_table_export_and_alert_stream_in_text(
+    doc_text: str,
+) -> dict:
+  """Inspects runbook or incident postmortem text and Chronicle SIEM YARA-L 2.0 (YL2) rules for Data Table export (export: %<table>.write_row), Entity Graph threat associations ($g.graph.metadata.threat.associations), :verifyRuleText / legacy:legacyFetchAlertsView endpoint contracts, and STIX 2.1 Sightings defects (H29).
+
+  Args:
+      doc_text (str): Plain text or Markdown content to inspect.
+
+  Returns:
+      dict: Structured H29 findings, remediated YARA-L 2.0 rules, comments, and edits.
+  """
+  return _inspect_yaral2_data_table_export_and_alert_stream_in_text(
+      doc_text=doc_text,
+  )
+
+
+def audit_yaral2_data_table_export_and_alert_stream_in_doc(
+    document_id: str,
+    mode: str = "DRY_RUN",
+    apply_redlines: bool | None = None,
+    append_appendix: bool = False,
+    validate_live: bool = False,
+    tool_context: ToolContext | None = None,
+) -> dict:
+  """Audits a Google Doc for Chronicle SIEM YARA-L 2.0 (YL2) Data Table export (%<table>.write_row), Entity Graph threat associations ($g.graph.metadata.threat.associations), :verifyRuleText / legacy:legacyFetchAlertsView, and STIX 2.1 Sightings defects (H29).
+
+  Detects and surgically red-lines 5 practitioner defect classes:
+  1. `yaral2_export_array_strings_type_mismatch`: Assigning an `array_strings` `outcome:` aggregation (`array_distinct(...)`) to a `STRING` Data Table column in `export: %<table>.write_row(...)`.
+  2. `yaral2_export_missing_key_column_or_undeclared_var`: Omitting a mandatory Data Table primary key column (`keyColumn: true`: `ioc_value`, `entity_type`) or referencing an undeclared `$var` in `export: %<table>.write_row(...)`.
+  3. `invalid_entity_threat_verdict_info_field`: Filtering via hallucinated `$g.graph.metadata.threat.verdict_info.verdict` instead of canonical `udm.proto` `VerdictInfo` fields (`malicious_count`, `confidence_score`, `verdict_type`, `pwn`, `ml_priority_score`) and `$g.graph.metadata.threat.associations`.
+  4. `chronicle_verify_rule_and_legacy_alerts_endpoint_misuse`: Calling non-existent `/v1alpha/.../rules:verifyRuleText` instead of instance-root `:verifyRuleText`, or concatenating partial `legacy:legacyFetchAlertsView` chunks (`progress < 1`) instead of selecting `progress == 1 and complete == true`.
+  5. `unverified_stix21_sightings_and_post_accept_signoff_gate`: Emitting STIX 2.0 Sightings bundles lacking `spec_version: "2.1"`, `sighting_of_ref`, or `where_sighted_refs`, or promoting a red-lined Google Doc / closing a SOAR case without counterfactual post-accept 5-pillar readiness verification.
+  Explicitly distinguishes Chronicle SIEM YARA-L 2.0 (`YL2` — UDM event detection rules) from standard file/payload YARA rules (`strings:` / `uint16(0) == 0x5A4D`).
+
+  Args:
+      document_id (str): The Google Docs documentId.
+      mode (str): "DRY_RUN" (default) or "APPLY".
+      apply_redlines (bool | None): Optional boolean override for `mode="APPLY"`.
+      append_appendix (bool): Whether to append the H29 Data Table Export & Alert Stream Matrix appendix.
+      validate_live (bool): Whether to validate remediated YARA-L 2.0 rules via `ChronicleRuleValidationGate` (`secops-mcp:validate_rule`).
+
+  Returns:
+      dict: Audit findings, remediated rules, rule validations, and staged comment/edit counts.
+  """
+  return _audit_yaral2_data_table_export_and_alert_stream_in_doc(
+      document_id=document_id,
+      mode=mode,
+      apply_redlines=apply_redlines,
+      append_appendix=append_appendix,
+      validate_live=validate_live,
+      tool_context=tool_context,
+  )
+
+
+def verify_post_accept_secops_doc_readiness(
+    document_id: str = "",
+    doc_text: str = "",
+    doc_title: str = "SecOps Incident Runbook & Postmortem",
+    stage_redlines_first: bool = False,
+    tool_context: ToolContext | None = None,
+) -> dict:
+  """Verifies counterfactual Pre-vs-Post Accept 5-pillar SecOps document readiness (H29).
+
+  Computes the baseline 5-pillar readiness score and release gate verdict before
+  accepting Suggested Edits (`pre_accept_score`, `pre_accept_verdict`), constructs
+  the counterfactual `accepted_text` by applying descending-index `writeMode="SUGGEST"`
+  replacements across H1-H29, and re-runs `synthesize_master_secops_doc_readiness`
+  to verify that accepting the staged red-lines transitions the document from
+  `BLOCKED_CRITICAL_DEFECTS` to `APPROVED_FOR_SOC_EXECUTION` (`100.0/100.0`,
+  `0` residual defects).
+
+  Args:
+      document_id (str): Optional Google Docs documentId.
+      doc_text (str): Optional raw text/Markdown override when evaluating in-memory text.
+      doc_title (str): Title of the SecOps document.
+      stage_redlines_first (bool): Whether to stage red-lines on `document_id` before computing readiness.
+
+  Returns:
+      dict: Pre-accept vs. post-accept scores, verdicts, readiness delta, resolved/residual defect counts, and sign-off badge markdown.
+  """
+  return _verify_post_accept_secops_doc_readiness(
+      document_id=document_id,
+      doc_text=doc_text or None,
+      doc_title=doc_title,
+      stage_redlines_first=stage_redlines_first,
+      tool_context=tool_context,
+  )
 
 
 def get_agent_tools():
@@ -1743,6 +1838,15 @@ def get_agent_tools():
   wrapped_generate_master_evolution_synthesis_report = instrument_tool(
       generate_master_evolution_synthesis_report
   )
+  wrapped_inspect_yaral2_data_table_export_and_alert_stream_in_text = instrument_tool(
+      inspect_yaral2_data_table_export_and_alert_stream_in_text
+  )
+  wrapped_audit_yaral2_data_table_export_and_alert_stream_in_doc = instrument_tool(
+      audit_yaral2_data_table_export_and_alert_stream_in_doc
+  )
+  wrapped_verify_post_accept_secops_doc_readiness = instrument_tool(
+      verify_post_accept_secops_doc_readiness
+  )
   wrapped_sanitize_and_redline_telemetry_in_doc = instrument_tool(
       sanitize_and_redline_telemetry_in_doc
   )
@@ -1805,6 +1909,9 @@ def get_agent_tools():
       wrapped_synthesize_master_secops_doc_readiness,
       wrapped_audit_master_secops_doc_readiness_in_doc,
       wrapped_generate_master_evolution_synthesis_report,
+      wrapped_inspect_yaral2_data_table_export_and_alert_stream_in_text,
+      wrapped_audit_yaral2_data_table_export_and_alert_stream_in_doc,
+      wrapped_verify_post_accept_secops_doc_readiness,
       wrapped_sanitize_and_redline_telemetry_in_doc,
       wrapped_triage_and_redline_leaked_credentials_in_doc,
       wrapped_audit_and_redline_claim_evidence_and_campaign_in_doc,
@@ -1831,6 +1938,7 @@ __all__ = [
     "H27_CANONICAL_SOAR_ACTUATION_SAFETY_CATALOG",
     "H28_CAPABILITY_PILLAR_CATALOG",
     "H28_MASTER_HORIZON_CATALOG",
+    "H29_CANONICAL_DATA_TABLE_EXPORT_AND_ALERT_STREAM_CATALOG",
     "ChronicleRuleValidationGate",
     "audit_yaral2_entity_graph_and_criticality_in_doc",
     "inspect_yaral2_entity_graph_and_criticality_in_text",
@@ -1842,6 +1950,11 @@ __all__ = [
     "synthesize_master_secops_doc_readiness",
     "audit_master_secops_doc_readiness_in_doc",
     "generate_master_evolution_synthesis_report",
+    "inspect_yaral2_data_table_export_and_alert_stream_in_text",
+    "find_yaral2_data_table_export_and_alert_stream_spans",
+    "format_yaral2_data_table_export_and_alert_stream_appendix",
+    "audit_yaral2_data_table_export_and_alert_stream_in_doc",
+    "verify_post_accept_secops_doc_readiness",
     "evaluate_benchmark_scenario",
     "evaluate_verification_benchmark_suite",
     "highlight_doc_passages",
@@ -1852,4 +1965,5 @@ __all__ = [
     "generate_skillrl_failure_distillation_matrix",
     "get_agent_tools",
 ]
+
 
