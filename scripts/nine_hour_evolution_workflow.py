@@ -253,6 +253,7 @@ Call `finish` with the required verification JSON."""
         log(f"Cycle {cycle_num} Verifier raised exception: {err}")
         verification = None
 
+    # Check if the Critic's prompt should know about H1-H28
     return {
         "cycle": cycle_num,
         "decision": decision,
@@ -261,14 +262,28 @@ Call `finish` with the required verification JSON."""
     }
 
 
-cycle_num = 1
+def _detect_next_cycle_num() -> int:
+    import re
+    from pathlib import Path
+
+    try:
+        text = Path(LEDGER_REPO_PATH).read_text(encoding="utf-8")
+        matches = [int(m) for m in re.findall(r"^### Cycle (\d+)\b", text, flags=re.M)]
+        if matches:
+            return max(matches) + 1
+    except Exception:
+        pass
+    return 19
+
+
+cycle_num = _detect_next_cycle_num()
 completed_cycles = []
 
 while time.time() < deadline and cycle_num <= MAX_CYCLES:
     result = await run_evolution_cycle(cycle_num)
     if result is not None:
         completed_cycles.append(result)
-    cycle_num += 1
+    cycle_num = max(cycle_num + 1, _detect_next_cycle_num())
     if time.time() + COOLDOWN_SECONDS < deadline:
         await asyncio.sleep(COOLDOWN_SECONDS)
 
@@ -276,10 +291,11 @@ phase("Final 9-Hour Synthesis")
 final_summary = await agent(
     f"""The 9-hour continuous evolutionary loop in `{WORKTREE_DIR}` has completed {len(completed_cycles)} cycles.
 1. Inspect `{LEDGER_REPO_PATH}`, `{BLOG_REPO_PATH}`, and `git log --oneline -n 25`.
-2. Add a top-level Executive Summary of all completed evolutionary cycles to `{LEDGER_REPO_PATH}` and sync it to `{LEDGER_ARTIFACT_PATH}`.
+2. Add or update the top-level Executive Summary of all completed evolutionary cycles in `{LEDGER_REPO_PATH}` and sync it to `{LEDGER_ARTIFACT_PATH}`.
 3. Ensure `git status -s` is completely clean (commit any final doc updates using explicit file paths).
 4. Return a concise summary of the 9-hour run via `finish`.""",
     schema={"type": "string"},
     role="9-Hour Run Final Synthesizer",
 )
 log("9-Hour Evolutionary Loop Complete:", final_summary)
+
