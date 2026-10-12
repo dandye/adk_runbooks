@@ -9954,4 +9954,273 @@ def test_evaluate_infosec_doc_reviewer_hda_attribution_and_adk_tool_schema() -> 
     assert "output_report_path" in props
 
 
+def test_find_waved_ontology_spans_extracts_cwe_cve_attack_d3fend() -> None:
+    """H21 Suite 1: Verifies extraction and UTF-16 startIndex/endIndex calculation
+    for CWE-xxx, CVE-YYYY-NNNNN, Txxxx(.xxx), and D3-xxxx spans across both prose
+    paragraphs and Chronicle SIEM YARA-L 2.0 meta: blocks."""
+    from manager.tools.docs_review_tools import find_waved_ontology_spans
+
+    sample_text = (
+        "Incident Advisory: Exploitation of CVE-2024-3400 rooted in CWE-78 (OS Command Injection) "
+        "enables T1190 (Exploit Public-Facing Application) and T1059.004.\n"
+        "Recommended Countermeasures: Apply D3-ITF (Inbound Traffic Filtering) and D3-NTF (Network Traffic Filtering).\n\n"
+        "rule panos_globalprotect_cmdi {\n"
+        "  meta:\n"
+        '    cve_id = "CVE-2024-3400"\n'
+        '    cwe_id = "CWE-78"\n'
+        '    mitre_attack_technique = "T1190"\n'
+        '    d3fend_technique = "D3-ITF"\n'
+        "  events:\n"
+        '    $e.metadata.event_type = "PROCESS_LAUNCH"\n'
+        "  condition:\n"
+        "    $e\n"
+        "}\n"
+    )
+    mock_doc = _make_single_paragraph_doc(
+        "doc-waved-spans", "WAVED Ontology Spans Test", sample_text
+    )
+    spans = find_waved_ontology_spans(mock_doc)
+    assert len(spans) >= 8
+
+    layers = {s["layer"] for s in spans}
+    assert layers == {
+        "weakness",
+        "vulnerability",
+        "exploit",
+        "defense",
+    }
+
+    ids = [s["identifier"] for s in spans]
+    assert "CVE-2024-3400" in ids
+    assert "CWE-78" in ids
+    assert "T1190" in ids
+    assert "T1059.004" in ids
+    assert "D3-ITF" in ids
+    assert "D3-NTF" in ids
+
+    for s in spans:
+        assert s["startIndex"] >= 1
+        assert s["endIndex"] > s["startIndex"]
+        extracted = sample_text[s["char_start"] : s["char_end"]]
+        assert s["identifier"] in extracted
+
+    yaral_meta_spans = [s for s in spans if s["in_yaral2_meta"]]
+    assert len(yaral_meta_spans) == 4
+    meta_keys = {s["yaral2_meta_key"] for s in yaral_meta_spans}
+    assert meta_keys == {
+        "cve_id",
+        "cwe_id",
+        "mitre_attack_technique",
+        "d3fend_technique",
+    }
+
+
+def test_analyze_waved_ontology_graph_detects_mismatches_and_chain_breaks() -> None:
+    """H21 Suite 2: Verifies detection of CWE_LABEL_MISMATCH, D3FEND_LABEL_MISMATCH,
+    CVE_CWE_MISMATCH, ATTACK_D3FEND_MISMATCH, and YARAL2_WAVED_META_DEFECT, while
+    confirming zero false positives on a valid 4-layer WAVED chain."""
+    from manager.tools.docs_review_tools import analyze_waved_ontology_graph
+
+    # 1. Valid 4-layer WAVED chain (negative control -> 0 defects, completeness == 1.0)
+    valid_text = (
+        "Valid WAVED Chain: CVE-2024-3400 is rooted in CWE-78 (Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')), "
+        "exploited via T1190 (Exploit Public-Facing Application), and countered by D3-ITF (Inbound Traffic Filtering) and D3-NTF (Network Traffic Filtering).\n\n"
+        "rule valid_waved_yaral2_rule {\n"
+        "  meta:\n"
+        '    cve_id = "CVE-2024-3400"\n'
+        '    cwe_id = "CWE-78"\n'
+        '    mitre_attack_technique = "T1190"\n'
+        '    d3fend_technique = "D3-ITF"\n'
+        "  events:\n"
+        '    $e.metadata.event_type = "PROCESS_LAUNCH"\n'
+        "  condition:\n"
+        "    $e\n"
+        "}\n"
+    )
+    valid_report = analyze_waved_ontology_graph(valid_text)
+    assert valid_report["status"] == "success"
+    assert valid_report["defect_count"] == 0
+    assert valid_report["waved_completeness_score"] == 1.0
+    assert valid_report["layer_coverage"]["weakness_cwe"] is True
+    assert valid_report["layer_coverage"]["vulnerability_cve"] is True
+    assert valid_report["layer_coverage"]["exploit_attack"] is True
+    assert valid_report["layer_coverage"]["defense_d3fend"] is True
+    assert len(valid_report["verified_chains"]) >= 1
+
+    # 2. Defective WAVED text with all 4 defect families
+    defective_text = (
+        "1. CWE Label Mismatch: CWE-78 (SQL Injection) was cited in the triage summary.\n"
+        "2. D3FEND Label Mismatch: Deploy D3-MFA (Network Traffic Filtering) for identity hardening.\n"
+        "3. WAVED CVE-CWE Chain Break: CVE-2024-3400 is caused by root weakness CWE-89 (SQL Injection).\n"
+        "4. WAVED ATT&CK-D3FEND Chain Break: Mitigate T1078 (Valid Accounts) abuse exclusively via D3-DNSAL (DNS Allowlisting).\n\n"
+        "rule defective_waved_yaral2_rule {\n"
+        "  meta:\n"
+        '    cve_id = "CVE-2024-3400"\n'
+        '    cwe_id = "CWE-89"\n'
+        '    mitre_attack_technique = "T1078"\n'
+        '    d3fend_technique = "D3-DNSAL"\n'
+        "  events:\n"
+        '    $e.metadata.event_type = "USER_LOGIN"\n'
+        "  condition:\n"
+        "    $e\n"
+        "}\n"
+    )
+    defect_report = analyze_waved_ontology_graph(defective_text)
+    assert defect_report["status"] == "success"
+    assert defect_report["defect_count"] >= 6
+
+    defect_classes = {d["defect_class"] for d in defect_report["defects"]}
+    assert "CWE_LABEL_MISMATCH" in defect_classes
+    assert "D3FEND_LABEL_MISMATCH" in defect_classes
+    assert "WAVED_CHAIN_INCONSISTENCY" in defect_classes
+    assert "YARAL2_WAVED_META_DEFECT" in defect_classes
+
+    subtypes = {d["defect_subtype"] for d in defect_report["defects"]}
+    assert "CWE_LABEL_MISMATCH" in subtypes
+    assert "D3FEND_LABEL_MISMATCH" in subtypes
+    assert "CVE_CWE_MISMATCH" in subtypes
+    assert "ATTACK_D3FEND_MISMATCH" in subtypes
+    assert "YARAL2_META_CWE_MISMATCH" in subtypes
+    assert "YARAL2_META_D3FEND_MISMATCH" in subtypes
+
+
+def test_verify_and_redline_waved_ontology_in_doc_reverse_index_order_and_domain_allowlist(
+    monkeypatch,
+) -> None:
+    """H21 Suite 3: Mocks get_docs_service() and verifies that batchUpdate requests
+    are emitted in strict descending startIndex order, all inserted links pass
+    validate_url_against_domain_allowlist (cwe.mitre.org, d3fend.mitre.org), and
+    redline strike-through + green correction styles are properly structured."""
+    from unittest.mock import MagicMock
+    from google.adk.tools.function_tool import FunctionTool
+    import manager.tools.docs_review_tools as drt
+    from manager.tools import tools as tools_module
+
+    doc_text = (
+        "WAVED Triage Section:\n"
+        "- Valid Chain: CVE-2023-4966 is rooted in CWE-119 (Improper Restriction of Operations within the Bounds of a Memory Buffer) "
+        "and mitigated by D3-MFA (Multi-factor Authentication).\n"
+        "- Mislabeled CWE: CWE-78 (SQL Injection) on perimeter gateway.\n"
+        "- Mislabeled D3FEND: D3-MFA (Network Traffic Filtering) on IdP.\n"
+        "- Incompatible Defense: Mitigate T1078 (Valid Accounts) via D3-DNSAL (DNS Allowlisting).\n"
+    )
+    mock_doc = _make_single_paragraph_doc(
+        "doc-waved-mock", "WAVED Redline Unit Test", doc_text
+    )
+
+    captured_batches: list[dict[str, Any]] = []
+    mock_service = MagicMock()
+    mock_docs_resource = MagicMock()
+    mock_service.documents.return_value = mock_docs_resource
+    mock_docs_resource.get.return_value.execute.return_value = mock_doc
+
+    def _capture_batch_update(documentId: str, body: dict[str, Any]):
+        captured_batches.append({"documentId": documentId, "body": body})
+        mock_exec = MagicMock()
+        mock_exec.execute.return_value = {
+            "replies": [{} for _ in body.get("requests", [])]
+        }
+        return mock_exec
+
+    mock_docs_resource.batchUpdate.side_effect = _capture_batch_update
+    monkeypatch.setattr(drt, "get_docs_service", lambda **kwargs: mock_service)
+
+    res = drt.verify_and_redline_waved_ontology_in_doc(
+        document_id="doc-waved-mock",
+        apply_redlines=True,
+        highlight_valid=True,
+        append_summary_section=False,
+    )
+    assert res["status"] == "success"
+    assert res["defect_count"] >= 3
+    assert res["verified_span_count"] >= 2
+    assert res["applied_requests_count"] > 0
+    assert len(captured_batches) == 1
+
+    requests = captured_batches[0]["body"]["requests"]
+    assert len(requests) == res["applied_requests_count"]
+
+    # Verify strict non-increasing (reverse) anchor order across all defect & valid span groups
+    # Note: within a single defect at [s_idx, e_idx), insertText is at e_idx,
+    # followed by updateTextStyle on [e_idx, e_idx + len) and updateTextStyle (strikethrough) on [s_idx, e_idx).
+    # Therefore the primary anchor index of each request must be non-increasing!
+    anchor_indices: list[int] = []
+    has_strikethrough = False
+    has_green_correction = False
+    linked_urls: list[str] = []
+
+    for req in requests:
+        if "insertText" in req:
+            idx = req["insertText"]["location"]["index"]
+            anchor_indices.append(idx)
+        elif "updateTextStyle" in req:
+            uts = req["updateTextStyle"]
+            rng = uts["range"]
+            style = uts["textStyle"]
+            if style.get("bold") and not style.get("strikethrough"):
+                # Inserted correction styling starts at e_idx
+                anchor_indices.append(rng["startIndex"])
+                has_green_correction = True
+            else:
+                # Strikethrough on [s_idx, e_idx) or valid highlight on [v_start, v_end)
+                anchor_indices.append(rng["startIndex"])
+                if style.get("strikethrough"):
+                    has_strikethrough = True
+            if "link" in style and "url" in style["link"]:
+                url = style["link"]["url"]
+                linked_urls.append(url)
+                assert drt.validate_url_against_domain_allowlist(url) is True
+
+    assert anchor_indices == sorted(anchor_indices, reverse=True), (
+        f"Batch requests were not sorted in strict reverse index order: {anchor_indices}"
+    )
+    assert has_strikethrough is True
+    assert has_green_correction is True
+    assert any("cwe.mitre.org" in u for u in linked_urls)
+    assert any("d3fend.mitre.org" in u for u in linked_urls)
+
+    # Also verify unified orchestrator includes waved_ontology_verification
+    unified = drt.run_unified_doc_grounding_review("doc-waved-mock")
+    assert unified["status"] == "success"
+    assert "waved_ontology_verification" in unified
+    assert unified["waved_ontology_verification"]["defect_count"] == res["defect_count"]
+
+    # Verify ADK FunctionTool schema declaration
+    ft = FunctionTool(tools_module.verify_and_redline_waved_ontology_in_doc)
+    decl = ft._get_declaration()
+    assert decl.name == "verify_and_redline_waved_ontology_in_doc"
+
+
+def test_evaluate_infosec_doc_reviewer_with_waved_benchmark_scenario() -> None:
+    """H21 Suite 4: Verifies that evaluate_infosec_doc_reviewer achieves 100%
+    precision and recall (F1 = 1.0) on BENCH-07-WAVED-ONTOLOGY-CWE-CVE-ATTACK-D3FEND
+    while preserving full backwards compatibility with scenario_ids='all' (6 scenarios)."""
+    from manager.tools.docs_review_tools import evaluate_infosec_doc_reviewer
+
+    res_b7 = evaluate_infosec_doc_reviewer(
+        scenario_ids="BENCH-07-WAVED-ONTOLOGY-CWE-CVE-ATTACK-D3FEND",
+        include_hda_ablation=False,
+    )
+    assert res_b7["status"] == "success"
+    assert res_b7["scenario_count"] == 1
+    assert res_b7["total_expected_defects"] == 6
+    assert res_b7["true_positive_edits"] == 6
+    assert res_b7["false_positive_edits"] == 0
+    assert res_b7["false_negative_defects"] == 0
+    assert res_b7["span_precision"] == 1.0
+    assert res_b7["defect_recall"] == 1.0
+    assert res_b7["f1_score"] == 1.0
+    assert res_b7["pass2_idempotency_rate"] == 1.0
+
+    res_all_night2 = evaluate_infosec_doc_reviewer(
+        scenario_ids="all_with_night2",
+        include_hda_ablation=True,
+    )
+    assert res_all_night2["status"] == "success"
+    assert res_all_night2["scenario_count"] == 7
+    assert res_all_night2["total_expected_defects"] == 38
+    assert res_all_night2["f1_score"] == 1.0
+
+
+
 

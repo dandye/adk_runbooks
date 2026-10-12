@@ -93,6 +93,8 @@ DEFAULT_TRUSTED_DOC_DOMAINS: tuple[str, ...] = (
     "support.google.com",
     "docs.aws.amazon.com",
     "attack.mitre.org",
+    "d3fend.mitre.org",
+    "cwe.mitre.org",
     "nvd.nist.gov",
     "cisa.gov",
     "ltstrtn.backstory.chronicle.security",
@@ -126,6 +128,8 @@ DEFAULT_YARAL2_DOC_URL = (
     "https://docs.cloud.google.com/chronicle/docs/detection/yara-l-2-0-syntax"
 )
 MITRE_ATTACK_BASE_URL = "https://attack.mitre.org/techniques"
+MITRE_CWE_BASE_URL = "https://cwe.mitre.org/data/definitions"
+MITRE_D3FEND_BASE_URL = "https://d3fend.mitre.org/technique/d3f:"
 NVD_CVE_BASE_URL = "https://nvd.nist.gov/vuln/detail"
 CISA_KEV_CATALOG_URL = "https://www.cisa.gov/known-exploited-vulnerabilities-catalog"
 
@@ -143,6 +147,17 @@ def nvd_cve_url(cve_id: str) -> str:
     """Converts a CVE ID (e.g. ``CVE-2024-21762``) to its canonical NIST NVD detail URL."""
     cleaned = str(cve_id or "").strip().upper()
     return f"{NVD_CVE_BASE_URL}/{cleaned}"
+
+
+def cwe_definition_url(cwe_id: str) -> str:
+    """Converts a MITRE CWE ID (e.g. ``CWE-78``) to its canonical ``cwe.mitre.org`` definition URL."""
+    cleaned = str(cwe_id or "").strip().upper()
+    if cleaned.startswith("CWE-"):
+        num = cleaned[len("CWE-") :]
+    else:
+        num = cleaned
+    return f"{MITRE_CWE_BASE_URL}/{num}.html"
+
 
 
 DEPRECATED_MITRE_TECHNIQUE_MAP: dict[str, dict[str, str]] = {
@@ -399,6 +414,832 @@ _MITRE_TECHNIQUE_RE = re.compile(
 _CVE_ID_RE = re.compile(
     r"(?<![A-Za-z0-9_./-])(CVE-\d{4}-\d{4,7})(?![A-Za-z0-9_-])"
 )
+_CWE_ID_RE = re.compile(
+    r"(?<![A-Za-z0-9_./-])(CWE-\d{1,5})(?![A-Za-z0-9_-])",
+    re.IGNORECASE,
+)
+_D3FEND_ID_RE = re.compile(
+    r"(?<![A-Za-z0-9_./-])(D3-[A-Z0-9]{2,8})(?![A-Za-z0-9_-])",
+    re.IGNORECASE,
+)
+
+WAVED_CWE_KNOWLEDGE_BASE: dict[str, dict[str, Any]] = {
+    "CWE-20": {
+        "id": "CWE-20",
+        "name": "Improper Input Validation",
+        "short_name": "Improper Input Validation",
+        "aliases": ("improper input validation", "input validation"),
+        "description": (
+            "The product receives input or data, but it does not validate or "
+            "incorrectly validates that the input has the properties required to "
+            "process the data safely and correctly."
+        ),
+        "url": "https://cwe.mitre.org/data/definitions/20.html",
+    },
+    "CWE-22": {
+        "id": "CWE-22",
+        "name": "Improper Limitation of a Pathname to a Restricted Directory ('Path Traversal')",
+        "short_name": "Path Traversal",
+        "aliases": (
+            "path traversal",
+            "directory traversal",
+            "improper limitation of a pathname",
+        ),
+        "description": (
+            "The product uses external input to construct a pathname that is intended "
+            "to identify a file or directory located underneath a restricted parent "
+            "directory, but does not properly neutralize '..' sequences."
+        ),
+        "url": "https://cwe.mitre.org/data/definitions/22.html",
+    },
+    "CWE-77": {
+        "id": "CWE-77",
+        "name": "Improper Neutralization of Special Elements used in a Command ('Command Injection')",
+        "short_name": "Command Injection",
+        "aliases": (
+            "command injection",
+            "improper neutralization of special elements used in a command",
+        ),
+        "description": (
+            "The product constructs all or part of a command using externally-influenced "
+            "input from an upstream component, but it does not neutralize or incorrectly "
+            "neutralizes special elements that could modify the intended command."
+        ),
+        "url": "https://cwe.mitre.org/data/definitions/77.html",
+    },
+    "CWE-78": {
+        "id": "CWE-78",
+        "name": "Improper Neutralization of Special Elements used in an OS Command ('OS Command Injection')",
+        "short_name": "OS Command Injection",
+        "aliases": (
+            "os command injection",
+            "command injection",
+            "improper neutralization of special elements used in an os command",
+        ),
+        "description": (
+            "The product constructs all or part of an OS command using externally-influenced "
+            "input from an upstream component, but it does not neutralize or incorrectly "
+            "neutralizes special elements that could modify the intended OS command."
+        ),
+        "url": "https://cwe.mitre.org/data/definitions/78.html",
+    },
+    "CWE-79": {
+        "id": "CWE-79",
+        "name": "Improper Neutralization of Input During Web Page Generation ('Cross-site Scripting')",
+        "short_name": "Cross-site Scripting",
+        "aliases": (
+            "cross-site scripting",
+            "xss",
+            "improper neutralization of input during web page generation",
+        ),
+        "description": (
+            "The product does not neutralize or incorrectly neutralizes user-controllable "
+            "input before it is placed in output that is used as a web page served to other users."
+        ),
+        "url": "https://cwe.mitre.org/data/definitions/79.html",
+    },
+    "CWE-89": {
+        "id": "CWE-89",
+        "name": "Improper Neutralization of Special Elements used in an SQL Command ('SQL Injection')",
+        "short_name": "SQL Injection",
+        "aliases": (
+            "sql injection",
+            "sqli",
+            "improper neutralization of special elements used in an sql command",
+        ),
+        "description": (
+            "The product constructs all or part of an SQL command using externally-influenced "
+            "input from an upstream component, but it does not neutralize or incorrectly "
+            "neutralizes special elements that could modify the intended SQL command."
+        ),
+        "url": "https://cwe.mitre.org/data/definitions/89.html",
+    },
+    "CWE-94": {
+        "id": "CWE-94",
+        "name": "Improper Control of Generation of Code ('Code Injection')",
+        "short_name": "Code Injection",
+        "aliases": (
+            "code injection",
+            "improper control of generation of code",
+        ),
+        "description": (
+            "The product constructs all or part of a code segment using externally-influenced "
+            "input from an upstream component, but does not neutralize special elements."
+        ),
+        "url": "https://cwe.mitre.org/data/definitions/94.html",
+    },
+    "CWE-119": {
+        "id": "CWE-119",
+        "name": "Improper Restriction of Operations within the Bounds of a Memory Buffer",
+        "short_name": "Buffer Overflow",
+        "aliases": (
+            "buffer overflow",
+            "memory buffer",
+            "out-of-bounds memory",
+            "improper restriction of operations within the bounds of a memory buffer",
+        ),
+        "description": (
+            "The product performs operations on a memory buffer, but it can read from or "
+            "write to a memory location that is outside of the intended boundary of the buffer."
+        ),
+        "url": "https://cwe.mitre.org/data/definitions/119.html",
+    },
+    "CWE-125": {
+        "id": "CWE-125",
+        "name": "Out-of-bounds Read",
+        "short_name": "Out-of-bounds Read",
+        "aliases": ("out-of-bounds read", "oob read", "buffer over-read"),
+        "description": (
+            "The product reads data past the end, or before the beginning, of the intended buffer."
+        ),
+        "url": "https://cwe.mitre.org/data/definitions/125.html",
+    },
+    "CWE-269": {
+        "id": "CWE-269",
+        "name": "Improper Privilege Management",
+        "short_name": "Improper Privilege Management",
+        "aliases": (
+            "improper privilege management",
+            "privilege management",
+            "privilege escalation",
+        ),
+        "description": (
+            "The product does not properly assign, modify, track, or check privileges "
+            "for an actor, creating an unintended sphere of control for that actor."
+        ),
+        "url": "https://cwe.mitre.org/data/definitions/269.html",
+    },
+    "CWE-287": {
+        "id": "CWE-287",
+        "name": "Improper Authentication",
+        "short_name": "Improper Authentication",
+        "aliases": (
+            "improper authentication",
+            "authentication bypass",
+            "auth bypass",
+        ),
+        "description": (
+            "When an actor claims to have a given identity, the product does not prove "
+            "or insufficiently proves that the claim is correct."
+        ),
+        "url": "https://cwe.mitre.org/data/definitions/287.html",
+    },
+    "CWE-306": {
+        "id": "CWE-306",
+        "name": "Missing Authentication for Critical Function",
+        "short_name": "Missing Authentication for Critical Function",
+        "aliases": (
+            "missing authentication for critical function",
+            "missing authentication",
+        ),
+        "description": (
+            "The product does not perform any authentication for functionality that "
+            "requires a provable user identity or consumes significant resources."
+        ),
+        "url": "https://cwe.mitre.org/data/definitions/306.html",
+    },
+    "CWE-416": {
+        "id": "CWE-416",
+        "name": "Use After Free",
+        "short_name": "Use After Free",
+        "aliases": ("use after free", "use-after-free", "uaf"),
+        "description": (
+            "The product reuses or references memory after it has been freed."
+        ),
+        "url": "https://cwe.mitre.org/data/definitions/416.html",
+    },
+    "CWE-502": {
+        "id": "CWE-502",
+        "name": "Deserialization of Untrusted Data",
+        "short_name": "Deserialization of Untrusted Data",
+        "aliases": (
+            "deserialization of untrusted data",
+            "insecure deserialization",
+            "untrusted deserialization",
+        ),
+        "description": (
+            "The product deserializes untrusted data without sufficiently verifying "
+            "that the resulting data will be valid."
+        ),
+        "url": "https://cwe.mitre.org/data/definitions/502.html",
+    },
+    "CWE-522": {
+        "id": "CWE-522",
+        "name": "Insufficiently Protected Credentials",
+        "short_name": "Insufficiently Protected Credentials",
+        "aliases": (
+            "insufficiently protected credentials",
+            "weak credential storage",
+            "unprotected credentials",
+        ),
+        "description": (
+            "The product transmits or stores authentication credentials, but it uses "
+            "an insecure method susceptible to unauthorized interception or retrieval."
+        ),
+        "url": "https://cwe.mitre.org/data/definitions/522.html",
+    },
+    "CWE-787": {
+        "id": "CWE-787",
+        "name": "Out-of-bounds Write",
+        "short_name": "Out-of-bounds Write",
+        "aliases": (
+            "out-of-bounds write",
+            "out-of-bounds write vulnerability",
+            "oob write",
+            "heap-based buffer overflow",
+        ),
+        "description": (
+            "The product writes data past the end, or before the beginning, of the intended buffer."
+        ),
+        "url": "https://cwe.mitre.org/data/definitions/787.html",
+    },
+    "CWE-798": {
+        "id": "CWE-798",
+        "name": "Use of Hard-coded Credentials",
+        "short_name": "Use of Hard-coded Credentials",
+        "aliases": (
+            "use of hard-coded credentials",
+            "hard-coded credentials",
+            "hardcoded credentials",
+        ),
+        "description": (
+            "The product contains hard-coded credentials, such as a password or cryptographic key."
+        ),
+        "url": "https://cwe.mitre.org/data/definitions/798.html",
+    },
+    "CWE-862": {
+        "id": "CWE-862",
+        "name": "Missing Authorization",
+        "short_name": "Missing Authorization",
+        "aliases": ("missing authorization", "unauthorized access"),
+        "description": (
+            "The product does not perform an authorization check when an actor attempts "
+            "to access a resource or perform an action."
+        ),
+        "url": "https://cwe.mitre.org/data/definitions/862.html",
+    },
+    "CWE-917": {
+        "id": "CWE-917",
+        "name": (
+            "Improper Neutralization of Special Elements used in an Expression "
+            "Language Statement ('Expression Language Injection')"
+        ),
+        "short_name": "Expression Language Injection",
+        "aliases": (
+            "expression language injection",
+            "jndi injection",
+            "improper neutralization of special elements used in an expression language statement",
+        ),
+        "description": (
+            "The product constructs all or part of an expression language statement "
+            "using externally-influenced input without neutralizing special elements."
+        ),
+        "url": "https://cwe.mitre.org/data/definitions/917.html",
+    },
+    "CWE-918": {
+        "id": "CWE-918",
+        "name": "Server-Side Request Forgery (SSRF)",
+        "short_name": "Server-Side Request Forgery (SSRF)",
+        "aliases": ("server-side request forgery", "ssrf"),
+        "description": (
+            "The web server receives a URL or similar request from an upstream component "
+            "and retrieves the contents of this URL without ensuring it is sent to the expected destination."
+        ),
+        "url": "https://cwe.mitre.org/data/definitions/918.html",
+    },
+}
+
+WAVED_D3FEND_KNOWLEDGE_BASE: dict[str, dict[str, Any]] = {
+    "D3-MFA": {
+        "id": "D3-MFA",
+        "name": "Multi-factor Authentication",
+        "artifact_name": "Multi-factorAuthentication",
+        "tactic": "Harden",
+        "aliases": (
+            "multi-factor authentication",
+            "multifactor authentication",
+            "mfa",
+        ),
+        "description": (
+            "Requiring two or more independent authentication factors to verify user "
+            "or service principal identity."
+        ),
+        "url": "https://d3fend.mitre.org/technique/d3f:Multi-factorAuthentication/",
+        "counters_attack_techniques": (
+            "T1078",
+            "T1078.001",
+            "T1078.002",
+            "T1078.003",
+            "T1078.004",
+            "T1110",
+            "T1550",
+            "T1550.001",
+            "T1550.004",
+            "T1556",
+            "T1190",
+        ),
+    },
+    "D3-PH": {
+        "id": "D3-PH",
+        "name": "Platform Hardening",
+        "artifact_name": "PlatformHardening",
+        "tactic": "Harden",
+        "aliases": ("platform hardening",),
+        "description": (
+            "Hardening operating system, cloud control-plane, and authentication "
+            "platform components against unauthorized modification and exploitation."
+        ),
+        "url": "https://d3fend.mitre.org/technique/d3f:PlatformHardening/",
+        "counters_attack_techniques": (
+            "T1078",
+            "T1078.004",
+            "T1098",
+            "T1098.001",
+            "T1098.003",
+            "T1190",
+            "T1556",
+            "T1068",
+        ),
+    },
+    "D3-NTF": {
+        "id": "D3-NTF",
+        "name": "Network Traffic Filtering",
+        "artifact_name": "NetworkTrafficFiltering",
+        "tactic": "Isolate",
+        "aliases": ("network traffic filtering", "traffic filtering"),
+        "description": (
+            "Filtering inbound or outbound network traffic at perimeter gateways "
+            "or host firewalls to block exploit payloads and unauthorized C2 channels."
+        ),
+        "url": "https://d3fend.mitre.org/technique/d3f:NetworkTrafficFiltering/",
+        "counters_attack_techniques": (
+            "T1190",
+            "T1059",
+            "T1059.001",
+            "T1059.003",
+            "T1059.004",
+            "T1071",
+            "T1133",
+            "T1505.003",
+        ),
+    },
+    "D3-SYSV": {
+        "id": "D3-SYSV",
+        "name": "System Call Analysis",
+        "artifact_name": "SystemCallAnalysis",
+        "tactic": "Detect",
+        "aliases": (
+            "system call analysis",
+            "syscall analysis",
+            "system call verification",
+        ),
+        "description": (
+            "Analyzing operating system calls and process execution sequences to "
+            "detect anomalous command invocation and post-exploitation behavior."
+        ),
+        "url": "https://d3fend.mitre.org/technique/d3f:SystemCallAnalysis/",
+        "counters_attack_techniques": (
+            "T1059",
+            "T1059.001",
+            "T1059.003",
+            "T1059.004",
+            "T1190",
+            "T1068",
+            "T1218",
+            "T1218.005",
+            "T1218.010",
+            "T1218.011",
+        ),
+    },
+    "D3-AL": {
+        "id": "D3-AL",
+        "name": "Account Locking",
+        "artifact_name": "AccountLocking",
+        "tactic": "Evict",
+        "aliases": ("account locking", "account disable", "account suspension"),
+        "description": (
+            "Disabling or locking a compromised user or service account to evict "
+            "an adversary and terminate active sessions."
+        ),
+        "url": "https://d3fend.mitre.org/technique/d3f:AccountLocking/",
+        "counters_attack_techniques": (
+            "T1078",
+            "T1078.001",
+            "T1078.002",
+            "T1078.003",
+            "T1078.004",
+            "T1098",
+            "T1098.001",
+            "T1098.003",
+            "T1110",
+            "T1550",
+            "T1550.004",
+        ),
+    },
+    "D3-IAA": {
+        "id": "D3-IAA",
+        "name": "Authentication Event Thresholding",
+        "artifact_name": "AuthenticationEventThresholding",
+        "tactic": "Detect",
+        "aliases": (
+            "authentication event thresholding",
+            "identity authentication analysis",
+            "identifier activity analysis",
+            "authentication analysis",
+        ),
+        "description": (
+            "Monitoring and thresholding authentication events, token issuance, and "
+            "session establishment to detect credential abuse and session hijacking."
+        ),
+        "url": "https://d3fend.mitre.org/technique/d3f:AuthenticationEventThresholding/",
+        "counters_attack_techniques": (
+            "T1078",
+            "T1078.001",
+            "T1078.002",
+            "T1078.003",
+            "T1078.004",
+            "T1110",
+            "T1550",
+            "T1550.001",
+            "T1550.002",
+            "T1550.004",
+            "T1556",
+        ),
+    },
+    "D3-ITF": {
+        "id": "D3-ITF",
+        "name": "Inbound Traffic Filtering",
+        "artifact_name": "InboundTrafficFiltering",
+        "tactic": "Isolate",
+        "aliases": ("inbound traffic filtering",),
+        "description": (
+            "Filtering inbound network requests at edge gateways, WAFs, or reverse "
+            "proxies to block malformed exploit requests targeting public-facing applications."
+        ),
+        "url": "https://d3fend.mitre.org/technique/d3f:InboundTrafficFiltering/",
+        "counters_attack_techniques": (
+            "T1190",
+            "T1133",
+            "T1505.003",
+            "T1059",
+        ),
+    },
+    "D3-DNSAL": {
+        "id": "D3-DNSAL",
+        "name": "DNS Allowlisting",
+        "artifact_name": "DNSAllowlisting",
+        "tactic": "Isolate",
+        "aliases": ("dns allowlisting", "domain allowlisting"),
+        "description": (
+            "Restricting outbound DNS resolution strictly to an allowlist of approved domain names."
+        ),
+        "url": "https://d3fend.mitre.org/technique/d3f:DNSAllowlisting/",
+        "counters_attack_techniques": (
+            "T1071.004",
+            "T1568",
+            "T1572",
+        ),
+    },
+    "D3-FEI": {
+        "id": "D3-FEI",
+        "name": "Executable Allowlisting",
+        "artifact_name": "ExecutableAllowlisting",
+        "tactic": "Harden",
+        "aliases": (
+            "executable allowlisting",
+            "file execution inhibition",
+            "file encryption",
+        ),
+        "description": (
+            "Restricting execution to allowlisted binaries and blocking unauthorized "
+            "payload execution or deserialization gadgets."
+        ),
+        "url": "https://d3fend.mitre.org/technique/d3f:ExecutableAllowlisting/",
+        "counters_attack_techniques": (
+            "T1190",
+            "T1059",
+            "T1059.001",
+            "T1059.003",
+            "T1059.004",
+            "T1218",
+            "T1218.010",
+            "T1218.011",
+        ),
+    },
+    "D3-PSA": {
+        "id": "D3-PSA",
+        "name": "Process Spawn Analysis",
+        "artifact_name": "ProcessSpawnAnalysis",
+        "tactic": "Detect",
+        "aliases": ("process spawn analysis", "process lineage analysis"),
+        "description": (
+            "Analyzing parent-child process execution trees to detect anomalous "
+            "interpreter invocation, LOLBin proxy execution, and credential dumping."
+        ),
+        "url": "https://d3fend.mitre.org/technique/d3f:ProcessSpawnAnalysis/",
+        "counters_attack_techniques": (
+            "T1059",
+            "T1059.001",
+            "T1059.003",
+            "T1059.004",
+            "T1218",
+            "T1218.005",
+            "T1218.010",
+            "T1218.011",
+            "T1003",
+            "T1003.001",
+            "T1003.002",
+            "T1003.003",
+            "T1190",
+        ),
+    },
+    "D3-SPP": {
+        "id": "D3-SPP",
+        "name": "System Daemon Monitoring",
+        "artifact_name": "SystemDaemonMonitoring",
+        "tactic": "Detect",
+        "aliases": ("system daemon monitoring", "service process protection"),
+        "description": (
+            "Monitoring critical system daemons and authentication services (such as "
+            "LSASS) for unauthorized memory access or tampering."
+        ),
+        "url": "https://d3fend.mitre.org/technique/d3f:SystemDaemonMonitoring/",
+        "counters_attack_techniques": (
+            "T1003",
+            "T1003.001",
+            "T1003.002",
+            "T1003.003",
+            "T1543",
+            "T1556",
+        ),
+    },
+    "D3-SU": {
+        "id": "D3-SU",
+        "name": "Software Update",
+        "artifact_name": "SoftwareUpdate",
+        "tactic": "Harden",
+        "aliases": ("software update", "patch management", "security patching"),
+        "description": (
+            "Updating software or firmware to remediate known vulnerabilities (CVEs) "
+            "and underlying CWE weaknesses."
+        ),
+        "url": "https://d3fend.mitre.org/technique/d3f:SoftwareUpdate/",
+        "counters_attack_techniques": (
+            "T1190",
+            "T1068",
+            "T1210",
+        ),
+    },
+}
+
+
+def d3fend_technique_url(d3fend_id: str) -> str:
+    """Converts a MITRE D3FEND ID (e.g. ``D3-MFA`` or ``D3-NTF``) to its canonical ``d3fend.mitre.org`` URL."""
+    cleaned = str(d3fend_id or "").strip().upper()
+    info = WAVED_D3FEND_KNOWLEDGE_BASE.get(cleaned)
+    if info and info.get("url"):
+        return str(info["url"])
+    suffix = cleaned[len("D3-") :] if cleaned.startswith("D3-") else cleaned
+    return f"{MITRE_D3FEND_BASE_URL}{suffix}/"
+
+
+WAVED_ONTOLOGY_CHAINS: dict[str, dict[str, Any]] = {
+    "CVE-2024-3400": {
+        "cve_id": "CVE-2024-3400",
+        "vendor": "Palo Alto Networks",
+        "product": "PAN-OS GlobalProtect",
+        "vulnerability_name": "Palo Alto Networks PAN-OS GlobalProtect OS Command Injection Vulnerability",
+        "cwe_ids": ("CWE-78", "CWE-77", "CWE-20"),
+        "primary_cwe": "CWE-78",
+        "attack_techniques": ("T1190", "T1059", "T1059.004", "T1505.003"),
+        "primary_attack": "T1190",
+        "d3fend_techniques": ("D3-NTF", "D3-SYSV", "D3-ITF", "D3-PSA", "D3-SU"),
+        "primary_d3fend": "D3-NTF",
+    },
+    "CVE-2023-4966": {
+        "cve_id": "CVE-2023-4966",
+        "vendor": "Citrix",
+        "product": "NetScaler ADC and NetScaler Gateway",
+        "vulnerability_name": "Citrix NetScaler ADC/Gateway Buffer Over-read Vulnerability (CitrixBleed)",
+        "cwe_ids": ("CWE-119", "CWE-125", "CWE-287"),
+        "primary_cwe": "CWE-119",
+        "attack_techniques": ("T1190", "T1550", "T1550.004", "T1078"),
+        "primary_attack": "T1190",
+        "d3fend_techniques": ("D3-MFA", "D3-IAA", "D3-ITF", "D3-AL", "D3-SU"),
+        "primary_d3fend": "D3-IAA",
+    },
+    "CVE-2021-44228": {
+        "cve_id": "CVE-2021-44228",
+        "vendor": "Apache",
+        "product": "Log4j2",
+        "vulnerability_name": "Apache Log4j2 JNDI Remote Code Execution Vulnerability (Log4Shell)",
+        "cwe_ids": ("CWE-502", "CWE-917", "CWE-20"),
+        "primary_cwe": "CWE-502",
+        "attack_techniques": ("T1190", "T1059"),
+        "primary_attack": "T1190",
+        "d3fend_techniques": ("D3-NTF", "D3-FEI", "D3-ITF", "D3-SYSV", "D3-SU"),
+        "primary_d3fend": "D3-NTF",
+    },
+    "CVE-2024-21762": {
+        "cve_id": "CVE-2024-21762",
+        "vendor": "Fortinet",
+        "product": "FortiOS SSL VPN",
+        "vulnerability_name": "Fortinet FortiOS Out-of-Bounds Write Vulnerability",
+        "cwe_ids": ("CWE-787", "CWE-119"),
+        "primary_cwe": "CWE-787",
+        "attack_techniques": ("T1190", "T1059", "T1133"),
+        "primary_attack": "T1190",
+        "d3fend_techniques": ("D3-NTF", "D3-ITF", "D3-SYSV", "D3-SU"),
+        "primary_d3fend": "D3-ITF",
+    },
+    "CVE-2024-21887": {
+        "cve_id": "CVE-2024-21887",
+        "vendor": "Ivanti",
+        "product": "Connect Secure and Policy Secure",
+        "vulnerability_name": "Ivanti Connect Secure and Policy Secure Command Injection Vulnerability",
+        "cwe_ids": ("CWE-78", "CWE-77"),
+        "primary_cwe": "CWE-78",
+        "attack_techniques": ("T1190", "T1059", "T1059.004"),
+        "primary_attack": "T1190",
+        "d3fend_techniques": ("D3-NTF", "D3-SYSV", "D3-ITF", "D3-PSA", "D3-SU"),
+        "primary_d3fend": "D3-NTF",
+    },
+    "CVE-2023-46805": {
+        "cve_id": "CVE-2023-46805",
+        "vendor": "Ivanti",
+        "product": "Connect Secure and Policy Secure",
+        "vulnerability_name": "Ivanti Connect Secure and Policy Secure Authentication Bypass Vulnerability",
+        "cwe_ids": ("CWE-287", "CWE-306"),
+        "primary_cwe": "CWE-287",
+        "attack_techniques": ("T1190", "T1078"),
+        "primary_attack": "T1190",
+        "d3fend_techniques": ("D3-MFA", "D3-IAA", "D3-ITF", "D3-PH", "D3-SU"),
+        "primary_d3fend": "D3-MFA",
+    },
+}
+
+WAVED_ATTACK_TO_CWE_AND_D3FEND_MAP: dict[str, dict[str, Any]] = {
+    "T1190": {
+        "valid_cwe_ids": (
+            "CWE-78",
+            "CWE-77",
+            "CWE-79",
+            "CWE-89",
+            "CWE-94",
+            "CWE-119",
+            "CWE-125",
+            "CWE-287",
+            "CWE-306",
+            "CWE-416",
+            "CWE-502",
+            "CWE-787",
+            "CWE-917",
+            "CWE-918",
+            "CWE-20",
+            "CWE-22",
+        ),
+        "primary_cwe": "CWE-78",
+        "valid_d3fend_ids": (
+            "D3-NTF",
+            "D3-ITF",
+            "D3-SYSV",
+            "D3-PSA",
+            "D3-MFA",
+            "D3-IAA",
+            "D3-FEI",
+            "D3-PH",
+            "D3-SU",
+        ),
+        "primary_d3fend": "D3-NTF",
+    },
+    "T1059": {
+        "valid_cwe_ids": ("CWE-78", "CWE-77", "CWE-94", "CWE-20", "CWE-502", "CWE-917"),
+        "primary_cwe": "CWE-78",
+        "valid_d3fend_ids": ("D3-SYSV", "D3-PSA", "D3-NTF", "D3-ITF", "D3-FEI"),
+        "primary_d3fend": "D3-SYSV",
+    },
+    "T1059.001": {
+        "valid_cwe_ids": ("CWE-78", "CWE-77", "CWE-94", "CWE-20"),
+        "primary_cwe": "CWE-78",
+        "valid_d3fend_ids": ("D3-SYSV", "D3-PSA", "D3-NTF", "D3-FEI"),
+        "primary_d3fend": "D3-PSA",
+    },
+    "T1059.003": {
+        "valid_cwe_ids": ("CWE-78", "CWE-77", "CWE-94", "CWE-20"),
+        "primary_cwe": "CWE-78",
+        "valid_d3fend_ids": ("D3-SYSV", "D3-PSA", "D3-NTF", "D3-FEI"),
+        "primary_d3fend": "D3-PSA",
+    },
+    "T1059.004": {
+        "valid_cwe_ids": ("CWE-78", "CWE-77", "CWE-94", "CWE-20"),
+        "primary_cwe": "CWE-78",
+        "valid_d3fend_ids": ("D3-SYSV", "D3-PSA", "D3-NTF", "D3-FEI"),
+        "primary_d3fend": "D3-SYSV",
+    },
+    "T1078": {
+        "valid_cwe_ids": ("CWE-287", "CWE-306", "CWE-522", "CWE-798", "CWE-269", "CWE-862"),
+        "primary_cwe": "CWE-287",
+        "valid_d3fend_ids": ("D3-MFA", "D3-IAA", "D3-AL", "D3-PH"),
+        "primary_d3fend": "D3-MFA",
+    },
+    "T1078.001": {
+        "valid_cwe_ids": ("CWE-287", "CWE-306", "CWE-522", "CWE-798"),
+        "primary_cwe": "CWE-287",
+        "valid_d3fend_ids": ("D3-MFA", "D3-IAA", "D3-AL", "D3-PH"),
+        "primary_d3fend": "D3-MFA",
+    },
+    "T1078.002": {
+        "valid_cwe_ids": ("CWE-287", "CWE-306", "CWE-522", "CWE-798"),
+        "primary_cwe": "CWE-287",
+        "valid_d3fend_ids": ("D3-MFA", "D3-IAA", "D3-AL", "D3-PH"),
+        "primary_d3fend": "D3-MFA",
+    },
+    "T1078.003": {
+        "valid_cwe_ids": ("CWE-287", "CWE-306", "CWE-522", "CWE-798"),
+        "primary_cwe": "CWE-287",
+        "valid_d3fend_ids": ("D3-MFA", "D3-IAA", "D3-AL", "D3-PH"),
+        "primary_d3fend": "D3-MFA",
+    },
+    "T1078.004": {
+        "valid_cwe_ids": ("CWE-287", "CWE-306", "CWE-522", "CWE-798", "CWE-269", "CWE-862"),
+        "primary_cwe": "CWE-287",
+        "valid_d3fend_ids": ("D3-MFA", "D3-IAA", "D3-AL", "D3-PH"),
+        "primary_d3fend": "D3-MFA",
+    },
+    "T1098": {
+        "valid_cwe_ids": ("CWE-269", "CWE-287", "CWE-862", "CWE-522"),
+        "primary_cwe": "CWE-269",
+        "valid_d3fend_ids": ("D3-AL", "D3-PH", "D3-IAA", "D3-MFA"),
+        "primary_d3fend": "D3-AL",
+    },
+    "T1098.001": {
+        "valid_cwe_ids": ("CWE-269", "CWE-287", "CWE-862", "CWE-522"),
+        "primary_cwe": "CWE-269",
+        "valid_d3fend_ids": ("D3-AL", "D3-PH", "D3-IAA", "D3-MFA"),
+        "primary_d3fend": "D3-AL",
+    },
+    "T1098.003": {
+        "valid_cwe_ids": ("CWE-269", "CWE-287", "CWE-862"),
+        "primary_cwe": "CWE-269",
+        "valid_d3fend_ids": ("D3-AL", "D3-PH", "D3-IAA", "D3-MFA"),
+        "primary_d3fend": "D3-PH",
+    },
+    "T1550": {
+        "valid_cwe_ids": ("CWE-287", "CWE-119", "CWE-125", "CWE-522"),
+        "primary_cwe": "CWE-287",
+        "valid_d3fend_ids": ("D3-MFA", "D3-IAA", "D3-AL"),
+        "primary_d3fend": "D3-IAA",
+    },
+    "T1550.002": {
+        "valid_cwe_ids": ("CWE-287", "CWE-522"),
+        "primary_cwe": "CWE-287",
+        "valid_d3fend_ids": ("D3-MFA", "D3-IAA", "D3-AL"),
+        "primary_d3fend": "D3-IAA",
+    },
+    "T1550.004": {
+        "valid_cwe_ids": ("CWE-287", "CWE-119", "CWE-125", "CWE-522"),
+        "primary_cwe": "CWE-119",
+        "valid_d3fend_ids": ("D3-MFA", "D3-IAA", "D3-AL", "D3-ITF"),
+        "primary_d3fend": "D3-IAA",
+    },
+    "T1556": {
+        "valid_cwe_ids": ("CWE-287", "CWE-306", "CWE-269"),
+        "primary_cwe": "CWE-287",
+        "valid_d3fend_ids": ("D3-MFA", "D3-IAA", "D3-PH", "D3-SPP"),
+        "primary_d3fend": "D3-MFA",
+    },
+    "T1003": {
+        "valid_cwe_ids": ("CWE-522", "CWE-287", "CWE-269"),
+        "primary_cwe": "CWE-522",
+        "valid_d3fend_ids": ("D3-PSA", "D3-SPP", "D3-PH", "D3-AL"),
+        "primary_d3fend": "D3-SPP",
+    },
+    "T1003.001": {
+        "valid_cwe_ids": ("CWE-522", "CWE-287", "CWE-269"),
+        "primary_cwe": "CWE-522",
+        "valid_d3fend_ids": ("D3-PSA", "D3-SPP", "D3-PH"),
+        "primary_d3fend": "D3-SPP",
+    },
+    "T1003.002": {
+        "valid_cwe_ids": ("CWE-522", "CWE-287", "CWE-269"),
+        "primary_cwe": "CWE-522",
+        "valid_d3fend_ids": ("D3-PSA", "D3-SPP", "D3-PH"),
+        "primary_d3fend": "D3-SPP",
+    },
+    "T1003.003": {
+        "valid_cwe_ids": ("CWE-522", "CWE-287", "CWE-269"),
+        "primary_cwe": "CWE-522",
+        "valid_d3fend_ids": ("D3-PSA", "D3-SPP", "D3-PH"),
+        "primary_d3fend": "D3-SPP",
+    },
+    "T1485": {
+        "valid_cwe_ids": ("CWE-269", "CWE-862", "CWE-287"),
+        "primary_cwe": "CWE-862",
+        "valid_d3fend_ids": ("D3-AL", "D3-PH", "D3-FEI"),
+        "primary_d3fend": "D3-PH",
+    },
+}
+
 
 VALID_UDM_TOP_LEVEL_PREFIXES: tuple[str, ...] = (
     "metadata",
@@ -1933,6 +2774,21 @@ def _is_trusted_domain(url: str, trusted_domains: tuple[str, ...]) -> bool:
     if not host or host in _CLOUD_IMDS_HOSTS:
         return False
     return any(host == dom or host.endswith("." + dom) for dom in trusted_domains)
+
+
+def validate_url_against_domain_allowlist(
+    url: str,
+    trusted_domains: tuple[str, ...] = DEFAULT_TRUSTED_DOC_DOMAINS,
+) -> bool:
+    """Validates that ``url`` uses ``https``/``http`` and belongs to :data:`DEFAULT_TRUSTED_DOC_DOMAINS`."""
+    try:
+        parsed = urlparse(str(url or "").strip())
+    except ValueError:
+        return False
+    if parsed.scheme.lower() not in ("https", "http"):
+        return False
+    return _is_trusted_domain(str(url).strip(), trusted_domains)
+
 
 
 def find_deterministic_indicator_spans(
@@ -14001,6 +14857,7 @@ def review_google_doc_with_stage_a(
     include_claim_campaign_stage_a: bool = False,
     include_tdo_coverage_stage_a: bool = False,
     include_runbook_promotion_stage_a: bool = False,
+    include_waved_ontology_stage_a: bool = False,
     verify_yaral2_meta_mitre: bool = False,
     synthesize_yaral2_missing_meta: bool = False,
     verify_yaral2_meta_runbook: bool = False,
@@ -14025,14 +14882,17 @@ def review_google_doc_with_stage_a(
        :func:`find_claim_evidence_and_campaign_spans` when
        ``include_claim_campaign_stage_a=True``,
        :func:`find_detection_coverage_and_tdo_spans` when
-       ``include_tdo_coverage_stage_a=True``, and
+       ``include_tdo_coverage_stage_a=True``,
        :func:`find_runbook_promotion_readiness_spans` when
-       ``include_runbook_promotion_stage_a=True``)
+       ``include_runbook_promotion_stage_a=True``, and
+       :func:`find_waved_ontology_review_spans` when
+       ``include_waved_ontology_stage_a=True``)
        to locate leaked credentials, destructive/ineffective containment CLIs,
        unredacted telemetry payloads/secrets, live untrusted URLs,
        standalone Chronicle UDM field defects, YARA-L 2.0 rule defects,
        MITRE ATT&CK / CVE defects, narrative claim/campaign defects,
-       Detection Coverage / TDO defects, and case-specific runbook IoC leakage
+       Detection Coverage / TDO defects, case-specific runbook IoC leakage, and
+       WAVED Cyber Ontology (CWE-CVE-ATT&CK-D3FEND) defects
        by numeric UTF-16 span without echoing them through an LLM.
     3. Deduplicates Stage A spans against overlapping Stage B
        ``semantic_comments`` and ``semantic_edits`` and skips any span that
@@ -14275,6 +15135,26 @@ def review_google_doc_with_stage_a(
                 deduped_runbook_promotion_edits.append(e_item)
                 existing_edit_spans.append(e_span)
 
+    stage_a_waved_ontology_count = 0
+    deduped_waved_ontology_comments: list[dict[str, Any]] = []
+    deduped_waved_ontology_edits: list[dict[str, Any]] = []
+    waved_report = analyze_waved_ontology_graph(plain_text, index_map=index_map)
+    if include_waved_ontology_stage_a:
+        wo_comments, wo_edits, wo_findings = find_waved_ontology_review_spans(
+            plain_text, index_map, doc=raw_doc
+        )
+        stage_a_waved_ontology_count = len(wo_findings)
+        for c_item in wo_comments:
+            c_span = (c_item["start_index"], c_item["end_index"])
+            if not any(_spans_overlap(c_span, ex) for ex in existing_comment_spans):
+                deduped_waved_ontology_comments.append(c_item)
+                existing_comment_spans.append(c_span)
+        for e_item in wo_edits:
+            e_span = (e_item["start_index"], e_item["end_index"])
+            if not any(_spans_overlap(e_span, ex) for ex in existing_edit_spans):
+                deduped_waved_ontology_edits.append(e_item)
+                existing_edit_spans.append(e_span)
+
     raw_all_comments = (
         deduped_credential_containment_comments
         + deduped_telemetry_comments
@@ -14285,6 +15165,7 @@ def review_google_doc_with_stage_a(
         + deduped_claim_campaign_comments
         + deduped_tdo_coverage_comments
         + deduped_runbook_promotion_comments
+        + deduped_waved_ontology_comments
         + stage_b_comments
     )
     raw_all_edits = (
@@ -14297,6 +15178,7 @@ def review_google_doc_with_stage_a(
         + deduped_claim_campaign_edits
         + deduped_tdo_coverage_edits
         + deduped_runbook_promotion_edits
+        + deduped_waved_ontology_edits
         + stage_b_edits
     )
 
@@ -14369,11 +15251,24 @@ def review_google_doc_with_stage_a(
         "stage_a_claim_campaign_count": stage_a_claim_campaign_count,
         "stage_a_tdo_coverage_count": stage_a_tdo_coverage_count,
         "stage_a_runbook_promotion_count": stage_a_runbook_promotion_count,
+        "stage_a_waved_ontology_count": stage_a_waved_ontology_count,
         "stage_a_italic_regex_count": stage_a_italic_regex_count,
+        "waved_ontology_verification": {
+            "status": (
+                "verified"
+                if int(waved_report.get("defect_count", 0) or 0) == 0
+                else "defects_found"
+            ),
+            "waved_completeness_score": waved_report.get("waved_completeness_score", 0.0),
+            "defect_count": int(waved_report.get("defect_count", 0) or 0),
+            "verified_span_count": int(waved_report.get("verified_span_count", 0) or 0),
+            "layer_coverage": waved_report.get("layer_coverage", {}),
+        },
         "skipped_existing_suggestion_count": skipped_existing_suggestion_count,
         "comments": comments_res,
         "edits": edits_res,
     }
+
 
 
 def stage_runbook_update_as_google_doc(
@@ -21436,6 +22331,101 @@ SEEDED_INFOSEC_REVIEW_BENCHMARK_SCENARIOS: tuple[dict[str, Any], ...] = (
     },
 )
 
+EXTENDED_NIGHT2_BENCHMARK_SCENARIOS: tuple[dict[str, Any], ...] = (
+    {
+        "scenario_id": "BENCH-07-WAVED-ONTOLOGY-CWE-CVE-ATTACK-D3FEND",
+        "title": "WAVED Cyber Ontology (akbar-2023) CWE-to-CVE-to-ATT&CK-to-D3FEND Graph & Span Verification",
+        "horizons": ("H21",),
+        "review_kwargs": {
+            "include_telemetry_hazard_stage_a": False,
+            "include_credential_containment_stage_a": False,
+            "include_udm_stage_a": False,
+            "include_yaral2_stage_a": False,
+            "include_mitre_cve_stage_a": False,
+            "include_waved_ontology_stage_a": True,
+        },
+        "markdown_content": (
+            "# WAVED Cyber Ontology Advisory & Detection Engineering Runbook\n\n"
+            "## Valid Negative Control 4-Layer WAVED Chain\n"
+            "- Verified CitrixBleed Chain: CVE-2023-4966 mapped to CWE-119 (Buffer Overflow), T1550.004 (Web Session Cookie), and D3-IAA (Authentication Event Thresholding).\n\n"
+            "## Seeded WAVED Ontology Span & Graph Defects\n"
+            "- Seeded CWE Label Mismatch: Root weakness identified as CWE-78 (SQL Injection) in edge gateway telemetry.\n"
+            "- Seeded D3FEND Label Mismatch: Deploy countermeasure D3-MFA (Network Traffic Filtering) across identity providers.\n"
+            "- Seeded WAVED Chain Inconsistencies: Pairing CVE-2024-3400 with CWE-89 (SQL Injection) and pairing T1078 (Valid Accounts) with incompatible defense D3-DNSAL (DNS Allowlisting).\n\n"
+            "## Chronicle SIEM YARA-L 2.0 (YL2) Detection Rule with Mismatched WAVED Metadata\n"
+            "```yaral\n"
+            "rule panos_globalprotect_cve_2024_3400_waved {\n"
+            "  meta:\n"
+            '    author = "SecOps Detection Engineering"\n'
+            '    cve_id = "CVE-2024-3400"\n'
+            '    cwe_id = "CWE-89"\n'
+            '    mitre_attack_technique = "T1190"\n'
+            '    d3fend_technique = "D3-DNSAL"\n'
+            '    severity = "CRITICAL"\n'
+            "  events:\n"
+            '    $e.metadata.event_type = "PROCESS_LAUNCH"\n'
+            '    $e.target.process.command_line = /.*unmarshal.*/ nocase\n'
+            "  condition:\n"
+            "    $e\n"
+            "}\n"
+            "```\n"
+        ),
+        "expected_defects": (
+            {
+                "defect_id": "bench07-cwe-label-mismatch",
+                "horizon": "H21",
+                "ablation_tier": "grounding",
+                "is_safety_refusal": False,
+                "expected_deleted_substring": "CWE-78 (SQL Injection)",
+                "expected_inserted_substring": "CWE-78 (OS Command Injection)",
+            },
+            {
+                "defect_id": "bench07-d3fend-label-mismatch",
+                "horizon": "H21",
+                "ablation_tier": "grounding",
+                "is_safety_refusal": False,
+                "expected_deleted_substring": "D3-MFA (Network Traffic Filtering)",
+                "expected_inserted_substring": "D3-MFA (Multi-factor Authentication)",
+            },
+            {
+                "defect_id": "bench07-waved-cve-cwe-mismatch",
+                "horizon": "H21",
+                "ablation_tier": "grounding",
+                "is_safety_refusal": False,
+                "expected_deleted_substring": "CWE-89 (SQL Injection)",
+                "expected_inserted_substring": "CWE-78 (OS Command Injection)",
+            },
+            {
+                "defect_id": "bench07-waved-attack-d3fend-mismatch",
+                "horizon": "H21",
+                "ablation_tier": "grounding",
+                "is_safety_refusal": False,
+                "expected_deleted_substring": "D3-DNSAL (DNS Allowlisting)",
+                "expected_inserted_substring": "D3-MFA (Multi-factor Authentication)",
+            },
+            {
+                "defect_id": "bench07-yaral2-meta-cwe-mismatch",
+                "horizon": "H21",
+                "ablation_tier": "grounding",
+                "is_safety_refusal": False,
+                "expected_deleted_substring": "CWE-89",
+                "expected_inserted_substring": "CWE-78",
+            },
+            {
+                "defect_id": "bench07-yaral2-meta-d3fend-mismatch",
+                "horizon": "H21",
+                "ablation_tier": "grounding",
+                "is_safety_refusal": False,
+                "expected_deleted_substring": "D3-DNSAL",
+                "expected_inserted_substring": "D3-NTF",
+            },
+        ),
+        "negative_control_substrings": (
+            "CVE-2023-4966 mapped to CWE-119 (Buffer Overflow), T1550.004 (Web Session Cookie), and D3-IAA (Authentication Event Thresholding)",
+        ),
+    },
+)
+
 
 class _BenchmarkTokenSource:
     """Deterministic offline token source for :class:`LocalGoogleDocsSimulator`."""
@@ -21466,18 +22456,33 @@ def evaluate_infosec_doc_reviewer(
       and live integration with :func:`audit_runbook_promotion_readiness`.
 
     Args:
-        scenario_ids: ``"all"`` (default), comma-separated scenario IDs, or JSON list of scenario IDs.
+        scenario_ids: ``"all"`` (default, 6 core scenarios), ``"all_with_night2"`` (all core + Night-2 scenarios),
+            comma-separated scenario IDs, or JSON list of scenario IDs.
         include_hda_ablation: When ``True``, computes 4-way Harness-Delta Attribution
             (``delta_G``, ``delta_T``, ``delta_A``) and evaluates :func:`audit_runbook_promotion_readiness`
             on both the generalized candidate runbook and an unparameterized overfitting control.
         output_report_path: Optional filesystem path to write the Markdown benchmark scorecard.
     """
-    selected_filter = _normalize_suggestion_ids(scenario_ids)
-    scenarios = [
-        sc
-        for sc in SEEDED_INFOSEC_REVIEW_BENCHMARK_SCENARIOS
-        if selected_filter is None or sc["scenario_id"] in selected_filter
-    ]
+    norm_ids_str = str(scenario_ids or "").strip().lower()
+    if norm_ids_str in ("all_with_night2", "night2_all", "extended"):
+        scenarios = list(
+            SEEDED_INFOSEC_REVIEW_BENCHMARK_SCENARIOS
+            + EXTENDED_NIGHT2_BENCHMARK_SCENARIOS
+        )
+    else:
+        selected_filter = _normalize_suggestion_ids(scenario_ids)
+        if selected_filter is None:
+            scenarios = list(SEEDED_INFOSEC_REVIEW_BENCHMARK_SCENARIOS)
+        else:
+            combined_pool = (
+                SEEDED_INFOSEC_REVIEW_BENCHMARK_SCENARIOS
+                + EXTENDED_NIGHT2_BENCHMARK_SCENARIOS
+            )
+            scenarios = [
+                sc
+                for sc in combined_pool
+                if sc["scenario_id"] in selected_filter
+            ]
     if not scenarios:
         return {
             "status": "error",
@@ -21899,3 +22904,1659 @@ def evaluate_infosec_doc_reviewer(
         "benchmark_markdown": benchmark_markdown,
         "output_report_path": saved_report_path,
     }
+
+
+def _extract_waved_text_and_index_map(
+    doc_or_text: dict[str, Any] | str,
+    index_map: list[int] | None = None,
+) -> tuple[str, list[int]]:
+    """Extracts ``(plain_text, index_map)`` from either a Google Docs API v1 ``dict``
+    payload or a raw ``str`` with 1-based UTF-16 ``startIndex`` coordinates."""
+    if isinstance(doc_or_text, str):
+        plain_text = doc_or_text
+        if index_map is not None and len(index_map) == len(plain_text):
+            return plain_text, list(index_map)
+        return plain_text, _build_utf16_index_map(plain_text)
+
+    if not isinstance(doc_or_text, dict):
+        return "", []
+
+    tabs = doc_or_text.get("tabs", [])
+    if tabs:
+        body = tabs[0].get("documentTab", {}).get("body", {})
+    else:
+        body = doc_or_text.get("body", {})
+
+    chars: list[str] = []
+    out_map: list[int] = []
+    running_utf16 = 1
+
+    def _walk(elements: list[dict[str, Any]]) -> None:
+        nonlocal running_utf16
+        for element in elements:
+            if "paragraph" in element:
+                for pe in element["paragraph"].get("elements", []):
+                    text_run = pe.get("textRun")
+                    if not text_run:
+                        continue
+                    ins_ids = [
+                        str(x)
+                        for x in (text_run.get("suggestedInsertionIds") or [])
+                        if x
+                    ]
+                    if ins_ids:
+                        continue
+                    content = str(text_run.get("content", "") or "")
+                    if pe.get("startIndex") is not None:
+                        start_idx = int(pe["startIndex"])
+                    elif text_run.get("startIndex") is not None:
+                        start_idx = int(text_run["startIndex"])
+                    else:
+                        start_idx = running_utf16
+                    utf16_offset = 0
+                    for ch in content:
+                        chars.append(ch)
+                        out_map.append(start_idx + utf16_offset)
+                        utf16_offset += _utf16_code_unit_len(ch)
+                    running_utf16 = max(running_utf16, start_idx + utf16_offset)
+            elif "table" in element:
+                for row in element["table"].get("tableRows", []):
+                    for cell in row.get("tableCells", []):
+                        _walk(cell.get("content", []))
+
+    _walk(body.get("content", []))
+    return "".join(chars), out_map
+
+
+def _extract_balanced_inline_label(
+    plain_text: str,
+    id_char_end: int,
+    line_end: int,
+) -> tuple[str, int, int]:
+    """Extracts an optional balanced parenthetical label ``(...)`` immediately following
+    an ontology identifier at ``id_char_end`` on the same line."""
+    cur = id_char_end
+    while cur < line_end and plain_text[cur] in (" ", "\t"):
+        cur += 1
+    if cur >= line_end or plain_text[cur] != "(":
+        return "", id_char_end, id_char_end
+
+    open_paren = cur
+    depth = 0
+    for idx in range(open_paren, line_end):
+        ch = plain_text[idx]
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                label = plain_text[open_paren + 1 : idx].strip()
+                return label, open_paren, idx + 1
+    return "", id_char_end, id_char_end
+
+
+def find_waved_ontology_spans(
+    doc_or_text: dict[str, Any] | str,
+    index_map: list[int] | None = None,
+) -> list[dict[str, Any]]:
+    """Scans a Google Docs API v1 document payload or raw text for WAVED Cyber Ontology
+    (``akbar-2023``) spans across all 4 layers:
+    - Weakness: ``CWE-\\d+``
+    - Vulnerability: ``CVE-\\d{4}-\\d{4,7}``
+    - Exploit: ``T\\d{4}(?:\\.\\d{3})?``
+    - Defense: ``D3-[A-Z0-9]{2,8}``
+
+    Also parses Chronicle SIEM YARA-L 2.0 (``YL2``) ``meta:`` blocks (distinguished
+    from standard file/payload YARA) to annotate spans with ``in_yaral2_rule``,
+    ``yaral2_rule_name``, and ``yaral2_meta_key``.
+    """
+    plain_text, resolved_map = _extract_waved_text_and_index_map(
+        doc_or_text, index_map=index_map
+    )
+    if not plain_text or not resolved_map:
+        return []
+
+    rule_blocks = _iter_yaral2_rule_blocks(plain_text)
+    rule_meta_lookup: list[tuple[int, int, str, dict[str, dict[str, Any]]]] = []
+    for rb in rule_blocks:
+        r_start = int(rb["char_start"])
+        r_end = int(rb["char_end"])
+        r_name = str(rb["rule_name"])
+        m_spec = extract_yaral2_meta_spec(
+            str(rb["rule_text"]),
+            rule_char_start=r_start,
+            full_plain_text=plain_text,
+            index_map=resolved_map,
+        )
+        rule_meta_lookup.append(
+            (r_start, r_end, r_name, dict(m_spec.get("entries_by_key") or {}))
+        )
+
+    pattern_specs: tuple[tuple[re.Pattern[str], str, str, str], ...] = (
+        (_CWE_ID_RE, "weakness", "W", "CWE"),
+        (_CVE_ID_RE, "vulnerability", "V", "CVE"),
+        (_MITRE_TECHNIQUE_RE, "exploit", "E", "ATTACK"),
+        (_D3FEND_ID_RE, "defense", "D", "D3FEND"),
+    )
+
+    spans: list[dict[str, Any]] = []
+    for regex, layer_name, waved_code, entity_type in pattern_specs:
+        for m in regex.finditer(plain_text):
+            raw_tok = m.group(1)
+            ident = raw_tok.upper()
+            c_start = m.start(1)
+            c_end = m.end(1)
+            if c_start < 0 or c_end > len(resolved_map) or c_end <= c_start:
+                continue
+
+            line_start = plain_text.rfind("\n", 0, c_start) + 1
+            line_end = plain_text.find("\n", c_end)
+            if line_end == -1:
+                line_end = len(plain_text)
+
+            inline_label, _lbl_c_start, full_c_end = _extract_balanced_inline_label(
+                plain_text, c_end, line_end
+            )
+
+            start_idx = int(resolved_map[c_start])
+            end_idx = int(
+                resolved_map[c_end - 1]
+                + _utf16_code_unit_len(plain_text[c_end - 1])
+            )
+            full_end_idx = int(
+                resolved_map[full_c_end - 1]
+                + _utf16_code_unit_len(plain_text[full_c_end - 1])
+            )
+
+            in_yaral2 = False
+            yaral2_rule_name: str | None = None
+            yaral2_meta_key: str | None = None
+            for r_s, r_e, r_name, entries_by_key in rule_meta_lookup:
+                if r_s <= c_start and c_end <= r_e:
+                    in_yaral2 = True
+                    yaral2_rule_name = r_name
+                    for k_name, entry_rec in entries_by_key.items():
+                        v_s = int(entry_rec.get("value_start_index", 0) or 0)
+                        v_e = int(entry_rec.get("value_end_index", 0) or 0)
+                        if v_s <= start_idx and end_idx <= v_e:
+                            yaral2_meta_key = k_name
+                            break
+                    break
+
+            if in_yaral2:
+                inline_label = ""
+                full_c_end = c_end
+                full_end_idx = end_idx
+
+            known_in_kb = False
+            canonical_name = ""
+            short_name = ""
+            canonical_url = ""
+            tactic = ""
+
+            if entity_type == "CWE":
+                cwe_info = WAVED_CWE_KNOWLEDGE_BASE.get(ident)
+                if cwe_info is not None:
+                    known_in_kb = True
+                    canonical_name = str(cwe_info["name"])
+                    short_name = str(cwe_info["short_name"])
+                    canonical_url = str(cwe_info["url"])
+                else:
+                    canonical_url = cwe_definition_url(ident)
+            elif entity_type == "CVE":
+                chain_info = WAVED_ONTOLOGY_CHAINS.get(ident)
+                kev_info = CANONICAL_CISA_KEV_CATALOG.get(ident)
+                if chain_info is not None:
+                    known_in_kb = True
+                    canonical_name = str(chain_info["vulnerability_name"])
+                    short_name = f"{chain_info['vendor']} {chain_info['product']}"
+                elif kev_info is not None:
+                    known_in_kb = True
+                    canonical_name = str(kev_info["vulnerability_name"])
+                    short_name = f"{kev_info['vendor']} {kev_info['product']}"
+                canonical_url = nvd_cve_url(ident)
+            elif entity_type == "ATTACK":
+                att_info = CANONICAL_MITRE_TECHNIQUES.get(ident)
+                dep_info = DEPRECATED_MITRE_TECHNIQUE_MAP.get(ident)
+                if att_info is not None:
+                    known_in_kb = True
+                    canonical_name = str(att_info["canonical_name"])
+                    short_name = str(att_info["short_name"])
+                    tactic = str(att_info["tactic"])
+                    canonical_url = mitre_technique_url(ident)
+                elif dep_info is not None:
+                    known_in_kb = False
+                    canonical_name = str(dep_info["canonical_name"])
+                    short_name = str(dep_info["short_name"])
+                    tactic = str(dep_info["tactic"])
+                    canonical_url = mitre_technique_url(str(dep_info["canonical_id"]))
+                else:
+                    canonical_url = mitre_technique_url(ident)
+            elif entity_type == "D3FEND":
+                d3_info = WAVED_D3FEND_KNOWLEDGE_BASE.get(ident)
+                if d3_info is not None:
+                    known_in_kb = True
+                    canonical_name = str(d3_info["name"])
+                    short_name = str(d3_info["name"])
+                    tactic = str(d3_info["tactic"])
+                    canonical_url = str(d3_info["url"])
+                else:
+                    canonical_url = d3fend_technique_url(ident)
+
+            spans.append(
+                {
+                    "identifier": ident,
+                    "id": ident,
+                    "raw_text": raw_tok,
+                    "layer": layer_name,
+                    "waved_layer": waved_code,
+                    "entity_type": entity_type,
+                    "startIndex": start_idx,
+                    "endIndex": end_idx,
+                    "start_index": start_idx,
+                    "end_index": end_idx,
+                    "char_start": c_start,
+                    "char_end": c_end,
+                    "inline_label": inline_label,
+                    "full_span_startIndex": start_idx,
+                    "full_span_endIndex": full_end_idx,
+                    "full_span_start_index": start_idx,
+                    "full_span_end_index": full_end_idx,
+                    "full_span_text": plain_text[c_start:full_c_end],
+                    "known_in_kb": known_in_kb,
+                    "canonical_name": canonical_name,
+                    "short_name": short_name,
+                    "tactic": tactic,
+                    "canonical_url": canonical_url,
+                    "in_yaral2_rule": in_yaral2,
+                    "in_yaral2_meta": bool(yaral2_meta_key),
+                    "yaral2_rule_name": yaral2_rule_name,
+                    "yaral2_meta_key": yaral2_meta_key,
+                    "line_start": line_start,
+                    "line_end": line_end,
+                    "context": sanitize_telemetry_text(
+                        plain_text[line_start:line_end].strip()
+                    ),
+                }
+            )
+
+    spans.sort(key=lambda item: (int(item["startIndex"]), int(item["char_start"])))
+    return spans
+
+
+def _is_cwe_label_compatible(cwe_id: str, inline_label: str) -> bool:
+    """Returns True if ``inline_label`` matches the official MITRE CWE name or aliases for ``cwe_id``."""
+    info = WAVED_CWE_KNOWLEDGE_BASE.get(cwe_id.upper())
+    if info is None:
+        return False
+    norm = re.sub(r"\s+", " ", inline_label.strip().lower())
+    if not norm:
+        return True
+    candidates = [
+        str(info["name"]).lower(),
+        str(info["short_name"]).lower(),
+        *[str(a).lower() for a in info.get("aliases", ())],
+    ]
+    for cand in candidates:
+        if norm in cand or cand in norm:
+            return True
+    return False
+
+
+def _is_d3fend_label_compatible(d3_id: str, inline_label: str) -> bool:
+    """Returns True if ``inline_label`` matches the official MITRE D3FEND name or aliases for ``d3_id``."""
+    info = WAVED_D3FEND_KNOWLEDGE_BASE.get(d3_id.upper())
+    if info is None:
+        return False
+    norm = re.sub(r"\s+", " ", inline_label.strip().lower())
+    if not norm:
+        return True
+    candidates = [
+        str(info["name"]).lower(),
+        str(info["artifact_name"]).lower(),
+        *[str(a).lower() for a in info.get("aliases", ())],
+    ]
+    for cand in candidates:
+        if norm in cand or cand in norm:
+            return True
+    return False
+
+
+def _d3fend_counters_attack(d3_id: str, attack_id: str) -> bool:
+    """Returns True if MITRE D3FEND technique ``d3_id`` counters MITRE ATT&CK technique ``attack_id``."""
+    d3_info = WAVED_D3FEND_KNOWLEDGE_BASE.get(d3_id.upper())
+    if d3_info is None:
+        return False
+    att_upper = attack_id.upper()
+    parent_att = att_upper.split(".", 1)[0]
+    counters = {str(x).upper() for x in d3_info.get("counters_attack_techniques", ())}
+    if att_upper in counters or parent_att in counters:
+        return True
+    att_map = (
+        WAVED_ATTACK_TO_CWE_AND_D3FEND_MAP.get(att_upper)
+        or WAVED_ATTACK_TO_CWE_AND_D3FEND_MAP.get(parent_att)
+    )
+    if att_map and d3_id.upper() in {
+        str(x).upper() for x in att_map.get("valid_d3fend_ids", ())
+    }:
+        return True
+    return False
+
+
+def analyze_waved_ontology_graph(
+    doc_or_text: dict[str, Any] | str,
+    index_map: list[int] | None = None,
+) -> dict[str, Any]:
+    """Evaluates every detected WAVED Cyber Ontology (``akbar-2023``) span and
+    paragraph/section ontological chain across 4 defect classes:
+
+    1. ``CWE_LABEL_MISMATCH`` or ``UNKNOWN_CWE_ID``
+    2. ``D3FEND_LABEL_MISMATCH`` or ``UNKNOWN_D3FEND_ID``
+    3. ``WAVED_CHAIN_INCONSISTENCY`` (``CVE_CWE_MISMATCH``, ``ATTACK_D3FEND_MISMATCH``, ``INCOMPLETE_WAVED_CHAIN``)
+    4. ``YARAL2_WAVED_META_DEFECT`` (mismatched or missing ``cwe_id`` / ``d3fend_technique`` in Chronicle SIEM YARA-L 2.0 ``meta:`` blocks)
+    """
+    plain_text, resolved_map = _extract_waved_text_and_index_map(
+        doc_or_text, index_map=index_map
+    )
+    spans = find_waved_ontology_spans(plain_text, index_map=resolved_map)
+
+    cwe_ids = sorted(
+        {str(s["identifier"]) for s in spans if s["entity_type"] == "CWE"}
+    )
+    cve_ids = sorted(
+        {str(s["identifier"]) for s in spans if s["entity_type"] == "CVE"}
+    )
+    attack_ids = sorted(
+        {str(s["identifier"]) for s in spans if s["entity_type"] == "ATTACK"}
+    )
+    d3fend_ids = sorted(
+        {str(s["identifier"]) for s in spans if s["entity_type"] == "D3FEND"}
+    )
+
+    layer_coverage: dict[str, Any] = {
+        "weakness_cwe": bool(cwe_ids),
+        "vulnerability_cve": bool(cve_ids),
+        "exploit_attack": bool(attack_ids),
+        "defense_d3fend": bool(d3fend_ids),
+        "cwe_count": sum(1 for s in spans if s["entity_type"] == "CWE"),
+        "cve_count": sum(1 for s in spans if s["entity_type"] == "CVE"),
+        "attack_count": sum(1 for s in spans if s["entity_type"] == "ATTACK"),
+        "d3fend_count": sum(1 for s in spans if s["entity_type"] == "D3FEND"),
+        "cwe_ids": cwe_ids,
+        "cve_ids": cve_ids,
+        "attack_ids": attack_ids,
+        "d3fend_ids": d3fend_ids,
+    }
+
+    defects: list[dict[str, Any]] = []
+    flagged_span_Starts: set[int] = set()
+
+    # Group prose spans (outside YARA-L 2.0 rules) by line_start
+    prose_spans_by_line: dict[int, list[dict[str, Any]]] = {}
+    for sp in spans:
+        if not sp.get("in_yaral2_rule"):
+            prose_spans_by_line.setdefault(int(sp["line_start"]), []).append(sp)
+
+    # Pass 1: Check CWE and D3FEND unknown IDs and inline label mismatches in prose
+    for line_s, line_spans in sorted(prose_spans_by_line.items()):
+        line_cves = [s for s in line_spans if s["entity_type"] == "CVE"]
+        line_attacks = [s for s in line_spans if s["entity_type"] == "ATTACK"]
+
+        for sp in line_spans:
+            etype = sp["entity_type"]
+            ident = str(sp["identifier"])
+            inline_lbl = str(sp.get("inline_label") or "")
+
+            if etype == "CWE":
+                cwe_info = WAVED_CWE_KNOWLEDGE_BASE.get(ident)
+                if cwe_info is None:
+                    fallback_cwe = "CWE-78"
+                    if line_cves and str(line_cves[0]["identifier"]) in WAVED_ONTOLOGY_CHAINS:
+                        fallback_cwe = str(
+                            WAVED_ONTOLOGY_CHAINS[str(line_cves[0]["identifier"])]["primary_cwe"]
+                        )
+                    elif line_attacks and str(line_attacks[0]["identifier"]) in WAVED_ATTACK_TO_CWE_AND_D3FEND_MAP:
+                        fallback_cwe = str(
+                            WAVED_ATTACK_TO_CWE_AND_D3FEND_MAP[str(line_attacks[0]["identifier"])]["primary_cwe"]
+                        )
+                    fb_info = WAVED_CWE_KNOWLEDGE_BASE[fallback_cwe]
+                    rep_str = (
+                        f"{fallback_cwe} ({fb_info['short_name']})"
+                        if inline_lbl
+                        else fallback_cwe
+                    )
+                    s_i = int(sp["full_span_startIndex"])
+                    e_i = int(sp["full_span_endIndex"])
+                    flagged_span_Starts.add(int(sp["startIndex"]))
+                    defects.append(
+                        {
+                            "defect_type": "UNKNOWN_CWE_ID",
+                            "defect_class": "UNKNOWN_CWE_ID",
+                            "subtype": "UNKNOWN_CWE_ID",
+                            "layer": "weakness",
+                            "identifier": ident,
+                            "canonical_id": fallback_cwe,
+                            "canonical_name": str(fb_info["name"]),
+                            "canonical_url": str(fb_info["url"]),
+                            "startIndex": s_i,
+                            "endIndex": e_i,
+                            "start_index": s_i,
+                            "end_index": e_i,
+                            "quote": str(sp["full_span_text"]),
+                            "replacement": rep_str,
+                            "redline_annotation": (
+                                f"[WAVED ONTOLOGY CORRECTION: {fallback_cwe} "
+                                f"({fb_info['short_name']}) | {fb_info['url']}]"
+                            ),
+                            "comment": (
+                                f"WAVED Cyber Ontology (akbar-2023) Weakness Check: "
+                                f"'{ident}' is not a recognized MITRE CWE identifier. "
+                                f"Use '{rep_str}' ({fb_info['name']}, {fb_info['url']})."
+                            ),
+                        }
+                    )
+                elif inline_lbl and not _is_cwe_label_compatible(ident, inline_lbl):
+                    # If the line also has a CVE that maps to a different CWE, check whether the CWE ID itself is right or wrong
+                    target_cwe = ident
+                    if line_cves:
+                        closest_cve = str(line_cves[0]["identifier"])
+                        chain = WAVED_ONTOLOGY_CHAINS.get(closest_cve)
+                        if chain and ident not in chain["cwe_ids"]:
+                            target_cwe = str(chain["primary_cwe"])
+                    t_info = WAVED_CWE_KNOWLEDGE_BASE[target_cwe]
+                    rep_str = f"{target_cwe} ({t_info['short_name']})"
+                    s_i = int(sp["full_span_startIndex"])
+                    e_i = int(sp["full_span_endIndex"])
+                    flagged_span_Starts.add(int(sp["startIndex"]))
+                    defects.append(
+                        {
+                            "defect_type": "CWE_LABEL_MISMATCH",
+                            "defect_class": "CWE_LABEL_MISMATCH",
+                            "subtype": "CWE_LABEL_MISMATCH",
+                            "layer": "weakness",
+                            "identifier": ident,
+                            "canonical_id": target_cwe,
+                            "canonical_name": str(t_info["name"]),
+                            "canonical_url": str(t_info["url"]),
+                            "startIndex": s_i,
+                            "endIndex": e_i,
+                            "start_index": s_i,
+                            "end_index": e_i,
+                            "quote": str(sp["full_span_text"]),
+                            "replacement": rep_str,
+                            "redline_annotation": (
+                                f"[WAVED ONTOLOGY CORRECTION: {target_cwe} "
+                                f"({t_info['short_name']} - {t_info['name']}) | {t_info['url']}]"
+                            ),
+                            "comment": (
+                                f"WAVED Cyber Ontology (akbar-2023) CWE Label Check: "
+                                f"'{sp['full_span_text']}' mislabels {ident}. Official MITRE CWE definition is "
+                                f"'{t_info['name']}' ({t_info['short_name']}, {t_info['url']}). "
+                                f"Replace with '{rep_str}'."
+                            ),
+                        }
+                    )
+
+            elif etype == "D3FEND":
+                d3_info = WAVED_D3FEND_KNOWLEDGE_BASE.get(ident)
+                if d3_info is None:
+                    fallback_d3 = "D3-NTF"
+                    if line_attacks:
+                        att_k = str(line_attacks[0]["identifier"])
+                        att_m = WAVED_ATTACK_TO_CWE_AND_D3FEND_MAP.get(att_k)
+                        if att_m:
+                            fallback_d3 = str(att_m["primary_d3fend"])
+                    elif line_cves:
+                        cve_k = str(line_cves[0]["identifier"])
+                        ch_m = WAVED_ONTOLOGY_CHAINS.get(cve_k)
+                        if ch_m:
+                            fallback_d3 = str(ch_m["primary_d3fend"])
+                    fb_d3_info = WAVED_D3FEND_KNOWLEDGE_BASE[fallback_d3]
+                    rep_str = (
+                        f"{fallback_d3} ({fb_d3_info['name']})"
+                        if inline_lbl
+                        else fallback_d3
+                    )
+                    s_i = int(sp["full_span_startIndex"])
+                    e_i = int(sp["full_span_endIndex"])
+                    flagged_span_Starts.add(int(sp["startIndex"]))
+                    defects.append(
+                        {
+                            "defect_type": "UNKNOWN_D3FEND_ID",
+                            "defect_class": "UNKNOWN_D3FEND_ID",
+                            "subtype": "UNKNOWN_D3FEND_ID",
+                            "layer": "defense",
+                            "identifier": ident,
+                            "canonical_id": fallback_d3,
+                            "canonical_name": str(fb_d3_info["name"]),
+                            "canonical_url": str(fb_d3_info["url"]),
+                            "startIndex": s_i,
+                            "endIndex": e_i,
+                            "start_index": s_i,
+                            "end_index": e_i,
+                            "quote": str(sp["full_span_text"]),
+                            "replacement": rep_str,
+                            "redline_annotation": (
+                                f"[WAVED ONTOLOGY CORRECTION: {fallback_d3} "
+                                f"({fb_d3_info['name']}, Tactic: {fb_d3_info['tactic']}) | {fb_d3_info['url']}]"
+                            ),
+                            "comment": (
+                                f"WAVED Cyber Ontology (akbar-2023) Defense Check: "
+                                f"'{ident}' is not a recognized MITRE D3FEND technique ID. "
+                                f"Replace with '{rep_str}' ({fb_d3_info['url']})."
+                            ),
+                        }
+                    )
+                elif inline_lbl and not _is_d3fend_label_compatible(ident, inline_lbl):
+                    rep_str = f"{ident} ({d3_info['name']})"
+                    s_i = int(sp["full_span_startIndex"])
+                    e_i = int(sp["full_span_endIndex"])
+                    flagged_span_Starts.add(int(sp["startIndex"]))
+                    defects.append(
+                        {
+                            "defect_type": "D3FEND_LABEL_MISMATCH",
+                            "defect_class": "D3FEND_LABEL_MISMATCH",
+                            "subtype": "D3FEND_LABEL_MISMATCH",
+                            "layer": "defense",
+                            "identifier": ident,
+                            "canonical_id": ident,
+                            "canonical_name": str(d3_info["name"]),
+                            "canonical_url": str(d3_info["url"]),
+                            "startIndex": s_i,
+                            "endIndex": e_i,
+                            "start_index": s_i,
+                            "end_index": e_i,
+                            "quote": str(sp["full_span_text"]),
+                            "replacement": rep_str,
+                            "redline_annotation": (
+                                f"[WAVED ONTOLOGY CORRECTION: {ident} "
+                                f"({d3_info['name']}, Tactic: {d3_info['tactic']}) | {d3_info['url']}]"
+                            ),
+                            "comment": (
+                                f"WAVED Cyber Ontology (akbar-2023) D3FEND Label Check: "
+                                f"'{sp['full_span_text']}' mislabels {ident}. Official MITRE D3FEND technique name is "
+                                f"'{d3_info['name']}' (Tactic: {d3_info['tactic']}, {d3_info['url']}). "
+                                f"Replace with '{rep_str}'."
+                            ),
+                        }
+                    )
+
+    # Pass 2: Evaluate cross-layer WAVED ontological chain consistency per line/paragraph
+    verified_chains: list[dict[str, Any]] = []
+    for line_s, line_spans in sorted(prose_spans_by_line.items()):
+        line_cwes = [s for s in line_spans if s["entity_type"] == "CWE"]
+        line_cves = [s for s in line_spans if s["entity_type"] == "CVE"]
+        line_attacks = [s for s in line_spans if s["entity_type"] == "ATTACK"]
+        line_d3fends = [s for s in line_spans if s["entity_type"] == "D3FEND"]
+        line_Defect_added = False
+
+        # 2a. Check CVE <-> CWE compatibility (or ATTACK <-> CWE when CVE is absent)
+        for cwe_sp in line_cwes:
+            if int(cwe_sp["startIndex"]) in flagged_span_Starts:
+                line_Defect_added = True
+                continue
+            cwe_id = str(cwe_sp["identifier"])
+            inline_lbl = str(cwe_sp.get("inline_label") or "")
+
+            if line_cves:
+                compatible_any = any(
+                    cwe_id
+                    in WAVED_ONTOLOGY_CHAINS.get(str(cv["identifier"]), {}).get(
+                        "cwe_ids", ()
+                    )
+                    for cv in line_cves
+                )
+                if not compatible_any:
+                    # Pick closest preceding CVE (or closest overall)
+                    preceding_cves = [
+                        cv
+                        for cv in line_cves
+                        if int(cv["startIndex"]) < int(cwe_sp["startIndex"])
+                        and str(cv["identifier"]) in WAVED_ONTOLOGY_CHAINS
+                    ]
+                    target_cv_sp = (
+                        preceding_cves[-1]
+                        if preceding_cves
+                        else next(
+                            (
+                                cv
+                                for cv in line_cves
+                                if str(cv["identifier"]) in WAVED_ONTOLOGY_CHAINS
+                            ),
+                            None,
+                        )
+                    )
+                    if target_cv_sp is not None:
+                        cve_id = str(target_cv_sp["identifier"])
+                        chain = WAVED_ONTOLOGY_CHAINS[cve_id]
+                        primary_cwe = str(chain["primary_cwe"])
+                        p_info = WAVED_CWE_KNOWLEDGE_BASE[primary_cwe]
+                        rep_str = (
+                            f"{primary_cwe} ({p_info['short_name']})"
+                            if inline_lbl
+                            else primary_cwe
+                        )
+                        s_i = int(cwe_sp["full_span_startIndex"])
+                        e_i = int(cwe_sp["full_span_endIndex"])
+                        flagged_span_Starts.add(int(cwe_sp["startIndex"]))
+                        line_Defect_added = True
+                        defects.append(
+                            {
+                                "defect_type": "CVE_CWE_MISMATCH",
+                                "defect_class": "WAVED_CHAIN_INCONSISTENCY",
+                                "subtype": "CVE_CWE_MISMATCH",
+                                "layer": "weakness",
+                                "identifier": cwe_id,
+                                "related_cve": cve_id,
+                                "canonical_id": primary_cwe,
+                                "canonical_name": str(p_info["name"]),
+                                "canonical_url": str(p_info["url"]),
+                                "startIndex": s_i,
+                                "endIndex": e_i,
+                                "start_index": s_i,
+                                "end_index": e_i,
+                                "quote": str(cwe_sp["full_span_text"]),
+                                "replacement": rep_str,
+                                "redline_annotation": (
+                                    f"[WAVED ONTOLOGY CORRECTION: {cve_id} maps to root weakness "
+                                    f"{primary_cwe} ({p_info['short_name']}), not {cwe_id} | {p_info['url']}]"
+                                ),
+                                "comment": (
+                                    f"WAVED Cyber Ontology (akbar-2023) Chain Consistency Check (CVE_CWE_MISMATCH): "
+                                    f"'{cve_id}' ({chain['vulnerability_name']}) is rooted in '{primary_cwe}' "
+                                    f"({p_info['name']}, {p_info['url']}), not '{cwe_id}'. "
+                                    f"Replace '{cwe_sp['full_span_text']}' with '{rep_str}'."
+                                ),
+                            }
+                        )
+            elif line_attacks:
+                compatible_att = any(
+                    cwe_id
+                    in (
+                        WAVED_ATTACK_TO_CWE_AND_D3FEND_MAP.get(
+                            str(at["identifier"])
+                        )
+                        or WAVED_ATTACK_TO_CWE_AND_D3FEND_MAP.get(
+                            str(at["identifier"]).split(".", 1)[0]
+                        )
+                        or {}
+                    ).get("valid_cwe_ids", ())
+                    for at in line_attacks
+                )
+                if not compatible_att:
+                    at_id = str(line_attacks[0]["identifier"])
+                    at_map = WAVED_ATTACK_TO_CWE_AND_D3FEND_MAP.get(
+                        at_id
+                    ) or WAVED_ATTACK_TO_CWE_AND_D3FEND_MAP.get(
+                        at_id.split(".", 1)[0]
+                    )
+                    if at_map:
+                        primary_cwe = str(at_map["primary_cwe"])
+                        p_info = WAVED_CWE_KNOWLEDGE_BASE[primary_cwe]
+                        rep_str = (
+                            f"{primary_cwe} ({p_info['short_name']})"
+                            if inline_lbl
+                            else primary_cwe
+                        )
+                        s_i = int(cwe_sp["full_span_startIndex"])
+                        e_i = int(cwe_sp["full_span_endIndex"])
+                        flagged_span_Starts.add(int(cwe_sp["startIndex"]))
+                        line_Defect_added = True
+                        defects.append(
+                            {
+                                "defect_type": "CVE_CWE_MISMATCH",
+                                "defect_class": "WAVED_CHAIN_INCONSISTENCY",
+                                "subtype": "CVE_CWE_MISMATCH",
+                                "layer": "weakness",
+                                "identifier": cwe_id,
+                                "related_attack": at_id,
+                                "canonical_id": primary_cwe,
+                                "canonical_name": str(p_info["name"]),
+                                "canonical_url": str(p_info["url"]),
+                                "startIndex": s_i,
+                                "endIndex": e_i,
+                                "start_index": s_i,
+                                "end_index": e_i,
+                                "quote": str(cwe_sp["full_span_text"]),
+                                "replacement": rep_str,
+                                "redline_annotation": (
+                                    f"[WAVED ONTOLOGY CORRECTION: {at_id} aligns with weakness "
+                                    f"{primary_cwe} ({p_info['short_name']}), not {cwe_id} | {p_info['url']}]"
+                                ),
+                                "comment": (
+                                    f"WAVED Cyber Ontology (akbar-2023) Chain Consistency Check (CVE_CWE_MISMATCH): "
+                                    f"'{cwe_id}' is inconsistent with exploit technique '{at_id}'. "
+                                    f"Replace '{cwe_sp['full_span_text']}' with '{rep_str}' ({p_info['url']})."
+                                ),
+                            }
+                        )
+
+        # 2b. Check ATT&CK / CVE <-> D3FEND countermeasure compatibility
+        for d3_sp in line_d3fends:
+            if int(d3_sp["startIndex"]) in flagged_span_Starts:
+                line_Defect_added = True
+                continue
+            d3_id = str(d3_sp["identifier"])
+            inline_lbl = str(d3_sp.get("inline_label") or "")
+            d3_info = WAVED_D3FEND_KNOWLEDGE_BASE.get(d3_id)
+            if d3_info is None:
+                continue
+
+            # Determine closest preceding ATTACK or CVE on the line
+            preceding_attacks = [
+                at
+                for at in line_attacks
+                if int(at["startIndex"]) < int(d3_sp["startIndex"])
+            ]
+            closest_attack_sp = (
+                preceding_attacks[-1]
+                if preceding_attacks
+                else (line_attacks[0] if line_attacks else None)
+            )
+            preceding_cves = [
+                cv
+                for cv in line_cves
+                if int(cv["startIndex"]) < int(d3_sp["startIndex"])
+            ]
+            closest_cve_sp = (
+                preceding_cves[-1]
+                if preceding_cves
+                else (line_cves[0] if line_cves else None)
+            )
+
+            # Check if d3_id counters any ATTACK or CVE on the line
+            counters_any = False
+            if line_attacks and any(
+                _d3fend_counters_attack(d3_id, str(at["identifier"]))
+                for at in line_attacks
+            ):
+                counters_any = True
+            if line_cves and any(
+                d3_id
+                in WAVED_ONTOLOGY_CHAINS.get(str(cv["identifier"]), {}).get(
+                    "d3fend_techniques", ()
+                )
+                for cv in line_cves
+            ):
+                counters_any = True
+
+            if (line_attacks or line_cves) and not counters_any:
+                primary_d3 = "D3-MFA"
+                related_offense = ""
+                if closest_attack_sp is not None:
+                    att_id = str(closest_attack_sp["identifier"])
+                    related_offense = att_id
+                    att_map = WAVED_ATTACK_TO_CWE_AND_D3FEND_MAP.get(
+                        att_id
+                    ) or WAVED_ATTACK_TO_CWE_AND_D3FEND_MAP.get(
+                        att_id.split(".", 1)[0]
+                    )
+                    if att_map:
+                        primary_d3 = str(att_map["primary_d3fend"])
+                elif closest_cve_sp is not None:
+                    cve_id = str(closest_cve_sp["identifier"])
+                    related_offense = cve_id
+                    ch_map = WAVED_ONTOLOGY_CHAINS.get(cve_id)
+                    if ch_map:
+                        primary_d3 = str(ch_map["primary_d3fend"])
+
+                p_d3_info = WAVED_D3FEND_KNOWLEDGE_BASE[primary_d3]
+                rep_str = (
+                    f"{primary_d3} ({p_d3_info['name']})"
+                    if inline_lbl
+                    else primary_d3
+                )
+                s_i = int(d3_sp["full_span_startIndex"])
+                e_i = int(d3_sp["full_span_endIndex"])
+                flagged_span_Starts.add(int(d3_sp["startIndex"]))
+                line_Defect_added = True
+                defects.append(
+                    {
+                        "defect_type": "ATTACK_D3FEND_MISMATCH",
+                        "defect_class": "WAVED_CHAIN_INCONSISTENCY",
+                        "subtype": "ATTACK_D3FEND_MISMATCH",
+                        "layer": "defense",
+                        "identifier": d3_id,
+                        "related_attack": related_offense,
+                        "canonical_id": primary_d3,
+                        "canonical_name": str(p_d3_info["name"]),
+                        "canonical_url": str(p_d3_info["url"]),
+                        "startIndex": s_i,
+                        "endIndex": e_i,
+                        "start_index": s_i,
+                        "end_index": e_i,
+                        "quote": str(d3_sp["full_span_text"]),
+                        "replacement": rep_str,
+                        "redline_annotation": (
+                            f"[WAVED ONTOLOGY CORRECTION: {d3_id} ({d3_info['name']}) does not counter "
+                            f"{related_offense}; use {primary_d3} ({p_d3_info['name']}, Tactic: {p_d3_info['tactic']}) | {p_d3_info['url']}]"
+                        ),
+                        "comment": (
+                            f"WAVED Cyber Ontology (akbar-2023) Defensive Countermeasure Check (ATTACK_D3FEND_MISMATCH): "
+                            f"MITRE D3FEND technique '{d3_id}' ({d3_info['name']}) does not counter '{related_offense}'. "
+                            f"Replace '{d3_sp['full_span_text']}' with '{rep_str}' "
+                            f"(Tactic: {p_d3_info['tactic']}, {p_d3_info['url']})."
+                        ),
+                    }
+                )
+
+        # 2c. Check if this line forms a complete 4-layer WAVED chain or an INCOMPLETE_WAVED_CHAIN
+        if (
+            line_cwes
+            and line_cves
+            and line_attacks
+            and line_d3fends
+            and not line_Defect_added
+        ):
+            verified_chains.append(
+                {
+                    "cwe_ids": [str(s["identifier"]) for s in line_cwes],
+                    "cve_ids": [str(s["identifier"]) for s in line_cves],
+                    "attack_ids": [str(s["identifier"]) for s in line_attacks],
+                    "d3fend_ids": [str(s["identifier"]) for s in line_d3fends],
+                    "context": str(line_spans[0].get("context") or ""),
+                }
+            )
+        elif (
+            line_cves
+            and line_attacks
+            and (not line_cwes or not line_d3fends)
+            and not line_Defect_added
+        ):
+            anchor_sp = line_spans[-1]
+            cve_id = str(line_cves[0]["identifier"])
+            att_id = str(line_attacks[0]["identifier"])
+            chain = WAVED_ONTOLOGY_CHAINS.get(cve_id, {})
+            att_map = (
+                WAVED_ATTACK_TO_CWE_AND_D3FEND_MAP.get(att_id)
+                or WAVED_ATTACK_TO_CWE_AND_D3FEND_MAP.get(att_id.split(".", 1)[0])
+                or {}
+            )
+            rec_cwe = str(chain.get("primary_cwe") or att_map.get("primary_cwe") or "CWE-78")
+            rec_d3 = str(chain.get("primary_d3fend") or att_map.get("primary_d3fend") or "D3-NTF")
+            rec_cwe_info = WAVED_CWE_KNOWLEDGE_BASE[rec_cwe]
+            rec_d3_info = WAVED_D3FEND_KNOWLEDGE_BASE[rec_d3]
+            missing_layers: list[str] = []
+            if not line_cwes:
+                missing_layers.append("weakness_cwe")
+            if not line_d3fends:
+                missing_layers.append("defense_d3fend")
+            s_i = int(anchor_sp["full_span_startIndex"])
+            e_i = int(anchor_sp["full_span_endIndex"])
+            defects.append(
+                {
+                    "defect_type": "INCOMPLETE_WAVED_CHAIN",
+                    "defect_class": "WAVED_CHAIN_INCONSISTENCY",
+                    "subtype": "INCOMPLETE_WAVED_CHAIN",
+                    "layer": "chain",
+                    "identifier": f"{cve_id}+{att_id}",
+                    "canonical_id": f"{rec_cwe} -> {cve_id} -> {att_id} -> {rec_d3}",
+                    "canonical_name": f"{rec_cwe_info['short_name']} / {rec_d3_info['name']}",
+                    "canonical_url": str(rec_d3_info["url"]),
+                    "missing_layers": missing_layers,
+                    "recommended_cwe": rec_cwe,
+                    "recommended_d3fend": rec_d3,
+                    "startIndex": s_i,
+                    "endIndex": e_i,
+                    "start_index": s_i,
+                    "end_index": e_i,
+                    "quote": str(anchor_sp["full_span_text"]),
+                    "replacement": (
+                        f"{anchor_sp['full_span_text']} "
+                        f"[WAVED Chain: {rec_cwe} ({rec_cwe_info['short_name']}), "
+                        f"{rec_d3} ({rec_d3_info['name']})]"
+                    ),
+                    "redline_annotation": (
+                        f"[WAVED ONTOLOGY CORRECTION: Complete 4-layer WAVED chain with "
+                        f"{rec_cwe} ({rec_cwe_info['short_name']}) and {rec_d3} ({rec_d3_info['name']}) | {rec_d3_info['url']}]"
+                    ),
+                    "comment": (
+                        f"WAVED Cyber Ontology (akbar-2023) Completeness Check (INCOMPLETE_WAVED_CHAIN): "
+                        f"Paragraph cites '{cve_id}' and '{att_id}' without {', '.join(missing_layers)}. "
+                        f"Link root weakness '{rec_cwe}' ({rec_cwe_info['short_name']}, {rec_cwe_info['url']}) "
+                        f"and countermeasure '{rec_d3}' ({rec_d3_info['name']}, {rec_d3_info['url']})."
+                    ),
+                }
+            )
+
+    # Pass 3: Check Chronicle SIEM YARA-L 2.0 (YL2) meta: blocks for YARAL2_WAVED_META_DEFECT
+    for rb in _iter_yaral2_rule_blocks(plain_text):
+        r_start = int(rb["char_start"])
+        r_name = str(rb["rule_name"])
+        m_spec = extract_yaral2_meta_spec(
+            str(rb["rule_text"]),
+            rule_char_start=r_start,
+            full_plain_text=plain_text,
+            index_map=resolved_map,
+        )
+        if not m_spec.get("has_meta"):
+            continue
+        entries_by_key = dict(m_spec.get("entries_by_key") or {})
+        cve_entry = entries_by_key.get("cve_id") or entries_by_key.get("cve")
+        att_entry = (
+            entries_by_key.get("mitre_attack_technique")
+            or entries_by_key.get("attack_technique")
+            or entries_by_key.get("technique_id")
+        )
+        cwe_entry = entries_by_key.get("cwe_id") or entries_by_key.get("cwe")
+        d3_entry = (
+            entries_by_key.get("d3fend_technique")
+            or entries_by_key.get("d3fend_id")
+            or entries_by_key.get("d3fend")
+        )
+
+        cve_val = (
+            str(cve_entry["value"]).strip().upper()
+            if cve_entry and cve_entry.get("value")
+            else ""
+        )
+        if not cve_val:
+            m_cve_name = re.search(
+                r"(?i)cve[_-](\d{4})[_-](\d{4,7})", r_name
+            )
+            if m_cve_name:
+                cve_val = f"CVE-{m_cve_name.group(1)}-{m_cve_name.group(2)}"
+
+        att_val = (
+            str(att_entry["value"]).strip().upper()
+            if att_entry and att_entry.get("value")
+            else ""
+        )
+
+        valid_cwes: tuple[str, ...] = ()
+        primary_cwe = "CWE-78"
+        valid_d3s: tuple[str, ...] = ()
+        primary_d3 = "D3-NTF"
+
+        if cve_val in WAVED_ONTOLOGY_CHAINS:
+            ch = WAVED_ONTOLOGY_CHAINS[cve_val]
+            valid_cwes = tuple(ch["cwe_ids"])
+            primary_cwe = str(ch["primary_cwe"])
+            valid_d3s = tuple(ch["d3fend_techniques"])
+            primary_d3 = str(ch["primary_d3fend"])
+        elif att_val:
+            at_m = WAVED_ATTACK_TO_CWE_AND_D3FEND_MAP.get(
+                att_val
+            ) or WAVED_ATTACK_TO_CWE_AND_D3FEND_MAP.get(
+                att_val.split(".", 1)[0]
+            )
+            if at_m:
+                valid_cwes = tuple(at_m["valid_cwe_ids"])
+                primary_cwe = str(at_m["primary_cwe"])
+                valid_d3s = tuple(at_m["valid_d3fend_ids"])
+                primary_d3 = str(at_m["primary_d3fend"])
+
+        rule_meta_defect_found = False
+        if cwe_entry is not None:
+            cwe_val = str(cwe_entry.get("value") or "").strip().upper()
+            if (
+                cwe_val not in WAVED_CWE_KNOWLEDGE_BASE
+                or (valid_cwes and cwe_val not in valid_cwes)
+            ):
+                p_cwe_info = WAVED_CWE_KNOWLEDGE_BASE[primary_cwe]
+                s_i = int(cwe_entry["value_inner_start_index"])
+                e_i = int(cwe_entry["value_inner_end_index"])
+                flagged_span_Starts.add(s_i)
+                rule_meta_defect_found = True
+                defects.append(
+                    {
+                        "defect_type": "YARAL2_WAVED_META_DEFECT",
+                        "defect_class": "YARAL2_WAVED_META_DEFECT",
+                        "subtype": "YARAL2_META_CWE_MISMATCH",
+                        "layer": "yaral2_meta",
+                        "rule_name": r_name,
+                        "meta_key": str(cwe_entry["key"]),
+                        "identifier": cwe_val,
+                        "canonical_id": primary_cwe,
+                        "canonical_name": str(p_cwe_info["name"]),
+                        "canonical_url": str(p_cwe_info["url"]),
+                        "startIndex": s_i,
+                        "endIndex": e_i,
+                        "start_index": s_i,
+                        "end_index": e_i,
+                        "quote": str(cwe_entry["value"]),
+                        "replacement": primary_cwe,
+                        "redline_annotation": (
+                            f"[WAVED ONTOLOGY CORRECTION: YARA-L 2.0 meta {cwe_entry['key']} "
+                            f"should be {primary_cwe} ({p_cwe_info['short_name']}), not {cwe_val} | {p_cwe_info['url']}]"
+                        ),
+                        "comment": (
+                            f"Chronicle SIEM YARA-L 2.0 (YL2) WAVED Ontology Metadata Check "
+                            f"(YARAL2_WAVED_META_DEFECT): Rule '{r_name}' specifies "
+                            f"{cwe_entry['key']} = \"{cwe_val}\", which mismatches "
+                            f"'{cve_val or att_val}' ({primary_cwe}: {p_cwe_info['short_name']}, "
+                            f"{p_cwe_info['url']}). Replace '{cwe_val}' with '{primary_cwe}'."
+                        ),
+                    }
+                )
+
+        if d3_entry is not None:
+            d3_val = str(d3_entry.get("value") or "").strip().upper()
+            if (
+                d3_val not in WAVED_D3FEND_KNOWLEDGE_BASE
+                or (valid_d3s and d3_val not in valid_d3s)
+            ):
+                p_d3_info = WAVED_D3FEND_KNOWLEDGE_BASE[primary_d3]
+                s_i = int(d3_entry["value_inner_start_index"])
+                e_i = int(d3_entry["value_inner_end_index"])
+                flagged_span_Starts.add(s_i)
+                rule_meta_defect_found = True
+                defects.append(
+                    {
+                        "defect_type": "YARAL2_WAVED_META_DEFECT",
+                        "defect_class": "YARAL2_WAVED_META_DEFECT",
+                        "subtype": "YARAL2_META_D3FEND_MISMATCH",
+                        "layer": "yaral2_meta",
+                        "rule_name": r_name,
+                        "meta_key": str(d3_entry["key"]),
+                        "identifier": d3_val,
+                        "canonical_id": primary_d3,
+                        "canonical_name": str(p_d3_info["name"]),
+                        "canonical_url": str(p_d3_info["url"]),
+                        "startIndex": s_i,
+                        "endIndex": e_i,
+                        "start_index": s_i,
+                        "end_index": e_i,
+                        "quote": str(d3_entry["value"]),
+                        "replacement": primary_d3,
+                        "redline_annotation": (
+                            f"[WAVED ONTOLOGY CORRECTION: YARA-L 2.0 meta {d3_entry['key']} "
+                            f"should be {primary_d3} ({p_d3_info['name']}), not {d3_val} | {p_d3_info['url']}]"
+                        ),
+                        "comment": (
+                            f"Chronicle SIEM YARA-L 2.0 (YL2) WAVED Ontology Metadata Check "
+                            f"(YARAL2_WAVED_META_DEFECT): Rule '{r_name}' specifies "
+                            f"{d3_entry['key']} = \"{d3_val}\", which does not counter "
+                            f"'{att_val or cve_val}'. Replace '{d3_val}' with '{primary_d3}' "
+                            f"({p_d3_info['name']}, {p_d3_info['url']})."
+                        ),
+                    }
+                )
+
+        if (
+            (cve_val or att_val)
+            and cwe_entry is None
+            and d3_entry is None
+            and not rule_meta_defect_found
+        ):
+            anchor = m_spec.get("insertion_anchor")
+            if isinstance(anchor, dict):
+                indent = str(m_spec.get("indent") or "    ")
+                sep = " " if m_spec.get("is_collapsed") else f"\n{indent}"
+                s_i = int(anchor["start_index"])
+                e_i = int(anchor["end_index"])
+                q_str = str(anchor["quote"])
+                rep_str = (
+                    f'{q_str}{sep}cwe_id = "{primary_cwe}"'
+                    f'{sep}d3fend_technique = "{primary_d3}"'
+                )
+                p_cwe_info = WAVED_CWE_KNOWLEDGE_BASE[primary_cwe]
+                p_d3_info = WAVED_D3FEND_KNOWLEDGE_BASE[primary_d3]
+                defects.append(
+                    {
+                        "defect_type": "YARAL2_WAVED_META_DEFECT",
+                        "defect_class": "YARAL2_WAVED_META_DEFECT",
+                        "subtype": "YARAL2_META_MISSING_WAVED_FIELDS",
+                        "layer": "yaral2_meta",
+                        "rule_name": r_name,
+                        "meta_key": "cwe_id,d3fend_technique",
+                        "identifier": r_name,
+                        "canonical_id": f"{primary_cwe},{primary_d3}",
+                        "canonical_name": f"{p_cwe_info['short_name']} / {p_d3_info['name']}",
+                        "canonical_url": str(p_d3_info["url"]),
+                        "startIndex": s_i,
+                        "endIndex": e_i,
+                        "start_index": s_i,
+                        "end_index": e_i,
+                        "quote": q_str,
+                        "replacement": rep_str,
+                        "redline_annotation": (
+                            f'[WAVED ONTOLOGY CORRECTION: Add cwe_id = "{primary_cwe}" and '
+                            f'd3fend_technique = "{primary_d3}" | {p_d3_info["url"]}]'
+                        ),
+                        "comment": (
+                            f"Chronicle SIEM YARA-L 2.0 (YL2) WAVED Ontology Metadata Check "
+                            f"(YARAL2_WAVED_META_DEFECT): Rule '{r_name}' meta: section omits "
+                            f"cwe_id and d3fend_technique for '{cve_val or att_val}'. "
+                            f'Add cwe_id = "{primary_cwe}" ({p_cwe_info["url"]}) and '
+                            f'd3fend_technique = "{primary_d3}" ({p_d3_info["url"]}).'
+                        ),
+                    }
+                )
+
+    for d in defects:
+        d.setdefault("defect_subtype", str(d.get("subtype") or ""))
+    defects.sort(key=lambda d: int(d["startIndex"]))
+
+    defect_ranges = [(int(d["startIndex"]), int(d["endIndex"])) for d in defects]
+    verified_spans: list[dict[str, Any]] = []
+    for sp in spans:
+        sp_range = (int(sp["full_span_startIndex"]), int(sp["full_span_endIndex"]))
+        if any(_spans_overlap(sp_range, dr) for dr in defect_ranges):
+            continue
+        if not sp.get("known_in_kb"):
+            continue
+        verified_spans.append(sp)
+
+    present_layers = sum(
+        1
+        for k in (
+            "weakness_cwe",
+            "vulnerability_cve",
+            "exploit_attack",
+            "defense_d3fend",
+        )
+        if layer_coverage[k]
+    )
+    layer_ratio = present_layers / 4.0
+    total_eval_units = len(verified_spans) + len(defects)
+    accuracy_ratio = (
+        len(verified_spans) / total_eval_units if total_eval_units > 0 else 1.0
+    )
+    waved_completeness_score = (
+        round(layer_ratio * accuracy_ratio, 4) if spans else 0.0
+    )
+
+    planned_replacements = [
+        {
+            "defect_type": d["defect_type"],
+            "subtype": d["subtype"],
+            "defect_subtype": d["defect_subtype"],
+            "startIndex": d["startIndex"],
+            "endIndex": d["endIndex"],
+            "quote": d["quote"],
+            "replacement": d["replacement"],
+            "redline_annotation": d["redline_annotation"],
+            "canonical_url": d["canonical_url"],
+        }
+        for d in sorted(defects, key=lambda item: int(item["startIndex"]), reverse=True)
+    ]
+
+    defect_types_set = sorted(
+        {str(d["defect_type"]) for d in defects}
+        | {str(d["defect_class"]) for d in defects}
+        | {str(d["subtype"]) for d in defects}
+    )
+
+    md_summary = [
+        "### WAVED Cyber Ontology Verification Matrix (akbar-2023)",
+        f"- **WAVED Completeness Score:** {waved_completeness_score:.4f}",
+        f"- **Layer Coverage:** Weakness (CWE)={layer_coverage['weakness_cwe']}, "
+        f"Vulnerability (CVE)={layer_coverage['vulnerability_cve']}, "
+        f"Exploit (ATT&CK)={layer_coverage['exploit_attack']}, "
+        f"Defense (D3FEND)={layer_coverage['defense_d3fend']}",
+        f"- **Verified Spans:** {len(verified_spans)} | **Detected Defects:** {len(defects)}",
+    ]
+    for d in defects:
+        md_summary.append(
+            f"  - [{d['defect_type']}] `{d['quote']}` -> `{d['replacement']}` ({d['canonical_url']})"
+        )
+
+    return {
+        "status": "success",
+        "waved_completeness_score": waved_completeness_score,
+        "layer_coverage": layer_coverage,
+        "spans": spans,
+        "verified_spans": verified_spans,
+        "verified_span_count": len(verified_spans),
+        "verified_chains": verified_chains,
+        "defect_count": len(defects),
+        "defects": defects,
+        "defect_types": defect_types_set,
+        "planned_surgical_replacements": planned_replacements,
+        "planned_Surgical_Replacements": planned_replacements,
+        "executive_summary_markdown": "\n".join(md_summary),
+    }
+
+
+def find_waved_ontology_review_spans(
+    plain_text: str,
+    index_map: list[int],
+    *,
+    doc: dict[str, Any] | None = None,
+    include_incomplete_chains: bool = False,
+    synthesize_yaral2_missing_waved_meta: bool = False,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Converts actionable WAVED Cyber Ontology defects from :func:`analyze_waved_ontology_graph`
+    into Stage A ``(comments, edits, findings)`` for :func:`review_google_doc_with_stage_a`."""
+    comments: list[dict[str, Any]] = []
+    edits: list[dict[str, Any]] = []
+    findings: list[dict[str, Any]] = []
+    if not plain_text or not index_map:
+        return comments, edits, findings
+
+    analysis = analyze_waved_ontology_graph(plain_text, index_map=index_map)
+    for d in analysis.get("defects", []):
+        subtype = str(d.get("subtype") or "")
+        if subtype == "INCOMPLETE_WAVED_CHAIN" and not include_incomplete_chains:
+            continue
+        if (
+            subtype == "YARAL2_META_MISSING_WAVED_FIELDS"
+            and not synthesize_yaral2_missing_waved_meta
+        ):
+            continue
+        s_i = int(d["start_index"])
+        e_i = int(d["end_index"])
+        quote = str(d["quote"])
+        rep = str(d["replacement"])
+        comment_text = str(d["comment"])
+        comments.append(
+            {
+                "start_index": s_i,
+                "end_index": e_i,
+                "quote": quote,
+                "comment": comment_text,
+            }
+        )
+        edits.append(
+            {
+                "start_index": s_i,
+                "end_index": e_i,
+                "quote": quote,
+                "replacement": rep,
+            }
+        )
+        findings.append(dict(d))
+
+    return comments, edits, findings
+
+
+class _DocsExecutableRequest:
+    """Google API Client-compatible ``.execute()`` wrapper around ``httpx`` for Docs API v1."""
+
+    def __init__(self, fn: Any) -> None:
+        self._fn = fn
+
+    def execute(self) -> dict[str, Any]:
+        return self._fn()
+
+
+class _DocsResourceAdapter:
+    """Google Docs API v1 ``.documents()`` resource adapter supporting ``.get(...)`` and ``.batchUpdate(...)``."""
+
+    def __init__(
+        self,
+        *,
+        token_source: TokenSource | None = None,
+        quota_project: str | None = None,
+        transport: httpx.BaseTransport | None = None,
+        tool_context: Any = None,
+    ) -> None:
+        self._token_source = token_source
+        self._quota_project = quota_project
+        self._transport = transport
+        self._tool_context = tool_context
+
+    def _headers(self) -> dict[str, str]:
+        token = resolve_docs_token(
+            self._tool_context,
+            token_source=self._token_source,
+        )
+        qp = (
+            self._quota_project
+            if self._quota_project is not None
+            else os.environ.get("DRIVE_MCP_QUOTA_PROJECT")
+            or os.environ.get("GOOGLE_CLOUD_QUOTA_PROJECT")
+            or os.environ.get("GOOGLE_CLOUD_PROJECT")
+        )
+        headers: dict[str, str] = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
+        if qp:
+            headers["X-Goog-User-Project"] = str(qp)
+        return headers
+
+    def get(self, *, documentId: str, includeTabsContent: bool = True) -> _DocsExecutableRequest:
+        def _do_get() -> dict[str, Any]:
+            url = f"{DOCS_API_BASE_URL}/{documentId}"
+            params = {"includeTabsContent": "true"} if includeTabsContent else {}
+            with httpx.Client(transport=self._transport, timeout=30.0) as http:
+                resp = http.get(url, headers=self._headers(), params=params)
+                resp.raise_for_status()
+                return resp.json()
+
+        return _DocsExecutableRequest(_do_get)
+
+    def batchUpdate(
+        self, *, documentId: str, body: dict[str, Any]
+    ) -> _DocsExecutableRequest:
+        def _do_batch_update() -> dict[str, Any]:
+            url = f"{DOCS_API_BASE_URL}/{documentId}:batchUpdate"
+            with httpx.Client(transport=self._transport, timeout=30.0) as http:
+                resp = http.post(url, headers=self._headers(), json=body)
+                resp.raise_for_status()
+                return resp.json()
+
+        return _DocsExecutableRequest(_do_batch_update)
+
+
+class _GoogleDocsServiceAdapter:
+    """Adapter returned by :func:`get_docs_service` providing ``.documents().get()`` and ``.documents().batchUpdate()``."""
+
+    def __init__(
+        self,
+        *,
+        token_source: TokenSource | None = None,
+        quota_project: str | None = None,
+        transport: httpx.BaseTransport | None = None,
+        tool_context: Any = None,
+    ) -> None:
+        self._docs_res = _DocsResourceAdapter(
+            token_source=token_source,
+            quota_project=quota_project,
+            transport=transport,
+            tool_context=tool_context,
+        )
+
+    def documents(self) -> _DocsResourceAdapter:
+        return self._docs_res
+
+
+def get_docs_service(
+    token_source: TokenSource | None = None,
+    quota_project: str | None = None,
+    transport: httpx.BaseTransport | None = None,
+    tool_context: Any = None,
+) -> _GoogleDocsServiceAdapter:
+    """Returns a Google Docs API v1 service adapter supporting ``.documents().get(...).execute()``
+    and ``.documents().batchUpdate(...).execute()``."""
+    return _GoogleDocsServiceAdapter(
+        token_source=token_source,
+        quota_project=quota_project,
+        transport=transport,
+        tool_context=tool_context,
+    )
+
+
+def verify_and_redline_waved_ontology_in_doc(
+    document_id: str,
+    apply_redlines: bool = True,
+    highlight_valid: bool = True,
+    append_summary_section: bool = False,
+    *,
+    tool_context: Any = None,
+    token_source: TokenSource | None = None,
+    quota_project: str | None = None,
+    transport: httpx.BaseTransport | None = None,
+) -> dict[str, Any]:
+    """Verifies the 4-layer WAVED Cyber Ontology (``akbar-2023``) graph
+    (``Weakness CWE -> Vulnerability CVE -> Exploit MITRE ATT&CK -> Defense MITRE D3FEND``)
+    in a live Google Doc and executes a single atomic ``batchUpdate`` sorted in strict
+    reverse ``startIndex`` order (``reverse=True``).
+
+    - Validated CWE, CVE, ATT&CK, and D3FEND spans receive soft green highlight (``#e6f4ea``)
+      and ``updateTextStyle.link`` pointing to their canonical allowlisted URLs on
+      ``cwe.mitre.org``, ``nvd.nist.gov``, ``attack.mitre.org``, and ``d3fend.mitre.org``.
+    - Mismatched CWE labels, D3FEND labels, incompatible WAVED chain mappings, and
+      Chronicle SIEM YARA-L 2.0 ``meta:`` defects receive inline redline strike-through
+      (``strikethrough=True``, foreground ``#c5221f``, background ``#fce8e6``) followed by
+      bold green ``[WAVED ONTOLOGY CORRECTION: ...]`` annotations with canonical links.
+    - Optionally appends a formatted ``WAVED Cyber Ontology Verification Matrix`` section
+      at the end of the document when ``append_summary_section=True``.
+    """
+    try:
+        if (
+            token_source is None
+            and quota_project is None
+            and transport is None
+            and tool_context is None
+        ):
+            service = get_docs_service()
+        else:
+            service = get_docs_service(
+                token_source=token_source,
+                quota_project=quota_project,
+                transport=transport,
+                tool_context=tool_context,
+            )
+        doc = service.documents().get(documentId=document_id).execute()
+    except Exception as err:
+        return {
+            "status": "error",
+            "document_id": document_id,
+            "message": f"Failed to fetch Google Doc {document_id}: {err}",
+        }
+
+    analysis = analyze_waved_ontology_graph(doc)
+    plain_text, resolved_map = _extract_waved_text_and_index_map(doc)
+
+    # Action items for atomic batchUpdate: collect non-overlapping valid and defect items
+    # and sort in strict descending startIndex order (reverse=True).
+    action_items: list[dict[str, Any]] = []
+    if apply_redlines:
+        for d in analysis.get("defects", []):
+            if str(d.get("subtype")) in (
+                "INCOMPLETE_WAVED_CHAIN",
+                "YARAL2_META_MISSING_WAVED_FIELDS",
+            ):
+                continue
+            action_items.append(
+                {
+                    "kind": "defect",
+                    "startIndex": int(d["startIndex"]),
+                    "endIndex": int(d["endIndex"]),
+                    "defect": d,
+                }
+            )
+
+    if highlight_valid:
+        for sp in analysis.get("verified_spans", []):
+            action_items.append(
+                {
+                    "kind": "valid",
+                    "startIndex": int(sp["startIndex"]),
+                    "endIndex": int(sp["endIndex"]),
+                    "span": sp,
+                }
+            )
+
+    action_items.sort(key=lambda item: int(item["startIndex"]), reverse=True)
+
+    requests: list[dict[str, Any]] = []
+
+    if append_summary_section and plain_text and resolved_map:
+        last_char_idx = len(plain_text) - 1
+        doc_end_idx = int(
+            resolved_map[last_char_idx]
+            + _utf16_code_unit_len(plain_text[last_char_idx])
+        )
+        max_action_end = max(
+            (int(it["endIndex"]) for it in action_items), default=1
+        )
+        summary_insert_idx = max(doc_end_idx - 1, max_action_end)
+        summary_text = "\n\n" + str(analysis["executive_summary_markdown"]) + "\n"
+        requests.append(
+            {
+                "insertText": {
+                    "location": {"index": summary_insert_idx},
+                    "text": summary_text,
+                }
+            }
+        )
+
+    green_bg = {"color": {"rgbColor": {"red": 0.902, "green": 0.957, "blue": 0.918}}}
+    green_fg = {"color": {"rgbColor": {"red": 0.075, "green": 0.451, "blue": 0.200}}}
+    red_bg = {"color": {"rgbColor": {"red": 0.988, "green": 0.910, "blue": 0.902}}}
+    red_fg = {"color": {"rgbColor": {"red": 0.773, "green": 0.133, "blue": 0.122}}}
+
+    for item in action_items:
+        s_idx = int(item["startIndex"])
+        e_idx = int(item["endIndex"])
+        if item["kind"] == "defect":
+            d = item["defect"]
+            corr_text = " " + str(d["redline_annotation"])
+            corr_utf16_len = sum(_utf16_code_unit_len(ch) for ch in corr_text)
+            canon_url = str(d.get("canonical_url") or "")
+            allowlisted = validate_url_against_domain_allowlist(canon_url)
+
+            # 1. Insert [WAVED ONTOLOGY CORRECTION: ...] at e_idx (which is > s_idx)
+            requests.append(
+                {
+                    "insertText": {
+                        "location": {"index": e_idx},
+                        "text": corr_text,
+                    }
+                }
+            )
+            # 2. Style inserted annotation at [e_idx, e_idx + corr_utf16_len)
+            corr_style: dict[str, Any] = {
+                "bold": True,
+                "foregroundColor": green_fg,
+                "backgroundColor": green_bg,
+            }
+            corr_fields = ["bold", "foregroundColor", "backgroundColor"]
+            if allowlisted:
+                corr_style["link"] = {"url": canon_url}
+                corr_fields.append("link")
+            requests.append(
+                {
+                    "updateTextStyle": {
+                        "range": {
+                            "startIndex": e_idx,
+                            "endIndex": e_idx + corr_utf16_len,
+                        },
+                        "textStyle": corr_style,
+                        "fields": ",".join(corr_fields),
+                    }
+                }
+            )
+            # 3. Strike through defective span at [s_idx, e_idx)
+            requests.append(
+                {
+                    "updateTextStyle": {
+                        "range": {"startIndex": s_idx, "endIndex": e_idx},
+                        "textStyle": {
+                            "strikethrough": True,
+                            "foregroundColor": red_fg,
+                            "backgroundColor": red_bg,
+                        },
+                        "fields": "strikethrough,foregroundColor,backgroundColor",
+                    }
+                }
+            )
+        else:
+            sp = item["span"]
+            canon_url = str(sp.get("canonical_url") or "")
+            if not validate_url_against_domain_allowlist(canon_url):
+                continue
+            requests.append(
+                {
+                    "updateTextStyle": {
+                        "range": {"startIndex": s_idx, "endIndex": e_idx},
+                        "textStyle": {
+                            "backgroundColor": green_bg,
+                            "link": {"url": canon_url},
+                        },
+                        "fields": "backgroundColor,link",
+                    }
+                }
+            )
+
+    if requests:
+        try:
+            service.documents().batchUpdate(
+                documentId=document_id,
+                body={"requests": requests},
+            ).execute()
+        except Exception as err:
+            return {
+                "status": "error",
+                "document_id": document_id,
+                "message": f"Google Docs batchUpdate failed on {document_id}: {err}",
+            }
+
+    return {
+        "status": "success",
+        "document_id": document_id,
+        "waved_completeness_score": analysis["waved_completeness_score"],
+        "layer_coverage": analysis["layer_coverage"],
+        "defect_count": analysis["defect_count"],
+        "defects": analysis["defects"],
+        "verified_span_count": analysis["verified_span_count"],
+        "verified_spans": analysis["verified_spans"],
+        "verified_chains": analysis["verified_chains"],
+        "applied_requests_count": len(requests),
+        "requests": requests,
+        "summary": analysis["executive_summary_markdown"],
+    }
+
+
+def run_unified_doc_grounding_review(
+    document_id: str,
+    *,
+    include_waved_ontology_stage_a: bool = True,
+    tool_context: Any = None,
+    token_source: TokenSource | None = None,
+    quota_project: str | None = None,
+    transport: httpx.BaseTransport | None = None,
+    **kwargs: Any,
+) -> dict[str, Any]:
+    """Executes the unified multi-stage Google Doc grounding review including
+    WAVED Cyber Ontology (``akbar-2023``) verification."""
+    res = review_google_doc_with_stage_a(
+        document_id,
+        tool_context=tool_context,
+        include_waved_ontology_stage_a=include_waved_ontology_stage_a,
+        token_source=token_source,
+        quota_project=quota_project,
+        transport=transport,
+        **kwargs,
+    )
+    if res.get("status") != "success":
+        try:
+            if (
+                token_source is None
+                and quota_project is None
+                and transport is None
+                and tool_context is None
+            ):
+                svc = get_docs_service()
+            else:
+                svc = get_docs_service(
+                    token_source=token_source,
+                    quota_project=quota_project,
+                    transport=transport,
+                    tool_context=tool_context,
+                )
+            doc = svc.documents().get(documentId=document_id).execute()
+            waved_full = analyze_waved_ontology_graph(doc)
+            return {
+                "status": "success",
+                "document_id": document_id,
+                "title": doc.get("title", ""),
+                "stage_a_waved_ontology_count": waved_full["defect_count"],
+                "waved_ontology_verification": {
+                    "status": (
+                        "verified"
+                        if int(waved_full.get("defect_count", 0) or 0) == 0
+                        else "defects_found"
+                    ),
+                    "waved_completeness_score": waved_full["waved_completeness_score"],
+                    "defect_count": waved_full["defect_count"],
+                    "defects": waved_full["defects"],
+                    "verified_span_count": waved_full["verified_span_count"],
+                    "verified_chains": waved_full["verified_chains"],
+                    "layer_coverage": waved_full["layer_coverage"],
+                },
+            }
+        except Exception:
+            return res
+    plain_text, index_map = _load_doc_index_state(document_id, tool_context=tool_context)
+    if plain_text is not None and index_map is not None:
+        waved_full = analyze_waved_ontology_graph(plain_text, index_map=index_map)
+        res["waved_ontology_verification"] = {
+            "status": (
+                "verified"
+                if int(waved_full.get("defect_count", 0) or 0) == 0
+                else "defects_found"
+            ),
+            "waved_completeness_score": waved_full["waved_completeness_score"],
+            "defect_count": waved_full["defect_count"],
+            "defects": waved_full["defects"],
+            "verified_span_count": waved_full["verified_span_count"],
+            "verified_chains": waved_full["verified_chains"],
+            "layer_coverage": waved_full["layer_coverage"],
+        }
+    return res
+

@@ -35,11 +35,13 @@ from .grounding_tools import (
 )
 from .docs_review_tools import (
     analyze_and_redline_detection_coverage_gaps_in_doc as _analyze_and_redline_detection_coverage_gaps_in_doc,
+    analyze_waved_ontology_graph,
     audit_and_redline_claim_evidence_and_campaign_in_doc as _audit_and_redline_claim_evidence_and_campaign_in_doc,
     audit_and_redline_runbook_promotion_in_doc as _audit_and_redline_runbook_promotion_in_doc,
     create_google_doc as _create_google_doc,
     evaluate_infosec_doc_reviewer as _evaluate_infosec_doc_reviewer,
     export_accepted_doc_to_markdown as _export_accepted_doc_to_markdown,
+    find_waved_ontology_spans,
     insert_doc_comments as _insert_doc_comments,
     inspect_doc_suggestions as _inspect_doc_suggestions,
     list_doc_comments as _list_doc_comments,
@@ -49,6 +51,7 @@ from .docs_review_tools import (
     triage_and_redline_leaked_credentials_in_doc as _triage_and_redline_leaked_credentials_in_doc,
     verify_and_redline_mitre_and_cve_in_doc as _verify_and_redline_mitre_and_cve_in_doc,
     verify_and_redline_udm_queries_in_doc as _verify_and_redline_udm_queries_in_doc,
+    verify_and_redline_waved_ontology_in_doc as _verify_and_redline_waved_ontology_in_doc,
     verify_and_redline_yaral2_rules_in_doc as _verify_and_redline_yaral2_rules_in_doc,
 )
 
@@ -1232,6 +1235,50 @@ def evaluate_infosec_doc_reviewer(
   )
 
 
+def verify_and_redline_waved_ontology_in_doc(
+    document_id: str,
+    apply_redlines: bool = True,
+    highlight_valid: bool = True,
+    append_summary_section: bool = False,
+    tool_context: ToolContext = None,
+) -> dict[str, Any]:
+  """Verifies and red-lines 4-layer WAVED (Weakness -> Vulnerability -> Exploit -> Defense) cyber ontology graphs in a Google Doc.
+
+  Grounded in Akbar et al. (akbar-2023), scans the Google Doc for CWE weakness
+  identifiers (`CWE-xxx`), CVE vulnerability identifiers (`CVE-YYYY-NNNN+`),
+  MITRE ATT&CK techniques (`Txxxx` / `Txxxx.xxx`), MITRE D3FEND defensive
+  countermeasures (`D3-xxxx`), and Chronicle SIEM YARA-L 2.0 (`YL2` — UDM event
+  detection rules, distinct from standard YARA file/payload pattern matching)
+  `meta:` blocks (`cwe_id`, `d3fend_technique`). Evaluates:
+  1. `CWE_LABEL_MISMATCH` / `UNKNOWN_CWE_ID`
+  2. `D3FEND_LABEL_MISMATCH` / `UNKNOWN_D3FEND_ID`
+  3. `WAVED_CHAIN_INCONSISTENCY` (`CVE_CWE_MISMATCH`, `ATTACK_D3FEND_MISMATCH`, `INCOMPLETE_WAVED_CHAIN`)
+  4. `YARAL2_WAVED_META_DEFECT`
+  Builds an atomic `batchUpdate` sorted in strict reverse `startIndex` order
+  (`reverse=True`) linking validated spans to allowlisted `cwe.mitre.org` and
+  `d3fend.mitre.org` URLs and red-lining mismatched labels and incompatible
+  countermeasures.
+
+  Args:
+      document_id (str): The Google Docs documentId.
+      apply_redlines (bool): Whether to apply redline strike-throughs and corrections.
+      highlight_valid (bool): Whether to highlight and link validated CWE/D3FEND spans.
+      append_summary_section (bool): Whether to append a WAVED Cyber Ontology Verification Matrix section.
+
+  Returns:
+      dict: {"status", "document_id", "title", "waved_completeness_score",
+             "layer_coverage", "defect_count", "defects", "verified_span_count",
+             "applied_requests_count", "batch_update_requests", "summary"}.
+  """
+  return _verify_and_redline_waved_ontology_in_doc(
+      document_id=document_id,
+      apply_redlines=apply_redlines,
+      highlight_valid=highlight_valid,
+      append_summary_section=append_summary_section,
+      tool_context=tool_context,
+  )
+
+
 def get_agent_tools():
   """Initializes and returns MCP toolsets and progressive discovery tools.
 
@@ -1273,6 +1320,9 @@ def get_agent_tools():
   )
   wrapped_verify_and_redline_mitre_and_cve_in_doc = instrument_tool(
       verify_and_redline_mitre_and_cve_in_doc
+  )
+  wrapped_verify_and_redline_waved_ontology_in_doc = instrument_tool(
+      verify_and_redline_waved_ontology_in_doc
   )
   wrapped_sanitize_and_redline_telemetry_in_doc = instrument_tool(
       sanitize_and_redline_telemetry_in_doc
@@ -1325,6 +1375,7 @@ def get_agent_tools():
       wrapped_verify_and_redline_udm_queries_in_doc,
       wrapped_verify_and_redline_yaral2_rules_in_doc,
       wrapped_verify_and_redline_mitre_and_cve_in_doc,
+      wrapped_verify_and_redline_waved_ontology_in_doc,
       wrapped_sanitize_and_redline_telemetry_in_doc,
       wrapped_triage_and_redline_leaked_credentials_in_doc,
       wrapped_audit_and_redline_claim_evidence_and_campaign_in_doc,
