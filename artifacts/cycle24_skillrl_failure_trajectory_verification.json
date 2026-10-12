@@ -1,0 +1,81 @@
+{
+  "cycle": 24,
+  "horizon": "H25",
+  "status": "validated",
+  "new_docs_created": 0,
+  "live_doc_id": "1xWqRXooknTaEUVKyjjWYE1tHsRxES6B86y8cDf1csEE",
+  "benchmark_bench11": {
+    "expected_defects": 5,
+    "true_positive_edits": 5,
+    "false_positive_edits": 0,
+    "negative_controls_preserved": "2/2",
+    "f1": 1.0,
+    "pass2_idempotency_rate": 1.0
+  },
+  "benchmark_all_with_night2": {
+    "scenario_count": 11,
+    "expected_defects": 58,
+    "true_positive_edits": 58,
+    "false_positive_edits": 0,
+    "negative_controls_preserved": "23/23",
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "pass2_idempotency_rate": 1.0,
+    "hda_attribution": {
+      "delta_G": 0.6551,
+      "delta_T": 0.1897,
+      "delta_A": 0.1552,
+      "delta_total": 1.0,
+      "ablation_scores": {
+        "unassisted_baseline": 0.0,
+        "mechanics_only_stage_a": 0.1897,
+        "grounded_without_promotion_guard": 0.8448,
+        "full_grounded_reviewer": 1.0,
+        "unparameterized_ioc_overfitting_control": -0.25
+      },
+      "tier_breakdown": {
+        "mechanics_caught": 11,
+        "mechanics_total": 11,
+        "grounding_caught": 38,
+        "grounding_total": 38,
+        "agent_caught": 9,
+        "agent_total": 9
+      }
+    }
+  },
+  "live_pass1": {
+    "defect_count": 5,
+    "defect_counts_by_type": {
+      "single_point_mcp_outage_abort": 1,
+      "unhandled_zero_hit_dead_end": 1,
+      "missing_benign_twin_counterfactual_branch": 1,
+      "unmitigated_safety_filter_echo_trajectory": 1,
+      "yaral2_missing_failure_recovery_meta": 1
+    },
+    "applied_redlines": 5,
+    "false_positive_redlines": 0,
+    "inserted_comment_count": 5,
+    "appended_appendix": true,
+    "has_h25_decision_tree_matrix": true,
+    "fee2e2_span_count": 5,
+    "dcfce7_span_count": 5,
+    "compiler_verified": true,
+    "standard_yara_rules_ignored": [
+      "standard_yara_gamarue_pe_payload_control"
+    ],
+    "distilled_failure_trace_count": 3,
+    "live_siem": {
+      "validate_rule_raw": "{'content': [{'type': 'text', 'text': 'Rule Validation Results:\\n\\nRule validation PASSED\\nThe rule syntax is correct and ready for testing or deployment.\\n'}], 'structuredContent': {'result': 'Rule Validation Results:\\n\\nRule validation PASSED\\nThe rule syntax is correct and ready for testing or deployment.\\n'}, 'isError': False}",
+      "validate_rule_success": true,
+      "search_udm_raw": "{'content': [{'type': 'text', 'text': '{\\n  \"events\": [\\n    {\\n      \"name\": \"projects/dandye-0324-chronicle/locations/us/instances/7e977ce4-f45d-43b2-aea0-52f8b66acd80/events/AAAAAHTJVZBByezsM2bHWe7zCl4AAAAABgAAACAAAAA%3D\",\\n      \"udm\": {\\n        \"metadata\": {\\n          \"productLogId\": \"1366207\",\\n          \"eventTimestamp\": \"2026-02-07T10:06:28Z\",\\n          \"eventType\": \"PROCESS_LAUNCH\",\\n          \"vendorName\": \"Microsoft\",\\n          \"productName\": \"Microsoft-Windows-Sysmon\",\\n          \"productEventType\": \"1\",\\n          \"ingestedTimestamp\": \"2026-02-08T07:01:37.624491Z\",\\n          ",
+      "search_udm_has_events": true
+    }
+  },
+  "live_pass2": {
+    "defect_count": 0,
+    "skipped_existing_suggestion_count": 5,
+    "applied_redlines": 0,
+    "appended_appendix": false
+  }
+}

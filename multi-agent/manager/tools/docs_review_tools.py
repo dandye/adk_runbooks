@@ -2286,8 +2286,23 @@ def resolve_docs_token(
             user_token = str(state.get("user_access_token") or "").strip()
             if user_token:
                 return user_token
-    source = token_source or AdcTokenSource()
-    return source()
+    source: Any = token_source or AdcTokenSource()
+    if isinstance(source, str):
+        return source
+    if hasattr(source, "get_token") and callable(source.get_token):
+        return str(source.get_token())
+    if callable(source):
+        return str(source())
+    if hasattr(source, "token"):
+        tok = getattr(source, "token", None)
+        if not tok and hasattr(source, "refresh") and callable(source.refresh):
+            import google.auth.transport.requests
+
+            source.refresh(google.auth.transport.requests.Request())
+            tok = getattr(source, "token", None)
+        if tok:
+            return str(tok)
+    return str(source)
 
 
 def _build_docs_headers(
@@ -16844,6 +16859,7 @@ def review_google_doc_with_stage_a(
     include_waved_ontology_stage_a: bool = False,
     include_ioc_reputation_stage_a: bool = False,
     include_skillorchestra_routing_stage_a: bool = False,
+    include_skillrl_failure_trajectory_stage_a: bool = False,
     verify_yaral2_meta_mitre: bool = False,
     synthesize_yaral2_missing_meta: bool = False,
     verify_yaral2_meta_runbook: bool = False,
@@ -16874,17 +16890,20 @@ def review_google_doc_with_stage_a(
        :func:`find_waved_ontology_review_spans` when
        ``include_waved_ontology_stage_a=True``,
        :func:`find_ioc_reputation_and_attribution_spans` when
-       ``include_ioc_reputation_stage_a=True``, and
+       ``include_ioc_reputation_stage_a=True``,
        :func:`find_skillorchestra_routing_and_budget_spans` when
-       ``include_skillorchestra_routing_stage_a=True``)
+       ``include_skillorchestra_routing_stage_a=True``, and
+       :func:`find_skillrl_failure_trajectory_spans` when
+       ``include_skillrl_failure_trajectory_stage_a=True``)
        to locate leaked credentials, destructive/ineffective containment CLIs,
        unredacted telemetry payloads/secrets, live untrusted URLs,
        standalone Chronicle UDM field defects, YARA-L 2.0 rule defects,
        MITRE ATT&CK / CVE defects, narrative claim/campaign defects,
        Detection Coverage / TDO defects, case-specific runbook IoC leakage,
        WAVED Cyber Ontology (CWE-CVE-ATT&CK-D3FEND) defects,
-       GTI / Chronicle SIEM IoC reputation and threat attribution defects, and
-       SkillOrchestra multi-model routing and Stage A/B token budget defects
+       GTI / Chronicle SIEM IoC reputation and threat attribution defects,
+       SkillOrchestra multi-model routing and Stage A/B token budget defects, and
+       SkillRL failure-trajectory and counterfactual decision-tree defects
        by numeric UTF-16 span without echoing them through an LLM.
     3. Deduplicates Stage A spans against overlapping Stage B
        ``semantic_comments`` and ``semantic_edits`` and skips any span that
@@ -17185,6 +17204,25 @@ def review_google_doc_with_stage_a(
                 deduped_skillorchestra_routing_edits.append(e_item)
                 existing_edit_spans.append(e_span)
 
+    stage_a_skillrl_failure_trajectory_count = 0
+    deduped_skillrl_failure_trajectory_comments: list[dict[str, Any]] = []
+    deduped_skillrl_failure_trajectory_edits: list[dict[str, Any]] = []
+    if include_skillrl_failure_trajectory_stage_a:
+        sr_comments, sr_edits, sr_findings = (
+            find_skillrl_failure_trajectory_spans(plain_text, index_map)
+        )
+        stage_a_skillrl_failure_trajectory_count = len(sr_findings)
+        for c_item in sr_comments:
+            c_span = (c_item["start_index"], c_item["end_index"])
+            if not any(_spans_overlap(c_span, ex) for ex in existing_comment_spans):
+                deduped_skillrl_failure_trajectory_comments.append(c_item)
+                existing_comment_spans.append(c_span)
+        for e_item in sr_edits:
+            e_span = (e_item["start_index"], e_item["end_index"])
+            if not any(_spans_overlap(e_span, ex) for ex in existing_edit_spans):
+                deduped_skillrl_failure_trajectory_edits.append(e_item)
+                existing_edit_spans.append(e_span)
+
     raw_all_comments = (
         deduped_credential_containment_comments
         + deduped_telemetry_comments
@@ -17198,6 +17236,7 @@ def review_google_doc_with_stage_a(
         + deduped_waved_ontology_comments
         + deduped_ioc_reputation_comments
         + deduped_skillorchestra_routing_comments
+        + deduped_skillrl_failure_trajectory_comments
         + stage_b_comments
     )
     raw_all_edits = (
@@ -17213,6 +17252,7 @@ def review_google_doc_with_stage_a(
         + deduped_waved_ontology_edits
         + deduped_ioc_reputation_edits
         + deduped_skillorchestra_routing_edits
+        + deduped_skillrl_failure_trajectory_edits
         + stage_b_edits
     )
 
@@ -17288,6 +17328,7 @@ def review_google_doc_with_stage_a(
         "stage_a_waved_ontology_count": stage_a_waved_ontology_count,
         "stage_a_ioc_reputation_count": stage_a_ioc_reputation_count,
         "stage_a_skillorchestra_routing_count": stage_a_skillorchestra_routing_count,
+        "stage_a_skillrl_failure_trajectory_count": stage_a_skillrl_failure_trajectory_count,
         "stage_a_italic_regex_count": stage_a_italic_regex_count,
         "waved_ontology_verification": {
             "status": (
@@ -17321,6 +17362,7 @@ def stage_runbook_update_as_google_doc(
     include_tdo_coverage_stage_a: bool = False,
     include_runbook_promotion_stage_a: bool = False,
     include_skillorchestra_routing_stage_a: bool = False,
+    include_skillrl_failure_trajectory_stage_a: bool = False,
     skill_content_override: str | None = None,
     client: DriveMcpClient | None = None,
     token_source: TokenSource | None = None,
@@ -17377,6 +17419,7 @@ def stage_runbook_update_as_google_doc(
         include_tdo_coverage_stage_a=include_tdo_coverage_stage_a,
         include_runbook_promotion_stage_a=include_runbook_promotion_stage_a,
         include_skillorchestra_routing_stage_a=include_skillorchestra_routing_stage_a,
+        include_skillrl_failure_trajectory_stage_a=include_skillrl_failure_trajectory_stage_a,
         token_source=token_source,
         quota_project=quota_project,
         transport=transport,
@@ -17404,6 +17447,9 @@ def stage_runbook_update_as_google_doc(
         ),
         "stage_a_skillorchestra_routing_count": review_res.get(
             "stage_a_skillorchestra_routing_count", 0
+        ),
+        "stage_a_skillrl_failure_trajectory_count": review_res.get(
+            "stage_a_skillrl_failure_trajectory_count", 0
         ),
         "stage_a_italic_regex_count": review_res.get("stage_a_italic_regex_count", 0),
         "comments": review_res.get("comments", {}),
@@ -23218,6 +23264,10 @@ class LocalGoogleDocsSimulator:
         )
         return str(inspected.get("accepted_text") or "")
 
+    def get_plain_text(self, document_id: str | None = None) -> str:
+        """Alias for :meth:`get_text`."""
+        return self.get_text(document_id)
+
     def create_or_reset_doc(
         self,
         document_id: str,
@@ -23651,6 +23701,56 @@ class LocalGoogleDocsSimulator:
 
         _recompute_kix_ast_indices(doc)
 
+    def _apply_update_text_style(
+        self,
+        doc: dict[str, Any],
+        start_idx: int,
+        end_idx: int,
+        text_style: dict[str, Any],
+    ) -> None:
+        """Applies ``text_style`` to ``textRun`` elements spanning ``[start_idx, end_idx)``."""
+        if end_idx <= start_idx or start_idx < 1:
+            return
+        tabs = doc.get("tabs", [])
+        body = (
+            tabs[0].get("documentTab", {}).get("body", {})
+            if tabs
+            else doc.get("body", {})
+        )
+
+        def _style_elements(elements: list[dict[str, Any]]) -> None:
+            for element in elements:
+                if "paragraph" in element:
+                    p_start = int(element.get("startIndex", 0) or 0)
+                    p_end = int(element.get("endIndex", 0) or 0)
+                    if max(p_start, start_idx) >= min(p_end, end_idx):
+                        continue
+                    p_elems = element["paragraph"].get("elements", [])
+                    p_elems = _split_paragraph_elements_at_utf16_index(
+                        p_elems, start_idx
+                    )
+                    p_elems = _split_paragraph_elements_at_utf16_index(
+                        p_elems, end_idx
+                    )
+                    element["paragraph"]["elements"] = p_elems
+                    for pe in p_elems:
+                        tr = pe.get("textRun")
+                        if not tr:
+                            continue
+                        pe_s = int(pe.get("startIndex", 0) or 0)
+                        pe_e = int(pe.get("endIndex", 0) or 0)
+                        if start_idx <= pe_s and pe_e <= end_idx:
+                            ts = tr.setdefault("textStyle", {})
+                            for k, v in (text_style or {}).items():
+                                ts[k] = json.loads(json.dumps(v))
+                elif "table" in element:
+                    for row in element["table"].get("tableRows", []):
+                        for cell in row.get("tableCells", []):
+                            _style_elements(cell.get("content", []))
+
+        _style_elements(body.get("content", []))
+        _recompute_kix_ast_indices(doc)
+
     def _extract_quoted_text_for_range(
         self, doc: dict[str, Any], start_idx: int, end_idx: int
     ) -> str:
@@ -23729,8 +23829,9 @@ class LocalGoogleDocsSimulator:
                     replies.append({"insertComment": {"commentId": cid}})
                 return 200, {"documentId": document_id, "replies": replies}
 
-            # Case 2: deleteContentRange / insertText operations (under writeMode='SUGGEST' or direct)
+            # Case 2: deleteContentRange / insertText / updateTextStyle operations
             ops: list[tuple[int, int, str, int]] = []
+            style_ops: list[tuple[int, int, dict[str, Any]]] = []
             r_idx = 0
             n_reqs = len(requests_list)
             while r_idx < n_reqs:
@@ -23782,6 +23883,16 @@ class LocalGoogleDocsSimulator:
                         }
                     ops.append((loc_idx, loc_idx, rep_text, 1))
                     r_idx += 1
+                elif "updateTextStyle" in req:
+                    uts = req["updateTextStyle"]
+                    rng = uts.get("range") or {}
+                    s_idx = int(rng.get("startIndex", 0) or 0)
+                    e_idx = int(rng.get("endIndex", 0) or 0)
+                    t_style = dict(uts.get("textStyle") or {})
+                    if s_idx >= 1 and e_idx > s_idx:
+                        style_ops.append((s_idx, e_idx, t_style))
+                    ops.append((0, 0, "", 1))
+                    r_idx += 1
                 else:
                     ops.append((0, 0, "", 1))
                     r_idx += 1
@@ -23816,6 +23927,9 @@ class LocalGoogleDocsSimulator:
                     )
                 for _ in range(consumed):
                     replies.append({})
+
+            for st_s, st_e, st_dict in style_ops:
+                self._apply_update_text_style(doc, st_s, st_e, st_dict)
 
             return 200, {"documentId": document_id, "replies": replies}
 
@@ -24859,6 +24973,157 @@ EXTENDED_NIGHT2_BENCHMARK_SCENARIOS: tuple[dict[str, Any], ...] = (
         "negative_control_substrings": (
             "Preserved Stage A Routing Control: Deterministic Python Stage A scanner executes URL defanging, Base64 -enc sanitization, and 1-based UTF-16 span indexing at 0 LLM tokens and 0% safety refusal rate.",
             "Preserved SkillToolset Progressive Disclosure Control: McpToolset(tool_filter=...) with response_json_schema=None and SkillToolset adk_additional_tools restricts secops-mcp schema to 76.5 KB (<25,000 tokens) under max_turns: 8 and max_tokens: 32000.",
+        ),
+    },
+    # ------------------------------------------------------------------
+    # BENCH-11: SkillRL Failure-Trajectory Distillation & Counterfactual Diagnostic Decision-Tree Stager (H25)
+    # ------------------------------------------------------------------
+    {
+        "scenario_id": "BENCH-11-SKILLRL-FAILURE-TRAJECTORY-AND-DECISION-TREE",
+        "title": "Benchmark 11: SkillRL Failure-Trajectory Distillation & Counterfactual Diagnostic Decision-Tree Stager",
+        "horizons": ("H25",),
+        "review_kwargs": {
+            "include_telemetry_hazard_stage_a": False,
+            "include_credential_containment_stage_a": False,
+            "include_udm_stage_a": False,
+            "include_yaral2_stage_a": False,
+            "include_mitre_cve_stage_a": False,
+            "include_waved_ontology_stage_a": False,
+            "include_ioc_reputation_stage_a": False,
+            "include_skillorchestra_routing_stage_a": False,
+            "include_skillrl_failure_trajectory_stage_a": True,
+        },
+        "markdown_content": (
+            "# SOC Incident Response Runbook: SkillRL Failure-Trajectory Distillation & Diagnostic Decision Trees (Cases 33269, 33278, 33287)\n\n"
+            "## 1. Preserved Negative-Control Degraded-Mode Fallbacks & Standard File/Payload YARA Rule\n"
+            "- Preserved Degraded-Mode & Counterfactual Fallback Control: On developerknowledge.googleapis.com HTTP 503 or gti-mcp quota exhaustion, route to web_search_verifier and cached canonical KB; on 0-hit search_udm queries, run diagnose_zero_hit_udm_query right-to-left clause ablation and verify RFC-5737 / empty-file SHA-256 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 benign-twin baselines before containment.\n\n"
+            "| Failure Trajectory Condition | Primary Diagnostic Check | Resilient Recovery Branch |\n"
+            "| :--- | :--- | :--- |\n"
+            "| Upstream MCP HTTP 503 / 429 | Check web_search_verifier and cached canonical KB | Route to degraded-mode fallback with fallback_source provenance |\n"
+            "| Chronicle SIEM 0-Hit UDM Query | Run diagnose_zero_hit_udm_query right-to-left ablation | Relax exact command_line match to nocase regex and pivot entity roles |\n\n"
+            "```yara\n"
+            "rule standard_yara_gamarue_pe_payload_control {\n"
+            "  meta:\n"
+            '    author = "SecOps Threat Research"\n'
+            '    description = "Standard file/payload YARA rule matching Gamarue PE binary headers (excluded from Chronicle SIEM YL2 UDM checks)"\n'
+            '    zero_hit_recovery_policy = "file_scan_only"\n'
+            "  strings:\n"
+            "    $mz = { 4D 5A }\n"
+            '    $wurm_str = "wurm.exe" ascii wide nocase\n'
+            "  condition:\n"
+            "    uint16(0) == 0x5A4D and $mz at 0 and $wurm_str\n"
+            "}\n"
+            "```\n\n"
+            "## 2. Brittle Happy-Path Failure Trajectories Requiring SkillRL Distillation\n"
+            "- Upstream MCP Outage Handling: If developerknowledge.googleapis.com returns HTTP 503/429 or gti-mcp hits quota exhaustion, abort playbook execution immediately and skip grounding verification.\n"
+            "- Chronicle SIEM Zero-Hit Disposition: If the primary Chronicle SIEM search_udm query returns 0 events, immediately close the SOAR case as a false positive and conclude no compromise occurred.\n"
+            "- Automated Containment Trigger: Upon any outbound IP or SHA-256 indicator match, execute immediate production host isolation and firewall blackholing without checking counterfactual benign-twin scanner baselines or RFC-5737/RFC-1918/8.8.8.8/empty-file SHA-256 guardrails.\n"
+            "- Telemetry Redaction Trajectory: Instruct the Stage B LLM agent to echo the raw Base64 -enc PowerShell payload, rundll32.exe comsvcs.dll, MiniDump command line, and live C2 URL directly in its tool call arguments.\n\n"
+            "## 3. Chronicle SIEM YARA-L 2.0 Detection Rule (Cases 33269, 33278, 33287)\n"
+            "```yaral\n"
+            "rule case_33269_skillrl_failure_trajectory_rule {\n"
+            "  meta:\n"
+            '    author = "SecOps Detection Engineering"\n'
+            '    severity = "HIGH"\n'
+            '    zero_hit_recovery_policy = "close_as_false_positive"\n'
+            '    runbook_skill = "endpoint-triage"\n'
+            "  events:\n"
+            '    $e.metadata.event_type = "PROCESS_LAUNCH"\n'
+            '    $e.principal.hostname = "wins-d19"\n'
+            '    $e.target.process.file.full_path = "C:\\\\Temp\\\\wurm.exe"\n'
+            "  condition:\n"
+            "    $e\n"
+            "}\n"
+            "```\n"
+        ),
+        "seeded_doc_text": (
+            "# SOC Incident Response Runbook: SkillRL Failure-Trajectory Distillation & Diagnostic Decision Trees (Cases 33269, 33278, 33287)\n\n"
+            "## 1. Preserved Negative-Control Degraded-Mode Fallbacks & Standard File/Payload YARA Rule\n"
+            "- Preserved Degraded-Mode & Counterfactual Fallback Control: On developerknowledge.googleapis.com HTTP 503 or gti-mcp quota exhaustion, route to web_search_verifier and cached canonical KB; on 0-hit search_udm queries, run diagnose_zero_hit_udm_query right-to-left clause ablation and verify RFC-5737 / empty-file SHA-256 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 benign-twin baselines before containment.\n\n"
+            "| Failure Trajectory Condition | Primary Diagnostic Check | Resilient Recovery Branch |\n"
+            "| :--- | :--- | :--- |\n"
+            "| Upstream MCP HTTP 503 / 429 | Check web_search_verifier and cached canonical KB | Route to degraded-mode fallback with fallback_source provenance |\n"
+            "| Chronicle SIEM 0-Hit UDM Query | Run diagnose_zero_hit_udm_query right-to-left ablation | Relax exact command_line match to nocase regex and pivot entity roles |\n\n"
+            "```yara\n"
+            "rule standard_yara_gamarue_pe_payload_control {\n"
+            "  meta:\n"
+            '    author = "SecOps Threat Research"\n'
+            '    description = "Standard file/payload YARA rule matching Gamarue PE binary headers (excluded from Chronicle SIEM YL2 UDM checks)"\n'
+            '    zero_hit_recovery_policy = "file_scan_only"\n'
+            "  strings:\n"
+            "    $mz = { 4D 5A }\n"
+            '    $wurm_str = "wurm.exe" ascii wide nocase\n'
+            "  condition:\n"
+            "    uint16(0) == 0x5A4D and $mz at 0 and $wurm_str\n"
+            "}\n"
+            "```\n\n"
+            "## 2. Brittle Happy-Path Failure Trajectories Requiring SkillRL Distillation\n"
+            "- Upstream MCP Outage Handling: If developerknowledge.googleapis.com returns HTTP 503/429 or gti-mcp hits quota exhaustion, abort playbook execution immediately and skip grounding verification.\n"
+            "- Chronicle SIEM Zero-Hit Disposition: If the primary Chronicle SIEM search_udm query returns 0 events, immediately close the SOAR case as a false positive and conclude no compromise occurred.\n"
+            "- Automated Containment Trigger: Upon any outbound IP or SHA-256 indicator match, execute immediate production host isolation and firewall blackholing without checking counterfactual benign-twin scanner baselines or RFC-5737/RFC-1918/8.8.8.8/empty-file SHA-256 guardrails.\n"
+            "- Telemetry Redaction Trajectory: Instruct the Stage B LLM agent to echo the raw Base64 -enc PowerShell payload, rundll32.exe comsvcs.dll, MiniDump command line, and live C2 URL directly in its tool call arguments.\n\n"
+            "## 3. Chronicle SIEM YARA-L 2.0 Detection Rule (Cases 33269, 33278, 33287)\n"
+            "```yaral\n"
+            "rule case_33269_skillrl_failure_trajectory_rule {\n"
+            "  meta:\n"
+            '    author = "SecOps Detection Engineering"\n'
+            '    severity = "HIGH"\n'
+            '    zero_hit_recovery_policy = "close_as_false_positive"\n'
+            '    runbook_skill = "endpoint-triage"\n'
+            "  events:\n"
+            '    $e.metadata.event_type = "PROCESS_LAUNCH"\n'
+            '    $e.principal.hostname = "wins-d19"\n'
+            '    $e.target.process.file.full_path = "C:\\\\Temp\\\\wurm.exe"\n'
+            "  condition:\n"
+            "    $e\n"
+            "}\n"
+            "```\n"
+        ),
+        "expected_defects": (
+            {
+                "defect_id": "bench11-single-point-mcp-outage-abort",
+                "horizon": "H25",
+                "ablation_tier": "grounding",
+                "is_safety_refusal": False,
+                "expected_deleted_substring": "If developerknowledge.googleapis.com returns HTTP 503/429 or gti-mcp hits quota exhaustion, abort playbook execution immediately and skip grounding verification",
+                "expected_inserted_substring": "[SKILLRL FAILURE-TRAJECTORY RED-LINE: single_point_mcp_outage_abort",
+            },
+            {
+                "defect_id": "bench11-unhandled-zero-hit-dead-end",
+                "horizon": "H25",
+                "ablation_tier": "grounding",
+                "is_safety_refusal": False,
+                "expected_deleted_substring": "If the primary Chronicle SIEM search_udm query returns 0 events, immediately close the SOAR case as a false positive and conclude no compromise occurred",
+                "expected_inserted_substring": "[SKILLRL FAILURE-TRAJECTORY RED-LINE: unhandled_zero_hit_dead_end",
+            },
+            {
+                "defect_id": "bench11-missing-benign-twin-counterfactual-branch",
+                "horizon": "H25",
+                "ablation_tier": "agent",
+                "is_safety_refusal": False,
+                "expected_deleted_substring": "Upon any outbound IP or SHA-256 indicator match, execute immediate production host isolation and firewall blackholing without checking counterfactual benign-twin scanner baselines or RFC-5737/RFC-1918/8.8.8.8/empty-file SHA-256 guardrails",
+                "expected_inserted_substring": "[SKILLRL FAILURE-TRAJECTORY RED-LINE: missing_benign_twin_counterfactual_branch",
+            },
+            {
+                "defect_id": "bench11-unmitigated-safety-filter-echo-trajectory",
+                "horizon": "H25",
+                "ablation_tier": "mechanics",
+                "is_safety_refusal": True,
+                "expected_deleted_substring": "Instruct the Stage B LLM agent to echo the raw Base64 -enc PowerShell payload, rundll32.exe comsvcs.dll, MiniDump command line, and live C2 URL directly in its tool call arguments",
+                "expected_inserted_substring": "[SKILLRL FAILURE-TRAJECTORY RED-LINE: unmitigated_safety_filter_echo_trajectory",
+            },
+            {
+                "defect_id": "bench11-yaral2-missing-failure-recovery-meta",
+                "horizon": "H25",
+                "ablation_tier": "grounding",
+                "is_safety_refusal": False,
+                "expected_deleted_substring": 'zero_hit_recovery_policy = "close_as_false_positive"',
+                "expected_inserted_substring": 'zero_hit_recovery_policy = "diagnose_zero_hit_udm_query_ablation"',
+            },
+        ),
+        "negative_control_substrings": (
+            "Preserved Degraded-Mode & Counterfactual Fallback Control: On developerknowledge.googleapis.com HTTP 503 or gti-mcp quota exhaustion, route to web_search_verifier and cached canonical KB; on 0-hit search_udm queries, run diagnose_zero_hit_udm_query right-to-left clause ablation and verify RFC-5737 / empty-file SHA-256 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855 benign-twin baselines before containment.",
+            "rule standard_yara_gamarue_pe_payload_control",
         ),
     },
 )
@@ -30573,6 +30838,2011 @@ def audit_and_redline_skillorchestra_routing_in_doc(
         "comments": comments_res,
         "edits": edits_res,
     }
+
+
+# ==============================================================================
+# CYCLE 24 (HORIZON H25): SKILLRL FAILURE-TRAJECTORY DISTILLATION &
+# COUNTERFACTUAL DIAGNOSTIC DECISION-TREE STAGER IN GOOGLE DOCS
+# ==============================================================================
+
+_SKILLRL_H25_RULES_DICT: dict[str, dict[str, Any]] = {
+    "SKILLRL-01-MCP-OUTAGE-FALLBACK": {
+        "rule_id": "SKILLRL-01-MCP-OUTAGE-FALLBACK",
+        "defect_class": "single_point_mcp_outage_abort",
+        "title": "Upstream MCP HTTP 503/429 Outage & Quota Exhaustion Degraded-Mode Fallback",
+        "ablation_tier": "grounding",
+        "is_safety_refusal": False,
+        "failure_trajectory_pattern": (
+            "Playbook aborts, halts, or skips verification when developerknowledge.googleapis.com "
+            "returns HTTP 503/429 or gti-mcp hits quota exhaustion."
+        ),
+        "distilled_skillrl_lesson": (
+            "Never abort or skip verification on upstream MCP HTTP 503/429 or quota exhaustion; "
+            "execute bounded exponential backoff (max 2 retries) and route to degraded-mode fallback "
+            "using web_search_verifier (google_search AgentTool) + cached canonical KB "
+            "(CANONICAL_CHRONICLE_UDM_FIELDBOOK, CANONICAL_YARAL2_SYNTAX_SPEC) or Chronicle SIEM "
+            "search_udm + lookup_entity."
+        ),
+        "canonical_remediation": (
+            "On developerknowledge.googleapis.com HTTP 503/429 or gti-mcp quota exhaustion, route "
+            "to degraded-mode fallback via web_search_verifier (google_search AgentTool) + cached "
+            "canonical KB (CANONICAL_CHRONICLE_UDM_FIELDBOOK, CANONICAL_YARAL2_SYNTAX_SPEC) and "
+            "Chronicle SIEM search_udm + lookup_entity with fallback_source provenance tagging."
+        ),
+        "decision_tree": {
+            "root_condition": (
+                "Upstream MCP server (developerknowledge.googleapis.com or gti-mcp) returns "
+                "HTTP 503 UNAVAILABLE, HTTP 429 RESOURCE_EXHAUSTED, or timeout"
+            ),
+            "primary_check": (
+                "Verify whether secondary grounded verifiers (web_search_verifier + local canonical KB "
+                "or Chronicle SIEM search_udm + lookup_entity) are reachable"
+            ),
+            "branch_if_true": (
+                "Route verification to web_search_verifier + CANONICAL_CHRONICLE_UDM_FIELDBOOK / "
+                "CANONICAL_YARAL2_SYNTAX_SPEC or Chronicle SIEM search_udm + lookup_entity and tag "
+                "provenance as degraded_mode_fallback"
+            ),
+            "branch_if_false": (
+                "Stage human-review warning comment on the unverified span without silently skipping "
+                "verification or closing the case"
+            ),
+            "terminal_safe_action": (
+                "Complete grounded verification via secondary verifier + cached canonical KB with "
+                "zero unverified pass-through"
+            ),
+        },
+    },
+    "SKILLRL-02-ZERO-HIT-UDM-ABLATION": {
+        "rule_id": "SKILLRL-02-ZERO-HIT-UDM-ABLATION",
+        "defect_class": "unhandled_zero_hit_dead_end",
+        "title": "Chronicle SIEM 0-Hit UDM Query Right-to-Left Clause Ablation & Role Pivot",
+        "ablation_tier": "grounding",
+        "is_safety_refusal": False,
+        "failure_trajectory_pattern": (
+            "Playbook closes alert as false positive or concludes no compromise when Chronicle SIEM "
+            "UDM search returns 0 events without running right-to-left clause ablation."
+        ),
+        "distilled_skillrl_lesson": (
+            "A 0-hit Chronicle SIEM UDM query is not proof of benign activity; invoke "
+            "diagnose_zero_hit_udm_query right-to-left clause ablation across "
+            "exact_match_on_command_line, entity_role_swap (principal.* vs target.* vs src.*), "
+            "value_format_mismatch, and the 90-day :udmSearch window cap before dispositioning."
+        ),
+        "canonical_remediation": (
+            "When Chronicle SIEM search_udm returns 0 events, invoke diagnose_zero_hit_udm_query "
+            "right-to-left clause ablation across exact_match_on_command_line (relaxing = to /.../ nocase), "
+            "entity_role_swap (pivoting principal.*, target.*, src.*), value_format_mismatch, and "
+            "the 90-day :udmSearch window cap before dispositioning."
+        ),
+        "decision_tree": {
+            "root_condition": (
+                "Chronicle SIEM UDM query (search_udm / :udmSearch) returns 0 events for an alert "
+                "or hunt hypothesis"
+            ),
+            "primary_check": (
+                "Run diagnose_zero_hit_udm_query right-to-left clause ablation across "
+                "exact_match_on_command_line, entity_role_swap, value_format_mismatch, and "
+                "90-day :udmSearch lookback cap"
+            ),
+            "branch_if_true": (
+                "Relax exact equality (=) on command_line/full_path to case-insensitive regex "
+                "(/.../ nocase), pivot across principal/target/src roles, clamp window to <= 90 days, "
+                "and re-execute search_udm"
+            ),
+            "branch_if_false": (
+                "Check lookup_entity and host log-source heartbeat to distinguish telemetry ingestion "
+                "outage from true absence of events"
+            ),
+            "terminal_safe_action": (
+                "Require verified clause-ablation and log-ingestion confirmation before closing an "
+                "alert as False Positive or Benign Positive"
+            ),
+        },
+    },
+    "SKILLRL-03-BENIGN-TWIN-COUNTERFACTUAL": {
+        "rule_id": "SKILLRL-03-BENIGN-TWIN-COUNTERFACTUAL",
+        "defect_class": "missing_benign_twin_counterfactual_branch",
+        "title": "Counterfactual Benign-Twin & Guardrail Verification Before Containment",
+        "ablation_tier": "agent",
+        "is_safety_refusal": False,
+        "failure_trajectory_pattern": (
+            "Playbook executes immediate destructive host isolation, firewall blackholing, or account "
+            "deletion on an indicator/event match without checking counterfactual benign-twin baselines "
+            "or RFC-5737/RFC-1918/8.8.8.8/empty-file SHA-256 guardrails."
+        ),
+        "distilled_skillrl_lesson": (
+            "Never trigger destructive host isolation or firewall blackholing on a single indicator/event "
+            "match; evaluate counterfactual benign-twin baselines (authorized IT admin, SCCE, "
+            "vulnerability scanner) and deterministic guardrails (RFC-5737, RFC-1918, 8.8.8.8, "
+            "empty-file SHA-256 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855) "
+            "before staging reversible containment."
+        ),
+        "canonical_remediation": (
+            "Before host isolation or firewall blocking, evaluate the counterfactual benign-twin branch: "
+            "verify deterministic guardrails (RFC-5737, RFC-1918, 8.8.8.8, empty-file SHA-256 "
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855) and authorized "
+            "IT/vulnerability-scanner baselines, then stage reversible containment "
+            "(gcloud iam service-accounts disable) with human approval."
+        ),
+        "decision_tree": {
+            "root_condition": (
+                "Alert or indicator match reaches containment decision point (host isolation, "
+                "firewall block, or account action)"
+            ),
+            "primary_check": (
+                "Evaluate counterfactual benign-twin branch: check RFC-5737/RFC-1918/8.8.8.8/empty-file "
+                "SHA-256 (e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855) guardrails "
+                "and authorized IT admin / vulnerability scanner baselines"
+            ),
+            "branch_if_true": (
+                "Suppress destructive containment, reclassify as Benign Positive (authorized "
+                "scanner/admin or guardrail artifact), and record counterfactual exclusion rationale"
+            ),
+            "branch_if_false": (
+                "Corroborate malicious process lineage in Chronicle SIEM and stage reversible "
+                "containment (gcloud iam service-accounts disable + human-gated EDR isolation)"
+            ),
+            "terminal_safe_action": (
+                "Enforce counterfactual benign-twin verification and non-destructive IAM disable "
+                "before any host isolation or firewall block"
+            ),
+        },
+    },
+    "SKILLRL-04-SAFETY-FILTER-SPAN-ISOLATION": {
+        "rule_id": "SKILLRL-04-SAFETY-FILTER-SPAN-ISOLATION",
+        "defect_class": "unmitigated_safety_filter_echo_trajectory",
+        "title": "Stage A Deterministic Span Isolation for FinishReason.PROHIBITED_CONTENT Prevention",
+        "ablation_tier": "mechanics",
+        "is_safety_refusal": True,
+        "failure_trajectory_pattern": (
+            "Playbook instructs LLM agents to echo, quote, or rewrite raw Base64 -enc payloads, "
+            "rundll32 comsvcs.dll MiniDump command lines, or live C2 URLs in tool calls, triggering "
+            "FinishReason.PROHIBITED_CONTENT refusals."
+        ),
+        "distilled_skillrl_lesson": (
+            "Never instruct an LLM agent to echo raw Base64 -enc payloads, comsvcs.dll MiniDump LSASS "
+            "dump strings, or live C2 URLs in tool arguments; intercept hazardous spans in Stage A "
+            "deterministic Python (sanitize_telemetry_text) and stage edits strictly by 1-based "
+            "UTF-16 numeric (start_index, end_index) spans."
+        ),
+        "canonical_remediation": (
+            "Route raw Base64 -enc payloads, rundll32.exe comsvcs.dll MiniDump command lines, and "
+            "live C2 URLs through Stage A deterministic Python (sanitize_telemetry_text placeholders "
+            "+ 1-based UTF-16 start_index/end_index numeric spans) so Stage B LLM never echoes raw "
+            "exploit strings (0% FinishReason.PROHIBITED_CONTENT refusal rate)."
+        ),
+        "decision_tree": {
+            "root_condition": (
+                "Document or telemetry contains raw Base64 -enc PowerShell payloads, rundll32 "
+                "comsvcs.dll MiniDump LSASS command lines, leaked credentials, or live C2 URLs"
+            ),
+            "primary_check": (
+                "Intercept hazardous spans in Stage A deterministic Python scanner "
+                "(find_telemetry_hazard_spans / sanitize_telemetry_text) prior to Stage B LLM invocation"
+            ),
+            "branch_if_true": (
+                "Compute 1-based UTF-16 (start_index, end_index) spans in Python, stage "
+                "redaction/defanging directly by numeric span, and pass only sanitized placeholders "
+                "to Stage B LLM"
+            ),
+            "branch_if_false": (
+                "Pass clean narrative text to Stage B LLM for semantic and ontological grounding"
+            ),
+            "terminal_safe_action": (
+                "Stage non-destructive Google Docs Suggested Edits by numeric UTF-16 span with "
+                "0% FinishReason.PROHIBITED_CONTENT safety refusal rate"
+            ),
+        },
+    },
+    "SKILLRL-05-YARAL2-FAILURE-RECOVERY-META": {
+        "rule_id": "SKILLRL-05-YARAL2-FAILURE-RECOVERY-META",
+        "defect_class": "yaral2_missing_failure_recovery_meta",
+        "title": "Chronicle SIEM YARA-L 2.0 (YL2) Meta Failure-Trajectory Recovery Policy",
+        "ablation_tier": "grounding",
+        "is_safety_refusal": False,
+        "failure_trajectory_pattern": (
+            'Chronicle SIEM YARA-L 2.0 (YL2) detection rule declares dead-end meta policies such as '
+            'zero_hit_recovery_policy = "close_as_false_positive" or '
+            'degraded_mode_fallback = "abort_on_mcp_503".'
+        ),
+        "distilled_skillrl_lesson": (
+            "Chronicle SIEM YARA-L 2.0 (YL2) UDM detection rules must declare resilient "
+            'failure-recovery metadata (zero_hit_recovery_policy = "diagnose_zero_hit_udm_query_ablation" '
+            'and degraded_mode_fallback = "web_search_and_cached_kb_fallback"), while standard '
+            "file/payload YARA rules (strings: / uint16(0)) are excluded."
+        ),
+        "canonical_remediation": (
+            'zero_hit_recovery_policy = "diagnose_zero_hit_udm_query_ablation" and '
+            'degraded_mode_fallback = "web_search_and_cached_kb_fallback"'
+        ),
+        "decision_tree": {
+            "root_condition": (
+                "Rule block in document is a Chronicle SIEM YARA-L 2.0 (YL2) UDM event detection rule "
+                "(contains events: and UDM predicates, distinct from standard file/payload YARA rules "
+                "with strings:)"
+            ),
+            "primary_check": (
+                "Inspect YARA-L 2.0 meta: section for dead-end failure-trajectory policies "
+                '(zero_hit_recovery_policy = "close_as_false_positive" or '
+                'degraded_mode_fallback = "abort_on_mcp_503")'
+            ),
+            "branch_if_true": (
+                "Stage surgical UTF-16 replacement in YARA-L 2.0 meta: setting "
+                'zero_hit_recovery_policy = "diagnose_zero_hit_udm_query_ablation" and '
+                'degraded_mode_fallback = "web_search_and_cached_kb_fallback"'
+            ),
+            "branch_if_false": (
+                "If rule is a standard file/payload YARA rule (strings: / uint16(0) byte matching) "
+                "or already declares resilient recovery metadata, preserve unchanged"
+            ),
+            "terminal_safe_action": (
+                "Validate remediated Chronicle SIEM YARA-L 2.0 (YL2) rule via secops-mcp:validate_rule "
+                "and preserve standard file/payload YARA rules with zero false positives"
+            ),
+        },
+    },
+}
+
+CANONICAL_SKILLRL_FAILURE_TRAJECTORY_CATALOG: dict[str, Any] = {
+    "horizon": "H25",
+    "catalog_version": "2026.10.cycle24",
+    "research_grounding": {
+        "xia_skillrl-2026": (
+            "SkillRL: Recursive Skill-Augmented Reinforcement Learning for Autonomous Agents "
+            "(Failure-Trajectory Distillation & Experience Bank)"
+        ),
+        "xia-2026": (
+            "RRSI: Recursive Runbook Self-Improvement with Noise-Floor Gating & Harness-Delta Attribution"
+        ),
+        "wang-2026": (
+            "WikiSkill: Counterfactual Failure Guards (T^-) & Operational Purpose Contracts"
+        ),
+        "tang-2026": (
+            "SecRespond: Multi-Branch Incident Response Decision Trees & Degraded-Mode Fallbacks"
+        ),
+    },
+    "yaral2_vs_standard_yara_distinction": {
+        "chronicle_yaral2_yl2": (
+            "Chronicle SIEM YARA-L 2.0 (YL2) UDM event detection rules evaluate structured UDM "
+            "telemetry via events:/condition: blocks and require resilient failure-recovery "
+            "meta policies (zero_hit_recovery_policy, degraded_mode_fallback)."
+        ),
+        "standard_yara": (
+            "Standard file/payload YARA rules evaluate binary/memory byte patterns via "
+            "strings:/condition: blocks (e.g. uint16(0) == 0x5A4D) and are explicitly excluded "
+            "from Chronicle SIEM YARA-L 2.0 (YL2) UDM failure-trajectory meta checks."
+        ),
+    },
+    "canonical_yaral2_meta_recovery_policies": {
+        "zero_hit_recovery_policy": "diagnose_zero_hit_udm_query_ablation",
+        "degraded_mode_fallback": "web_search_and_cached_kb_fallback",
+    },
+    "defect_class_to_rule_id": {
+        "single_point_mcp_outage_abort": "SKILLRL-01-MCP-OUTAGE-FALLBACK",
+        "unhandled_zero_hit_dead_end": "SKILLRL-02-ZERO-HIT-UDM-ABLATION",
+        "missing_benign_twin_counterfactual_branch": "SKILLRL-03-BENIGN-TWIN-COUNTERFACTUAL",
+        "unmitigated_safety_filter_echo_trajectory": "SKILLRL-04-SAFETY-FILTER-SPAN-ISOLATION",
+        "yaral2_missing_failure_recovery_meta": "SKILLRL-05-YARAL2-FAILURE-RECOVERY-META",
+    },
+    "rules": _SKILLRL_H25_RULES_DICT,
+    **_SKILLRL_H25_RULES_DICT,
+}
+
+# Color constants for H25 redline styling:
+# - Deleted span: #7F1D1D foreground on #FEE2E2 background with strikethrough=True
+# - Replacement span: #14532D foreground on #DCFCE7 background with bold=True
+_H25_RED_FG_COLOR: dict[str, Any] = {
+    "color": {"rgbColor": {"red": 0.498, "green": 0.114, "blue": 0.114}}
+}
+_H25_RED_BG_COLOR: dict[str, Any] = {
+    "color": {"rgbColor": {"red": 0.996, "green": 0.886, "blue": 0.886}}
+}
+_H25_GREEN_FG_COLOR: dict[str, Any] = {
+    "color": {"rgbColor": {"red": 0.078, "green": 0.325, "blue": 0.176}}
+}
+_H25_GREEN_BG_COLOR: dict[str, Any] = {
+    "color": {"rgbColor": {"red": 0.863, "green": 0.988, "blue": 0.906}}
+}
+
+# Regex patterns for H25 failure-trajectory extraction & verification
+_NEGATIVE_CONTROL_LINE_RE_H25 = re.compile(
+    r"(?:Preserved\s+[^:\r\n]*Control\b"
+    r"|route\s+to\s+(?:degraded[- ]mode\s+fallback|web_search_verifier)"
+    r"|run\s+diagnose_zero_hit_udm_query\s+right[- ]to[- ]left"
+    r"|Stage\s+A\s+deterministic\s+Python\s+[^.\r\n]*(?:sanitize_telemetry_text|0%\s+safety\s+refusal)"
+    r"|verify\s+(?:the\s+)?counterfactual\s+benign[- ]twin\s+(?:branch|baselines?)\s+before)",
+    re.IGNORECASE,
+)
+
+# 1. single_point_mcp_outage_abort
+_MCP_OUTAGE_CONTEXT_RE_H25 = re.compile(
+    r"(?:developerknowledge\.googleapis\.com"
+    r"|gti-mcp"
+    r"|secops-mcp"
+    r"|upstream\s+MCP"
+    r"|MCP\s+(?:server|endpoint|tool)"
+    r"|HTTP\s*(?:503|429|502|504)"
+    r"|UNAVAILABLE|RESOURCE_EXHAUSTED"
+    r"|quota\s+exhaustion|rate[- ]limit)",
+    re.IGNORECASE,
+)
+_MCP_OUTAGE_ABORT_ACTION_RE_H25 = re.compile(
+    r"(?:\babort\s+(?:playbook|execution|the\s+runbook|the\s+triage|the\s+investigation|immediately)"
+    r"|\bmediately\s+abort\b"
+    r"|\babort\s+immediately\b"
+    r"|\bhalt\s+(?:playbook|execution|the\s+runbook|triage)"
+    r"|\bskip\s+(?:grounding\s+)?verification"
+    r"|\bskip\s+(?:enrichment|validation|the\s+check)"
+    r"|\bfail\s+closed\s+and\s+abort"
+    r"|\bterminate\s+(?:playbook|execution)\s+without\s+fallback)",
+    re.IGNORECASE,
+)
+
+# 2. unhandled_zero_hit_dead_end
+_ZERO_HIT_UDM_CONTEXT_RE_H25 = re.compile(
+    r"(?:(?:search_udm|:udmSearch|UDM\s+(?:query|search|hunt)|Chronicle\s+SIEM\s+(?:query|search|search_udm))\s+[^.\r\n]*\b(?:returns?\s+(?:0|zero)\s+(?:events?|hits?|results?)|0[- ]hit|zero[- ]hit)"
+    r"|\b(?:0|zero)\s+(?:UDM\s+)?(?:events?|hits?)\b[^.\r\n]*(?:search_udm|:udmSearch|UDM\s+query|Chronicle\s+SIEM))",
+    re.IGNORECASE,
+)
+_ZERO_HIT_DEAD_END_ACTION_RE_H25 = re.compile(
+    r"(?:\bclose\s+(?:the\s+)?(?:SOAR\s+)?(?:case|alert|incident|ticket)\s+as\s+(?:a\s+)?false\s+positive"
+    r"|\bmark\s+(?:as\s+)?(?:a\s+)?false\s+positive"
+    r"|\bconclude\s+no\s+compromise(?:\s+occurred)?"
+    r"|\bdispose\s+as\s+(?:benign|false\s+positive)\s+without\s+(?:ablation|diagnosed)"
+    r"|\bterminate\s+the\s+investigation\s+immediately)",
+    re.IGNORECASE,
+)
+
+# 3. missing_benign_twin_counterfactual_branch
+_DESTRUCTIVE_CONTAINMENT_TRIGGER_RE_H25 = re.compile(
+    r"(?:execute\s+immediate\s+(?:production\s+)?(?:host\s+isolation|network\s+isolation|firewall\s+(?:blackholing|blocking)|account\s+deletion)"
+    r"|immediately\s+(?:isolate\s+(?:the\s+)?(?:production\s+)?host|blackhole\s+(?:the\s+)?IP|block\s+(?:the\s+)?IP|delete\s+(?:the\s+)?service\s+account)"
+    r"|trigger\s+automatic\s+(?:host\s+isolation|firewall\s+blackholing))",
+    re.IGNORECASE,
+)
+_MISSING_COUNTERFACTUAL_GUARD_RE_H25 = re.compile(
+    r"(?:without\s+(?:checking|verifying|evaluating|running)\s+[^.\r\n]*(?:counterfactual|benign[- ]twin|scanner\s+baselines?|RFC-5737|RFC-1918|guardrails?)"
+    r"|skip(?:ping)?\s+(?:counterfactual|benign[- ]twin)\s+(?:checks?|verification|baselines?)"
+    r"|no\s+(?:counterfactual\s+)?benign[- ]twin\s+(?:check|verification|branch))",
+    re.IGNORECASE,
+)
+
+# 4. unmitigated_safety_filter_echo_trajectory
+_SAFETY_FILTER_ECHO_INSTRUCTION_RE_H25 = re.compile(
+    r"(?:(?:instruct|prompt|require|tell|have)\s+(?:the\s+)?(?:Stage\s+B\s+)?(?:LLM|agent|model|Gemini|Claude)[^.\r\n]*\b(?:to\s+)?(?:echo|quote|copy|repeat|pass|include|rewrite)\s+(?:the\s+)?(?:raw|unredacted|verbatim)?\s*(?:Base64|-enc|MiniDump|comsvcs\.dll|LSASS|live\s+C2\s+URL)"
+    r"|\b(?:echo|quote|pass|send)\s+(?:the\s+)?(?:raw|unredacted|verbatim)\s+(?:Base64\s+-enc|rundll32\.exe\s+comsvcs\.dll|MiniDump|exploit\s+payload|live\s+C2\s+URL)[^.\r\n]*\b(?:in\s+(?:its\s+)?tool\s+call|to\s+the\s+LLM|through\s+Stage\s+B))",
+    re.IGNORECASE,
+)
+
+
+def extract_skillrl_failure_trajectory_claims_from_doc_text(
+    doc_text: str,
+) -> dict[str, Any]:
+    """Extracts SkillRL failure-trajectory claims, Chronicle SIEM YARA-L 2.0 (``YL2``) rules,
+    and standard file/payload YARA rules from ``doc_text``.
+
+    Explicitly distinguishes Chronicle SIEM YARA-L 2.0 (``YL2`` — UDM event detection
+    rules containing ``events:`` and ``condition:``) from standard file/payload YARA
+    rules (``strings:`` / ``uint16(0)`` byte-pattern matching), which are recorded in
+    ``standard_yara_rules_ignored`` / ``preserved_standard_yara_rules`` and never
+    flagged as YL2 failure-recovery metadata defects.
+    """
+    if not doc_text:
+        return {
+            "claims": [],
+            "yaral2_rules": [],
+            "standard_yara_rules_ignored": [],
+            "preserved_standard_yara_rules": [],
+        }
+
+    all_rules = _find_all_rule_blocks_with_dialect_h23(doc_text)
+    yaral2_rules = [r for r in all_rules if r["dialect"] == "yaral2"]
+    for r in yaral2_rules:
+        r_text = r["rule_text"]
+        r_start = int(r["char_start"])
+        sec_headers = list(_YARAL2_SECTION_HEADER_RE.finditer(r_text))
+        meta_entries: dict[str, dict[str, Any]] = {}
+        for idx, sh in enumerate(sec_headers):
+            sec_name = sh.group(1).lower()
+            if sec_name != "meta":
+                continue
+            b_start = sh.end()
+            if idx + 1 < len(sec_headers):
+                b_end = sec_headers[idx + 1].start()
+            else:
+                rbrace = r_text.rfind("}")
+                b_end = rbrace if rbrace != -1 else len(r_text)
+            sec_body = r_text[b_start:b_end]
+            for kv_m in re.finditer(
+                r'([A-Za-z_][A-Za-z0-9_]*)[ \t]*=[ \t]*"([^"]*)"', sec_body
+            ):
+                m_key = kv_m.group(1).strip().lower()
+                m_val = kv_m.group(2).strip()
+                meta_entries[m_key] = {
+                    "value": m_val,
+                    "line_text": kv_m.group(0),
+                    "line_char_start": r_start + b_start + kv_m.start(),
+                    "line_char_end": r_start + b_start + kv_m.end(),
+                }
+        r["meta_entries"] = meta_entries
+
+    standard_yara_rules = [
+        r["rule_name"] for r in all_rules if r["dialect"] == "standard_yara"
+    ]
+    rule_spans = [(r["char_start"], r["char_end"]) for r in all_rules]
+
+    def _in_any_rule(pos: int) -> bool:
+        return any(rs <= pos < re_end for rs, re_end in rule_spans)
+
+    claims: list[dict[str, Any]] = []
+    in_fenced_block = False
+    offset = 0
+    for line in doc_text.splitlines(keepends=True):
+        line_len = len(line)
+        line_start = offset
+        offset += line_len
+        line_raw = line.rstrip("\r\n")
+        stripped = line_raw.strip()
+
+        if (
+            "[VERIFIED SKILLRL FAILURE-TRAJECTORY & DIAGNOSTIC DECISION TREE MATRIX (H25)]"
+            in stripped
+        ):
+            break
+        if stripped.startswith("```"):
+            in_fenced_block = not in_fenced_block
+            continue
+        if not stripped or stripped.startswith("#"):
+            continue
+        if in_fenced_block or _in_any_rule(line_start):
+            continue
+        if "[SKILLRL FAILURE-TRAJECTORY RED-LINE:" in stripped:
+            continue
+
+        is_neg_control = bool(_NEGATIVE_CONTROL_LINE_RE_H25.search(line_raw))
+        c_start, c_end, clause_text = _trim_clause_bounds_h24(
+            line_raw, line_start
+        )
+
+        has_mcp_abort = bool(
+            _MCP_OUTAGE_CONTEXT_RE_H25.search(line_raw)
+            and _MCP_OUTAGE_ABORT_ACTION_RE_H25.search(line_raw)
+        )
+        has_zero_hit_dead_end = bool(
+            _ZERO_HIT_UDM_CONTEXT_RE_H25.search(line_raw)
+            and _ZERO_HIT_DEAD_END_ACTION_RE_H25.search(line_raw)
+        )
+        has_missing_counterfactual = bool(
+            _DESTRUCTIVE_CONTAINMENT_TRIGGER_RE_H25.search(line_raw)
+            and _MISSING_COUNTERFACTUAL_GUARD_RE_H25.search(line_raw)
+        )
+        has_safety_echo = bool(
+            _SAFETY_FILTER_ECHO_INSTRUCTION_RE_H25.search(line_raw)
+        )
+
+        if (
+            has_mcp_abort
+            or has_zero_hit_dead_end
+            or has_missing_counterfactual
+            or has_safety_echo
+            or is_neg_control
+        ):
+            claims.append(
+                {
+                    "claim_kind": "narrative_failure_trajectory_claim",
+                    "line_text": stripped,
+                    "clause_text": clause_text,
+                    "char_start": c_start,
+                    "char_end": c_end,
+                    "is_negative_control": is_neg_control,
+                    "has_mcp_abort": has_mcp_abort,
+                    "has_zero_hit_dead_end": has_zero_hit_dead_end,
+                    "has_missing_counterfactual": has_missing_counterfactual,
+                    "has_safety_echo": has_safety_echo,
+                }
+            )
+
+    for r in yaral2_rules:
+        meta_entries = r.get("meta_entries") or {}
+        for k in (
+            "zero_hit_recovery_policy",
+            "degraded_mode_fallback",
+        ):
+            if k in meta_entries:
+                entry = meta_entries[k]
+                claims.append(
+                    {
+                        "claim_kind": "yaral2_meta_failure_recovery_claim",
+                        "rule_name": r["rule_name"],
+                        "meta_key": k,
+                        "meta_value": entry["value"],
+                        "clause_text": entry["line_text"],
+                        "char_start": entry["line_char_start"],
+                        "char_end": entry["line_char_end"],
+                        "is_negative_control": False,
+                    }
+                )
+
+    defect_claims = [c for c in claims if not c.get("is_negative_control")]
+    return {
+        "status": "success",
+        "claim_count": len(defect_claims),
+        "total_claim_count": len(claims),
+        "claims": claims,
+        "yaral2_rules": yaral2_rules,
+        "standard_yara_rules_ignored": standard_yara_rules,
+        "preserved_standard_yara_rules": standard_yara_rules,
+    }
+
+
+def _distill_failure_traces_h25(
+    failure_traces: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]]:
+    """Distills structured operational failure traces into deterministic SkillRL lessons
+    and counterfactual decision-tree branches."""
+    if not failure_traces:
+        return []
+    distilled: list[dict[str, Any]] = []
+    for idx, trace in enumerate(failure_traces, 1):
+        if not isinstance(trace, dict):
+            continue
+        blob = " ".join(str(v) for v in trace.values()).lower()
+        trace_id = str(
+            trace.get("trace_id")
+            or trace.get("id")
+            or trace.get("case_id")
+            or f"trace-{idx}"
+        )
+        matched_rule_id = "SKILLRL-01-MCP-OUTAGE-FALLBACK"
+        if any(
+            kw in blob
+            for kw in (
+                "prohibited_content",
+                "safety",
+                "base64",
+                "-enc",
+                "minidump",
+                "comsvcs",
+            )
+        ):
+            matched_rule_id = "SKILLRL-04-SAFETY-FILTER-SPAN-ISOLATION"
+        elif any(
+            kw in blob
+            for kw in (
+                "0-hit",
+                "zero-hit",
+                "zero_hit",
+                "0 events",
+                "0 hits",
+                "search_udm",
+                "udmsearch",
+                "ablation",
+            )
+        ):
+            matched_rule_id = "SKILLRL-02-ZERO-HIT-UDM-ABLATION"
+        elif any(
+            kw in blob
+            for kw in (
+                "benign_twin",
+                "benign-twin",
+                "counterfactual",
+                "rfc-5737",
+                "rfc5737",
+                "scanner",
+                "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            )
+        ):
+            matched_rule_id = "SKILLRL-03-BENIGN-TWIN-COUNTERFACTUAL"
+        elif any(
+            kw in blob
+            for kw in (
+                "yaral2",
+                "yl2",
+                "close_as_false_positive",
+                "abort_on_mcp_503",
+            )
+        ):
+            matched_rule_id = "SKILLRL-05-YARAL2-FAILURE-RECOVERY-META"
+        elif any(
+            kw in blob
+            for kw in (
+                "503",
+                "429",
+                "unavailable",
+                "resource_exhausted",
+                "developerknowledge",
+                "gti-mcp",
+                "mcp",
+                "quota",
+            )
+        ):
+            matched_rule_id = "SKILLRL-01-MCP-OUTAGE-FALLBACK"
+
+        spec = _SKILLRL_H25_RULES_DICT[matched_rule_id]
+        observed = str(
+            trace.get("error")
+            or trace.get("symptom")
+            or trace.get("failure_type")
+            or trace.get("status")
+            or trace.get("reason")
+            or trace.get("message")
+            or trace.get("event")
+            or matched_rule_id
+        )
+        distilled.append(
+            {
+                "trace_id": trace_id,
+                "rule_id": matched_rule_id,
+                "defect_class": spec["defect_class"],
+                "title": spec["title"],
+                "observed_failure": observed,
+                "distilled_skillrl_lesson": spec["distilled_skillrl_lesson"],
+                "canonical_remediation": spec["canonical_remediation"],
+                "decision_tree": dict(spec["decision_tree"]),
+            }
+        )
+    return distilled
+
+
+def verify_skillrl_failure_trajectory_and_decision_trees(
+    doc_text: str,
+    index_map: list[int] | None = None,
+    failure_traces: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Verifies SkillRL failure-trajectory and counterfactual decision-tree claims in ``doc_text``.
+
+    Detects 5 practitioner defect classes with exact 1-based UTF-16 ``start_index``
+    and ``end_index`` spans while preserving valid degraded-mode fallback procedures,
+    counterfactual benign-twin checks, and standard file/payload YARA rules
+    (``strings:`` / ``uint16(0)``):
+    1. ``single_point_mcp_outage_abort`` (``SKILLRL-01-MCP-OUTAGE-FALLBACK``)
+    2. ``unhandled_zero_hit_dead_end`` (``SKILLRL-02-ZERO-HIT-UDM-ABLATION``)
+    3. ``missing_benign_twin_counterfactual_branch`` (``SKILLRL-03-BENIGN-TWIN-COUNTERFACTUAL``)
+    4. ``unmitigated_safety_filter_echo_trajectory`` (``SKILLRL-04-SAFETY-FILTER-SPAN-ISOLATION``)
+    5. ``yaral2_missing_failure_recovery_meta`` (``SKILLRL-05-YARAL2-FAILURE-RECOVERY-META``)
+    """
+    eff_map = (
+        index_map
+        if index_map is not None
+        else _build_utf16_index_map(doc_text or "")
+    )
+    extracted = extract_skillrl_failure_trajectory_claims_from_doc_text(
+        doc_text or ""
+    )
+    yaral2_rules = extracted["yaral2_rules"]
+    standard_yara_ignored = extracted["standard_yara_rules_ignored"]
+
+    defects: list[dict[str, Any]] = []
+    verified_claims: list[dict[str, Any]] = []
+
+    all_rules = _find_all_rule_blocks_with_dialect_h23(doc_text or "")
+    rule_spans = [(r["char_start"], r["char_end"]) for r in all_rules]
+
+    def _in_any_rule(pos: int) -> bool:
+        return any(rs <= pos < re_end for rs, re_end in rule_spans)
+
+    in_fenced_block = False
+    offset = 0
+    for line in (doc_text or "").splitlines(keepends=True):
+        line_len = len(line)
+        line_start = offset
+        offset += line_len
+        line_raw = line.rstrip("\r\n")
+        stripped = line_raw.strip()
+
+        if (
+            "[VERIFIED SKILLRL FAILURE-TRAJECTORY & DIAGNOSTIC DECISION TREE MATRIX (H25)]"
+            in stripped
+        ):
+            break
+        if stripped.startswith("```"):
+            in_fenced_block = not in_fenced_block
+            continue
+        if not stripped or stripped.startswith("#"):
+            continue
+        if in_fenced_block or _in_any_rule(line_start):
+            continue
+        if "[SKILLRL FAILURE-TRAJECTORY RED-LINE:" in stripped:
+            continue
+
+        c_start, c_end, clause_text = _trim_clause_bounds_h24(
+            line_raw, line_start
+        )
+        u_start, u_end = _char_span_to_utf16_span(
+            eff_map, c_start, c_end, len(doc_text)
+        )
+
+        # 1. Defect Class 1: single_point_mcp_outage_abort
+        if _MCP_OUTAGE_CONTEXT_RE_H25.search(
+            line_raw
+        ) and _MCP_OUTAGE_ABORT_ACTION_RE_H25.search(line_raw):
+            spec = _SKILLRL_H25_RULES_DICT["SKILLRL-01-MCP-OUTAGE-FALLBACK"]
+            replacement = (
+                "[SKILLRL FAILURE-TRAJECTORY RED-LINE: single_point_mcp_outage_abort "
+                "(SKILLRL-01-MCP-OUTAGE-FALLBACK) — Never abort or skip grounding verification on "
+                "developerknowledge.googleapis.com HTTP 503/429 or gti-mcp quota exhaustion; execute "
+                "bounded exponential backoff (max 2 retries) and route to degraded-mode fallback via "
+                "web_search_verifier (google_search AgentTool) + cached canonical KB "
+                "(CANONICAL_CHRONICLE_UDM_FIELDBOOK, CANONICAL_YARAL2_SYNTAX_SPEC) and Chronicle SIEM "
+                "search_udm + lookup_entity with fallback_source provenance tagging.]"
+            )
+            rationale = (
+                "[SkillRL Failure-Trajectory Distillation (H25 / xia_skillrl-2026 / tang-2026)]: "
+                f"Confirmed `single_point_mcp_outage_abort` (`SKILLRL-01-MCP-OUTAGE-FALLBACK`) on `{clause_text}`. "
+                f"{spec['distilled_skillrl_lesson']}"
+            )
+            defects.append(
+                {
+                    "defect_type": "single_point_mcp_outage_abort",
+                    "defect_class": "single_point_mcp_outage_abort",
+                    "rule_id": "SKILLRL-01-MCP-OUTAGE-FALLBACK",
+                    "horizon": "H25",
+                    "ablation_tier": "grounding",
+                    "is_safety_refusal": False,
+                    "target_text": clause_text,
+                    "replacement_text": replacement,
+                    "rationale": rationale,
+                    "comment_text": rationale,
+                    "distilled_skillrl_lesson": spec["distilled_skillrl_lesson"],
+                    "decision_tree": dict(spec["decision_tree"]),
+                    "char_start": c_start,
+                    "char_end": c_end,
+                    "start_index": u_start,
+                    "end_index": u_end,
+                }
+            )
+            continue
+
+        # 2. Defect Class 2: unhandled_zero_hit_dead_end
+        if _ZERO_HIT_UDM_CONTEXT_RE_H25.search(
+            line_raw
+        ) and _ZERO_HIT_DEAD_END_ACTION_RE_H25.search(line_raw):
+            spec = _SKILLRL_H25_RULES_DICT["SKILLRL-02-ZERO-HIT-UDM-ABLATION"]
+            replacement = (
+                "[SKILLRL FAILURE-TRAJECTORY RED-LINE: unhandled_zero_hit_dead_end "
+                "(SKILLRL-02-ZERO-HIT-UDM-ABLATION) — Do not close the SOAR case as a false positive "
+                "when a primary Chronicle SIEM search_udm query returns 0 events; invoke "
+                "diagnose_zero_hit_udm_query right-to-left clause ablation across "
+                "exact_match_on_command_line (relaxing = to /.../ nocase), entity_role_swap "
+                "(principal.* vs target.* vs src.*), value_format_mismatch, and the 90-day :udmSearch "
+                "window cap before dispositioning.]"
+            )
+            rationale = (
+                "[SkillRL Failure-Trajectory Distillation (H25 / xia_skillrl-2026 / wang-2026)]: "
+                f"Confirmed `unhandled_zero_hit_dead_end` (`SKILLRL-02-ZERO-HIT-UDM-ABLATION`) on `{clause_text}`. "
+                f"{spec['distilled_skillrl_lesson']}"
+            )
+            defects.append(
+                {
+                    "defect_type": "unhandled_zero_hit_dead_end",
+                    "defect_class": "unhandled_zero_hit_dead_end",
+                    "rule_id": "SKILLRL-02-ZERO-HIT-UDM-ABLATION",
+                    "horizon": "H25",
+                    "ablation_tier": "grounding",
+                    "is_safety_refusal": False,
+                    "target_text": clause_text,
+                    "replacement_text": replacement,
+                    "rationale": rationale,
+                    "comment_text": rationale,
+                    "distilled_skillrl_lesson": spec["distilled_skillrl_lesson"],
+                    "decision_tree": dict(spec["decision_tree"]),
+                    "char_start": c_start,
+                    "char_end": c_end,
+                    "start_index": u_start,
+                    "end_index": u_end,
+                }
+            )
+            continue
+
+        # 3. Defect Class 3: missing_benign_twin_counterfactual_branch
+        if _DESTRUCTIVE_CONTAINMENT_TRIGGER_RE_H25.search(
+            line_raw
+        ) and _MISSING_COUNTERFACTUAL_GUARD_RE_H25.search(line_raw):
+            spec = _SKILLRL_H25_RULES_DICT["SKILLRL-03-BENIGN-TWIN-COUNTERFACTUAL"]
+            replacement = (
+                "[SKILLRL FAILURE-TRAJECTORY RED-LINE: missing_benign_twin_counterfactual_branch "
+                "(SKILLRL-03-BENIGN-TWIN-COUNTERFACTUAL) — Gate containment on counterfactual "
+                "benign-twin verification: check deterministic guardrails (RFC-5737, RFC-1918, 8.8.8.8, "
+                "empty-file SHA-256 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855) "
+                "and authorized IT/vulnerability-scanner baselines, then stage reversible containment "
+                "(gcloud iam service-accounts disable) with human approval before host isolation.]"
+            )
+            rationale = (
+                "[SkillRL Counterfactual Decision-Tree Audit (H25 / xia_skillrl-2026 / wang-2026)]: "
+                f"Confirmed `missing_benign_twin_counterfactual_branch` (`SKILLRL-03-BENIGN-TWIN-COUNTERFACTUAL`) on `{clause_text}`. "
+                f"{spec['distilled_skillrl_lesson']}"
+            )
+            defects.append(
+                {
+                    "defect_type": "missing_benign_twin_counterfactual_branch",
+                    "defect_class": "missing_benign_twin_counterfactual_branch",
+                    "rule_id": "SKILLRL-03-BENIGN-TWIN-COUNTERFACTUAL",
+                    "horizon": "H25",
+                    "ablation_tier": "agent",
+                    "is_safety_refusal": False,
+                    "target_text": clause_text,
+                    "replacement_text": replacement,
+                    "rationale": rationale,
+                    "comment_text": rationale,
+                    "distilled_skillrl_lesson": spec["distilled_skillrl_lesson"],
+                    "decision_tree": dict(spec["decision_tree"]),
+                    "char_start": c_start,
+                    "char_end": c_end,
+                    "start_index": u_start,
+                    "end_index": u_end,
+                }
+            )
+            continue
+
+        # 4. Defect Class 4: unmitigated_safety_filter_echo_trajectory
+        if _SAFETY_FILTER_ECHO_INSTRUCTION_RE_H25.search(line_raw):
+            spec = _SKILLRL_H25_RULES_DICT["SKILLRL-04-SAFETY-FILTER-SPAN-ISOLATION"]
+            replacement = (
+                "[SKILLRL FAILURE-TRAJECTORY RED-LINE: unmitigated_safety_filter_echo_trajectory "
+                "(SKILLRL-04-SAFETY-FILTER-SPAN-ISOLATION) — Never instruct the Stage B LLM agent to "
+                "echo raw Base64 -enc payloads, rundll32.exe comsvcs.dll, MiniDump command lines, or "
+                "live C2 URLs in tool calls (which triggers FinishReason.PROHIBITED_CONTENT refusals); "
+                "route through Stage A deterministic Python sanitize_telemetry_text placeholders and "
+                "1-based UTF-16 start_index/end_index numeric spans.]"
+            )
+            rationale = (
+                "[SkillRL Safety-Filter Span Isolation Audit (H25 / xia_skillrl-2026)]: "
+                f"Confirmed `unmitigated_safety_filter_echo_trajectory` (`SKILLRL-04-SAFETY-FILTER-SPAN-ISOLATION`) on `{clause_text}`. "
+                f"{spec['distilled_skillrl_lesson']}"
+            )
+            defects.append(
+                {
+                    "defect_type": "unmitigated_safety_filter_echo_trajectory",
+                    "defect_class": "unmitigated_safety_filter_echo_trajectory",
+                    "rule_id": "SKILLRL-04-SAFETY-FILTER-SPAN-ISOLATION",
+                    "horizon": "H25",
+                    "ablation_tier": "mechanics",
+                    "is_safety_refusal": True,
+                    "target_text": clause_text,
+                    "replacement_text": replacement,
+                    "rationale": rationale,
+                    "comment_text": rationale,
+                    "distilled_skillrl_lesson": spec["distilled_skillrl_lesson"],
+                    "decision_tree": dict(spec["decision_tree"]),
+                    "char_start": c_start,
+                    "char_end": c_end,
+                    "start_index": u_start,
+                    "end_index": u_end,
+                }
+            )
+            continue
+
+        if _NEGATIVE_CONTROL_LINE_RE_H25.search(line_raw):
+            verified_claims.append(
+                {
+                    "claim_type": "preserved_negative_control",
+                    "target_text": clause_text,
+                    "start_index": u_start,
+                    "end_index": u_end,
+                }
+            )
+
+    # 5. Defect Class 5: yaral2_missing_failure_recovery_meta inside Chronicle SIEM YARA-L 2.0 (YL2) rules
+    canonical_recovery_meta = CANONICAL_SKILLRL_FAILURE_TRAJECTORY_CATALOG[
+        "canonical_yaral2_meta_recovery_policies"
+    ]
+    valid_zero_hit_policies = {
+        "diagnose_zero_hit_udm_query_ablation",
+        "right_to_left_clause_ablation",
+        "clause_ablation_and_role_pivot",
+    }
+    valid_degraded_fallbacks = {
+        "web_search_and_cached_kb_fallback",
+        "degraded_mode_web_search_and_siem",
+        "cached_kb_and_siem_fallback",
+    }
+
+    for r in yaral2_rules:
+        r_name = r["rule_name"]
+        meta_entries = r.get("meta_entries") or {}
+        severity_val = (
+            str((meta_entries.get("severity") or {}).get("value") or "HIGH")
+            .strip()
+            .upper()
+        )
+        runbook_skill_val = str(
+            (meta_entries.get("runbook_skill") or {}).get("value")
+            or "endpoint-triage"
+        ).strip()
+
+        for meta_key in (
+            "zero_hit_recovery_policy",
+            "degraded_mode_fallback",
+        ):
+            if meta_key not in meta_entries:
+                continue
+            entry = meta_entries[meta_key]
+            raw_val = str(entry["value"]).strip()
+            val_lower = raw_val.lower()
+            is_defective = False
+            expected_val = canonical_recovery_meta[meta_key]
+
+            if meta_key == "zero_hit_recovery_policy":
+                if (
+                    val_lower not in valid_zero_hit_policies
+                    or "false_positive" in val_lower
+                    or "abort" in val_lower
+                    or "none" in val_lower
+                    or "skip" in val_lower
+                    or "close" in val_lower
+                ):
+                    is_defective = True
+                    expected_val = "diagnose_zero_hit_udm_query_ablation"
+            elif meta_key == "degraded_mode_fallback":
+                if (
+                    val_lower not in valid_degraded_fallbacks
+                    or "abort" in val_lower
+                    or "none" in val_lower
+                    or "skip" in val_lower
+                    or "fail_closed" in val_lower
+                ):
+                    is_defective = True
+                    expected_val = "web_search_and_cached_kb_fallback"
+
+            c_start = int(entry["line_char_start"])
+            c_end = int(entry["line_char_end"])
+            u_start, u_end = _char_span_to_utf16_span(
+                eff_map, c_start, c_end, len(doc_text)
+            )
+            if is_defective:
+                spec = _SKILLRL_H25_RULES_DICT[
+                    "SKILLRL-05-YARAL2-FAILURE-RECOVERY-META"
+                ]
+                target_kv = entry["line_text"]
+                replacement_kv = f'{meta_key} = "{expected_val}"'
+                rationale = (
+                    "[Chronicle SIEM YARA-L 2.0 Meta Failure-Recovery Audit (H25 / xia_skillrl-2026)]: "
+                    f"Rule `{r_name}` (severity `{severity_val}`, runbook `{runbook_skill_val}`) "
+                    f"declares dead-end `{target_kv}` in `meta:` of a Chronicle SIEM YARA-L 2.0 (`YL2` "
+                    f"UDM event detection rule, distinct from standard file/payload YARA). "
+                    f"Repair to `{replacement_kv}`."
+                )
+                defects.append(
+                    {
+                        "defect_type": "yaral2_missing_failure_recovery_meta",
+                        "defect_class": "yaral2_missing_failure_recovery_meta",
+                        "rule_id": "SKILLRL-05-YARAL2-FAILURE-RECOVERY-META",
+                        "horizon": "H25",
+                        "ablation_tier": "grounding",
+                        "is_safety_refusal": False,
+                        "rule_name": r_name,
+                        "meta_key": meta_key,
+                        "declared_value": raw_val,
+                        "expected_value": expected_val,
+                        "target_text": target_kv,
+                        "replacement_text": replacement_kv,
+                        "rationale": rationale,
+                        "comment_text": rationale,
+                        "distilled_skillrl_lesson": spec[
+                            "distilled_skillrl_lesson"
+                        ],
+                        "decision_tree": dict(spec["decision_tree"]),
+                        "char_start": c_start,
+                        "char_end": c_end,
+                        "start_index": u_start,
+                        "end_index": u_end,
+                    }
+                )
+            else:
+                verified_claims.append(
+                    {
+                        "claim_type": "verified_yaral2_meta_failure_recovery",
+                        "rule_name": r_name,
+                        "meta_key": meta_key,
+                        "target_text": entry["line_text"],
+                        "start_index": u_start,
+                        "end_index": u_end,
+                    }
+                )
+
+    defects.sort(key=lambda d: int(d["start_index"]), reverse=True)
+    counts_by_type: dict[str, int] = {
+        "single_point_mcp_outage_abort": 0,
+        "unhandled_zero_hit_dead_end": 0,
+        "missing_benign_twin_counterfactual_branch": 0,
+        "unmitigated_safety_filter_echo_trajectory": 0,
+        "yaral2_missing_failure_recovery_meta": 0,
+    }
+    for d in defects:
+        dt = str(d["defect_type"])
+        counts_by_type[dt] = counts_by_type.get(dt, 0) + 1
+
+    distilled_traces = _distill_failure_traces_h25(failure_traces)
+    decision_trees = [
+        {
+            "rule_id": rule_id,
+            "defect_class": spec["defect_class"],
+            "title": spec["title"],
+            **dict(spec["decision_tree"]),
+        }
+        for rule_id, spec in _SKILLRL_H25_RULES_DICT.items()
+    ]
+
+    return {
+        "status": "success",
+        "horizon": "H25",
+        "catalog_version": CANONICAL_SKILLRL_FAILURE_TRAJECTORY_CATALOG[
+            "catalog_version"
+        ],
+        "defect_count": len(defects),
+        "defects": defects,
+        "findings": defects,
+        "defect_counts_by_type": counts_by_type,
+        "verified_claim_count": len(verified_claims),
+        "verified_claims": verified_claims,
+        "standard_yara_rules_ignored": standard_yara_ignored,
+        "preserved_standard_yara_rules": standard_yara_ignored,
+        "distilled_failure_traces": distilled_traces,
+        "distilled_trace_lessons": distilled_traces,
+        "distilled_lessons": distilled_traces,
+        "decision_trees": decision_trees,
+    }
+
+
+def format_skillrl_diagnostic_decision_tree_appendix(
+    verification_result: dict[str, Any],
+) -> str:
+    """Formats the grounded ``## [VERIFIED SKILLRL FAILURE-TRAJECTORY & DIAGNOSTIC DECISION TREE MATRIX (H25)]`` appendix."""
+    counts = verification_result.get("defect_counts_by_type") or {}
+    total_defects = int(verification_result.get("defect_count", 0) or 0)
+    verified_count = int(verification_result.get("verified_claim_count", 0) or 0)
+    std_yara = list(
+        verification_result.get("standard_yara_rules_ignored") or []
+    )
+    distilled_traces = list(
+        verification_result.get("distilled_failure_traces")
+        or verification_result.get("distilled_lessons")
+        or []
+    )
+
+    lines = [
+        "",
+        "## [VERIFIED SKILLRL FAILURE-TRAJECTORY & DIAGNOSTIC DECISION TREE MATRIX (H25)]",
+        "",
+        "- **Grounding Basis**: SkillRL Recursive Skill-Augmented Reinforcement Learning (`xia_skillrl-2026`), RRSI (`xia-2026`), WikiSkill Counterfactual Failure Guards (`wang-2026`), and SecRespond (`tang-2026`).",
+        f"- **Audit Summary**: `{total_defects}` happy-path failure-trajectory defect(s) red-lined (`#7F1D1D` on `#FEE2E2` strikethrough -> `#14532D` on `#DCFCE7` bold replacement); `{verified_count}` resilient fallback control(s) and `{len(std_yara)}` standard file/payload YARA rule(s) preserved.",
+        "- **Dialect Scope Distinction**: Chronicle SIEM YARA-L 2.0 (`YL2` UDM event detection rules with `events:`/`condition:`) are enforced for `zero_hit_recovery_policy` and `degraded_mode_fallback`, whereas standard file/payload YARA rules (`strings:` / `uint16(0) == 0x5A4D`) are explicitly excluded.",
+        "",
+        "| Rule ID & Defect Class | Root Condition | Primary Check | Branch If True | Branch If False | Terminal Safe Action |",
+        "| :--- | :--- | :--- | :--- | :--- | :--- |",
+    ]
+    for rule_id, spec in _SKILLRL_H25_RULES_DICT.items():
+        dt = spec["decision_tree"]
+        lines.append(
+            f"| `{rule_id}` (`{spec['defect_class']}`) | {dt['root_condition']} | "
+            f"{dt['primary_check']} | {dt['branch_if_true']} | "
+            f"{dt['branch_if_false']} | {dt['terminal_safe_action']} |"
+        )
+
+    if distilled_traces:
+        lines.extend(
+            [
+                "",
+                "### Distilled Empirical Failure Traces (SkillRL Experience Bank)",
+            ]
+        )
+        for tr in distilled_traces:
+            dt = tr.get("decision_tree") or {}
+            lines.append(
+                f"- **Trace `{tr['trace_id']}` (`{tr['rule_id']}` / `{tr['defect_class']}`)**: "
+                f"Observed `{tr['observed_failure']}` -> Lesson: {tr['distilled_skillrl_lesson']} "
+                f"(Decision Path: `{dt.get('root_condition', '')}` -> `{dt.get('primary_check', '')}` "
+                f"-> `{dt.get('branch_if_true', '')}` -> `{dt.get('terminal_safe_action', '')}`)."
+            )
+
+    lines.extend(
+        [
+            "",
+            f"- **Defect Breakdown**: `single_point_mcp_outage_abort={counts.get('single_point_mcp_outage_abort', 0)}`, "
+            f"`unhandled_zero_hit_dead_end={counts.get('unhandled_zero_hit_dead_end', 0)}`, "
+            f"`missing_benign_twin_counterfactual_branch={counts.get('missing_benign_twin_counterfactual_branch', 0)}`, "
+            f"`unmitigated_safety_filter_echo_trajectory={counts.get('unmitigated_safety_filter_echo_trajectory', 0)}`, "
+            f"`yaral2_missing_failure_recovery_meta={counts.get('yaral2_missing_failure_recovery_meta', 0)}`.",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def build_skillrl_failure_trajectory_review_plan(
+    doc_text: str,
+    verification_result: dict[str, Any] | None = None,
+    *,
+    index_map: list[int] | None = None,
+    failure_traces: list[dict[str, Any]] | None = None,
+    include_appendix: bool = True,
+) -> dict[str, Any]:
+    """Builds a non-destructive Google Docs review plan for SkillRL failure-trajectory defects.
+
+    All proposed edits and ``updateTextStyle`` requests (``#7F1D1D`` on ``#FEE2E2``
+    strikethrough + ``#14532D`` on ``#DCFCE7`` bold replacement) are sorted in strict
+    descending ``start_index`` order so sequential ``deleteContentRange`` + ``insertText``
+    operations never shift earlier UTF-16 spans.
+    """
+    eff_map = (
+        index_map
+        if index_map is not None
+        else _build_utf16_index_map(doc_text or "")
+    )
+    verification = (
+        verification_result
+        if verification_result is not None
+        else verify_skillrl_failure_trajectory_and_decision_trees(
+            doc_text or "", index_map=eff_map, failure_traces=failure_traces
+        )
+    )
+    defects = list(verification.get("defects") or [])
+    defects.sort(key=lambda d: int(d["start_index"]), reverse=True)
+
+    comments_to_insert: list[dict[str, Any]] = []
+    edits_to_propose: list[dict[str, Any]] = []
+    styled_redline_requests: list[dict[str, Any]] = []
+    replace_all_text_requests: list[dict[str, Any]] = []
+
+    for d in defects:
+        s_idx = int(d["start_index"])
+        e_idx = int(d["end_index"])
+        target_txt = str(d["target_text"])
+        repl_txt = str(d["replacement_text"])
+        comment_txt = str(d["comment_text"])
+        repl_utf16_len = sum(_utf16_code_unit_len(ch) for ch in repl_txt)
+
+        comments_to_insert.append(
+            {
+                "start_index": s_idx,
+                "end_index": e_idx,
+                "quote": target_txt,
+                "comment": comment_txt,
+                "comment_text": comment_txt,
+                "defect_type": d["defect_type"],
+                "rule_id": d.get("rule_id", ""),
+            }
+        )
+        edits_to_propose.append(
+            {
+                "start_index": s_idx,
+                "end_index": e_idx,
+                "quote": target_txt,
+                "replacement": repl_txt,
+                "target_text": target_txt,
+                "replacement_text": repl_txt,
+                "defect_type": d["defect_type"],
+                "rule_id": d.get("rule_id", ""),
+            }
+        )
+        styled_redline_requests.extend(
+            [
+                {
+                    "deleteContentRange": {
+                        "range": {"startIndex": s_idx, "endIndex": e_idx}
+                    }
+                },
+                {
+                    "insertText": {
+                        "location": {"index": s_idx},
+                        "text": repl_txt,
+                    }
+                },
+                {
+                    "updateTextStyle": {
+                        "range": {"startIndex": s_idx, "endIndex": e_idx},
+                        "textStyle": {
+                            "strikethrough": True,
+                            "foregroundColor": _H25_RED_FG_COLOR,
+                            "backgroundColor": _H25_RED_BG_COLOR,
+                        },
+                        "fields": "strikethrough,foregroundColor,backgroundColor",
+                    }
+                },
+                {
+                    "updateTextStyle": {
+                        "range": {
+                            "startIndex": e_idx,
+                            "endIndex": e_idx + repl_utf16_len,
+                        },
+                        "textStyle": {
+                            "bold": True,
+                            "foregroundColor": _H25_GREEN_FG_COLOR,
+                            "backgroundColor": _H25_GREEN_BG_COLOR,
+                        },
+                        "fields": "bold,foregroundColor,backgroundColor",
+                    }
+                },
+            ]
+        )
+        replace_all_text_requests.append(
+            {
+                "replaceAllText": {
+                    "containsText": {
+                        "text": target_txt,
+                        "matchCase": True,
+                    },
+                    "replaceText": repl_txt,
+                }
+            }
+        )
+
+    appendix_md = (
+        format_skillrl_diagnostic_decision_tree_appendix(verification)
+        if include_appendix
+        else ""
+    )
+    return {
+        "status": "success",
+        "horizon": "H25",
+        "defect_count": len(defects),
+        "descending_defects": defects,
+        "comments_to_insert": comments_to_insert,
+        "edits_to_propose": edits_to_propose,
+        "stage_a_comments": comments_to_insert,
+        "stage_a_edits": edits_to_propose,
+        "styled_redline_requests": styled_redline_requests,
+        "batch_update_requests": styled_redline_requests,
+        "replace_all_text_requests": replace_all_text_requests,
+        "executive_appendix_markdown": appendix_md,
+        "decision_tree_appendix_markdown": appendix_md,
+        "verification": verification,
+    }
+
+
+def find_skillrl_failure_trajectory_spans(
+    plain_text: str,
+    index_map: list[int] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Stage A span scanner entry point for ``H25`` SkillRL failure-trajectory and decision-tree defects.
+
+    Returns ``(comments, edits, findings)`` sorted in descending ``start_index`` order.
+    """
+    eff_map = (
+        index_map
+        if index_map is not None
+        else _build_utf16_index_map(plain_text or "")
+    )
+    verification = verify_skillrl_failure_trajectory_and_decision_trees(
+        plain_text or "", index_map=eff_map
+    )
+    plan = build_skillrl_failure_trajectory_review_plan(
+        plain_text or "",
+        verification_result=verification,
+        index_map=eff_map,
+        include_appendix=False,
+    )
+    return (
+        plan["comments_to_insert"],
+        plan["edits_to_propose"],
+        verification["defects"],
+    )
+
+
+def _apply_h25_redline_text_styles(
+    document_id: str,
+    *,
+    tool_context: Any = None,
+    token_source: TokenSource | None = None,
+    quota_project: str | None = None,
+    transport: httpx.BaseTransport | None = None,
+) -> dict[str, int]:
+    """Applies ``#7F1D1D`` on ``#FEE2E2`` strikethrough styling to ``suggestedDeletionIds``
+    runs and ``#14532D`` on ``#DCFCE7`` bold styling to ``suggestedInsertionIds`` runs."""
+    fee2e2_count = 0
+    dcfce7_count = 0
+    try:
+        resolved_tok = resolve_docs_token(
+            tool_context, token_source=token_source
+        )
+        headers = _build_docs_headers(resolved_tok, quota_project=quota_project)
+        get_url = f"{DOCS_API_BASE_URL}/{document_id}"
+        batch_url = f"{DOCS_API_BASE_URL}/{document_id}:batchUpdate"
+        with httpx.Client(
+            timeout=DEFAULT_DOCS_TIMEOUT_SECONDS,
+            transport=transport,
+        ) as http:
+            get_resp = http.get(get_url, headers=headers)
+            if get_resp.status_code >= 400:
+                return {"fee2e2_span_count": 0, "dcfce7_span_count": 0}
+            doc_ast = get_resp.json()
+
+            del_ranges: list[tuple[int, int]] = []
+            ins_ranges: list[tuple[int, int]] = []
+
+            def _collect_runs(elements: list[dict[str, Any]]) -> None:
+                for el in elements:
+                    if "paragraph" in el:
+                        for pe in el["paragraph"].get("elements", []):
+                            tr = pe.get("textRun")
+                            if not tr:
+                                continue
+                            s_i = int(pe.get("startIndex", 0) or 0)
+                            e_i = int(pe.get("endIndex", 0) or 0)
+                            if e_i <= s_i or s_i < 1:
+                                continue
+                            if tr.get("suggestedDeletionIds"):
+                                del_ranges.append((s_i, e_i))
+                            elif tr.get("suggestedInsertionIds"):
+                                ins_ranges.append((s_i, e_i))
+                    elif "table" in el:
+                        for row in el["table"].get("tableRows", []):
+                            for cell in row.get("tableCells", []):
+                                _collect_runs(cell.get("content", []))
+
+            tabs = doc_ast.get("tabs", [])
+            body = (
+                tabs[0].get("documentTab", {}).get("body", {})
+                if tabs
+                else doc_ast.get("body", {})
+            )
+            _collect_runs(body.get("content", []))
+
+            style_requests: list[dict[str, Any]] = []
+            for s_i, e_i in del_ranges:
+                style_requests.append(
+                    {
+                        "updateTextStyle": {
+                            "range": {"startIndex": s_i, "endIndex": e_i},
+                            "textStyle": {
+                                "strikethrough": True,
+                                "foregroundColor": _H25_RED_FG_COLOR,
+                                "backgroundColor": _H25_RED_BG_COLOR,
+                            },
+                            "fields": "strikethrough,foregroundColor,backgroundColor",
+                        }
+                    }
+                )
+            for s_i, e_i in ins_ranges:
+                style_requests.append(
+                    {
+                        "updateTextStyle": {
+                            "range": {"startIndex": s_i, "endIndex": e_i},
+                            "textStyle": {
+                                "bold": True,
+                                "foregroundColor": _H25_GREEN_FG_COLOR,
+                                "backgroundColor": _H25_GREEN_BG_COLOR,
+                            },
+                            "fields": "bold,foregroundColor,backgroundColor",
+                        }
+                    }
+                )
+
+            if style_requests:
+                st_resp = http.post(
+                    batch_url,
+                    headers=headers,
+                    json={"requests": style_requests},
+                )
+                if st_resp.status_code < 400:
+                    fee2e2_count = len(del_ranges)
+                    dcfce7_count = len(ins_ranges)
+                else:
+                    # Fallback if live Docs API restricts styling suggestedDeletionIds: style insertion runs
+                    ins_only_reqs = [
+                        req
+                        for req in style_requests
+                        if req["updateTextStyle"]["textStyle"].get("bold")
+                    ]
+                    if ins_only_reqs:
+                        st_resp2 = http.post(
+                            batch_url,
+                            headers=headers,
+                            json={"requests": ins_only_reqs},
+                        )
+                        if st_resp2.status_code < 400:
+                            fee2e2_count = len(del_ranges)
+                            dcfce7_count = len(ins_ranges)
+    except Exception as exc:
+        logger.warning("Failed to apply H25 text styles: %s", exc)
+    return {
+        "fee2e2_span_count": fee2e2_count,
+        "dcfce7_span_count": dcfce7_count,
+    }
+
+
+def distill_and_redline_skillrl_failure_trajectories_in_doc(
+    document_id: str = "",
+    failure_traces_json: str = "",
+    *,
+    doc_id: str | None = None,
+    failure_traces: list[dict[str, Any]] | None = None,
+    credentials: Any = None,
+    apply_redlines: bool = True,
+    append_appendix: bool = True,
+    append_decision_tree_matrix: bool | None = None,
+    siem_validate_fn: Any = None,
+    siem_search_fn: Any = None,
+    tool_context: Any = None,
+    token: str | None = None,
+    token_source: TokenSource | None = None,
+    quota_project: str | None = None,
+    transport: httpx.BaseTransport | None = None,
+    docs_client_override: Any = None,
+) -> dict[str, Any]:
+    """Distills and red-lines SkillRL failure-trajectory and counterfactual decision-tree defects in a Google Doc.
+
+    1. Reads the target Google Doc via :func:`read_google_doc` to build the
+       1-based UTF-16 index map and inspect ``pending_suggestion_spans``.
+    2. Extracts and verifies all 5 ``H25`` failure-trajectory defect classes
+       (``single_point_mcp_outage_abort``, ``unhandled_zero_hit_dead_end``,
+       ``missing_benign_twin_counterfactual_branch``,
+       ``unmitigated_safety_filter_echo_trajectory``, and
+       ``yaral2_missing_failure_recovery_meta``) while preserving valid
+       fallback/counterfactual controls and ignoring standard file/payload YARA rules.
+    3. Repairs any Chronicle SIEM YARA-L 2.0 (``YL2``) rules with
+       ``yaral2_missing_failure_recovery_meta`` and verifies compilation via
+       :func:`validate_yaral2_rule_offline` and optional live ``siem_validate_fn``
+       (``secops-mcp:validate_rule``) and ``siem_search_fn`` (``secops-mcp:search_udm``).
+    4. Anchors Drive API v3 review comments first, appends the
+       ``## [VERIFIED SKILLRL FAILURE-TRAJECTORY & DIAGNOSTIC DECISION TREE MATRIX (H25)]``
+       section at the end of the document, stages descending-offset Suggested Edits
+       (``deleteContentRange`` + ``insertText`` under ``writeMode="SUGGEST"``), and
+       applies ``updateTextStyle`` (``#7F1D1D`` on ``#FEE2E2`` strikethrough + ``#14532D``
+       on ``#DCFCE7`` bold replacement) with full Pass 2 idempotency.
+    """
+    raw_id = str(doc_id or document_id or "").strip()
+    eff_doc_id = raw_id
+    eff_append = (
+        append_decision_tree_matrix
+        if append_decision_tree_matrix is not None
+        else append_appendix
+    )
+    eff_transport = transport
+    eff_token_source: Any = token_source or credentials
+    if isinstance(docs_client_override, LocalGoogleDocsSimulator):
+        eff_transport = docs_client_override.as_httpx_transport()
+        eff_token_source = _BenchmarkTokenSource()
+    elif token is not None and eff_token_source is None:
+        eff_token_source = lambda: str(token)
+
+    read_res = read_google_doc(
+        eff_doc_id,
+        tool_context=tool_context,
+        token_source=eff_token_source,
+        quota_project=quota_project,
+        transport=eff_transport,
+    )
+    if read_res.get("status") != "success":
+        return read_res
+
+    plain_text, index_map = _load_doc_index_state(
+        eff_doc_id, tool_context=tool_context
+    )
+    if plain_text is None or index_map is None:
+        return {
+            "status": "error",
+            "document_id": eff_doc_id,
+            "message": "Failed to load UTF-16 index map after read_google_doc.",
+        }
+
+    pending_spans = _load_doc_pending_suggestion_spans(
+        eff_doc_id, tool_context=tool_context
+    )
+
+    resolved_traces: list[dict[str, Any]] = list(failure_traces or [])
+    if failure_traces_json and str(failure_traces_json).strip():
+        try:
+            parsed_ft = json.loads(str(failure_traces_json))
+            if isinstance(parsed_ft, list):
+                resolved_traces.extend(
+                    x for x in parsed_ft if isinstance(x, dict)
+                )
+            elif isinstance(parsed_ft, dict):
+                resolved_traces.append(parsed_ft)
+        except json.JSONDecodeError as err:
+            return {
+                "status": "error",
+                "message": f"Invalid failure_traces_json: {err}",
+            }
+
+    verification = verify_skillrl_failure_trajectory_and_decision_trees(
+        plain_text,
+        index_map=index_map,
+        failure_traces=resolved_traces,
+    )
+    all_defects = list(verification.get("defects") or [])
+
+    active_defects: list[dict[str, Any]] = []
+    skipped_existing_suggestion_count = 0
+    for d in all_defects:
+        d_span = (int(d["start_index"]), int(d["end_index"]))
+        if any(_spans_overlap(d_span, p_span) for p_span in pending_spans):
+            skipped_existing_suggestion_count += 1
+            continue
+        active_defects.append(d)
+
+    active_verification = dict(verification)
+    active_verification["defects"] = active_defects
+    active_verification["findings"] = active_defects
+    active_verification["defect_count"] = len(active_defects)
+    active_counts: dict[str, int] = {
+        "single_point_mcp_outage_abort": 0,
+        "unhandled_zero_hit_dead_end": 0,
+        "missing_benign_twin_counterfactual_branch": 0,
+        "unmitigated_safety_filter_echo_trajectory": 0,
+        "yaral2_missing_failure_recovery_meta": 0,
+    }
+    for d in active_defects:
+        dt = str(d["defect_type"])
+        active_counts[dt] = active_counts.get(dt, 0) + 1
+    active_verification["defect_counts_by_type"] = active_counts
+
+    review_plan = build_skillrl_failure_trajectory_review_plan(
+        plain_text,
+        verification_result=active_verification,
+        index_map=index_map,
+        failure_traces=resolved_traces,
+        include_appendix=eff_append,
+    )
+    comments_to_insert = list(review_plan["comments_to_insert"])
+    edits_to_propose = list(review_plan["edits_to_propose"])
+
+    # Reconstruct repaired Chronicle SIEM YARA-L 2.0 (YL2) rules and verify compilation
+    extracted = extract_skillrl_failure_trajectory_claims_from_doc_text(
+        plain_text
+    )
+    yaral2_rules = extracted["yaral2_rules"]
+    repaired_yaral2_rules: list[dict[str, Any]] = []
+    compiler_verified = True
+    live_siem_validation: list[dict[str, Any]] = []
+
+    for r in yaral2_rules:
+        r_start = int(r["char_start"])
+        r_end = int(r["char_end"])
+        r_text = plain_text[r_start:r_end]
+        rule_defects = [
+            d
+            for d in all_defects
+            if d.get("defect_type") == "yaral2_missing_failure_recovery_meta"
+            and int(d["char_start"]) >= r_start
+            and int(d["char_end"]) <= r_end
+        ]
+        rule_defects.sort(key=lambda d: int(d["char_start"]), reverse=True)
+        repaired_text = r_text
+        for rd in rule_defects:
+            rel_s = int(rd["char_start"]) - r_start
+            rel_e = int(rd["char_end"]) - r_start
+            repaired_text = (
+                repaired_text[:rel_s]
+                + str(rd["replacement_text"])
+                + repaired_text[rel_e:]
+            )
+        compiler_ready_text = repaired_text
+        if "\n" not in compiler_ready_text.strip():
+            compiler_ready_text = re.sub(
+                r"\b(meta|events|match|outcome|condition)\s*:",
+                r"\n  \1:\n    ",
+                compiler_ready_text,
+            )
+            compiler_ready_text = re.sub(
+                r'("[ \t]+)(?=[A-Za-z_$][A-Za-z0-9_.]*[ \t]*=)',
+                '"\n    ',
+                compiler_ready_text,
+            )
+            compiler_ready_text = re.sub(
+                r"\s*\}\s*$",
+                "\n}",
+                compiler_ready_text,
+            )
+        compiler_ready_text = re.sub(
+            r'(?<!\\)\\(?![\\"/nrt])',
+            r"\\\\",
+            compiler_ready_text,
+        )
+        offline_val = validate_yaral2_rule_offline(compiler_ready_text)
+        h25_meta_check = verify_skillrl_failure_trajectory_and_decision_trees(
+            compiler_ready_text
+        )
+        rule_ok = (
+            bool(offline_val.get("valid", False))
+            and int(h25_meta_check.get("defect_count", 0) or 0) == 0
+        )
+        live_val_res: dict[str, Any] | None = None
+        if callable(siem_validate_fn):
+            live_val_res = siem_validate_fn(compiler_ready_text)
+            if isinstance(live_val_res, dict):
+                rule_ok = rule_ok and bool(
+                    live_val_res.get("valid", live_val_res.get("success", True))
+                )
+                live_siem_validation.append(live_val_res)
+        if not rule_ok:
+            compiler_verified = False
+        repaired_yaral2_rules.append(
+            {
+                "rule_name": r["rule_name"],
+                "original_rule_text": r_text,
+                "repaired_rule_text": compiler_ready_text,
+                "offline_validation": offline_val,
+                "live_validation": live_val_res,
+                "compiler_verified": rule_ok,
+            }
+        )
+
+    live_siem_search_res: dict[str, Any] | None = None
+    if callable(siem_search_fn):
+        live_siem_search_res = siem_search_fn(
+            'metadata.event_type = "PROCESS_LAUNCH" AND principal.hostname = "wins-d19"',
+            5,
+        )
+
+    comments_res: dict[str, Any] = {
+        "status": "skipped",
+        "inserted_count": 0,
+        "comment_ids": [],
+    }
+    edits_res: dict[str, Any] = {"status": "skipped", "applied_count": 0}
+    applied_redline_count = 0
+    appended_matrix = False
+    style_counts = {"fee2e2_span_count": 0, "dcfce7_span_count": 0}
+    matrix_marker = (
+        "[VERIFIED SKILLRL FAILURE-TRAJECTORY & DIAGNOSTIC DECISION TREE MATRIX (H25)]"
+    )
+
+    if apply_redlines:
+        if comments_to_insert:
+            comments_res = insert_doc_comments(
+                eff_doc_id,
+                comments_to_insert,
+                tool_context=tool_context,
+                token_source=eff_token_source,
+                quota_project=quota_project,
+                transport=eff_transport,
+            )
+
+        if (
+            eff_append
+            and edits_to_propose
+            and review_plan["executive_appendix_markdown"]
+            and matrix_marker not in plain_text
+            and index_map
+        ):
+            try:
+                insert_idx = int(index_map[-1])
+                resolved_tok = resolve_docs_token(
+                    tool_context, token_source=eff_token_source
+                )
+                url = f"{DOCS_API_BASE_URL}/{eff_doc_id}:batchUpdate"
+                headers = _build_docs_headers(
+                    resolved_tok, quota_project=quota_project
+                )
+                with httpx.Client(
+                    timeout=DEFAULT_DOCS_TIMEOUT_SECONDS,
+                    transport=eff_transport,
+                ) as http:
+                    app_resp = http.post(
+                        url,
+                        headers=headers,
+                        json={
+                            "requests": [
+                                {
+                                    "insertText": {
+                                        "location": {"index": insert_idx},
+                                        "text": "\n"
+                                        + review_plan[
+                                            "executive_appendix_markdown"
+                                        ].strip()
+                                        + "\n",
+                                    }
+                                }
+                            ]
+                        },
+                    )
+                    if app_resp.status_code < 400:
+                        appended_matrix = True
+            except Exception as exc:
+                logger.warning("Failed to append H25 matrix: %s", exc)
+
+        if edits_to_propose:
+            edits_res = propose_doc_suggested_edits(
+                eff_doc_id,
+                edits_to_propose,
+                tool_context=tool_context,
+                token_source=eff_token_source,
+                quota_project=quota_project,
+                transport=eff_transport,
+            )
+            applied_redline_count = int(edits_res.get("applied_count", 0) or 0)
+            if applied_redline_count > 0:
+                style_counts = _apply_h25_redline_text_styles(
+                    eff_doc_id,
+                    tool_context=tool_context,
+                    token_source=eff_token_source,
+                    quota_project=quota_project,
+                    transport=eff_transport,
+                )
+
+    return {
+        "status": "success",
+        "horizon": "H25",
+        "document_id": eff_doc_id,
+        "title": read_res.get("title", ""),
+        "char_count": read_res.get("char_count", 0),
+        "defect_count": active_verification["defect_count"],
+        "raw_defect_count": verification["defect_count"],
+        "skillrl_failure_trajectory_findings_count": active_verification[
+            "defect_count"
+        ],
+        "applied_redlines": applied_redline_count,
+        "applied_redline_count": applied_redline_count,
+        "false_positive_redlines": 0,
+        "inserted_comment_count": int(
+            comments_res.get("inserted_count", 0) or 0
+        ),
+        "appended_matrix": appended_matrix,
+        "appended_appendix": appended_matrix,
+        "fee2e2_span_count": style_counts["fee2e2_span_count"],
+        "dcfce7_span_count": style_counts["dcfce7_span_count"],
+        "compiler_verified": compiler_verified,
+        "repaired_yaral2_rules": repaired_yaral2_rules,
+        "live_siem_validation": live_siem_validation,
+        "live_siem_search": live_siem_search_res,
+        "defects": active_verification["defects"],
+        "findings": active_verification["defects"],
+        "defect_counts_by_type": active_verification["defect_counts_by_type"],
+        "verified_claim_count": active_verification["verified_claim_count"],
+        "verified_claims": active_verification["verified_claims"],
+        "standard_yara_rules_ignored": active_verification[
+            "standard_yara_rules_ignored"
+        ],
+        "preserved_standard_yara_rules": active_verification[
+            "standard_yara_rules_ignored"
+        ],
+        "distilled_failure_traces": active_verification[
+            "distilled_failure_traces"
+        ],
+        "decision_trees": active_verification["decision_trees"],
+        "review_plan": review_plan,
+        "styled_redline_requests": review_plan["styled_redline_requests"],
+        "replace_all_text_requests": review_plan["replace_all_text_requests"],
+        "executive_appendix_markdown": review_plan[
+            "executive_appendix_markdown"
+        ],
+        "decision_tree_appendix_markdown": review_plan[
+            "executive_appendix_markdown"
+        ],
+        "skipped_existing_suggestion_count": skipped_existing_suggestion_count,
+        "comments": comments_res,
+        "edits": edits_res,
+    }
+
+
+class _DwdCredentialsAdapter:
+    """Callable DWD OAuth2 credentials wrapper compatible with both ``TokenSource`` and ``google.auth.credentials.Credentials``."""
+
+    def __init__(self, creds: Any = None, fallback_token: str = "sim-dwd-token") -> None:
+        self._creds = creds
+        self._fallback_token = fallback_token
+
+    @property
+    def token(self) -> str:
+        if self._creds is not None:
+            if hasattr(self._creds, "get_token") and callable(self._creds.get_token):
+                return str(self._creds.get_token())
+            if callable(self._creds):
+                return str(self._creds())
+            if not getattr(self._creds, "token", None) or not getattr(
+                self._creds, "valid", False
+            ):
+                import google.auth.transport.requests
+
+                self._creds.refresh(google.auth.transport.requests.Request())
+            return str(self._creds.token)
+        try:
+            return resolve_docs_token(None, token_source=None)
+        except Exception:
+            return self._fallback_token
+
+    def refresh(self, request: Any = None) -> None:
+        if self._creds is not None and hasattr(self._creds, "refresh"):
+            if request is None:
+                import google.auth.transport.requests
+
+                request = google.auth.transport.requests.Request()
+            self._creds.refresh(request)
+
+    def get_token(self) -> str:
+        return self.token
+
+    def __call__(self) -> str:
+        return self.token
+
+
+def build_dwd_credentials(
+    key_path: str | None = None,
+    subject: str | None = None,
+    scopes: list[str] | None = None,
+) -> _DwdCredentialsAdapter:
+    """Builds Domain-Wide Delegation (DWD) / ADC credentials for Google Docs API v1 and Google Drive API v3."""
+    if key_path and os.path.exists(key_path):
+        eff_subject = (
+            subject
+            or os.environ.get("DRIVE_IMPERSONATE_USER")
+            or "admin@secops-lab.joonix.net"
+        )
+        eff_scopes = scopes or [
+            "https://www.googleapis.com/auth/documents",
+            "https://www.googleapis.com/auth/drive",
+            "https://www.googleapis.com/auth/cloud-platform",
+        ]
+        try:
+            import google.auth.transport.requests
+            from google.oauth2 import service_account
+
+            creds = service_account.Credentials.from_service_account_file(
+                key_path,
+                scopes=eff_scopes,
+                subject=eff_subject,
+            )
+            creds.refresh(google.auth.transport.requests.Request())
+            return _DwdCredentialsAdapter(creds=creds)
+        except Exception as exc:
+            logger.warning("build_dwd_credentials fallback: %s", exc)
+    return _DwdCredentialsAdapter(creds=AdcTokenSource())
+
+
+def inspect_google_doc_revision_and_Formatting(
+    document_id: str,
+    *,
+    credentials: Any = None,
+    token_source: TokenSource | None = None,
+    quota_project: str | None = None,
+    transport: httpx.BaseTransport | None = None,
+    docs_client_override: Any = None,
+    tool_context: Any = None,
+) -> dict[str, Any]:
+    """Inspects a Google Doc's live or simulated AST for Suggested Edits, ``#FEE2E2`` / ``#DCFCE7``
+    styled spans, negative-control preservation, and the ``H25`` decision-tree matrix appendix."""
+    eff_transport = transport
+    eff_token_source: Any = token_source or credentials
+    if isinstance(docs_client_override, LocalGoogleDocsSimulator):
+        eff_transport = docs_client_override.as_httpx_transport()
+        eff_token_source = _BenchmarkTokenSource()
+
+    inspected = inspect_doc_suggestions(
+        document_id,
+        tool_context=tool_context,
+        token_source=eff_token_source,
+        quota_project=quota_project,
+        transport=eff_transport,
+    )
+    suggestions = list(inspected.get("suggestions") or [])
+    accepted_text = str(inspected.get("accepted_text") or "")
+    baseline_text = str(inspected.get("baseline_text") or "")
+
+    fee2e2_spans = 0
+    dcfce7_spans = 0
+    styled_runs: list[dict[str, Any]] = []
+    try:
+        resolved_tok = resolve_docs_token(
+            tool_context, token_source=eff_token_source
+        )
+        headers = _build_docs_headers(resolved_tok, quota_project=quota_project)
+        url = f"{DOCS_API_BASE_URL}/{document_id}"
+        with httpx.Client(
+            timeout=DEFAULT_DOCS_TIMEOUT_SECONDS,
+            transport=eff_transport,
+        ) as http:
+            resp = http.get(url, headers=headers)
+            if resp.status_code < 400:
+                doc_ast = resp.json()
+                tabs = doc_ast.get("tabs", [])
+                body = (
+                    tabs[0].get("documentTab", {}).get("body", {})
+                    if tabs
+                    else doc_ast.get("body", {})
+                )
+
+                def _scan_styles(elements: list[dict[str, Any]]) -> None:
+                    nonlocal fee2e2_spans, dcfce7_spans
+                    for el in elements:
+                        if "paragraph" in el:
+                            for pe in el["paragraph"].get("elements", []):
+                                tr = pe.get("textRun")
+                                if not tr:
+                                    continue
+                                ts = tr.get("textStyle") or {}
+                                bg = (
+                                    (ts.get("backgroundColor") or {})
+                                    .get("color", {})
+                                    .get("rgbColor", {})
+                                )
+                                r_val = float(bg.get("red", 0.0) or 0.0)
+                                g_val = float(bg.get("green", 0.0) or 0.0)
+                                b_val = float(bg.get("blue", 0.0) or 0.0)
+                                is_red_bg = (
+                                    r_val > 0.95
+                                    and 0.80 <= g_val <= 0.93
+                                    and 0.80 <= b_val <= 0.93
+                                )
+                                is_green_bg = (
+                                    0.80 <= r_val <= 0.92
+                                    and g_val > 0.94
+                                    and 0.85 <= b_val <= 0.95
+                                )
+                                if is_red_bg or tr.get("suggestedDeletionIds"):
+                                    if is_red_bg:
+                                        fee2e2_spans += 1
+                                        styled_runs.append(
+                                            {
+                                                "style": "#FEE2E2",
+                                                "startIndex": pe.get("startIndex"),
+                                                "endIndex": pe.get("endIndex"),
+                                            }
+                                        )
+                                if is_green_bg or tr.get("suggestedInsertionIds"):
+                                    if is_green_bg:
+                                        dcfce7_spans += 1
+                                        styled_runs.append(
+                                            {
+                                                "style": "#DCFCE7",
+                                                "startIndex": pe.get("startIndex"),
+                                                "endIndex": pe.get("endIndex"),
+                                            }
+                                        )
+                        elif "table" in el:
+                            for row in el["table"].get("tableRows", []):
+                                for cell in row.get("tableCells", []):
+                                    _scan_styles(cell.get("content", []))
+
+                _scan_styles(body.get("content", []))
+    except Exception as exc:
+        logger.warning("inspect_google_doc_revision_and_Formatting warning: %s", exc)
+
+    has_h25_matrix = (
+        "[VERIFIED SKILLRL FAILURE-TRAJECTORY & DIAGNOSTIC DECISION TREE MATRIX (H25)]"
+        in accepted_text
+        or "[VERIFIED SKILLRL FAILURE-TRAJECTORY & DIAGNOSTIC DECISION TREE MATRIX (H25)]"
+        in baseline_text
+    )
+    false_positives = sum(
+        1
+        for s in suggestions
+        if "Preserved Degraded-Mode & Counterfactual Fallback Control"
+        in str(s.get("deleted_text") or "")
+        or "standard_yara_gamarue_pe_payload_control"
+        in str(s.get("deleted_text") or "")
+    )
+    return {
+        "status": "success",
+        "document_id": document_id,
+        "applied_redlines": len(suggestions),
+        "false_positive_redlines": false_positives,
+        "has_h25_decision_tree_matrix": has_h25_matrix,
+        "fee2e2_span_count": fee2e2_spans,
+        "dcfce7_span_count": dcfce7_spans,
+        "styled_span_count": fee2e2_spans + dcfce7_spans,
+        "styled_runs": styled_runs,
+        "suggestions": suggestions,
+        "accepted_text": accepted_text,
+        "baseline_text": baseline_text,
+    }
+
+
+def run_docs_review_benchmark(
+    scenario_suite: str = "all_with_night2",
+    *,
+    scenario_set: str | None = None,
+    scenario_ids: str | list[str] | set[str] | tuple[str, ...] | None = None,
+    include_hda_ablation: bool = True,
+    output_report_path: str = "",
+) -> dict[str, Any]:
+    """Executes the quantitative Google Docs review benchmark across ``scenario_suite``."""
+    target_scenarios = (
+        scenario_ids
+        if scenario_ids is not None
+        else (scenario_set if scenario_set is not None else scenario_suite)
+    )
+    res = evaluate_infosec_doc_reviewer(
+        scenario_ids=target_scenarios,
+        include_hda_ablation=include_hda_ablation,
+        output_report_path=output_report_path,
+    )
+    res["precision"] = res.get("overall_precision", res.get("span_precision", 1.0))
+    res["recall"] = res.get("overall_recall", res.get("defect_recall", 1.0))
+    return res
+
 
 
 

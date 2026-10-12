@@ -11217,13 +11217,13 @@ class TestCycle23SkillOrchestraRoutingAndTokenBudget:
         include_hda_ablation=True,
     )
     assert res_all["status"] == "success"
-    assert res_all["scenario_count"] == 10
-    assert res_all["total_expected_defects"] == 53
-    assert res_all["true_positive_edits"] == 53
+    assert res_all["scenario_count"] >= 10
+    assert res_all["total_expected_defects"] >= 53
+    assert res_all["true_positive_edits"] >= 53
     assert res_all["false_positive_edits"] == 0
     assert res_all["false_negative_defects"] == 0
-    assert res_all["total_negative_controls"] == 21
-    assert res_all["negative_controls_preserved"] == 21
+    assert res_all["total_negative_controls"] >= 21
+    assert res_all["negative_controls_preserved"] >= 21
     assert res_all["overall_precision"] == 1.0
     assert res_all["overall_recall"] == 1.0
     assert res_all["overall_f1"] == 1.0
@@ -11250,4 +11250,316 @@ class TestCycle23SkillOrchestraRoutingAndTokenBudget:
     assert "runtime_metrics_json" in props
     assert "apply_redlines" in props
     assert "append_appendix" in props
+
+
+class TestCycle24SkillRLFailureTrajectoryAndDecisionTree:
+  """Unit tests for Cycle 24 (H25): SkillRL Failure-Trajectory Distillation & Counterfactual Diagnostic Decision-Tree Stager in Google Docs."""
+
+  def test_extract_and_verify_skillrl_failure_trajectory_detects_all_five_defect_classes(
+      self,
+  ):
+    from manager.tools.docs_review_tools import (
+        CANONICAL_SKILLRL_FAILURE_TRAJECTORY_CATALOG,
+        EXTENDED_NIGHT2_BENCHMARK_SCENARIOS,
+        extract_skillrl_failure_trajectory_claims_from_doc_text,
+        verify_skillrl_failure_trajectory_and_decision_trees,
+    )
+
+    assert CANONICAL_SKILLRL_FAILURE_TRAJECTORY_CATALOG["horizon"] == "H25"
+    assert (
+        CANONICAL_SKILLRL_FAILURE_TRAJECTORY_CATALOG["catalog_version"]
+        == "2026.10.cycle24"
+    )
+    assert len(CANONICAL_SKILLRL_FAILURE_TRAJECTORY_CATALOG["rules"]) == 5
+
+    bench11 = next(
+        s
+        for s in EXTENDED_NIGHT2_BENCHMARK_SCENARIOS
+        if s["scenario_id"]
+        == "BENCH-11-SKILLRL-FAILURE-TRAJECTORY-AND-DECISION-TREE"
+    )
+    doc_text = bench11["seeded_doc_text"]
+
+    extracted = extract_skillrl_failure_trajectory_claims_from_doc_text(
+        doc_text
+    )
+    assert extracted["status"] == "success"
+    assert extracted["claim_count"] == 5
+
+    verification = verify_skillrl_failure_trajectory_and_decision_trees(
+        doc_text
+    )
+    assert verification["status"] == "success"
+    assert verification["defect_count"] == 5
+    defect_classes = {f["defect_class"] for f in verification["findings"]}
+    assert defect_classes == {
+        "single_point_mcp_outage_abort",
+        "unhandled_zero_hit_dead_end",
+        "missing_benign_twin_counterfactual_branch",
+        "unmitigated_safety_filter_echo_trajectory",
+        "yaral2_missing_failure_recovery_meta",
+    }
+    for finding in verification["findings"]:
+      assert finding["start_index"] >= 1
+      assert finding["end_index"] > finding["start_index"]
+      assert finding["replacement_text"] != finding["target_text"]
+      tree = finding["decision_tree"]
+      assert "root_condition" in tree
+      assert "primary_check" in tree
+      assert "branch_if_true" in tree
+      assert "branch_if_false" in tree
+      assert "terminal_safe_action" in tree
+
+  def test_verify_skillrl_failure_trajectory_preserves_valid_fallbacks_and_standard_yara(
+      self,
+  ):
+    from manager.tools.docs_review_tools import (
+        verify_skillrl_failure_trajectory_and_decision_trees,
+    )
+
+    clean_doc = (
+        "# Resilient SOC Incident Response Runbook\n\n"
+        "## 1. Degraded-Mode MCP Outage & Zero-Hit UDM Recovery\n"
+        "- On developerknowledge.googleapis.com HTTP 503/429, execute "
+        "degraded-mode fallback to web_search_verifier plus cached canonical "
+        "KB; on gti-mcp quota exhaustion, fallback to Chronicle SIEM "
+        "search_udm + lookup_entity.\n"
+        "- When a Chronicle SIEM UDM query returns 0 events, run "
+        "diagnose_zero_hit_udm_query right-to-left clause ablation across "
+        "exact_match_on_command_line, entity_role_swap, "
+        "value_format_mismatch, and the 90-day :udmSearch window cap.\n"
+        "- Gate destructive host isolation on a benign-twin counterfactual "
+        "branch verifying non-RFC-5737/non-RFC-1918/non-8.8.8.8/non-empty-SHA-256 "
+        "(e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855) "
+        "status and confirming unauthorized process lineage.\n"
+        "- Route raw Base64 -enc payloads and comsvcs.dll, MiniDump command "
+        "lines through deterministic Stage A sanitize_telemetry_text "
+        "placeholders and 1-based UTF-16 numeric span indices.\n\n"
+        "## 2. Standard File/Payload YARA Rule (Negative Control)\n"
+        "rule Standard_Payload_Scanner_YARA {\n"
+        "  meta:\n"
+        '    description = "Standard file/payload YARA rule matching MZ header"\n'
+        '    zero_hit_recovery_policy = "close_as_false_positive"\n'
+        '    degraded_mode_fallback = "abort_on_mcp_503"\n'
+        "  strings:\n"
+        '    $mz = "MZ" ascii\n'
+        "  condition:\n"
+        "    uint16(0) == 0x5A4D and $mz\n"
+        "}\n"
+    )
+    res = verify_skillrl_failure_trajectory_and_decision_trees(clean_doc)
+    assert res["status"] == "success"
+    assert res["defect_count"] == 0
+    assert res["findings"] == []
+
+  def test_verify_skillrl_failure_trajectory_distills_structured_failure_traces(
+      self,
+  ):
+    from manager.tools.docs_review_tools import (
+        format_skillrl_diagnostic_decision_tree_appendix,
+        verify_skillrl_failure_trajectory_and_decision_trees,
+    )
+
+    failure_traces = [
+        {
+            "trace_id": "TRACE-24-MCP-503",
+            "failure_type": "http_503",
+            "component": "developerknowledge.googleapis.com",
+            "observed_error": "HTTP 503 Service Unavailable on batchGetDocuments",
+        },
+        {
+            "trace_id": "TRACE-24-UDM-0HIT",
+            "failure_type": "0-hit udm",
+            "component": "secops-mcp.search_udm",
+            "observed_error": (
+                "0 events returned for exact target.process.command_line on wins-d19"
+            ),
+        },
+        {
+            "trace_id": "TRACE-24-SAFETY-REFUSAL",
+            "failure_type": "FinishReason.PROHIBITED_CONTENT",
+            "component": "gemini-2.5-pro",
+            "observed_error": (
+                "Safety filter blocked response echoing comsvcs.dll, MiniDump"
+            ),
+        },
+    ]
+    res = verify_skillrl_failure_trajectory_and_decision_trees(
+        "# Clean Runbook\nAll steps follow degraded-mode fallback.\n",
+        failure_traces=failure_traces,
+    )
+    assert res["status"] == "success"
+    assert len(res["distilled_trace_lessons"]) == 3
+    rule_ids = [t["rule_id"] for t in res["distilled_trace_lessons"]]
+    assert rule_ids == [
+        "SKILLRL-01-MCP-OUTAGE-FALLBACK",
+        "SKILLRL-02-ZERO-HIT-UDM-ABLATION",
+        "SKILLRL-04-SAFETY-FILTER-SPAN-ISOLATION",
+    ]
+    appendix = format_skillrl_diagnostic_decision_tree_appendix(res)
+    assert (
+        "## [VERIFIED SKILLRL FAILURE-TRAJECTORY & DIAGNOSTIC DECISION TREE MATRIX (H25)]"
+        in appendix
+    )
+    assert "TRACE-24-MCP-503" in appendix
+    assert "TRACE-24-UDM-0HIT" in appendix
+    assert "TRACE-24-SAFETY-REFUSAL" in appendix
+    assert "SKILLRL-01-MCP-OUTAGE-FALLBACK" in appendix
+    assert "SKILLRL-05-YARAL2-FAILURE-RECOVERY-META" in appendix
+
+  def test_distill_and_redline_skillrl_failure_trajectories_in_doc_stages_redlines_and_appendix(
+      self,
+  ):
+    from manager.tools.docs_review_tools import (
+        EXTENDED_NIGHT2_BENCHMARK_SCENARIOS,
+        LocalGoogleDocsSimulator,
+        distill_and_redline_skillrl_failure_trajectories_in_doc,
+    )
+
+    bench11 = next(
+        s
+        for s in EXTENDED_NIGHT2_BENCHMARK_SCENARIOS
+        if s["scenario_id"]
+        == "BENCH-11-SKILLRL-FAILURE-TRAJECTORY-AND-DECISION-TREE"
+    )
+    sim = LocalGoogleDocsSimulator(
+        doc_id="SIM-BENCH-11",
+        title=bench11["title"],
+        initial_text=bench11["seeded_doc_text"],
+    )
+    res_pass1 = distill_and_redline_skillrl_failure_trajectories_in_doc(
+        document_id="SIM-BENCH-11",
+        apply_redlines=True,
+        append_appendix=True,
+        docs_client_override=sim,
+    )
+    assert res_pass1["status"] == "success"
+    assert res_pass1["defect_count"] == 5
+    assert res_pass1["applied_redlines"] == 5
+    assert res_pass1["applied_redline_count"] == 5
+    assert res_pass1["appended_appendix"] is True
+
+    updated_text = sim.get_plain_text()
+    assert (
+        "## [VERIFIED SKILLRL FAILURE-TRAJECTORY & DIAGNOSTIC DECISION TREE MATRIX (H25)]"
+        in updated_text
+    )
+    for nc_sub in bench11["negative_control_substrings"]:
+      assert nc_sub in updated_text
+
+    # Pass 2 idempotency: 0 new active defects, 5 skipped existing suggestions, 0 new redlines
+    res_pass2 = distill_and_redline_skillrl_failure_trajectories_in_doc(
+        document_id="SIM-BENCH-11",
+        apply_redlines=True,
+        append_appendix=True,
+        docs_client_override=sim,
+    )
+    assert res_pass2["status"] == "success"
+    assert res_pass2["defect_count"] == 0
+    assert res_pass2["skipped_existing_suggestion_count"] == 5
+    assert res_pass2["applied_redlines"] == 0
+    assert res_pass2["appended_appendix"] is False
+
+  def test_review_google_doc_with_stage_a_includes_skillrl_failure_trajectories(
+      self,
+  ):
+    from manager.tools.docs_review_tools import (
+        EXTENDED_NIGHT2_BENCHMARK_SCENARIOS,
+        LocalGoogleDocsSimulator,
+        review_google_doc_with_stage_a,
+    )
+
+    bench11 = next(
+        s
+        for s in EXTENDED_NIGHT2_BENCHMARK_SCENARIOS
+        if s["scenario_id"]
+        == "BENCH-11-SKILLRL-FAILURE-TRAJECTORY-AND-DECISION-TREE"
+    )
+    sim = LocalGoogleDocsSimulator(
+        doc_id="SIM-STAGE-A-B11",
+        title=bench11["title"],
+        initial_text=bench11["seeded_doc_text"],
+    )
+    res_stage_a = review_google_doc_with_stage_a(
+        "SIM-STAGE-A-B11",
+        include_telemetry_hazard_stage_a=False,
+        include_credential_containment_stage_a=False,
+        include_udm_stage_a=False,
+        include_yaral2_stage_a=False,
+        include_mitre_cve_stage_a=False,
+        include_waved_ontology_stage_a=False,
+        include_ioc_reputation_stage_a=False,
+        include_skillorchestra_routing_stage_a=False,
+        include_skillrl_failure_trajectory_stage_a=True,
+        token_source=lambda: "sim-tok",
+        transport=sim.as_httpx_transport(),
+    )
+    assert res_stage_a["status"] == "success"
+    assert res_stage_a["stage_a_skillrl_failure_trajectory_count"] == 5
+    assert res_stage_a["edits"]["applied_count"] == 5
+
+  def test_benchmark_scenario_11_skillrl_failure_trajectory_achieves_100_percent_f1(
+      self,
+  ):
+    from google.adk.tools.function_tool import FunctionTool
+    from manager.tools.docs_review_tools import (
+        evaluate_infosec_doc_reviewer,
+        run_docs_review_benchmark,
+    )
+    from manager.tools.tools import (
+        distill_and_redline_skillrl_failure_trajectories_in_doc as tool_fn,
+    )
+
+    res_b11 = evaluate_infosec_doc_reviewer(
+        scenario_set="BENCH-11-SKILLRL-FAILURE-TRAJECTORY-AND-DECISION-TREE",
+        include_hda_ablation=True,
+    )
+    assert res_b11["status"] == "success"
+    assert res_b11["scenario_count"] == 1
+    assert res_b11["total_expected_defects"] == 5
+    assert res_b11["true_positive_edits"] == 5
+    assert res_b11["false_positive_edits"] == 0
+    assert res_b11["false_negative_defects"] == 0
+    assert res_b11["total_negative_controls"] == 2
+    assert res_b11["negative_controls_preserved"] == 2
+    assert res_b11["overall_precision"] == 1.0
+    assert res_b11["overall_recall"] == 1.0
+    assert res_b11["overall_f1"] == 1.0
+    assert res_b11["overall_negative_control_pass_rate"] == 1.0
+    assert res_b11["pass2_idempotency_rate"] == 1.0
+    assert res_b11["google_drive_write_calls"] == 0
+
+    res_all = run_docs_review_benchmark(
+        scenario_set="all_with_night2",
+        include_hda_ablation=True,
+    )
+    assert res_all["status"] == "success"
+    assert res_all["scenario_count"] == 11
+    assert res_all["total_expected_defects"] == 58
+    assert res_all["true_positive_edits"] == 58
+    assert res_all["false_positive_edits"] == 0
+    assert res_all["false_negative_defects"] == 0
+    assert res_all["total_negative_controls"] == 23
+    assert res_all["negative_controls_preserved"] == 23
+    assert res_all["overall_precision"] == 1.0
+    assert res_all["overall_recall"] == 1.0
+    assert res_all["overall_f1"] == 1.0
+    assert res_all["overall_negative_control_pass_rate"] == 1.0
+    assert res_all["pass2_idempotency_rate"] == 1.0
+    assert res_all["overall_hda_error"] == 0.0
+    assert res_all["google_drive_write_calls"] == 0
+
+    ft = FunctionTool(tool_fn)
+    decl = ft._get_declaration()
+    assert decl is not None
+    assert (
+        decl.name == "distill_and_redline_skillrl_failure_trajectories_in_doc"
+    )
+    schema = decl.parameters_json_schema or {}
+    props = schema.get("properties", {})
+    assert "document_id" in props
+    assert "failure_traces_json" in props
+    assert "apply_redlines" in props
+    assert "append_appendix" in props
+
 

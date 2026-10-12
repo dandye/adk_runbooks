@@ -69,6 +69,16 @@ from .docs_review_tools import (
     find_skillorchestra_routing_and_budget_spans,
     format_skillorchestra_routing_and_budget_executive_appendix,
     verify_skillorchestra_routing_and_budget_claims,
+    CANONICAL_SKILLRL_FAILURE_TRAJECTORY_CATALOG,
+    build_dwd_credentials,
+    build_skillrl_failure_trajectory_review_plan,
+    distill_and_redline_skillrl_failure_trajectories_in_doc as _distill_and_redline_skillrl_failure_trajectories_in_doc,
+    extract_skillrl_failure_trajectory_claims_from_doc_text,
+    find_skillrl_failure_trajectory_spans,
+    format_skillrl_diagnostic_decision_tree_appendix,
+    inspect_google_doc_revision_and_Formatting,
+    run_docs_review_benchmark,
+    verify_skillrl_failure_trajectory_and_decision_trees,
 )
 
 logger = logging.getLogger(__name__)
@@ -1419,6 +1429,44 @@ def audit_and_redline_skillorchestra_routing_in_doc(
   )
 
 
+def distill_and_redline_skillrl_failure_trajectories_in_doc(
+    document_id: str,
+    failure_traces_json: str = "",
+    apply_redlines: bool = True,
+    append_appendix: bool = True,
+    tool_context: ToolContext | None = None,
+) -> dict:
+  """Distills and red-lines SkillRL failure-trajectory and counterfactual decision-tree defects in a Google Doc (H25).
+
+  Detects and surgically red-lines 5 practitioner defect classes
+  (`single_point_mcp_outage_abort`, `unhandled_zero_hit_dead_end`,
+  `missing_benign_twin_counterfactual_branch`,
+  `unmitigated_safety_filter_echo_trajectory`, and
+  `yaral2_missing_failure_recovery_meta`) while preserving negative-control
+  fallbacks and ignoring standard file/payload YARA rules (`strings:`), appends
+  the `## [VERIFIED SKILLRL FAILURE-TRAJECTORY & DIAGNOSTIC DECISION TREE MATRIX (H25)]`
+  appendix, and stages Suggested Edits in strict descending `startIndex` order
+  under `writeMode="SUGGEST"` with `#FEE2E2` / `#DCFCE7` styling.
+
+  Args:
+      document_id (str): The Google Docs documentId or URL.
+      failure_traces_json (str): Optional JSON string of structured empirical failure traces.
+      apply_redlines (bool): When True, anchors Drive API v3 comments and proposes Suggested Edits.
+      append_appendix (bool): When True, appends the verified H25 decision-tree matrix.
+
+  Returns:
+      dict: Verification results, descending-offset review plan, repaired YARA-L 2.0 rules,
+            and staged comment/edit counts.
+  """
+  return _distill_and_redline_skillrl_failure_trajectories_in_doc(
+      document_id=document_id,
+      failure_traces_json=failure_traces_json,
+      apply_redlines=apply_redlines,
+      append_appendix=append_appendix,
+      tool_context=tool_context,
+  )
+
+
 def get_agent_tools():
   """Initializes and returns MCP toolsets and progressive discovery tools.
 
@@ -1469,6 +1517,9 @@ def get_agent_tools():
   )
   wrapped_audit_and_redline_skillorchestra_routing_in_doc = instrument_tool(
       audit_and_redline_skillorchestra_routing_in_doc
+  )
+  wrapped_distill_and_redline_skillrl_failure_trajectories_in_doc = instrument_tool(
+      distill_and_redline_skillrl_failure_trajectories_in_doc
   )
   wrapped_sanitize_and_redline_telemetry_in_doc = instrument_tool(
       sanitize_and_redline_telemetry_in_doc
@@ -1524,6 +1575,7 @@ def get_agent_tools():
       wrapped_verify_and_redline_waved_ontology_in_doc,
       wrapped_verify_google_doc_ioc_reputation_and_attribution,
       wrapped_audit_and_redline_skillorchestra_routing_in_doc,
+      wrapped_distill_and_redline_skillrl_failure_trajectories_in_doc,
       wrapped_sanitize_and_redline_telemetry_in_doc,
       wrapped_triage_and_redline_leaked_credentials_in_doc,
       wrapped_audit_and_redline_claim_evidence_and_campaign_in_doc,
