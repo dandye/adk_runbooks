@@ -62,6 +62,13 @@ from .docs_review_tools import (
     verify_ioc_reputation_and_attribution_claims,
     build_ioc_reputation_and_attribution_review_plan,
     format_ioc_reputation_and_attribution_Executive_appendix,
+    CANONICAL_SKILLORCHESTRA_ROUTING_AND_BUDGET_CATALOG,
+    audit_and_redline_skillorchestra_routing_in_doc as _audit_and_redline_skillorchestra_routing_in_doc,
+    build_skillorchestra_routing_and_budget_review_plan,
+    extract_skillorchestra_routing_and_budget_claims_from_doc_text,
+    find_skillorchestra_routing_and_budget_spans,
+    format_skillorchestra_routing_and_budget_executive_appendix,
+    verify_skillorchestra_routing_and_budget_claims,
 )
 
 logger = logging.getLogger(__name__)
@@ -1375,6 +1382,43 @@ def verify_google_doc_ioc_reputation_and_attribution(
   )
 
 
+def audit_and_redline_skillorchestra_routing_in_doc(
+    document_id: str = "",
+    runtime_metrics_json: str = "",
+    apply_redlines: bool = True,
+    append_appendix: bool = True,
+    tool_context: ToolContext = None,
+) -> dict:
+  """Audits and red-lines SkillOrchestra multi-model routing & Stage A/B token budgets in a Google Doc (H24).
+
+  Detects 5 practitioner defect classes (`stage_a_task_routed_to_frontier_llm`,
+  `under_provisioned_model_for_complex_synthesis`,
+  `unfiltered_mcp_toolset_schema_bloat`, `unbounded_token_or_turn_budget`, and
+  `yaral2_meta_routing_tier_mismatch` in Chronicle SIEM YARA-L 2.0 rules while
+  ignoring standard file/payload YARA rules), appends the
+  `[VERIFIED SKILLORCHESTRA ROUTING & TOKEN BUDGET MATRIX (H24)]` executive
+  appendix, and stages Suggested Edits in strict descending `startIndex` order
+  under `writeMode="SUGGEST"`.
+
+  Args:
+      document_id (str): The Google Docs documentId or URL.
+      runtime_metrics_json (str): Optional JSON string of observed runtime token/turn metrics.
+      apply_redlines (bool): When True, anchors Drive API v3 comments and proposes Suggested Edits.
+      append_appendix (bool): When True, appends the verified H24 routing & token budget matrix.
+
+  Returns:
+      dict: Verification results, descending-offset review plan, repaired YARA-L 2.0 rules,
+            and staged comment/edit counts.
+  """
+  return _audit_and_redline_skillorchestra_routing_in_doc(
+      document_id=document_id,
+      runtime_metrics_json=runtime_metrics_json,
+      apply_redlines=apply_redlines,
+      append_appendix=append_appendix,
+      tool_context=tool_context,
+  )
+
+
 def get_agent_tools():
   """Initializes and returns MCP toolsets and progressive discovery tools.
 
@@ -1422,6 +1466,9 @@ def get_agent_tools():
   )
   wrapped_verify_google_doc_ioc_reputation_and_attribution = instrument_tool(
       verify_google_doc_ioc_reputation_and_attribution
+  )
+  wrapped_audit_and_redline_skillorchestra_routing_in_doc = instrument_tool(
+      audit_and_redline_skillorchestra_routing_in_doc
   )
   wrapped_sanitize_and_redline_telemetry_in_doc = instrument_tool(
       sanitize_and_redline_telemetry_in_doc
@@ -1476,6 +1523,7 @@ def get_agent_tools():
       wrapped_verify_and_redline_mitre_and_cve_in_doc,
       wrapped_verify_and_redline_waved_ontology_in_doc,
       wrapped_verify_google_doc_ioc_reputation_and_attribution,
+      wrapped_audit_and_redline_skillorchestra_routing_in_doc,
       wrapped_sanitize_and_redline_telemetry_in_doc,
       wrapped_triage_and_redline_leaked_credentials_in_doc,
       wrapped_audit_and_redline_claim_evidence_and_campaign_in_doc,

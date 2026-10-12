@@ -10918,13 +10918,13 @@ class TestCycle22GtiIocReputationAndAttribution:
         include_hda_ablation=True,
     )
     assert res_all["status"] == "success"
-    assert res_all["scenario_count"] == 9
-    assert res_all["total_expected_defects"] == 48
-    assert res_all["true_positive_edits"] == 48
+    assert res_all["scenario_count"] >= 9
+    assert res_all["total_expected_defects"] >= 48
+    assert res_all["true_positive_edits"] == res_all["total_expected_defects"]
     assert res_all["false_positive_edits"] == 0
     assert res_all["false_negative_defects"] == 0
-    assert res_all["total_negative_controls"] == 19
-    assert res_all["negative_controls_preserved"] == 19
+    assert res_all["total_negative_controls"] >= 19
+    assert res_all["negative_controls_preserved"] == res_all["total_negative_controls"]
     assert res_all["overall_precision"] == 1.0
     assert res_all["overall_recall"] == 1.0
     assert res_all["overall_f1"] == 1.0
@@ -10980,3 +10980,274 @@ class TestCycle22GtiIocReputationAndAttribution:
     assert res_pass2["defect_count"] == 0
     assert res_pass2["applied_redline_count"] == 0
     assert res_pass2["appended_matrix"] is False
+
+
+class TestCycle23SkillOrchestraRoutingAndTokenBudget:
+  """Cycle 23 (H24): SkillOrchestra Cost-Aware Multi-Model Routing Matrix & Stage A/B Token Budget Auditor tests."""
+
+  def test_detect_stage_a_task_routed_to_frontier_llm_and_preserve_controls(self):
+    from manager.tools.docs_review_tools import (
+        CANONICAL_SKILLORCHESTRA_ROUTING_AND_BUDGET_CATALOG,
+        extract_skillorchestra_routing_and_budget_claims_from_doc_text,
+        verify_skillorchestra_routing_and_budget_claims,
+    )
+
+    assert CANONICAL_SKILLORCHESTRA_ROUTING_AND_BUDGET_CATALOG["horizon"] == "H24"
+    assert (
+        CANONICAL_SKILLORCHESTRA_ROUTING_AND_BUDGET_CATALOG["mcp_schema_telemetry"][
+            "unfiltered_secops_mcp_tool_count"
+        ]
+        == 71
+    )
+
+    doc_text = (
+        "# Runbook Routing Spec\n"
+        "- Preserved Stage A Routing Control: Deterministic Python Stage A scanner executes URL defanging, Base64 -enc sanitization, and 1-based UTF-16 span indexing at 0 LLM tokens and 0% safety refusal rate.\n"
+        "- Stage A Sanitization Routing: Route URL defanging, Base64 -enc / MiniDump telemetry sanitization, and 1-based UTF-16 span offset calculation to gemini-2.5-pro and claude-opus-4-7.\n"
+    )
+    extracted = extract_skillorchestra_routing_and_budget_claims_from_doc_text(
+        doc_text
+    )
+    assert len(extracted["claims"]) == 2
+    ver = verify_skillorchestra_routing_and_budget_claims(doc_text)
+    assert ver["status"] == "success"
+    assert ver["defect_count"] == 1
+    assert ver["verified_claim_count"] == 1
+    d = ver["defects"][0]
+    assert d["defect_type"] == "stage_a_task_routed_to_frontier_llm"
+    assert d["is_safety_refusal"] is True
+    assert "gemini-2.5-pro and claude-opus-4-7" in d["target_text"]
+    assert (
+        "[SKILLORCHESTRA ROUTING & BUDGET RED-LINE: stage_a_task_routed_to_frontier_llm"
+        in d["replacement_text"]
+    )
+    assert d["start_index"] >= 1
+    assert d["end_index"] > d["start_index"]
+
+  def test_detect_under_provisioned_model_for_complex_synthesis(self):
+    from manager.tools.docs_review_tools import (
+        verify_skillorchestra_routing_and_budget_claims,
+    )
+
+    doc_text = (
+        "## Stage B Synthesis Routing\n"
+        "- Stage B Complex Synthesis Routing: Route multi-event Chronicle SIEM YARA-L 2.0 correlation synthesis and 4-layer WAVED ontology verification to gemini-2.5-flash-lite with verify_rule=disabled and grounding=none.\n"
+    )
+    ver = verify_skillorchestra_routing_and_budget_claims(doc_text)
+    assert ver["defect_count"] == 1
+    d = ver["defects"][0]
+    assert d["defect_type"] == "under_provisioned_model_for_complex_synthesis"
+    assert "gemini-2.5-flash-lite" in d["target_text"]
+    assert "secops-mcp:validate_rule" in d["replacement_text"]
+
+  def test_detect_unfiltered_mcp_schema_bloat_and_unbounded_budget(self):
+    from manager.tools.docs_review_tools import (
+        verify_skillorchestra_routing_and_budget_claims,
+    )
+
+    doc_text = (
+        "# Tool & Token Budget Policy\n"
+        "- Preserved SkillToolset Progressive Disclosure Control: McpToolset(tool_filter=...) with response_json_schema=None and SkillToolset adk_additional_tools restricts secops-mcp schema to 76.5 KB (<25,000 tokens) under max_turns: 8 and max_tokens: 32000.\n"
+        "- MCP Toolset Schema Declaration: Bind all 71 unfiltered secops-mcp tools (including create_feed, update_feed, run_parser) with full 4.10 MB response_json_schema on every turn.\n"
+        "- ReAct Execution Budget Policy: Configure ReAct loop budget with max_turns: unlimited, max_tokens: 2000000, and retry_on_zero_hit: infinite.\n"
+    )
+    ver = verify_skillorchestra_routing_and_budget_claims(doc_text)
+    assert ver["defect_count"] == 2
+    assert ver["verified_claim_count"] == 1
+    types = {d["defect_type"] for d in ver["defects"]}
+    assert types == {
+        "unfiltered_mcp_toolset_schema_bloat",
+        "unbounded_token_or_turn_budget",
+    }
+    # Verify descending start_index sort order
+    assert ver["defects"][0]["start_index"] > ver["defects"][1]["start_index"]
+
+  def test_detect_yaral2_meta_routing_tier_mismatch_and_ignore_standard_yara(self):
+    from manager.tools.docs_review_tools import (
+        verify_skillorchestra_routing_and_budget_claims,
+    )
+
+    doc_text = (
+        "## Standard File/Payload YARA Rule (Ignored by YL2 Auditor)\n"
+        "```yara\n"
+        "rule file_payload_wurm_dropper {\n"
+        "  meta:\n"
+        '    agent_routing_tier = "stage_a_only"\n'
+        "  strings:\n"
+        '    $mz = "MZ"\n'
+        "  condition:\n"
+        "    uint16(0) == 0x5a4d and $mz\n"
+        "}\n"
+        "```\n\n"
+        "## Multi-Line Chronicle SIEM YARA-L 2.0 Rule\n"
+        "```yaral\n"
+        "rule case_33269_yl2_multiline {\n"
+        "  meta:\n"
+        '    severity = "HIGH"\n'
+        '    agent_routing_tier = "ungrounded_flash_lite"\n'
+        "  events:\n"
+        '    $e.metadata.event_type = "PROCESS_LAUNCH"\n'
+        "  condition:\n"
+        "    $e\n"
+        "}\n"
+        "```\n\n"
+        "## Drive-Collapsed Single-Line Chronicle SIEM YARA-L 2.0 Rule\n"
+        'rule case_33278_yl2_collapsed { meta: severity = "CRITICAL" token_budget = "2000000" events: $e.metadata.event_type = "NETWORK_CONNECTION" condition: $e }\n'
+    )
+    ver = verify_skillorchestra_routing_and_budget_claims(doc_text)
+    assert "file_payload_wurm_dropper" in ver["standard_yara_rules_ignored"]
+    assert ver["defect_count"] == 2
+    by_rule = {d["rule_name"]: d for d in ver["defects"]}
+    assert set(by_rule.keys()) == {
+        "case_33269_yl2_multiline",
+        "case_33278_yl2_collapsed",
+    }
+    assert (
+        by_rule["case_33269_yl2_multiline"]["replacement_text"]
+        == 'agent_routing_tier = "tier_2_grounded_synthesis"'
+    )
+    assert (
+        by_rule["case_33278_yl2_collapsed"]["replacement_text"]
+        == 'token_budget = "32000"'
+    )
+
+  def test_audit_and_redline_skillorchestra_routing_in_doc_simulator_and_pass2_idempotency(
+      self,
+  ):
+    from manager.tools.docs_review_tools import (
+        EXTENDED_NIGHT2_BENCHMARK_SCENARIOS,
+        LocalGoogleDocsSimulator,
+        audit_and_redline_skillorchestra_routing_in_doc,
+    )
+
+    bench10 = next(
+        s
+        for s in EXTENDED_NIGHT2_BENCHMARK_SCENARIOS
+        if s["scenario_id"] == "BENCH-10-SKILLORCHESTRA-ROUTING-AND-TOKEN-BUDGET"
+    )
+    sim = LocalGoogleDocsSimulator(
+        doc_id="SIM-BENCH-10",
+        title=bench10["title"],
+        initial_text=bench10["seeded_doc_text"],
+    )
+    res_pass1 = audit_and_redline_skillorchestra_routing_in_doc(
+        document_id="SIM-BENCH-10",
+        apply_redlines=True,
+        append_appendix=True,
+        docs_client_override=sim,
+    )
+    assert res_pass1["status"] == "success"
+    assert res_pass1["defect_count"] == 5
+    assert res_pass1["applied_redline_count"] == 5
+    assert res_pass1["appended_matrix"] is True
+    assert res_pass1["compiler_verified"] is True
+    updated_text = sim.get_text()
+    assert (
+        "[VERIFIED SKILLORCHESTRA ROUTING & TOKEN BUDGET MATRIX (H24)]"
+        in updated_text
+    )
+
+    # Pass 2 idempotency check: 0 active defects, 5 skipped existing suggestions, 0 new redlines
+    res_pass2 = audit_and_redline_skillorchestra_routing_in_doc(
+        document_id="SIM-BENCH-10",
+        apply_redlines=True,
+        append_appendix=True,
+        docs_client_override=sim,
+    )
+    assert res_pass2["status"] == "success"
+    assert res_pass2["defect_count"] == 0
+    assert res_pass2["skipped_existing_suggestion_count"] == 5
+    assert res_pass2["applied_redline_count"] == 0
+    assert res_pass2["appended_matrix"] is False
+
+  def test_stage_a_integration_and_benchmark_bench10_and_all_with_night2(self):
+    from manager.tools.docs_review_tools import (
+        EXTENDED_NIGHT2_BENCHMARK_SCENARIOS,
+        LocalGoogleDocsSimulator,
+        evaluate_infosec_doc_reviewer,
+        review_google_doc_with_stage_a,
+    )
+
+    bench10 = next(
+        s
+        for s in EXTENDED_NIGHT2_BENCHMARK_SCENARIOS
+        if s["scenario_id"] == "BENCH-10-SKILLORCHESTRA-ROUTING-AND-TOKEN-BUDGET"
+    )
+    sim = LocalGoogleDocsSimulator(
+        doc_id="SIM-STAGE-A-B10",
+        title=bench10["title"],
+        initial_text=bench10["seeded_doc_text"],
+    )
+    res_stage_a = review_google_doc_with_stage_a(
+        "SIM-STAGE-A-B10",
+        include_telemetry_hazard_stage_a=False,
+        include_credential_containment_stage_a=False,
+        include_udm_stage_a=False,
+        include_yaral2_stage_a=False,
+        include_mitre_cve_stage_a=False,
+        include_waved_ontology_stage_a=False,
+        include_ioc_reputation_stage_a=False,
+        include_skillorchestra_routing_stage_a=True,
+        token_source=lambda: "sim-tok",
+        transport=sim.as_httpx_transport(),
+    )
+    assert res_stage_a["status"] == "success"
+    assert res_stage_a["stage_a_skillorchestra_routing_count"] == 5
+    assert res_stage_a["edits"]["applied_count"] == 5
+
+    res_b10 = evaluate_infosec_doc_reviewer(
+        scenario_set="BENCH-10-SKILLORCHESTRA-ROUTING-AND-TOKEN-BUDGET",
+        include_hda_ablation=True,
+    )
+    assert res_b10["status"] == "success"
+    assert res_b10["scenario_count"] == 1
+    assert res_b10["total_expected_defects"] == 5
+    assert res_b10["true_positive_edits"] == 5
+    assert res_b10["false_positive_edits"] == 0
+    assert res_b10["false_negative_defects"] == 0
+    assert res_b10["overall_precision"] == 1.0
+    assert res_b10["overall_recall"] == 1.0
+    assert res_b10["overall_f1"] == 1.0
+    assert res_b10["overall_negative_control_pass_rate"] == 1.0
+    assert res_b10["pass2_idempotency_rate"] == 1.0
+    assert res_b10["google_drive_write_calls"] == 0
+
+    res_all = evaluate_infosec_doc_reviewer(
+        scenario_set="all_with_night2",
+        include_hda_ablation=True,
+    )
+    assert res_all["status"] == "success"
+    assert res_all["scenario_count"] == 10
+    assert res_all["total_expected_defects"] == 53
+    assert res_all["true_positive_edits"] == 53
+    assert res_all["false_positive_edits"] == 0
+    assert res_all["false_negative_defects"] == 0
+    assert res_all["total_negative_controls"] == 21
+    assert res_all["negative_controls_preserved"] == 21
+    assert res_all["overall_precision"] == 1.0
+    assert res_all["overall_recall"] == 1.0
+    assert res_all["overall_f1"] == 1.0
+    assert res_all["overall_negative_control_pass_rate"] == 1.0
+    assert res_all["pass2_idempotency_rate"] == 1.0
+    assert res_all["overall_hda_error"] == 0.0
+    assert res_all["google_drive_write_calls"] == 0
+
+  def test_adk_function_tool_declaration_for_audit_and_redline_skillorchestra_routing_in_doc(
+      self,
+  ):
+    from google.adk.tools.function_tool import FunctionTool
+    from manager.tools.tools import (
+        audit_and_redline_skillorchestra_routing_in_doc as tool_fn,
+    )
+
+    ft = FunctionTool(tool_fn)
+    decl = ft._get_declaration()
+    assert decl is not None
+    assert decl.name == "audit_and_redline_skillorchestra_routing_in_doc"
+    schema = decl.parameters_json_schema or {}
+    props = schema.get("properties", {})
+    assert "document_id" in props
+    assert "runtime_metrics_json" in props
+    assert "apply_redlines" in props
+    assert "append_appendix" in props
+

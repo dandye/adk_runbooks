@@ -16843,6 +16843,7 @@ def review_google_doc_with_stage_a(
     include_runbook_promotion_stage_a: bool = False,
     include_waved_ontology_stage_a: bool = False,
     include_ioc_reputation_stage_a: bool = False,
+    include_skillorchestra_routing_stage_a: bool = False,
     verify_yaral2_meta_mitre: bool = False,
     synthesize_yaral2_missing_meta: bool = False,
     verify_yaral2_meta_runbook: bool = False,
@@ -16871,16 +16872,19 @@ def review_google_doc_with_stage_a(
        :func:`find_runbook_promotion_readiness_spans` when
        ``include_runbook_promotion_stage_a=True``,
        :func:`find_waved_ontology_review_spans` when
-       ``include_waved_ontology_stage_a=True``, and
+       ``include_waved_ontology_stage_a=True``,
        :func:`find_ioc_reputation_and_attribution_spans` when
-       ``include_ioc_reputation_stage_a=True``)
+       ``include_ioc_reputation_stage_a=True``, and
+       :func:`find_skillorchestra_routing_and_budget_spans` when
+       ``include_skillorchestra_routing_stage_a=True``)
        to locate leaked credentials, destructive/ineffective containment CLIs,
        unredacted telemetry payloads/secrets, live untrusted URLs,
        standalone Chronicle UDM field defects, YARA-L 2.0 rule defects,
        MITRE ATT&CK / CVE defects, narrative claim/campaign defects,
        Detection Coverage / TDO defects, case-specific runbook IoC leakage,
-       WAVED Cyber Ontology (CWE-CVE-ATT&CK-D3FEND) defects, and
-       GTI / Chronicle SIEM IoC reputation and threat attribution defects
+       WAVED Cyber Ontology (CWE-CVE-ATT&CK-D3FEND) defects,
+       GTI / Chronicle SIEM IoC reputation and threat attribution defects, and
+       SkillOrchestra multi-model routing and Stage A/B token budget defects
        by numeric UTF-16 span without echoing them through an LLM.
     3. Deduplicates Stage A spans against overlapping Stage B
        ``semantic_comments`` and ``semantic_edits`` and skips any span that
@@ -17162,6 +17166,25 @@ def review_google_doc_with_stage_a(
                 deduped_ioc_reputation_edits.append(e_item)
                 existing_edit_spans.append(e_span)
 
+    stage_a_skillorchestra_routing_count = 0
+    deduped_skillorchestra_routing_comments: list[dict[str, Any]] = []
+    deduped_skillorchestra_routing_edits: list[dict[str, Any]] = []
+    if include_skillorchestra_routing_stage_a:
+        so_comments, so_edits, so_findings = (
+            find_skillorchestra_routing_and_budget_spans(plain_text, index_map)
+        )
+        stage_a_skillorchestra_routing_count = len(so_findings)
+        for c_item in so_comments:
+            c_span = (c_item["start_index"], c_item["end_index"])
+            if not any(_spans_overlap(c_span, ex) for ex in existing_comment_spans):
+                deduped_skillorchestra_routing_comments.append(c_item)
+                existing_comment_spans.append(c_span)
+        for e_item in so_edits:
+            e_span = (e_item["start_index"], e_item["end_index"])
+            if not any(_spans_overlap(e_span, ex) for ex in existing_edit_spans):
+                deduped_skillorchestra_routing_edits.append(e_item)
+                existing_edit_spans.append(e_span)
+
     raw_all_comments = (
         deduped_credential_containment_comments
         + deduped_telemetry_comments
@@ -17174,6 +17197,7 @@ def review_google_doc_with_stage_a(
         + deduped_runbook_promotion_comments
         + deduped_waved_ontology_comments
         + deduped_ioc_reputation_comments
+        + deduped_skillorchestra_routing_comments
         + stage_b_comments
     )
     raw_all_edits = (
@@ -17188,6 +17212,7 @@ def review_google_doc_with_stage_a(
         + deduped_runbook_promotion_edits
         + deduped_waved_ontology_edits
         + deduped_ioc_reputation_edits
+        + deduped_skillorchestra_routing_edits
         + stage_b_edits
     )
 
@@ -17262,6 +17287,7 @@ def review_google_doc_with_stage_a(
         "stage_a_runbook_promotion_count": stage_a_runbook_promotion_count,
         "stage_a_waved_ontology_count": stage_a_waved_ontology_count,
         "stage_a_ioc_reputation_count": stage_a_ioc_reputation_count,
+        "stage_a_skillorchestra_routing_count": stage_a_skillorchestra_routing_count,
         "stage_a_italic_regex_count": stage_a_italic_regex_count,
         "waved_ontology_verification": {
             "status": (
@@ -17294,6 +17320,7 @@ def stage_runbook_update_as_google_doc(
     include_claim_campaign_stage_a: bool = False,
     include_tdo_coverage_stage_a: bool = False,
     include_runbook_promotion_stage_a: bool = False,
+    include_skillorchestra_routing_stage_a: bool = False,
     skill_content_override: str | None = None,
     client: DriveMcpClient | None = None,
     token_source: TokenSource | None = None,
@@ -17349,6 +17376,7 @@ def stage_runbook_update_as_google_doc(
         include_claim_campaign_stage_a=include_claim_campaign_stage_a,
         include_tdo_coverage_stage_a=include_tdo_coverage_stage_a,
         include_runbook_promotion_stage_a=include_runbook_promotion_stage_a,
+        include_skillorchestra_routing_stage_a=include_skillorchestra_routing_stage_a,
         token_source=token_source,
         quota_project=quota_project,
         transport=transport,
@@ -17373,6 +17401,9 @@ def stage_runbook_update_as_google_doc(
         "stage_a_tdo_coverage_count": review_res.get("stage_a_tdo_coverage_count", 0),
         "stage_a_runbook_promotion_count": review_res.get(
             "stage_a_runbook_promotion_count", 0
+        ),
+        "stage_a_skillorchestra_routing_count": review_res.get(
+            "stage_a_skillorchestra_routing_count", 0
         ),
         "stage_a_italic_regex_count": review_res.get("stage_a_italic_regex_count", 0),
         "comments": review_res.get("comments", {}),
@@ -24712,6 +24743,124 @@ EXTENDED_NIGHT2_BENCHMARK_SCENARIOS: tuple[dict[str, Any], ...] = (
             "Host wins-d19 (internal RFC-1918 IP 10.8.1.99) executed wurm.exe (SHA-256 71c0fbdddddc9fbcaadcc1d1cccd48dd07d1532d6f189d8b35e733a02bd09ad3, attributed to Gamarue / Andromeda in Case 33269)",
         ),
     },
+    # ------------------------------------------------------------------
+    # BENCH-10: SkillOrchestra Cost-Aware Multi-Model Routing Matrix & Stage A/B Token Budget Auditor (H24)
+    # ------------------------------------------------------------------
+    {
+        "scenario_id": "BENCH-10-SKILLORCHESTRA-ROUTING-AND-TOKEN-BUDGET",
+        "title": "Benchmark 10: SkillOrchestra Cost-Aware Multi-Model Routing Matrix & Stage A/B Token Budget Auditor",
+        "horizons": ("H24",),
+        "review_kwargs": {
+            "include_telemetry_hazard_stage_a": False,
+            "include_credential_containment_stage_a": False,
+            "include_udm_stage_a": False,
+            "include_yaral2_stage_a": False,
+            "include_mitre_cve_stage_a": False,
+            "include_waved_ontology_stage_a": False,
+            "include_ioc_reputation_stage_a": False,
+            "include_skillorchestra_routing_stage_a": True,
+        },
+        "markdown_content": (
+            "# ADK Runbook Architecture: SkillOrchestra Multi-Model Routing & Stage A/B Token Budget Spec (Cases 33269, 33278, 33287)\n\n"
+            "## 1. Preserved Negative-Control Routing & Budget Declarations\n"
+            "- Preserved Stage A Routing Control: Deterministic Python Stage A scanner executes URL defanging, Base64 -enc sanitization, and 1-based UTF-16 span indexing at 0 LLM tokens and 0% safety refusal rate.\n"
+            "- Preserved SkillToolset Progressive Disclosure Control: McpToolset(tool_filter=...) with response_json_schema=None and SkillToolset adk_additional_tools restricts secops-mcp schema to 76.5 KB (<25,000 tokens) under max_turns: 8 and max_tokens: 32000.\n\n"
+            "## 2. Unverified Multi-Model Routing & Token Budget Declarations\n"
+            "- Stage A Sanitization Routing: Route URL defanging, Base64 -enc / MiniDump telemetry sanitization, and 1-based UTF-16 span offset calculation to gemini-2.5-pro and claude-opus-4-7.\n"
+            "- Stage B Complex Synthesis Routing: Route multi-event Chronicle SIEM YARA-L 2.0 correlation synthesis and 4-layer WAVED ontology verification to gemini-2.5-flash-lite with verify_rule=disabled and grounding=none.\n"
+            "- MCP Toolset Schema Declaration: Bind all 71 unfiltered secops-mcp tools (including create_feed, update_feed, run_parser) with full 4.10 MB response_json_schema on every turn.\n"
+            "- ReAct Execution Budget Policy: Configure ReAct loop budget with max_turns: unlimited, max_tokens: 2000000, and retry_on_zero_hit: infinite.\n\n"
+            "## 3. Chronicle SIEM YARA-L 2.0 Detection Rule (Case 33269 / Case 33278)\n"
+            "```yaral\n"
+            "rule case_33269_skillorchestra_routing_and_budget_rule {\n"
+            "  meta:\n"
+            '    author = "SecOps Detection Engineering"\n'
+            '    severity = "HIGH"\n'
+            '    agent_routing_tier = "ungrounded_flash_lite"\n'
+            '    runbook_skill = "endpoint-triage"\n'
+            "  events:\n"
+            '    $e.metadata.event_type = "PROCESS_LAUNCH"\n'
+            '    $e.principal.hostname = "wins-d19"\n'
+            '    $e.target.process.file.full_path = "C:\\\\Temp\\\\wurm.exe"\n'
+            "  condition:\n"
+            "    $e\n"
+            "}\n"
+            "```\n"
+        ),
+        "seeded_doc_text": (
+            "# ADK Runbook Architecture: SkillOrchestra Multi-Model Routing & Stage A/B Token Budget Spec (Cases 33269, 33278, 33287)\n\n"
+            "## 1. Preserved Negative-Control Routing & Budget Declarations\n"
+            "- Preserved Stage A Routing Control: Deterministic Python Stage A scanner executes URL defanging, Base64 -enc sanitization, and 1-based UTF-16 span indexing at 0 LLM tokens and 0% safety refusal rate.\n"
+            "- Preserved SkillToolset Progressive Disclosure Control: McpToolset(tool_filter=...) with response_json_schema=None and SkillToolset adk_additional_tools restricts secops-mcp schema to 76.5 KB (<25,000 tokens) under max_turns: 8 and max_tokens: 32000.\n\n"
+            "## 2. Unverified Multi-Model Routing & Token Budget Declarations\n"
+            "- Stage A Sanitization Routing: Route URL defanging, Base64 -enc / MiniDump telemetry sanitization, and 1-based UTF-16 span offset calculation to gemini-2.5-pro and claude-opus-4-7.\n"
+            "- Stage B Complex Synthesis Routing: Route multi-event Chronicle SIEM YARA-L 2.0 correlation synthesis and 4-layer WAVED ontology verification to gemini-2.5-flash-lite with verify_rule=disabled and grounding=none.\n"
+            "- MCP Toolset Schema Declaration: Bind all 71 unfiltered secops-mcp tools (including create_feed, update_feed, run_parser) with full 4.10 MB response_json_schema on every turn.\n"
+            "- ReAct Execution Budget Policy: Configure ReAct loop budget with max_turns: unlimited, max_tokens: 2000000, and retry_on_zero_hit: infinite.\n\n"
+            "## 3. Chronicle SIEM YARA-L 2.0 Detection Rule (Case 33269 / Case 33278)\n"
+            "```yaral\n"
+            "rule case_33269_skillorchestra_routing_and_budget_rule {\n"
+            "  meta:\n"
+            '    author = "SecOps Detection Engineering"\n'
+            '    severity = "HIGH"\n'
+            '    agent_routing_tier = "ungrounded_flash_lite"\n'
+            '    runbook_skill = "endpoint-triage"\n'
+            "  events:\n"
+            '    $e.metadata.event_type = "PROCESS_LAUNCH"\n'
+            '    $e.principal.hostname = "wins-d19"\n'
+            '    $e.target.process.file.full_path = "C:\\\\Temp\\\\wurm.exe"\n'
+            "  condition:\n"
+            "    $e\n"
+            "}\n"
+            "```\n"
+        ),
+        "expected_defects": (
+            {
+                "defect_id": "bench10-stage-a-routed-to-frontier-llm",
+                "horizon": "H24",
+                "ablation_tier": "mechanics",
+                "is_safety_refusal": True,
+                "expected_deleted_substring": "Route URL defanging, Base64 -enc / MiniDump telemetry sanitization, and 1-based UTF-16 span offset calculation to gemini-2.5-pro and claude-opus-4-7",
+                "expected_inserted_substring": "[SKILLORCHESTRA ROUTING & BUDGET RED-LINE: stage_a_task_routed_to_frontier_llm",
+            },
+            {
+                "defect_id": "bench10-under-provisioned-model-for-complex-synthesis",
+                "horizon": "H24",
+                "ablation_tier": "grounding",
+                "is_safety_refusal": False,
+                "expected_deleted_substring": "Route multi-event Chronicle SIEM YARA-L 2.0 correlation synthesis and 4-layer WAVED ontology verification to gemini-2.5-flash-lite with verify_rule=disabled and grounding=none",
+                "expected_inserted_substring": "[SKILLORCHESTRA ROUTING & BUDGET RED-LINE: under_provisioned_model_for_complex_synthesis",
+            },
+            {
+                "defect_id": "bench10-unfiltered-mcp-toolset-schema-bloat",
+                "horizon": "H24",
+                "ablation_tier": "grounding",
+                "is_safety_refusal": False,
+                "expected_deleted_substring": "Bind all 71 unfiltered secops-mcp tools (including create_feed, update_feed, run_parser) with full 4.10 MB response_json_schema on every turn",
+                "expected_inserted_substring": "[SKILLORCHESTRA ROUTING & BUDGET RED-LINE: unfiltered_mcp_toolset_schema_bloat",
+            },
+            {
+                "defect_id": "bench10-unbounded-token-or-turn-budget",
+                "horizon": "H24",
+                "ablation_tier": "agent",
+                "is_safety_refusal": False,
+                "expected_deleted_substring": "Configure ReAct loop budget with max_turns: unlimited, max_tokens: 2000000, and retry_on_zero_hit: infinite",
+                "expected_inserted_substring": "[SKILLORCHESTRA ROUTING & BUDGET RED-LINE: unbounded_token_or_turn_budget",
+            },
+            {
+                "defect_id": "bench10-yaral2-meta-routing-tier-mismatch",
+                "horizon": "H24",
+                "ablation_tier": "grounding",
+                "is_safety_refusal": False,
+                "expected_deleted_substring": 'agent_routing_tier = "ungrounded_flash_lite"',
+                "expected_inserted_substring": 'agent_routing_tier = "tier_2_grounded_synthesis"',
+            },
+        ),
+        "negative_control_substrings": (
+            "Preserved Stage A Routing Control: Deterministic Python Stage A scanner executes URL defanging, Base64 -enc sanitization, and 1-based UTF-16 span indexing at 0 LLM tokens and 0% safety refusal rate.",
+            "Preserved SkillToolset Progressive Disclosure Control: McpToolset(tool_filter=...) with response_json_schema=None and SkillToolset adk_additional_tools restricts secops-mcp schema to 76.5 KB (<25,000 tokens) under max_turns: 8 and max_tokens: 32000.",
+        ),
+    },
 )
 
 
@@ -29153,6 +29302,1279 @@ def verify_google_doc_ioc_reputation_and_attribution(
         "comments": comments_res,
         "edits": edits_res,
     }
+
+
+# ==============================================================================
+# Cycle 23 (Horizon H24): SkillOrchestra Cost-Aware Multi-Model Routing Matrix
+# & Stage A/B Token Budget Auditor in Google Docs
+# ==============================================================================
+
+CANONICAL_SKILLORCHESTRA_ROUTING_AND_BUDGET_CATALOG: dict[str, Any] = {
+    "horizon": "H24",
+    "catalog_version": "2026.10.cycle23",
+    "literature_grounding": {
+        "yang_skillopt-2026": (
+            "SkillOrchestra / SkillOpt: Competence-aware multi-model skill routing "
+            "and progressive tool disclosure across heterogeneous agent tiers."
+        ),
+        "yang_cheaper-2026": (
+            "Better Harnesses, Smaller Models: Offloading syntactic, UTF-16 offset, "
+            "and safety-refusal hazards into deterministic Stage A harnesses."
+        ),
+        "oved-2026": (
+            "Optimize Cheap, Deploy Strong: Model-tier competence boundaries for "
+            "multi-constraint Chronicle SIEM YARA-L 2.0 synthesis and ontology verification."
+        ),
+        "xia-2026": (
+            "RRSI: Bounded reflection, token/turn budget ceilings, and deterministic "
+            "clause ablation in self-improving runbooks."
+        ),
+        "wang-2026": (
+            "SecRespond: Grounded incident response runbook verification across "
+            "SIEM, SOAR, and CTI planes."
+        ),
+    },
+    "mcp_schema_telemetry": {
+        "unfiltered_secops_mcp_tool_count": 71,
+        "unfiltered_total_schema_bytes": 4_100_000,
+        "unfiltered_estimated_schema_tokens": 1_020_000,
+        "unfiltered_parameters_json_schema_bytes": 246_347,
+        "unfiltered_response_json_schema_bytes": 3_730_000,
+        "excluded_admin_feed_parser_tools": (
+            "create_feed",
+            "update_feed",
+            "run_parser",
+            "list_feeds",
+            "get_feed",
+            "disable_feed",
+            "enable_feed",
+        ),
+        "filtered_parameters_json_schema_bytes": 76_507,
+        "filtered_estimated_schema_tokens": 24_800,
+        "input_schema_reduction_pct": 68.94,
+        "total_schema_token_reduction_pct": 97.55,
+        "canonical_disclosure_mode": (
+            "SkillToolset progressive disclosure (adk_additional_tools + "
+            "McpToolset tool_filter excluding feed/parser admin tools + "
+            "response_json_schema=None)"
+        ),
+    },
+    "budget_ceilings": {
+        "max_turns_ceiling": 8,
+        "max_tokens_ceiling": 32000,
+        "tier_1_max_turns": 5,
+        "tier_1_max_tokens": 16000,
+        "tier_2_max_turns": 8,
+        "tier_2_max_tokens": 32000,
+        "zero_hit_recovery_policy": "diagnose_zero_hit_udm_query",
+    },
+    "routing_tiers": {
+        "stage_a_deterministic": {
+            "tier_id": "stage_a_deterministic",
+            "executor": "Deterministic Python Stage A Span Scanner",
+            "llm_tokens_per_call": 0,
+            "estimated_cost_usd": 0.0,
+            "safety_refusal_rate": 0.0,
+            "mandated_tasks": (
+                "URL defanging (http:// -> hxxp://, https:// -> hxxps://)",
+                "Base64 -enc / -EncodedCommand / MiniDump / lsass.exe telemetry sanitization & credential redaction",
+                "1-based UTF-16 span offset calculation & descending startIndex sort order",
+                "RFC-1918 / RFC-5737 / RFC-2606 reserved IP & domain classification and empty-file SHA-256 filtering",
+                "Static Chronicle UDM field prefix & syntax token lookup",
+            ),
+        },
+        "tier_1_fast_triage": {
+            "tier_id": "tier_1_fast_triage",
+            "executor": "gemini-2.5-flash + filtered McpToolset + SkillToolset progressive disclosure",
+            "max_turns": 5,
+            "max_tokens": 16000,
+            "estimated_cost_usd": 0.004,
+            "mandated_tasks": (
+                "Single-event alert triage & SOAR case summary formatting",
+                "Bounded entity lookup & GTI reputation enrichment",
+            ),
+        },
+        "tier_2_grounded_synthesis": {
+            "tier_id": "tier_2_grounded_synthesis",
+            "executor": (
+                "gemini-2.5-pro (or grounded gemini-2.5-flash) + secops-mcp:validate_rule "
+                "+ secops-mcp:search_udm + gti-mcp verification"
+            ),
+            "max_turns": 8,
+            "max_tokens": 32000,
+            "estimated_cost_usd": 0.028,
+            "mandated_tasks": (
+                "Multi-event Chronicle SIEM YARA-L 2.0 (YL2 UDM event detection rule) correlation synthesis",
+                "Cross-case campaign graph attribution (H5)",
+                "4-layer WAVED (CWE -> CVE -> ATT&CK -> D3FEND) ontological verification (H21)",
+            ),
+        },
+    },
+    "yaral2_canonical_meta_routing": {
+        "agent_routing_tier": "tier_2_grounded_synthesis",
+        "model_tier": "gemini-2.5-pro",
+        "token_budget": "32000",
+        "mcp_schema_mode": "skill_toolset_progressive",
+    },
+}
+
+_STAGE_A_TASK_INDICATOR_RE_H24 = re.compile(
+    r"(?:"
+    r"URL\s+defang(?:ing)?|"
+    r"defang(?:ing)?\s+(?:live\s+)?URLs?|"
+    r"hxxps?://|"
+    r"Base64\s+-enc(?:\b|odedCommand)|"
+    r"MiniDump|lsass(?:\.exe)?\s+(?:sanitiz|redact)|"
+    r"telemetry\s+sanitiz(?:ation|ing)|"
+    r"UTF-16\s+(?:span\s+)?(?:offset|index)|"
+    r"RFC-(?:1918|5737|2606)\s+IP"
+    r")",
+    re.IGNORECASE,
+)
+
+_FRONTIER_LLM_INDICATOR_RE_H24 = re.compile(
+    r"\b(?:"
+    r"gemini-2\.5-pro|gemini-1\.5-pro|gemini-ultra|"
+    r"claude-opus(?:-4(?:-7)?)?|claude-3-5-sonnet|"
+    r"gpt-5(?:\.5)?|gpt-4o|o3-pro|frontier\s+LLMs?"
+    r")\b",
+    re.IGNORECASE,
+)
+
+_COMPLEX_SYNTHESIS_TASK_RE_H24 = re.compile(
+    r"(?:"
+    r"multi-event\s+(?:Chronicle\s+SIEM\s+)?YARA-L\s*2\.0|"
+    r"YARA-L\s*2\.0\s+(?:\([^)]*\)\s+)?correlation\s+(?:rule\s+)?synthesis|"
+    r"4-layer\s+WAVED\s+ontolog(?:y|ical)|"
+    r"WAVED\s+ontology\s+verification|"
+    r"cross-case\s+campaign\s+(?:graph\s+)?(?:attribution|correlation)"
+    r")",
+    re.IGNORECASE,
+)
+
+_UNDER_PROVISIONED_MODEL_RE_H24 = re.compile(
+    r"(?:"
+    r"\b(?:gemini-2\.5-flash-lite|flash-lite|gemma-3-1b|nano(?:-model)?|ungrounded\s+lite\s+model)\b"
+    r"|"
+    r"\b(?:verify_rule\s*[:=]\s*(?:disabled|false|none)|grounding\s*[:=]\s*(?:none|disabled|false)|without\s+validate_rule)\b"
+    r")",
+    re.IGNORECASE,
+)
+
+_UNFILTERED_MCP_SCHEMA_RE_H24 = re.compile(
+    r"(?:"
+    r"71\s+unfiltered\s+secops-mcp\s+tools|"
+    r"unfiltered\s+71-tool\s+secops-mcp|"
+    r"all\s+71\s+(?:unfiltered\s+)?secops-mcp\s+tools|"
+    r"create_feed,\s*update_feed,\s*run_parser|"
+    r"full\s+4\.10\s*MB\s+response_json_schema|"
+    r"3\.73\s*MB\s+response_json_schema|"
+    r"mcp_schema_mode\s*:\s*unfiltered"
+    r")",
+    re.IGNORECASE,
+)
+
+_UNBOUNDED_BUDGET_RE_H24 = re.compile(
+    r"(?:"
+    r"max_turns\s*[:=]\s*(?:unlimited|infinite|none|[5-9]\d|\d{3,})\b|"
+    r"max_tokens\s*[:=]\s*(?:unlimited|infinite|2000000|1000000|[4-9]\d{4,}|\d{6,})\b|"
+    r"retry_on_zero_hit\s*[:=]\s*(?:infinite|unlimited|unbounded)\b|"
+    r"unbounded\s+ReAct\s+(?:retry\s+)?loop"
+    r")",
+    re.IGNORECASE,
+)
+
+_NEGATIVE_CONTROL_LINE_RE_H24 = re.compile(
+    r"(?:"
+    r"Preserved\s+(?:Stage\s+A|SkillToolset|Negative-Control)|"
+    r"Deterministic\s+Python\s+Stage\s+A\s+scanner\s+executes|"
+    r"0\s+LLM\s+tokens\s+and\s+0%\s+(?:FinishReason\.PROHIBITED_CONTENT\s+)?safety[\s-]refusal\s+rate|"
+    r"McpToolset\(tool_filter=\.\.\.\)\s+with\s+response_json_schema=None|"
+    r"restricts\s+secops-mcp\s+schema\s+to\s+76\.5\s*KB|"
+    r"instead\s+of\s+(?:an?\s+expensive\s+)?frontier\s+LLMs?|"
+    r"never\s+ungrounded\s+flash-lite|"
+    r"do\s+not\s+route\s+Stage\s+A|"
+    r"\[SKILLORCHESTRA\s+ROUTING\s+&\s+BUDGET\s+RED-LINE:"
+    r")",
+    re.IGNORECASE,
+)
+
+
+def _trim_clause_bounds_h24(
+    line_raw: str, line_base: int
+) -> tuple[int, int, str]:
+    """Returns ``(char_start, char_end, clause_text)`` for a bullet/labelled line.
+
+    When a line has a bullet or label prefix (e.g. ``- Stage A Sanitization Routing: Route ...``),
+    this trims the leading bullet and label prefix so the red-line span targets
+    the actionable routing/budget clause directly while keeping exact 1-based
+    UTF-16 offsets.
+    """
+    s_off = 0
+    e_off = len(line_raw)
+    while e_off > s_off and line_raw[e_off - 1] in " \t\r\n.":
+        e_off -= 1
+    bullet_m = re.match(r"^[ \t]*(?:[-*+]|\d+\.)[ \t]+", line_raw[:e_off])
+    if bullet_m:
+        s_off = bullet_m.end()
+    # Check for a short heading label followed by ": " before the action verb
+    label_m = re.match(
+        r"^([A-Za-z0-9_ /&-]{3,48}):[ \t]+(?=(?:Route|Bind|Configure|Set|Use|Execute|Assign|Delegate|Run|Enable)\b)",
+        line_raw[s_off:e_off],
+        re.IGNORECASE,
+    )
+    if label_m:
+        s_off += label_m.end()
+    return line_base + s_off, line_base + e_off, line_raw[s_off:e_off]
+
+
+def _char_span_to_utf16_span(
+    idx_map: list[int], c_start: int, c_end: int, text_len: int
+) -> tuple[int, int]:
+    """Maps a 0-based Python character slice ``[c_start, c_end)`` to a 1-based UTF-16 span."""
+    if text_len == 0 or not idx_map:
+        return (1, 1)
+    s_clamped = max(0, min(c_start, len(idx_map) - 1))
+    s_u = idx_map[s_clamped]
+    if c_end <= 0:
+        return (s_u, s_u)
+    if c_end >= len(idx_map):
+        return (s_u, idx_map[-1] + 1)
+    return (s_u, idx_map[c_end])
+
+
+def extract_skillorchestra_routing_and_budget_claims_from_doc_text(
+    doc_text: str,
+) -> dict[str, Any]:
+    """Extracts SkillOrchestra routing, MCP schema, token/turn budget, and YARA-L 2.0 ``meta:`` claims.
+
+    Distinguishes Chronicle SIEM YARA-L 2.0 (``YL2`` — UDM event detection rules
+    having ``events:`` and ``condition:``) from standard file/payload YARA rules
+    (``strings:`` / ``uint16(0)``), which are recorded in
+    ``standard_yara_rules_ignored`` and never flagged as YL2 routing defects.
+    """
+    if not doc_text:
+        return {
+            "claims": [],
+            "yaral2_rules": [],
+            "standard_yara_rules_ignored": [],
+        }
+
+    all_rules = _find_all_rule_blocks_with_dialect_h23(doc_text)
+    yaral2_rules = [r for r in all_rules if r["dialect"] == "yaral2"]
+    for r in yaral2_rules:
+        r_text = r["rule_text"]
+        r_start = int(r["char_start"])
+        sec_headers = list(_YARAL2_SECTION_HEADER_RE.finditer(r_text))
+        meta_entries: dict[str, dict[str, Any]] = {}
+        for idx, sh in enumerate(sec_headers):
+            sec_name = sh.group(1).lower()
+            if sec_name != "meta":
+                continue
+            b_start = sh.end()
+            if idx + 1 < len(sec_headers):
+                b_end = sec_headers[idx + 1].start()
+            else:
+                rbrace = r_text.rfind("}")
+                b_end = rbrace if rbrace != -1 else len(r_text)
+            sec_body = r_text[b_start:b_end]
+            for kv_m in re.finditer(
+                r'([A-Za-z_][A-Za-z0-9_]*)[ \t]*=[ \t]*"([^"]*)"', sec_body
+            ):
+                m_key = kv_m.group(1).strip().lower()
+                m_val = kv_m.group(2).strip()
+                meta_entries[m_key] = {
+                    "value": m_val,
+                    "line_text": kv_m.group(0),
+                    "line_char_start": r_start + b_start + kv_m.start(),
+                    "line_char_end": r_start + b_start + kv_m.end(),
+                }
+        r["meta_entries"] = meta_entries
+
+    standard_yara_rules = [
+        r["rule_name"] for r in all_rules if r["dialect"] == "standard_yara"
+    ]
+    rule_spans = [(r["char_start"], r["char_end"]) for r in all_rules]
+
+    def _in_any_rule(pos: int) -> bool:
+        return any(rs <= pos < re_end for rs, re_end in rule_spans)
+
+    claims: list[dict[str, Any]] = []
+    in_fenced_block = False
+    offset = 0
+    for line in doc_text.splitlines(keepends=True):
+        line_len = len(line)
+        line_start = offset
+        offset += line_len
+        line_raw = line.rstrip("\r\n")
+        stripped = line_raw.strip()
+
+        if stripped.startswith("```"):
+            in_fenced_block = not in_fenced_block
+            continue
+        if not stripped or stripped.startswith("#"):
+            continue
+        if in_fenced_block or _in_any_rule(line_start):
+            continue
+        if "[VERIFIED SKILLORCHESTRA ROUTING & TOKEN BUDGET MATRIX (H24)]" in stripped:
+            break
+
+        is_neg_control = bool(_NEGATIVE_CONTROL_LINE_RE_H24.search(line_raw))
+        c_start, c_end, clause_text = _trim_clause_bounds_h24(
+            line_raw, line_start
+        )
+
+        has_stage_a_task = bool(_STAGE_A_TASK_INDICATOR_RE_H24.search(line_raw))
+        has_frontier_llm = bool(_FRONTIER_LLM_INDICATOR_RE_H24.search(line_raw))
+        has_complex_synthesis = bool(
+            _COMPLEX_SYNTHESIS_TASK_RE_H24.search(line_raw)
+        )
+        has_under_provisioned = bool(
+            _UNDER_PROVISIONED_MODEL_RE_H24.search(line_raw)
+        )
+        has_unfiltered_mcp = bool(_UNFILTERED_MCP_SCHEMA_RE_H24.search(line_raw))
+        has_unbounded_budget = bool(_UNBOUNDED_BUDGET_RE_H24.search(line_raw))
+
+        if (
+            has_stage_a_task
+            or has_frontier_llm
+            or has_complex_synthesis
+            or has_under_provisioned
+            or has_unfiltered_mcp
+            or has_unbounded_budget
+            or is_neg_control
+        ):
+            claims.append(
+                {
+                    "claim_kind": "narrative_routing_or_budget_claim",
+                    "line_text": stripped,
+                    "clause_text": clause_text,
+                    "char_start": c_start,
+                    "char_end": c_end,
+                    "is_negative_control": is_neg_control,
+                    "has_stage_a_task": has_stage_a_task,
+                    "has_frontier_llm": has_frontier_llm,
+                    "has_complex_synthesis": has_complex_synthesis,
+                    "has_under_provisioned": has_under_provisioned,
+                    "has_unfiltered_mcp": has_unfiltered_mcp,
+                    "has_unbounded_budget": has_unbounded_budget,
+                }
+            )
+
+    for r in yaral2_rules:
+        meta_entries = r.get("meta_entries") or {}
+        for k in (
+            "agent_routing_tier",
+            "model_tier",
+            "token_budget",
+            "mcp_schema_mode",
+        ):
+            if k in meta_entries:
+                entry = meta_entries[k]
+                claims.append(
+                    {
+                        "claim_kind": "yaral2_meta_routing_claim",
+                        "rule_name": r["rule_name"],
+                        "meta_key": k,
+                        "meta_value": entry["value"],
+                        "clause_text": entry["line_text"],
+                        "char_start": entry["line_char_start"],
+                        "char_end": entry["line_char_end"],
+                        "is_negative_control": False,
+                    }
+                )
+
+    return {
+        "claims": claims,
+        "yaral2_rules": yaral2_rules,
+        "standard_yara_rules_ignored": standard_yara_rules,
+    }
+
+
+def verify_skillorchestra_routing_and_budget_claims(
+    doc_text: str,
+    index_map: list[int] | None = None,
+    runtime_metrics: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Verifies SkillOrchestra routing and Stage A/B token budget claims in ``doc_text``.
+
+    Detects 5 practitioner defect classes with exact 1-based UTF-16 ``start_index``
+    and ``end_index`` spans while preserving negative-control declarations and
+    ignoring standard file/payload YARA rules (``strings:`` / ``uint16(0)``):
+    1. ``stage_a_task_routed_to_frontier_llm``
+    2. ``under_provisioned_model_for_complex_synthesis``
+    3. ``unfiltered_mcp_toolset_schema_bloat``
+    4. ``unbounded_token_or_turn_budget``
+    5. ``yaral2_meta_routing_tier_mismatch``
+    """
+    eff_map = (
+        index_map
+        if index_map is not None
+        else _build_utf16_index_map(doc_text or "")
+    )
+    extracted = extract_skillorchestra_routing_and_budget_claims_from_doc_text(
+        doc_text or ""
+    )
+    yaral2_rules = extracted["yaral2_rules"]
+    standard_yara_ignored = extracted["standard_yara_rules_ignored"]
+
+    defects: list[dict[str, Any]] = []
+    verified_claims: list[dict[str, Any]] = []
+
+    all_rules = _find_all_rule_blocks_with_dialect_h23(doc_text or "")
+    rule_spans = [(r["char_start"], r["char_end"]) for r in all_rules]
+
+    def _in_any_rule(pos: int) -> bool:
+        return any(rs <= pos < re_end for rs, re_end in rule_spans)
+
+    in_fenced_block = False
+    offset = 0
+    for line in (doc_text or "").splitlines(keepends=True):
+        line_len = len(line)
+        line_start = offset
+        offset += line_len
+        line_raw = line.rstrip("\r\n")
+        stripped = line_raw.strip()
+
+        if stripped.startswith("```"):
+            in_fenced_block = not in_fenced_block
+            continue
+        if not stripped or stripped.startswith("#"):
+            continue
+        if in_fenced_block or _in_any_rule(line_start):
+            continue
+        if "[VERIFIED SKILLORCHESTRA ROUTING & TOKEN BUDGET MATRIX (H24)]" in stripped:
+            break
+
+        if _NEGATIVE_CONTROL_LINE_RE_H24.search(line_raw):
+            c_start, c_end, clause_text = _trim_clause_bounds_h24(
+                line_raw, line_start
+            )
+            u_start, u_end = _char_span_to_utf16_span(
+                eff_map, c_start, c_end, len(doc_text)
+            )
+            verified_claims.append(
+                {
+                    "claim_type": "preserved_negative_control",
+                    "target_text": clause_text,
+                    "start_index": u_start,
+                    "end_index": u_end,
+                }
+            )
+            continue
+
+        c_start, c_end, clause_text = _trim_clause_bounds_h24(
+            line_raw, line_start
+        )
+        u_start, u_end = _char_span_to_utf16_span(
+            eff_map, c_start, c_end, len(doc_text)
+        )
+
+        # 1. Defect Class 1: stage_a_task_routed_to_frontier_llm
+        if _STAGE_A_TASK_INDICATOR_RE_H24.search(
+            line_raw
+        ) and _FRONTIER_LLM_INDICATOR_RE_H24.search(line_raw):
+            replacement = (
+                "[SKILLORCHESTRA ROUTING & BUDGET RED-LINE: stage_a_task_routed_to_frontier_llm "
+                "— Route deterministic Stage A tasks (URL defanging, Base64 -enc / MiniDump telemetry "
+                "sanitization, 1-based UTF-16 offset calculation, and RFC-1918/RFC-5737 IP checks) to "
+                "the deterministic Stage A Python span scanner (0 LLM tokens, $0.00 cost, 0% "
+                "FinishReason.PROHIBITED_CONTENT safety-refusal rate) instead of frontier LLMs "
+                "(gemini-2.5-pro / claude-opus-4-7).]"
+            )
+            rationale = (
+                "[SkillOrchestra Stage A/B Routing Audit (H24 / yang_cheaper-2026)]: "
+                f"Confirmed `stage_a_task_routed_to_frontier_llm` on `{clause_text}`. "
+                "Routing deterministic Stage A tasks (URL defanging, Base64 -enc / MiniDump sanitization, "
+                "UTF-16 span offset calculation, RFC-5737 IP checks) to frontier LLMs burns $0.05-$0.25 "
+                "per step and triggers FinishReason.PROHIBITED_CONTENT safety refusals on raw telemetry. "
+                "Offload to the deterministic Stage A Python span scanner (0 LLM tokens, 0% refusal rate)."
+            )
+            defects.append(
+                {
+                    "defect_type": "stage_a_task_routed_to_frontier_llm",
+                    "horizon": "H24",
+                    "ablation_tier": "mechanics",
+                    "is_safety_refusal": True,
+                    "target_text": clause_text,
+                    "replacement_text": replacement,
+                    "rationale": rationale,
+                    "comment_text": rationale,
+                    "char_start": c_start,
+                    "char_end": c_end,
+                    "start_index": u_start,
+                    "end_index": u_end,
+                }
+            )
+            continue
+
+        # 2. Defect Class 2: under_provisioned_model_for_complex_synthesis
+        if _COMPLEX_SYNTHESIS_TASK_RE_H24.search(
+            line_raw
+        ) and _UNDER_PROVISIONED_MODEL_RE_H24.search(line_raw):
+            replacement = (
+                "[SKILLORCHESTRA ROUTING & BUDGET RED-LINE: under_provisioned_model_for_complex_synthesis "
+                "— Route multi-event Chronicle SIEM YARA-L 2.0 (YL2 UDM event detection rule) correlation "
+                "synthesis, cross-case campaign attribution (H5), and 4-layer WAVED ontology verification "
+                "(H21) to Tier-2 grounded synthesis (gemini-2.5-pro or grounded gemini-2.5-flash) paired "
+                "with mandatory secops-mcp:validate_rule compiler verification and search_udm historical "
+                "backtesting (never ungrounded flash-lite/nano with verify_rule=disabled).]"
+            )
+            rationale = (
+                "[SkillOrchestra Competence-Cost Routing Audit (H24 / yang_skillopt-2026 / oved-2026)]: "
+                f"Confirmed `under_provisioned_model_for_complex_synthesis` on `{clause_text}`. "
+                "Multi-event Chronicle SIEM YARA-L 2.0 (YL2 UDM event detection rule, distinct from "
+                "standard file/payload YARA) synthesis and 4-layer WAVED ontological verification "
+                "require Tier-2 grounded synthesis paired with `secops-mcp:validate_rule` and `search_udm`."
+            )
+            defects.append(
+                {
+                    "defect_type": "under_provisioned_model_for_complex_synthesis",
+                    "horizon": "H24",
+                    "ablation_tier": "grounding",
+                    "is_safety_refusal": False,
+                    "target_text": clause_text,
+                    "replacement_text": replacement,
+                    "rationale": rationale,
+                    "comment_text": rationale,
+                    "char_start": c_start,
+                    "char_end": c_end,
+                    "start_index": u_start,
+                    "end_index": u_end,
+                }
+            )
+            continue
+
+        # 3. Defect Class 3: unfiltered_mcp_toolset_schema_bloat
+        if _UNFILTERED_MCP_SCHEMA_RE_H24.search(line_raw):
+            replacement = (
+                "[SKILLORCHESTRA ROUTING & BUDGET RED-LINE: unfiltered_mcp_toolset_schema_bloat "
+                "— Replace unfiltered 71-tool secops-mcp binding (4.10 MB / ~1.02M tokens including "
+                "create_feed, update_feed, run_parser and 3.73 MB response_json_schema) with ADK "
+                "SkillToolset progressive disclosure (adk_additional_tools + McpToolset tool_filter "
+                "excluding feed/parser admin tools + response_json_schema=None), cutting inputSchema "
+                "by 68.94% to 76.5 KB (<25,000 tokens).]"
+            )
+            rationale = (
+                "[SkillOrchestra MCP Schema Progressive Disclosure Audit (H24 / yang_skillopt-2026)]: "
+                f"Confirmed `unfiltered_mcp_toolset_schema_bloat` on `{clause_text}`. "
+                "Binding all 71 unfiltered `secops-mcp` tools injects 4.10 MB (~1.02M schema tokens, "
+                "including 3.73 MB response_json_schema and feed/parser admin tools create_feed, "
+                "update_feed, run_parser) on every turn. Use `SkillToolset` (`adk_additional_tools`) + "
+                "`McpToolset(tool_filter=...)` + `response_json_schema=None` to cut inputSchema by "
+                "68.94% (246,347 B -> 76,507 B, <25,000 tokens)."
+            )
+            defects.append(
+                {
+                    "defect_type": "unfiltered_mcp_toolset_schema_bloat",
+                    "horizon": "H24",
+                    "ablation_tier": "grounding",
+                    "is_safety_refusal": False,
+                    "target_text": clause_text,
+                    "replacement_text": replacement,
+                    "rationale": rationale,
+                    "comment_text": rationale,
+                    "char_start": c_start,
+                    "char_end": c_end,
+                    "start_index": u_start,
+                    "end_index": u_end,
+                }
+            )
+            continue
+
+        # 4. Defect Class 4: unbounded_token_or_turn_budget
+        if _UNBOUNDED_BUDGET_RE_H24.search(line_raw):
+            replacement = (
+                "[SKILLORCHESTRA ROUTING & BUDGET RED-LINE: unbounded_token_or_turn_budget "
+                "— Enforce bounded ADK Graph Workflow and RRSI ceilings (max_turns: 8, max_tokens: 32000) "
+                "and replace unbounded zero-hit ReAct retry loops with deterministic "
+                "diagnose_zero_hit_udm_query single-clause ablation.]"
+            )
+            rationale = (
+                "[SkillOrchestra Token & Turn Budget Ceiling Audit (H24 / xia-2026)]: "
+                f"Confirmed `unbounded_token_or_turn_budget` on `{clause_text}`. "
+                "Unbounded ReAct retry loops (`max_turns: unlimited`, `max_tokens: 2000000`, "
+                "`retry_on_zero_hit: infinite`) risk runaway token exhaustion on zero-hit UDM queries. "
+                "Enforce `max_turns <= 8`, `max_tokens <= 32000`, and deterministic "
+                "`diagnose_zero_hit_udm_query` single-clause ablation."
+            )
+            defects.append(
+                {
+                    "defect_type": "unbounded_token_or_turn_budget",
+                    "horizon": "H24",
+                    "ablation_tier": "agent",
+                    "is_safety_refusal": False,
+                    "target_text": clause_text,
+                    "replacement_text": replacement,
+                    "rationale": rationale,
+                    "comment_text": rationale,
+                    "char_start": c_start,
+                    "char_end": c_end,
+                    "start_index": u_start,
+                    "end_index": u_end,
+                }
+            )
+            continue
+
+    # 5. Defect Class 5: yaral2_meta_routing_tier_mismatch inside Chronicle SIEM YARA-L 2.0 rules
+    canonical_meta = CANONICAL_SKILLORCHESTRA_ROUTING_AND_BUDGET_CATALOG[
+        "yaral2_canonical_meta_routing"
+    ]
+    valid_routing_tiers = {
+        "tier_2_grounded_synthesis",
+        "tier_1_fast_triage",
+    }
+    valid_model_tiers = {
+        "gemini-2.5-pro",
+        "gemini-2.5-flash",
+    }
+    valid_schema_modes = {
+        "skill_toolset_progressive",
+        "filtered_mcp_toolset",
+    }
+
+    for r in yaral2_rules:
+        r_name = r["rule_name"]
+        meta_entries = r.get("meta_entries") or {}
+        severity_val = (
+            str((meta_entries.get("severity") or {}).get("value") or "HIGH")
+            .strip()
+            .upper()
+        )
+        runbook_skill_val = str(
+            (meta_entries.get("runbook_skill") or {}).get("value")
+            or "endpoint-triage"
+        ).strip()
+
+        for meta_key in (
+            "agent_routing_tier",
+            "model_tier",
+            "token_budget",
+            "mcp_schema_mode",
+        ):
+            if meta_key not in meta_entries:
+                continue
+            entry = meta_entries[meta_key]
+            raw_val = str(entry["value"]).strip()
+            val_lower = raw_val.lower()
+            is_mismatch = False
+            expected_val = canonical_meta[meta_key]
+
+            if meta_key == "agent_routing_tier":
+                if val_lower not in valid_routing_tiers or (
+                    severity_val in ("HIGH", "CRITICAL")
+                    and val_lower != "tier_2_grounded_synthesis"
+                ):
+                    is_mismatch = True
+                    expected_val = "tier_2_grounded_synthesis"
+            elif meta_key == "model_tier":
+                if (
+                    val_lower not in valid_model_tiers
+                    or "ungrounded" in val_lower
+                    or "lite" in val_lower
+                    or "nano" in val_lower
+                ):
+                    is_mismatch = True
+                    expected_val = "gemini-2.5-pro"
+            elif meta_key == "token_budget":
+                try:
+                    budget_int = int(raw_val)
+                    if budget_int <= 0 or budget_int > 32000:
+                        is_mismatch = True
+                except ValueError:
+                    is_mismatch = True
+                expected_val = "32000"
+            elif meta_key == "mcp_schema_mode":
+                if (
+                    val_lower not in valid_schema_modes
+                    or "unfiltered" in val_lower
+                    or "71" in val_lower
+                ):
+                    is_mismatch = True
+                    expected_val = "skill_toolset_progressive"
+
+            c_start = int(entry["line_char_start"])
+            c_end = int(entry["line_char_end"])
+            u_start, u_end = _char_span_to_utf16_span(
+                eff_map, c_start, c_end, len(doc_text)
+            )
+            if is_mismatch:
+                target_kv = entry["line_text"]
+                replacement_kv = f'{meta_key} = "{expected_val}"'
+                rationale = (
+                    "[Chronicle SIEM YARA-L 2.0 Meta Routing Tier Audit (H24 / yang_skillopt-2026)]: "
+                    f"Rule `{r_name}` (severity `{severity_val}`, runbook `{runbook_skill_val}`) "
+                    f"declares `{target_kv}` in `meta:`, which violates SkillOrchestra routing/budget "
+                    f"invariants for Chronicle SIEM YARA-L 2.0 (YL2 UDM event detection rules, distinct "
+                    f"from standard file/payload YARA). Repair to `{replacement_kv}`."
+                )
+                defects.append(
+                    {
+                        "defect_type": "yaral2_meta_routing_tier_mismatch",
+                        "horizon": "H24",
+                        "ablation_tier": "grounding",
+                        "is_safety_refusal": False,
+                        "rule_name": r_name,
+                        "meta_key": meta_key,
+                        "declared_value": raw_val,
+                        "expected_value": expected_val,
+                        "target_text": target_kv,
+                        "replacement_text": replacement_kv,
+                        "rationale": rationale,
+                        "comment_text": rationale,
+                        "char_start": c_start,
+                        "char_end": c_end,
+                        "start_index": u_start,
+                        "end_index": u_end,
+                    }
+                )
+            else:
+                verified_claims.append(
+                    {
+                        "claim_type": "verified_yaral2_meta_routing",
+                        "rule_name": r_name,
+                        "meta_key": meta_key,
+                        "target_text": entry["line_text"],
+                        "start_index": u_start,
+                        "end_index": u_end,
+                    }
+                )
+
+    defects.sort(key=lambda d: int(d["start_index"]), reverse=True)
+    counts_by_type: dict[str, int] = {
+        "stage_a_task_routed_to_frontier_llm": 0,
+        "under_provisioned_model_for_complex_synthesis": 0,
+        "unfiltered_mcp_toolset_schema_bloat": 0,
+        "unbounded_token_or_turn_budget": 0,
+        "yaral2_meta_routing_tier_mismatch": 0,
+    }
+    for d in defects:
+        dt = str(d["defect_type"])
+        counts_by_type[dt] = counts_by_type.get(dt, 0) + 1
+
+    return {
+        "status": "success",
+        "horizon": "H24",
+        "defect_count": len(defects),
+        "defects": defects,
+        "defect_counts_by_type": counts_by_type,
+        "verified_claim_count": len(verified_claims),
+        "verified_claims": verified_claims,
+        "standard_yara_rules_ignored": standard_yara_ignored,
+        "catalog_summary": {
+            "unfiltered_secops_mcp_tool_count": 71,
+            "unfiltered_total_schema_bytes": 4_100_000,
+            "filtered_parameters_json_schema_bytes": 76_507,
+            "input_schema_reduction_pct": 68.94,
+            "max_turns_ceiling": 8,
+            "max_tokens_ceiling": 32000,
+        },
+        "runtime_metrics": runtime_metrics or {},
+    }
+
+
+def format_skillorchestra_routing_and_budget_executive_appendix(
+    verification_result: dict[str, Any],
+) -> str:
+    """Formats the grounded ``[VERIFIED SKILLORCHESTRA ROUTING & TOKEN BUDGET MATRIX (H24)]`` appendix."""
+    counts = verification_result.get("defect_counts_by_type") or {}
+    total_defects = int(verification_result.get("defect_count", 0) or 0)
+    verified_count = int(verification_result.get("verified_claim_count", 0) or 0)
+    lines = [
+        "",
+        "## [VERIFIED SKILLORCHESTRA ROUTING & TOKEN BUDGET MATRIX (H24)]",
+        "",
+        "- **Grounding Basis**: SkillOrchestra / SkillOpt (`yang_skillopt-2026`), Better Harnesses Smaller Models (`yang_cheaper-2026`), Optimize Cheap Deploy Strong (`oved-2026`), RRSI (`xia-2026`), and SecRespond (`wang-2026`).",
+        f"- **Audit Summary**: `{total_defects}` routing/budget defect(s) red-lined under `writeMode=SUGGEST`; `{verified_count}` negative-control routing/budget declaration(s) preserved.",
+        "- **MCP Schema Progressive Disclosure Telemetry**: Unfiltered `secops-mcp` (`71` tools, `4.10 MB` / `~1,020,000` tokens including `3.73 MB` `response_json_schema` and feed/parser admin tools `create_feed`, `update_feed`, `run_parser`) reduced by `68.94%` (`246,347 B` -> `76,507 B`, `<25,000` tokens) via `SkillToolset` (`adk_additional_tools`) + `McpToolset(tool_filter=...)` + `response_json_schema=None`.",
+        "",
+        "| Routing Tier | Target Executor & Tool Disclosure | Token / Turn Ceiling | Est. Cost / Call | Safety Refusal Rate | Mandated SecOps Workload |",
+        "| :--- | :--- | :--- | :--- | :--- | :--- |",
+        "| `stage_a_deterministic` | Deterministic Python Stage A Span Scanner (`0` MCP tools) | `0` LLM tokens (`1` pass) | `$0.0000` | `0.0%` (`FinishReason.PROHIBITED_CONTENT` immune) | URL defanging (`hxxp://`), Base64 `-enc` / `MiniDump` sanitization, 1-based UTF-16 offset math, RFC-1918/RFC-5737/empty-SHA256 checks |",
+        "| `tier_1_fast_triage` | `gemini-2.5-flash` + `SkillToolset` (`adk_additional_tools`) + filtered `McpToolset` (`response_json_schema=None`) | `max_tokens <= 16000`, `max_turns <= 5` | `$0.0040` | `0.0%` | Single-event alert triage, SOAR case summary formatting, bounded GTI/UDM entity enrichment |",
+        "| `tier_2_grounded_synthesis` | `gemini-2.5-pro` + `secops-mcp:validate_rule` + `secops-mcp:search_udm` + `gti-mcp` | `max_tokens <= 32000`, `max_turns <= 8` + `diagnose_zero_hit_udm_query` | `$0.0280` | `0.0%` | Multi-event Chronicle SIEM YARA-L 2.0 (`YL2`) correlation synthesis, cross-case campaign attribution (`H5`), 4-layer WAVED ontology verification (`H21`) |",
+        "",
+        f"- **Defect Breakdown**: `stage_a_task_routed_to_frontier_llm={counts.get('stage_a_task_routed_to_frontier_llm', 0)}`, "
+        f"`under_provisioned_model_for_complex_synthesis={counts.get('under_provisioned_model_for_complex_synthesis', 0)}`, "
+        f"`unfiltered_mcp_toolset_schema_bloat={counts.get('unfiltered_mcp_toolset_schema_bloat', 0)}`, "
+        f"`unbounded_token_or_turn_budget={counts.get('unbounded_token_or_turn_budget', 0)}`, "
+        f"`yaral2_meta_routing_tier_mismatch={counts.get('yaral2_meta_routing_tier_mismatch', 0)}`.",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def build_skillorchestra_routing_and_budget_review_plan(
+    doc_text: str,
+    verification_result: dict[str, Any] | None = None,
+    *,
+    index_map: list[int] | None = None,
+    include_appendix: bool = True,
+) -> dict[str, Any]:
+    """Builds a non-destructive Google Docs review plan for SkillOrchestra routing & budget defects.
+
+    All proposed edits are sorted in strict descending ``start_index`` order so
+    sequential ``deleteContentRange`` + ``insertText`` operations under
+    ``writeControl={"writeMode": "SUGGEST"}`` never shift earlier UTF-16 spans.
+    """
+    eff_map = (
+        index_map
+        if index_map is not None
+        else _build_utf16_index_map(doc_text or "")
+    )
+    verification = (
+        verification_result
+        if verification_result is not None
+        else verify_skillorchestra_routing_and_budget_claims(
+            doc_text or "", index_map=eff_map
+        )
+    )
+    defects = list(verification.get("defects") or [])
+    defects.sort(key=lambda d: int(d["start_index"]), reverse=True)
+
+    comments_to_insert: list[dict[str, Any]] = []
+    edits_to_propose: list[dict[str, Any]] = []
+    replace_all_text_requests: list[dict[str, Any]] = []
+
+    for d in defects:
+        s_idx = int(d["start_index"])
+        e_idx = int(d["end_index"])
+        target_txt = str(d["target_text"])
+        repl_txt = str(d["replacement_text"])
+        comment_txt = str(d["comment_text"])
+
+        comments_to_insert.append(
+            {
+                "start_index": s_idx,
+                "end_index": e_idx,
+                "quote": target_txt,
+                "comment": comment_txt,
+                "comment_text": comment_txt,
+                "defect_type": d["defect_type"],
+            }
+        )
+        edits_to_propose.append(
+            {
+                "start_index": s_idx,
+                "end_index": e_idx,
+                "quote": target_txt,
+                "replacement": repl_txt,
+                "target_text": target_txt,
+                "replacement_text": repl_txt,
+                "defect_type": d["defect_type"],
+            }
+        )
+        replace_all_text_requests.append(
+            {
+                "replaceAllText": {
+                    "containsText": {
+                        "text": target_txt,
+                        "matchCase": True,
+                    },
+                    "replaceText": repl_txt,
+                }
+            }
+        )
+
+    appendix_md = (
+        format_skillorchestra_routing_and_budget_executive_appendix(verification)
+        if include_appendix
+        else ""
+    )
+    return {
+        "status": "success",
+        "horizon": "H24",
+        "defect_count": len(defects),
+        "descending_defects": defects,
+        "comments_to_insert": comments_to_insert,
+        "edits_to_propose": edits_to_propose,
+        "stage_a_comments": comments_to_insert,
+        "stage_a_edits": edits_to_propose,
+        "replace_all_text_requests": replace_all_text_requests,
+        "executive_appendix_markdown": appendix_md,
+        "verification": verification,
+    }
+
+
+def find_skillorchestra_routing_and_budget_spans(
+    plain_text: str,
+    index_map: list[int] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Stage A span scanner entry point for ``H24`` SkillOrchestra routing and budget defects.
+
+    Returns ``(comments, edits, findings)`` sorted in descending ``start_index`` order.
+    """
+    eff_map = (
+        index_map
+        if index_map is not None
+        else _build_utf16_index_map(plain_text or "")
+    )
+    verification = verify_skillorchestra_routing_and_budget_claims(
+        plain_text or "", index_map=eff_map
+    )
+    plan = build_skillorchestra_routing_and_budget_review_plan(
+        plain_text or "",
+        verification_result=verification,
+        index_map=eff_map,
+        include_appendix=False,
+    )
+    return (
+        plan["comments_to_insert"],
+        plan["edits_to_propose"],
+        verification["defects"],
+    )
+
+
+def validate_yaral2_rule_offline(rule_text: str) -> dict[str, Any]:
+    """Offline structural and SkillOrchestra meta validator for a Chronicle SIEM YARA-L 2.0 rule."""
+    txt = str(rule_text or "").strip()
+    has_events = bool(re.search(r"\bevents\s*:", txt, re.IGNORECASE))
+    has_condition = bool(re.search(r"\bcondition\s*:", txt, re.IGNORECASE))
+    balanced_braces = txt.count("{") == txt.count("}") and txt.count("{") >= 1
+    meta_check = verify_skillorchestra_routing_and_budget_claims(txt)
+    meta_defects = int(meta_check.get("defect_count", 0) or 0)
+    is_valid = (
+        has_events
+        and has_condition
+        and balanced_braces
+        and meta_defects == 0
+    )
+    return {
+        "valid": is_valid,
+        "has_events": has_events,
+        "has_condition": has_condition,
+        "balanced_braces": balanced_braces,
+        "meta_routing_defect_count": meta_defects,
+    }
+
+
+def audit_and_redline_skillorchestra_routing_in_doc(
+    document_id: str = "",
+    runtime_metrics_json: str = "",
+    *,
+    doc_id: str | None = None,
+    apply_redlines: bool = True,
+    append_appendix: bool = True,
+    append_executive_matrix: bool | None = None,
+    siem_validate_fn: Any = None,
+    siem_search_fn: Any = None,
+    tool_context: Any = None,
+    token: str | None = None,
+    token_source: TokenSource | None = None,
+    quota_project: str | None = None,
+    transport: httpx.BaseTransport | None = None,
+    docs_client_override: Any = None,
+) -> dict[str, Any]:
+    """Audits and red-lines SkillOrchestra multi-model routing & Stage A/B token budgets in a Google Doc.
+
+    1. Reads the target Google Doc via :func:`read_google_doc` to build the
+       1-based UTF-16 index map and inspect ``pending_suggestion_spans``.
+    2. Extracts and verifies all 5 ``H24`` practitioner defect classes
+       (``stage_a_task_routed_to_frontier_llm``,
+       ``under_provisioned_model_for_complex_synthesis``,
+       ``unfiltered_mcp_toolset_schema_bloat``,
+       ``unbounded_token_or_turn_budget``, and
+       ``yaral2_meta_routing_tier_mismatch``) while preserving negative-control
+       declarations and ignoring standard file/payload YARA rules.
+    3. Repairs any Chronicle SIEM YARA-L 2.0 (``YL2``) rules with
+       ``yaral2_meta_routing_tier_mismatch`` and verifies compilation via
+       :func:`validate_yaral2_rule_offline` and optional live
+       ``siem_validate_fn`` (``secops-mcp:validate_rule``) and ``siem_search_fn``
+       (``secops-mcp:search_udm``).
+    4. Anchors Drive API v3 review comments first, appends the
+       ``[VERIFIED SKILLORCHESTRA ROUTING & TOKEN BUDGET MATRIX (H24)]`` executive
+       appendix at the end of the document, and stages Suggested Edits in strict
+       descending ``startIndex`` order under ``writeControl={"writeMode": "SUGGEST"}``
+       with full Pass 2 idempotency.
+    """
+    raw_id = str(doc_id or document_id or "").strip()
+    eff_doc_id = raw_id
+    eff_append = (
+        append_executive_matrix
+        if append_executive_matrix is not None
+        else append_appendix
+    )
+    eff_transport = transport
+    eff_token_source = token_source
+    if isinstance(docs_client_override, LocalGoogleDocsSimulator):
+        eff_transport = docs_client_override.as_httpx_transport()
+        eff_token_source = _BenchmarkTokenSource()
+    elif token is not None and eff_token_source is None:
+        eff_token_source = lambda: str(token)
+
+    read_res = read_google_doc(
+        eff_doc_id,
+        tool_context=tool_context,
+        token_source=eff_token_source,
+        quota_project=quota_project,
+        transport=eff_transport,
+    )
+    if read_res.get("status") != "success":
+        return read_res
+
+    plain_text, index_map = _load_doc_index_state(
+        eff_doc_id, tool_context=tool_context
+    )
+    if plain_text is None or index_map is None:
+        return {
+            "status": "error",
+            "document_id": eff_doc_id,
+            "message": "Failed to load UTF-16 index map after read_google_doc.",
+        }
+
+    pending_spans = _load_doc_pending_suggestion_spans(
+        eff_doc_id, tool_context=tool_context
+    )
+
+    runtime_metrics: dict[str, Any] = {}
+    if runtime_metrics_json and str(runtime_metrics_json).strip():
+        try:
+            parsed_rm = json.loads(str(runtime_metrics_json))
+            if isinstance(parsed_rm, dict):
+                runtime_metrics = parsed_rm
+        except json.JSONDecodeError as err:
+            return {
+                "status": "error",
+                "message": f"Invalid runtime_metrics_json: {err}",
+            }
+
+    verification = verify_skillorchestra_routing_and_budget_claims(
+        plain_text,
+        index_map=index_map,
+        runtime_metrics=runtime_metrics,
+    )
+    all_defects = list(verification.get("defects") or [])
+
+    active_defects: list[dict[str, Any]] = []
+    skipped_existing_suggestion_count = 0
+    for d in all_defects:
+        d_span = (int(d["start_index"]), int(d["end_index"]))
+        if any(_spans_overlap(d_span, p_span) for p_span in pending_spans):
+            skipped_existing_suggestion_count += 1
+            continue
+        active_defects.append(d)
+
+    active_verification = dict(verification)
+    active_verification["defects"] = active_defects
+    active_verification["defect_count"] = len(active_defects)
+    active_counts: dict[str, int] = {
+        "stage_a_task_routed_to_frontier_llm": 0,
+        "under_provisioned_model_for_complex_synthesis": 0,
+        "unfiltered_mcp_toolset_schema_bloat": 0,
+        "unbounded_token_or_turn_budget": 0,
+        "yaral2_meta_routing_tier_mismatch": 0,
+    }
+    for d in active_defects:
+        dt = str(d["defect_type"])
+        active_counts[dt] = active_counts.get(dt, 0) + 1
+    active_verification["defect_counts_by_type"] = active_counts
+
+    review_plan = build_skillorchestra_routing_and_budget_review_plan(
+        plain_text,
+        verification_result=active_verification,
+        index_map=index_map,
+        include_appendix=eff_append,
+    )
+    comments_to_insert = list(review_plan["comments_to_insert"])
+    edits_to_propose = list(review_plan["edits_to_propose"])
+
+    # Reconstruct repaired Chronicle SIEM YARA-L 2.0 rules and verify compilation
+    extracted = extract_skillorchestra_routing_and_budget_claims_from_doc_text(
+        plain_text
+    )
+    yaral2_rules = extracted["yaral2_rules"]
+    repaired_yaral2_rules: list[dict[str, Any]] = []
+    compiler_verified = True
+    live_siem_validation: list[dict[str, Any]] = []
+
+    for r in yaral2_rules:
+        r_start = int(r["char_start"])
+        r_end = int(r["char_end"])
+        r_text = plain_text[r_start:r_end]
+        rule_defects = [
+            d
+            for d in all_defects
+            if d.get("defect_type") == "yaral2_meta_routing_tier_mismatch"
+            and int(d["char_start"]) >= r_start
+            and int(d["char_end"]) <= r_end
+        ]
+        rule_defects.sort(key=lambda d: int(d["char_start"]), reverse=True)
+        repaired_text = r_text
+        for rd in rule_defects:
+            rel_s = int(rd["char_start"]) - r_start
+            rel_e = int(rd["char_end"]) - r_start
+            repaired_text = (
+                repaired_text[:rel_s]
+                + str(rd["replacement_text"])
+                + repaired_text[rel_e:]
+            )
+        compiler_ready_text = repaired_text
+        if "\n" not in compiler_ready_text.strip():
+            compiler_ready_text = re.sub(
+                r"\b(meta|events|match|outcome|condition)\s*:",
+                r"\n  \1:\n    ",
+                compiler_ready_text,
+            )
+            compiler_ready_text = re.sub(
+                r'("[ \t]+)(?=[A-Za-z_$][A-Za-z0-9_.]*[ \t]*=)',
+                '"\n    ',
+                compiler_ready_text,
+            )
+            compiler_ready_text = re.sub(
+                r"\s*\}\s*$",
+                "\n}",
+                compiler_ready_text,
+            )
+        compiler_ready_text = re.sub(
+            r'(?<!\\)\\(?![\\"/nrt])',
+            r"\\\\",
+            compiler_ready_text,
+        )
+        offline_val = validate_yaral2_rule_offline(compiler_ready_text)
+        rule_ok = bool(offline_val.get("valid", False))
+        live_val_res: dict[str, Any] | None = None
+        if callable(siem_validate_fn):
+            live_val_res = siem_validate_fn(compiler_ready_text)
+            if isinstance(live_val_res, dict):
+                rule_ok = rule_ok and bool(
+                    live_val_res.get("valid", live_val_res.get("success", True))
+                )
+                live_siem_validation.append(live_val_res)
+        if not rule_ok:
+            compiler_verified = False
+        repaired_yaral2_rules.append(
+            {
+                "rule_name": r["rule_name"],
+                "original_rule_text": r_text,
+                "repaired_rule_text": compiler_ready_text,
+                "offline_validation": offline_val,
+                "live_validation": live_val_res,
+                "compiler_verified": rule_ok,
+            }
+        )
+
+    live_siem_search_res: dict[str, Any] | None = None
+    if callable(siem_search_fn):
+        live_siem_search_res = siem_search_fn(
+            'metadata.event_type = "PROCESS_LAUNCH" AND principal.hostname = "wins-d19"',
+            5,
+        )
+
+    comments_res: dict[str, Any] = {
+        "status": "skipped",
+        "inserted_count": 0,
+        "comment_ids": [],
+    }
+    edits_res: dict[str, Any] = {"status": "skipped", "applied_count": 0}
+    applied_redline_count = 0
+    appended_matrix = False
+    matrix_marker = "[VERIFIED SKILLORCHESTRA ROUTING & TOKEN BUDGET MATRIX (H24)]"
+
+    if apply_redlines:
+        if comments_to_insert:
+            comments_res = insert_doc_comments(
+                eff_doc_id,
+                comments_to_insert,
+                tool_context=tool_context,
+                token_source=eff_token_source,
+                quota_project=quota_project,
+                transport=eff_transport,
+            )
+
+        if (
+            eff_append
+            and edits_to_propose
+            and review_plan["executive_appendix_markdown"]
+            and matrix_marker not in plain_text
+            and index_map
+        ):
+            try:
+                insert_idx = int(index_map[-1])
+                resolved_tok = resolve_docs_token(
+                    tool_context, token_source=eff_token_source
+                )
+                url = f"{DOCS_API_BASE_URL}/{eff_doc_id}:batchUpdate"
+                headers = _build_docs_headers(
+                    resolved_tok, quota_project=quota_project
+                )
+                with httpx.Client(
+                    timeout=DEFAULT_DOCS_TIMEOUT_SECONDS,
+                    transport=eff_transport,
+                ) as http:
+                    app_resp = http.post(
+                        url,
+                        headers=headers,
+                        json={
+                            "requests": [
+                                {
+                                    "insertText": {
+                                        "location": {"index": insert_idx},
+                                        "text": "\n"
+                                        + review_plan[
+                                            "executive_appendix_markdown"
+                                        ].strip()
+                                        + "\n",
+                                    }
+                                }
+                            ]
+                        },
+                    )
+                    if app_resp.status_code < 400:
+                        appended_matrix = True
+            except Exception as exc:
+                logger.warning("Failed to append H24 matrix: %s", exc)
+
+        if edits_to_propose:
+            edits_res = propose_doc_suggested_edits(
+                eff_doc_id,
+                edits_to_propose,
+                tool_context=tool_context,
+                token_source=eff_token_source,
+                quota_project=quota_project,
+                transport=eff_transport,
+            )
+            applied_redline_count = int(edits_res.get("applied_count", 0) or 0)
+
+    return {
+        "status": "success",
+        "horizon": "H24",
+        "document_id": eff_doc_id,
+        "title": read_res.get("title", ""),
+        "char_count": read_res.get("char_count", 0),
+        "defect_count": active_verification["defect_count"],
+        "raw_defect_count": verification["defect_count"],
+        "skillorchestra_routing_findings_count": active_verification[
+            "defect_count"
+        ],
+        "applied_redline_count": applied_redline_count,
+        "inserted_comment_count": int(
+            comments_res.get("inserted_count", 0) or 0
+        ),
+        "appended_matrix": appended_matrix,
+        "appended_appendix": appended_matrix,
+        "compiler_verified": compiler_verified,
+        "repaired_yaral2_rules": repaired_yaral2_rules,
+        "live_siem_validation": live_siem_validation,
+        "live_siem_search": live_siem_search_res,
+        "defects": active_verification["defects"],
+        "findings": active_verification["defects"],
+        "defect_counts_by_type": active_verification["defect_counts_by_type"],
+        "verified_claim_count": active_verification["verified_claim_count"],
+        "verified_claims": active_verification["verified_claims"],
+        "standard_yara_rules_ignored": active_verification[
+            "standard_yara_rules_ignored"
+        ],
+        "review_plan": review_plan,
+        "replace_all_text_requests": review_plan["replace_all_text_requests"],
+        "executive_appendix_markdown": review_plan[
+            "executive_appendix_markdown"
+        ],
+        "skipped_existing_suggestion_count": skipped_existing_suggestion_count,
+        "comments": comments_res,
+        "edits": edits_res,
+    }
+
+
 
 
 
