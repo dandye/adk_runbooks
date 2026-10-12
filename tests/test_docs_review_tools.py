@@ -10703,9 +10703,12 @@ def test_evaluate_infosec_doc_reviewer_with_bench08_sliding_window_and_sequence(
         include_hda_ablation=True,
     )
     assert res_all_night2["status"] == "success"
-    assert res_all_night2["scenario_count"] == 8
-    assert res_all_night2["total_expected_defects"] == 43
-    assert res_all_night2["true_positive_edits"] == 43
+    assert res_all_night2["scenario_count"] >= 8
+    assert res_all_night2["total_expected_defects"] >= 43
+    assert (
+        res_all_night2["true_positive_edits"]
+        == res_all_night2["total_expected_defects"]
+    )
     assert res_all_night2["false_positive_edits"] == 0
     assert res_all_night2["false_negative_defects"] == 0
     assert res_all_night2["span_precision"] == 1.0
@@ -10714,5 +10717,266 @@ def test_evaluate_infosec_doc_reviewer_with_bench08_sliding_window_and_sequence(
     assert res_all_night2["pass2_idempotency_rate"] == 1.0
 
 
+class TestCycle22GtiIocReputationAndAttribution:
+  """Cycle 22 (H23): GTI / VirusTotal Live IoC Reputation & Threat Attribution Red-Liner tests."""
 
+  def test_extract_and_verify_reserved_or_benign_ip_flagged_malicious(self):
+    from manager.tools.docs_review_tools import (
+        extract_ioc_reputation_and_attribution_claims_from_doc_text,
+        verify_ioc_reputation_and_attribution_claims,
+    )
 
+    doc_text = (
+        "Executive Summary:\n"
+        "1. Immediate containment: block external malicious C2 infrastructure "
+        "198.51.100.10, 203.0.113.5, and 8.8.8.8 at the corporate perimeter firewall.\n"
+        "2. Also isolate external C2 beacon 10.24.0.15 and 1.1.1.1 immediately.\n"
+        "3. Legitimate note: 8.8.8.8 is a benign Google Public DNS resolver and "
+        "198.51.100.10 is an RFC-5737 TEST-NET-2 documentation IP that must not be blocked.\n"
+    )
+    extracted = extract_ioc_reputation_and_attribution_claims_from_doc_text(
+        doc_text
+    )
+    assert isinstance(extracted, list)
+    extracted_ips = {
+        c["ioc_value"] for c in extracted if c.get("ioc_type") == "ipv4"
+    }
+    assert "198.51.100.10" in extracted_ips
+    assert "203.0.113.5" in extracted_ips
+    assert "8.8.8.8" in extracted_ips
+    assert "1.1.1.1" in extracted_ips
+
+    report = verify_ioc_reputation_and_attribution_claims(doc_text)
+    assert report["status"] == "success"
+    reserved_defects = [
+        d
+        for d in report["defects"]
+        if d["defect_type"] == "reserved_or_benign_ip_flagged_malicious"
+    ]
+    assert len(reserved_defects) >= 2
+    assert any("198.51.100.10" in d["target_text"] for d in reserved_defects)
+    assert any(
+        "[IOC REPUTATION & ATTRIBUTION RED-LINE:" in d["expected_replacement"]
+        for d in reserved_defects
+    )
+    # Ensure the negative control line is not flagged
+    for d in reserved_defects:
+      assert "must not be blocked" not in d["target_text"]
+
+  def test_verify_contradicted_ioc_reputation_verdict(self):
+    from manager.tools.docs_review_tools import (
+        verify_ioc_reputation_and_attribution_claims,
+    )
+
+    doc_text = (
+        "IoC Triage Findings:\n"
+        "- Source IP 104.198.226.161 in Case 33278 and source IP 79.154.246.114 "
+        "(along with domain c2.badactor-example.com) in Cases 33281/33283/33287 "
+        "returned 0/90 detections on VirusTotal and are confirmed benign whitelisted CDN infrastructure.\n"
+        "- Custom indicator 45.33.32.156 was also marked benign clean whitelisted CDN traffic.\n"
+    )
+    live_gti = {
+        "45.33.32.156": {
+            "malicious_count": 14,
+            "suspicious_count": 2,
+            "verdict": "MALICIOUS",
+        }
+    }
+    live_siem = {
+        "45.33.32.156": {
+            "udm_event_count": 42,
+            "verdict": "MALICIOUS_CAMPAIGN_IOC",
+        }
+    }
+    report = verify_ioc_reputation_and_attribution_claims(
+        doc_text,
+        live_gti_reports=live_gti,
+        live_siem_lookups=live_siem,
+    )
+    contradicted = [
+        d
+        for d in report["defects"]
+        if d["defect_type"] == "contradicted_ioc_reputation_verdict"
+    ]
+    assert len(contradicted) == 2
+    assert any("104.198.226.161" in d["target_text"] for d in contradicted)
+    assert any("45.33.32.156" in d["target_text"] for d in contradicted)
+
+  def test_verify_empty_file_sha256_flagged_malicious_and_negative_control(self):
+    from manager.tools.docs_review_tools import (
+        EMPTY_FILE_SHA256,
+        verify_ioc_reputation_and_attribution_claims,
+    )
+
+    doc_text_bad_and_good = (
+        f"1. Add malicious dropper SHA-256 hash {EMPTY_FILE_SHA256} to the global EDR blocklist immediately.\n"
+        f"2. Note: {EMPTY_FILE_SHA256} is the canonical SHA-256 of an empty 0-byte file and is a benign artifact.\n"
+    )
+    report = verify_ioc_reputation_and_attribution_claims(doc_text_bad_and_good)
+    empty_defects = [
+        d
+        for d in report["defects"]
+        if d["defect_type"] == "empty_file_sha256_flagged_malicious"
+    ]
+    assert len(empty_defects) == 1
+    assert "global EDR blocklist" in empty_defects[0]["target_text"]
+    assert "benign artifact" not in empty_defects[0]["target_text"]
+
+  def test_verify_mismatched_ioc_threat_attribution_prose_and_yaral2_meta(self):
+    from manager.tools.docs_review_tools import (
+        verify_ioc_reputation_and_attribution_claims,
+    )
+
+    doc_text = (
+        "Threat Attribution:\n"
+        "The external IP 104.198.226.161 in Case 33278 is attributed to the Gamarue / Andromeda "
+        "USB worm campaign and LockBit 3.0 ransomware operators.\n\n"
+        "```yaral\n"
+        "rule case_33278_gcp_recon_h23 {\n"
+        "  meta:\n"
+        '    author = "SOC Detection Engineering"\n'
+        '    malware_family = "Gamarue / Andromeda"\n'
+        '    threat_actor = "LockBit 3.0"\n'
+        "  events:\n"
+        '    $e.principal.ip = "104.198.226.161"\n'
+        "  condition:\n"
+        "    $e\n"
+        "}\n"
+        "```\n"
+    )
+    report = verify_ioc_reputation_and_attribution_claims(doc_text)
+    mismatched = [
+        d
+        for d in report["defects"]
+        if d["defect_type"] == "mismatched_ioc_threat_attribution"
+    ]
+    assert len(mismatched) == 3
+    assert any("attributed to the Gamarue" in d["target_text"] for d in mismatched)
+    assert any('malware_family = "Gamarue / Andromeda"' in d["target_text"] for d in mismatched)
+    assert any('threat_actor = "LockBit 3.0"' in d["target_text"] for d in mismatched)
+
+  def test_verify_yaral2_reserved_or_empty_ioc_predicate(self):
+    from manager.tools.docs_review_tools import (
+        EMPTY_FILE_SHA256,
+        verify_ioc_reputation_and_attribution_claims,
+    )
+
+    doc_text = (
+        "Chronicle SIEM YARA-L 2.0 rule:\n"
+        "```yaral\n"
+        "rule invalid_ioc_rule_yl2 {\n"
+        "  meta:\n"
+        '    author = "SOC"\n'
+        "  events:\n"
+        '    $e.metadata.event_type = "NETWORK_CONNECTION"\n'
+        f'    ($e.target.ip = "198.51.100.10" or $e.target.ip = "8.8.8.8" or $e.target.file.sha256 = "{EMPTY_FILE_SHA256}")\n'
+        "  condition:\n"
+        "    $e\n"
+        "}\n"
+        "```\n\n"
+        "Standard file/payload YARA rule (must be ignored by YARA-L 2.0 predicate checker):\n"
+        "```yara\n"
+        "rule standard_yara_file_rule {\n"
+        "  strings:\n"
+        '    $s1 = "198.51.100.10" ascii\n'
+        "  condition:\n"
+        "    $s1\n"
+        "}\n"
+        "```\n"
+    )
+    report = verify_ioc_reputation_and_attribution_claims(doc_text)
+    yl2_defects = [
+        d
+        for d in report["defects"]
+        if d["defect_type"] == "yaral2_reserved_or_empty_ioc_predicate"
+    ]
+    assert len(yl2_defects) == 1
+    assert '$e.target.ip = "198.51.100.10"' in yl2_defects[0]["target_text"]
+
+  def test_benchmark_bench09_and_all_with_night2_f1_unity(self):
+    from manager.tools.docs_review_tools import evaluate_infosec_doc_reviewer
+
+    res_b9 = evaluate_infosec_doc_reviewer(
+        scenario_set="BENCH-09-GTI-IOC-REPUTATION-AND-ATTRIBUTION",
+        include_hda_ablation=True,
+    )
+    assert res_b9["status"] == "success"
+    assert res_b9["scenario_count"] == 1
+    assert res_b9["total_expected_defects"] == 5
+    assert res_b9["true_positive_edits"] == 5
+    assert res_b9["false_positive_edits"] == 0
+    assert res_b9["false_negative_defects"] == 0
+    assert res_b9["overall_precision"] == 1.0
+    assert res_b9["overall_recall"] == 1.0
+    assert res_b9["overall_f1"] == 1.0
+    assert res_b9["overall_negative_control_pass_rate"] == 1.0
+    assert res_b9["overall_hda_error"] == 0.0
+    assert res_b9["google_drive_write_calls"] == 0
+
+    res_all = evaluate_infosec_doc_reviewer(
+        scenario_set="all_with_night2",
+        include_hda_ablation=True,
+    )
+    assert res_all["status"] == "success"
+    assert res_all["scenario_count"] == 9
+    assert res_all["total_expected_defects"] == 48
+    assert res_all["true_positive_edits"] == 48
+    assert res_all["false_positive_edits"] == 0
+    assert res_all["false_negative_defects"] == 0
+    assert res_all["total_negative_controls"] == 19
+    assert res_all["negative_controls_preserved"] == 19
+    assert res_all["overall_precision"] == 1.0
+    assert res_all["overall_recall"] == 1.0
+    assert res_all["overall_f1"] == 1.0
+    assert res_all["overall_negative_control_pass_rate"] == 1.0
+    assert res_all["overall_hda_error"] == 0.0
+    assert res_all["google_drive_write_calls"] == 0
+
+  def test_tool_wrapper_verify_google_doc_ioc_reputation_and_attribution(self):
+    from manager.tools.docs_review_tools import (
+        EXTENDED_NIGHT2_BENCHMARK_SCENARIOS,
+        LocalGoogleDocsSimulator,
+    )
+    from manager.tools.tools import (
+        verify_google_doc_ioc_reputation_and_attribution as tool_verify_ioc,
+    )
+
+    bench09 = next(
+        s
+        for s in EXTENDED_NIGHT2_BENCHMARK_SCENARIOS
+        if s["scenario_id"] == "BENCH-09-GTI-IOC-REPUTATION-AND-ATTRIBUTION"
+    )
+    sim = LocalGoogleDocsSimulator(
+        doc_id="SIM-BENCH-09",
+        title=bench09["title"],
+        initial_text=bench09["seeded_doc_text"],
+    )
+    res_pass1 = tool_verify_ioc(
+        doc_id="SIM-BENCH-09",
+        apply_redlines=True,
+        append_executive_matrix=True,
+        enrich_live=False,
+        docs_client_override=sim,
+    )
+    assert res_pass1["status"] == "success"
+    assert res_pass1["defect_count"] == 5
+    assert res_pass1["applied_redline_count"] == 5
+    assert res_pass1["appended_matrix"] is True
+    updated_text = sim.get_text()
+    assert (
+        "[VERIFIED GTI IOC REPUTATION & THREAT ATTRIBUTION MATRIX (H23)]"
+        in updated_text
+    )
+
+    # Pass 2 idempotency check: 0 defects and 0 additional edits
+    res_pass2 = tool_verify_ioc(
+        doc_id="SIM-BENCH-09",
+        apply_redlines=True,
+        append_executive_matrix=True,
+        enrich_live=False,
+        docs_client_override=sim,
+    )
+    assert res_pass2["status"] == "success"
+    assert res_pass2["defect_count"] == 0
+    assert res_pass2["applied_redline_count"] == 0
+    assert res_pass2["appended_matrix"] is False

@@ -57,6 +57,11 @@ from .docs_review_tools import (
     verify_and_redline_udm_queries_in_doc as _verify_and_redline_udm_queries_in_doc,
     verify_and_redline_waved_ontology_in_doc as _verify_and_redline_waved_ontology_in_doc,
     verify_and_redline_yaral2_rules_in_doc as _verify_and_redline_yaral2_rules_in_doc,
+    verify_google_doc_ioc_reputation_and_attribution as _verify_google_doc_ioc_reputation_and_attribution,
+    extract_ioc_reputation_and_attribution_claims_from_doc_text,
+    verify_ioc_reputation_and_attribution_claims,
+    build_ioc_reputation_and_attribution_review_plan,
+    format_ioc_reputation_and_attribution_Executive_appendix,
 )
 
 logger = logging.getLogger(__name__)
@@ -1208,11 +1213,13 @@ def evaluate_infosec_doc_reviewer(
     scenario_ids: str = "all",
     include_hda_ablation: bool = True,
     output_report_path: str = "",
+    *,
+    scenario_set: str | None = None,
 ) -> dict:
-  """Executes the quantitative InfoSec Google Docs review benchmark across seeded H1-H19 scenarios.
+  """Executes the quantitative InfoSec Google Docs review benchmark across seeded H1-H23 scenarios.
 
   Runs each selected scenario (`BENCH-01-UDM-AND-ITALIC-WILDCARD` through
-  `BENCH-06-WIKISKILL-RRSI-RUNBOOK-PROMOTION`) against the stateful in-memory
+  `BENCH-09-GTI-IOC-REPUTATION-AND-ATTRIBUTION`) against the stateful in-memory
   Google Docs Kix AST + Drive Comments simulator (`LocalGoogleDocsSimulator`),
   evaluating Pass 1 UTF-16 span precision, defect catch recall, F1 score,
   false-positive rate on negative controls, safety hazard refusal rate, Pass 2
@@ -1221,14 +1228,17 @@ def evaluate_infosec_doc_reviewer(
   promotion gate.
 
   Args:
-      scenario_ids (str): "all" (default), comma-separated scenario IDs, or JSON list of scenario IDs.
+      scenario_ids (str): "all" (default), "all_with_night2", comma-separated scenario IDs, or JSON list of scenario IDs.
       include_hda_ablation (bool): Whether to compute 4-way Harness-Delta Attribution (`delta_G`, `delta_T`, `delta_A`) and evaluate the RRSI runbook promotion gate.
       output_report_path (str): Optional local file path to save the Markdown benchmark scorecard.
+      scenario_set (str | None): Optional keyword alias for `scenario_ids`.
 
   Returns:
       dict: {"status", "scenario_count", "total_expected_defects", "true_positive_edits",
              "false_positive_edits", "false_negative_defects", "span_precision",
-             "defect_recall", "f1_score", "false_positive_rate", "safety_refusal_rate",
+             "defect_recall", "f1_score", "overall_precision", "overall_recall",
+             "overall_f1", "overall_negative_control_pass_rate", "overall_hda_error",
+             "google_drive_write_calls", "false_positive_rate", "safety_refusal_rate",
              "pass2_idempotency_rate", "validation_score_delta", "hda_attribution",
              "rrsi_promotion_gate_check", "scenarios", "benchmark_markdown", "output_report_path"}.
   """
@@ -1236,6 +1246,7 @@ def evaluate_infosec_doc_reviewer(
       scenario_ids=scenario_ids,
       include_hda_ablation=include_hda_ablation,
       output_report_path=output_report_path,
+      scenario_set=scenario_set,
   )
 
 
@@ -1283,6 +1294,87 @@ def verify_and_redline_waved_ontology_in_doc(
   )
 
 
+def verify_google_doc_ioc_reputation_and_attribution(
+    document_id: str = "",
+    enrich_live: bool = True,
+    apply_redlines: bool = True,
+    append_appendix: bool = True,
+    doc_id: str | None = None,
+    append_executive_matrix: bool | None = None,
+    live_gti_reports: dict[str, dict[str, Any]] | None = None,
+    live_siem_lookups: dict[str, dict[str, Any]] | None = None,
+    gti_ip_report_fn: Any = None,
+    gti_domain_report_fn: Any = None,
+    gti_file_report_fn: Any = None,
+    siem_lookup_entity_fn: Any = None,
+    siem_search_udm_fn: Any = None,
+    token: str | None = None,
+    token_source: Any = None,
+    quota_project: str | None = None,
+    transport: Any = None,
+    docs_client_override: Any = None,
+    tool_context: ToolContext = None,
+) -> dict[str, Any]:
+  """Verifies and red-lines IoC reputation verdicts and threat attribution claims in a Google Doc against Google Threat Intelligence (GTI / VirusTotal) and Chronicle SIEM (H23).
+
+  Detects and repairs 5 high-consequence practitioner defect classes across
+  narrative prose, Markdown tables, and Chronicle SIEM YARA-L 2.0 (`YL2`,
+  distinct from standard file/payload YARA) detection rules:
+  1. `reserved_or_benign_ip_flagged_malicious`: RFC-5737 documentation IPs
+     (`192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`), RFC-1918 private IPs,
+     or benign public DNS resolvers (`8.8.8.8`, `1.1.1.1`) falsely claimed as
+     external malicious C2 or queued for perimeter firewall blocking.
+  2. `contradicted_ioc_reputation_verdict`: Confirmed malicious campaign IoCs
+     (`104.198.226.161`, `79.154.246.114`, `62.99.149.251`, `c2.badactor-example.com`,
+     Gamarue/Empire SHA-256 hashes) dismissed as benign/clean/whitelisted.
+  3. `empty_file_sha256_flagged_malicious`: The 0-byte empty-file SHA-256
+     (`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`) flagged
+     as a malicious payload/dropper or EDR block target while preserving benign
+     0-byte artifact references (`BENCH-03`).
+  4. `mismatched_ioc_threat_attribution`: Contradicted `malware_family` or
+     `threat_actor` attribution in prose or Chronicle SIEM YARA-L 2.0 (`YL2`)
+     `meta:` blocks.
+  5. `yaral2_reserved_or_empty_ioc_predicate`: Chronicle SIEM YARA-L 2.0 (`YL2`)
+     `events:` predicates hardcoding RFC-5737 IPs, `8.8.8.8`, or the 0-byte
+     SHA-256 hash while ignoring standard YARA byte-pattern rules.
+
+  Args:
+      document_id (str): The Google Docs documentId.
+      enrich_live (bool): Whether to enrich extracted IoCs with live GTI and Chronicle SIEM callbacks when provided.
+      apply_redlines (bool): Whether to stage comments and Suggested Edits (`writeMode="SUGGEST"`).
+      append_appendix (bool): Whether to build and append the `[VERIFIED GTI IOC REPUTATION & THREAT ATTRIBUTION MATRIX (H23)]` appendix.
+      doc_id (str | None): Optional alias for `document_id`.
+      append_executive_matrix (bool | None): Optional alias for `append_appendix`.
+      live_gti_reports (dict | None): Optional pre-fetched GTI report map keyed by IoC.
+      live_siem_lookups (dict | None): Optional pre-fetched Chronicle SIEM entity lookup map keyed by IoC.
+
+  Returns:
+      dict: Verification results, descending-offset review plan, `replaceAllText`
+            requests, executive appendix markdown, and staged comment/edit counts.
+  """
+  return _verify_google_doc_ioc_reputation_and_attribution(
+      document_id=document_id,
+      doc_id=doc_id,
+      enrich_live=enrich_live,
+      apply_redlines=apply_redlines,
+      append_appendix=append_appendix,
+      append_executive_matrix=append_executive_matrix,
+      live_gti_reports=live_gti_reports,
+      live_siem_lookups=live_siem_lookups,
+      gti_ip_report_fn=gti_ip_report_fn,
+      gti_domain_report_fn=gti_domain_report_fn,
+      gti_file_report_fn=gti_file_report_fn,
+      siem_lookup_entity_fn=siem_lookup_entity_fn,
+      siem_search_udm_fn=siem_search_udm_fn,
+      tool_context=tool_context,
+      token=token,
+      token_source=token_source,
+      quota_project=quota_project,
+      transport=transport,
+      docs_client_override=docs_client_override,
+  )
+
+
 def get_agent_tools():
   """Initializes and returns MCP toolsets and progressive discovery tools.
 
@@ -1327,6 +1419,9 @@ def get_agent_tools():
   )
   wrapped_verify_and_redline_waved_ontology_in_doc = instrument_tool(
       verify_and_redline_waved_ontology_in_doc
+  )
+  wrapped_verify_google_doc_ioc_reputation_and_attribution = instrument_tool(
+      verify_google_doc_ioc_reputation_and_attribution
   )
   wrapped_sanitize_and_redline_telemetry_in_doc = instrument_tool(
       sanitize_and_redline_telemetry_in_doc
@@ -1380,6 +1475,7 @@ def get_agent_tools():
       wrapped_verify_and_redline_yaral2_rules_in_doc,
       wrapped_verify_and_redline_mitre_and_cve_in_doc,
       wrapped_verify_and_redline_waved_ontology_in_doc,
+      wrapped_verify_google_doc_ioc_reputation_and_attribution,
       wrapped_sanitize_and_redline_telemetry_in_doc,
       wrapped_triage_and_redline_leaked_credentials_in_doc,
       wrapped_audit_and_redline_claim_evidence_and_campaign_in_doc,
