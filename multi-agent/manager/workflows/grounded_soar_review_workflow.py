@@ -18,6 +18,7 @@ from google.adk.events import Event
 
 from .common import save_workflow_report_to_disk
 from ..tools.docs_review_tools import (
+    audit_capstone_production_governance_and_kev_exposure,
     format_soar_doc_review_comment,
     sanitize_telemetry_text,
     verify_post_accept_secops_doc_readiness,
@@ -71,11 +72,13 @@ class GroundedSOARReviewOutcome(BaseModel):
     report_markdown: str
     pre_accept_verdict: str = "APPROVED_FOR_SOC_EXECUTION"
     post_accept_verdict: str = "APPROVED_FOR_SOC_EXECUTION"
+    post_accept_readiness_status: str = "CERTIFIED_READY"
     pre_accept_readiness_score: float = 100.0
     post_accept_readiness_score: float = 100.0
     readiness_score_delta: float = 0.0
     resolved_defect_count: int = 0
     residual_defect_count: int = 0
+    h30_capstone_defect_count: int = 0
     ready_for_promotion_after_accept: bool = True
     signoff_badge_markdown: str = ""
 
@@ -113,18 +116,25 @@ def _compute_post_accept_readiness_for_payload(
         return {
             "pre_accept_verdict": "APPROVED_FOR_SOC_EXECUTION",
             "post_accept_verdict": "APPROVED_FOR_SOC_EXECUTION",
+            "post_accept_readiness_status": "CERTIFIED_READY",
             "pre_accept_readiness_score": 100.0,
             "post_accept_readiness_score": 100.0,
             "readiness_score_delta": 0.0,
             "resolved_defect_count": 0,
             "residual_defect_count": 0,
+            "h30_capstone_defect_count": 0,
             "ready_for_promotion_after_accept": True,
             "signoff_badge_markdown": "",
         }
-    return verify_post_accept_secops_doc_readiness(
+    h30_audit = audit_capstone_production_governance_and_kev_exposure(payload.doc_text)
+    r_res = verify_post_accept_secops_doc_readiness(
         doc_text=payload.doc_text,
         doc_title=f"SOAR_Case_{payload.case_id}_Grounded_Review",
     )
+    return {
+        **r_res,
+        "h30_capstone_defect_count": int(h30_audit.get("defect_count", 0) or 0),
+    }
 
 
 def handle_two_stage_sanitized_branch(
@@ -149,10 +159,10 @@ def handle_two_stage_sanitized_branch(
     readiness_section = ""
     if r_info.get("signoff_badge_markdown"):
         readiness_section = (
-            "\n\n## 3b. Counterfactual Post-Accept 5-Pillar Readiness Sign-Off (H29)\n"
+            "\n\n## 3b. Counterfactual Post-Accept 5-Pillar Readiness Sign-Off (H29/H30)\n"
             f"- **Pre-Accept Verdict:** `{r_info['pre_accept_verdict']}` (`{r_info['pre_accept_readiness_score']:.2f}/100.00`)\n"
-            f"- **Post-Accept Verdict:** `{r_info['post_accept_verdict']}` (`{r_info['post_accept_readiness_score']:.2f}/100.00`, delta `+{r_info['readiness_score_delta']:.2f}`)\n"
-            f"- **Resolved Defects:** `{r_info['resolved_defect_count']}` | **Residual Defects:** `{r_info['residual_defect_count']}`\n"
+            f"- **Post-Accept Verdict:** `{r_info['post_accept_verdict']}` (`{r_info['post_accept_readiness_score']:.2f}/100.00`, delta `+{r_info['readiness_score_delta']:.2f}`, status `{r_info.get('post_accept_readiness_status', 'CERTIFIED_READY')}`)\n"
+            f"- **Resolved Defects:** `{r_info['resolved_defect_count']}` (`H30` Capstone: `{r_info.get('h30_capstone_defect_count', 0)}`) | **Residual Defects:** `{r_info['residual_defect_count']}`\n"
             f"- **Sign-Off Badge:** {r_info['signoff_badge_markdown']}"
         )
     md = (
@@ -182,11 +192,13 @@ def handle_two_stage_sanitized_branch(
         report_markdown=md,
         pre_accept_verdict=str(r_info["pre_accept_verdict"]),
         post_accept_verdict=str(r_info["post_accept_verdict"]),
+        post_accept_readiness_status=str(r_info.get("post_accept_readiness_status", "CERTIFIED_READY")),
         pre_accept_readiness_score=float(r_info["pre_accept_readiness_score"]),
         post_accept_readiness_score=float(r_info["post_accept_readiness_score"]),
         readiness_score_delta=float(r_info["readiness_score_delta"]),
         resolved_defect_count=int(r_info["resolved_defect_count"]),
         residual_defect_count=int(r_info["residual_defect_count"]),
+        h30_capstone_defect_count=int(r_info.get("h30_capstone_defect_count", 0)),
         ready_for_promotion_after_accept=bool(r_info["ready_for_promotion_after_accept"]),
         signoff_badge_markdown=str(r_info.get("signoff_badge_markdown") or ""),
     )
@@ -213,10 +225,10 @@ def handle_semantic_grounded_branch(
     readiness_section = ""
     if r_info.get("signoff_badge_markdown"):
         readiness_section = (
-            "\n\n## 3b. Counterfactual Post-Accept 5-Pillar Readiness Sign-Off (H29)\n"
+            "\n\n## 3b. Counterfactual Post-Accept 5-Pillar Readiness Sign-Off (H29/H30)\n"
             f"- **Pre-Accept Verdict:** `{r_info['pre_accept_verdict']}` (`{r_info['pre_accept_readiness_score']:.2f}/100.00`)\n"
-            f"- **Post-Accept Verdict:** `{r_info['post_accept_verdict']}` (`{r_info['post_accept_readiness_score']:.2f}/100.00`, delta `+{r_info['readiness_score_delta']:.2f}`)\n"
-            f"- **Resolved Defects:** `{r_info['resolved_defect_count']}` | **Residual Defects:** `{r_info['residual_defect_count']}`\n"
+            f"- **Post-Accept Verdict:** `{r_info['post_accept_verdict']}` (`{r_info['post_accept_readiness_score']:.2f}/100.00`, delta `+{r_info['readiness_score_delta']:.2f}`, status `{r_info.get('post_accept_readiness_status', 'CERTIFIED_READY')}`)\n"
+            f"- **Resolved Defects:** `{r_info['resolved_defect_count']}` (`H30` Capstone: `{r_info.get('h30_capstone_defect_count', 0)}`) | **Residual Defects:** `{r_info['residual_defect_count']}`\n"
             f"- **Sign-Off Badge:** {r_info['signoff_badge_markdown']}"
         )
     md = (
@@ -246,11 +258,13 @@ def handle_semantic_grounded_branch(
         report_markdown=md,
         pre_accept_verdict=str(r_info["pre_accept_verdict"]),
         post_accept_verdict=str(r_info["post_accept_verdict"]),
+        post_accept_readiness_status=str(r_info.get("post_accept_readiness_status", "CERTIFIED_READY")),
         pre_accept_readiness_score=float(r_info["pre_accept_readiness_score"]),
         post_accept_readiness_score=float(r_info["post_accept_readiness_score"]),
         readiness_score_delta=float(r_info["readiness_score_delta"]),
         resolved_defect_count=int(r_info["resolved_defect_count"]),
         residual_defect_count=int(r_info["residual_defect_count"]),
+        h30_capstone_defect_count=int(r_info.get("h30_capstone_defect_count", 0)),
         ready_for_promotion_after_accept=bool(r_info["ready_for_promotion_after_accept"]),
         signoff_badge_markdown=str(r_info.get("signoff_badge_markdown") or ""),
     )

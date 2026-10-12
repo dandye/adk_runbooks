@@ -109,6 +109,12 @@ from .docs_review_tools import (
     format_yaral2_data_table_export_and_alert_stream_appendix,
     audit_yaral2_data_table_export_and_alert_stream_in_doc as _audit_yaral2_data_table_export_and_alert_stream_in_doc,
     verify_post_accept_secops_doc_readiness as _verify_post_accept_secops_doc_readiness,
+    H30_CAPSTONE_PRODUCTION_GOVERNANCE_AND_KEV_EXPOSURE_CATALOG,
+    inspect_capstone_production_governance_and_kev_exposure_in_text as _inspect_capstone_production_governance_and_kev_exposure_in_text,
+    find_capstone_production_governance_and_kev_exposure_spans,
+    audit_capstone_production_governance_and_kev_exposure as _audit_capstone_production_governance_and_kev_exposure,
+    audit_capstone_production_governance_and_kev_exposure_in_doc as _audit_capstone_production_governance_and_kev_exposure_in_doc,
+    run_night2_grounded_secops_benchmark,
 )
 
 logger = logging.getLogger(__name__)
@@ -1735,15 +1741,15 @@ def verify_post_accept_secops_doc_readiness(
     stage_redlines_first: bool = False,
     tool_context: ToolContext | None = None,
 ) -> dict:
-  """Verifies counterfactual Pre-vs-Post Accept 5-pillar SecOps document readiness (H29).
+  """Verifies counterfactual Pre-vs-Post Accept 5-pillar SecOps document readiness (H29/H30).
 
   Computes the baseline 5-pillar readiness score and release gate verdict before
   accepting Suggested Edits (`pre_accept_score`, `pre_accept_verdict`), constructs
   the counterfactual `accepted_text` by applying descending-index `writeMode="SUGGEST"`
-  replacements across H1-H29, and re-runs `synthesize_master_secops_doc_readiness`
+  replacements across H1-H30, and re-runs `synthesize_master_secops_doc_readiness`
   to verify that accepting the staged red-lines transitions the document from
   `BLOCKED_CRITICAL_DEFECTS` to `APPROVED_FOR_SOC_EXECUTION` (`100.0/100.0`,
-  `0` residual defects).
+  `0` residual defects, `post_accept_readiness_status="CERTIFIED_READY"`).
 
   Args:
       document_id (str): Optional Google Docs documentId.
@@ -1759,6 +1765,70 @@ def verify_post_accept_secops_doc_readiness(
       doc_text=doc_text or None,
       doc_title=doc_title,
       stage_redlines_first=stage_redlines_first,
+      tool_context=tool_context,
+  )
+
+
+def inspect_capstone_production_governance_and_kev_exposure_in_text(
+    doc_text: str,
+) -> dict:
+  """Inspects SecOps runbook or postmortem text for H30 capstone production governance and CISA KEV inventory-first exposure defects.
+
+  Args:
+      doc_text (str): Plain text or Markdown content to inspect.
+
+  Returns:
+      dict: Structured H30 findings, preserved negative controls, and summary status.
+  """
+  return _inspect_capstone_production_governance_and_kev_exposure_in_text(
+      doc_text=doc_text,
+  )
+
+
+def audit_capstone_production_governance_and_kev_exposure(
+    doc_text: str,
+) -> dict:
+  """Audits SecOps runbook or postmortem text for all 5 H30 capstone production governance and CISA KEV exposure defects.
+
+  Detects and surgically remediates 5 practitioner defect classes:
+  1. `cisa_kev_missing_inventory_first_gate`: Triggering 90-day Chronicle SIEM UDM sweeps or firewall blocks on perimeter CVEs (`CVE-2024-3400`, `CVE-2024-21762`, `CVE-2024-21887`) before querying `check_scc_findings` and `search_cloud_asset_inventory` (`INFORMATIONAL_SPRAY` vs. `ACTIVE_EXPLOIT_CRITICAL`).
+  2. `native_dashboard_rule_detections_threat_path_misuse`: Referencing non-existent `detection.threat.actor` in `RULE_DETECTIONS` Native Dashboards or claiming custom Data Tables are mandatory instead of querying `detection.collection_elements.references.entity.metadata.threat.associations` (`type = "THREAT_ACTOR"`).
+  3. `soar_content_hub_package_and_dependency_conflict`: Bundling conflicting `google-genai` wheels inside Python 3.11 `Dependencies/`, exceeding the 10 MiB Envoy gateway ceiling, or calling `DELETE` on active `All Environments` (`*`) integrations.
+  4. `hillclimber_prompt_fixture_memorization_and_short_circuit`: Promoting prompt mutations that memorize fixture literals (`john.doe`, `192.0.2.100`, `eval_id`) or inject enrichment short-circuits without `validate_compiled_prompt()` and `2-sigma` noise-floor (`Delta >= tau_accept`) gates (`REVERTED_VALIDATOR`).
+  5. `otel_trace_attribute_overflow_and_mtls_crash`: Omitting `OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT=32768` / `OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT=32768` on >64 KB UDM responses or omitting `GOOGLE_API_USE_CLIENT_CERTIFICATE=false` / `CLOUDSDK_CONTEXT_AWARE_USE_CLIENT_CERTIFICATE=false` on Cloudtop.
+  Explicitly distinguishes standard file/payload YARA rules (`strings:` / `uint16(0) == 0x5A4D`) from Chronicle SIEM YARA-L 2.0 (`YL2`) UDM event detection rules.
+
+  Args:
+      doc_text (str): Plain text or Markdown content to audit.
+
+  Returns:
+      dict: Structured H30 audit report with `status`, `horizon_id`, `defects`, `negative_controls_preserved`, and `summary`.
+  """
+  return _audit_capstone_production_governance_and_kev_exposure(
+      doc_text=doc_text,
+  )
+
+
+def audit_capstone_production_governance_and_kev_exposure_in_doc(
+    document_id: str,
+    mode: str = "DRY_RUN",
+    apply_redlines: bool | None = None,
+    tool_context: ToolContext | None = None,
+) -> dict:
+  """Audits a Google Doc for all 5 H30 capstone production governance and CISA KEV exposure defects and stages non-destructive Suggested Edits.
+
+  Args:
+      document_id (str): The Google Docs documentId.
+      mode (str): "DRY_RUN" (default) or "APPLY".
+      apply_redlines (bool | None): Optional boolean override for `mode="APPLY"`.
+
+  Returns:
+      dict: Audit findings, preserved negative controls, and staged comment/edit counts.
+  """
+  return _audit_capstone_production_governance_and_kev_exposure_in_doc(
+      document_id=document_id,
+      mode=mode,
+      apply_redlines=apply_redlines,
       tool_context=tool_context,
   )
 
@@ -1847,6 +1917,15 @@ def get_agent_tools():
   wrapped_verify_post_accept_secops_doc_readiness = instrument_tool(
       verify_post_accept_secops_doc_readiness
   )
+  wrapped_inspect_capstone_production_governance_and_kev_exposure_in_text = instrument_tool(
+      inspect_capstone_production_governance_and_kev_exposure_in_text
+  )
+  wrapped_audit_capstone_production_governance_and_kev_exposure = instrument_tool(
+      audit_capstone_production_governance_and_kev_exposure
+  )
+  wrapped_audit_capstone_production_governance_and_kev_exposure_in_doc = instrument_tool(
+      audit_capstone_production_governance_and_kev_exposure_in_doc
+  )
   wrapped_sanitize_and_redline_telemetry_in_doc = instrument_tool(
       sanitize_and_redline_telemetry_in_doc
   )
@@ -1912,6 +1991,9 @@ def get_agent_tools():
       wrapped_inspect_yaral2_data_table_export_and_alert_stream_in_text,
       wrapped_audit_yaral2_data_table_export_and_alert_stream_in_doc,
       wrapped_verify_post_accept_secops_doc_readiness,
+      wrapped_inspect_capstone_production_governance_and_kev_exposure_in_text,
+      wrapped_audit_capstone_production_governance_and_kev_exposure,
+      wrapped_audit_capstone_production_governance_and_kev_exposure_in_doc,
       wrapped_sanitize_and_redline_telemetry_in_doc,
       wrapped_triage_and_redline_leaked_credentials_in_doc,
       wrapped_audit_and_redline_claim_evidence_and_campaign_in_doc,
@@ -1939,6 +2021,7 @@ __all__ = [
     "H28_CAPABILITY_PILLAR_CATALOG",
     "H28_MASTER_HORIZON_CATALOG",
     "H29_CANONICAL_DATA_TABLE_EXPORT_AND_ALERT_STREAM_CATALOG",
+    "H30_CAPSTONE_PRODUCTION_GOVERNANCE_AND_KEV_EXPOSURE_CATALOG",
     "ChronicleRuleValidationGate",
     "audit_yaral2_entity_graph_and_criticality_in_doc",
     "inspect_yaral2_entity_graph_and_criticality_in_text",
@@ -1955,6 +2038,11 @@ __all__ = [
     "format_yaral2_data_table_export_and_alert_stream_appendix",
     "audit_yaral2_data_table_export_and_alert_stream_in_doc",
     "verify_post_accept_secops_doc_readiness",
+    "inspect_capstone_production_governance_and_kev_exposure_in_text",
+    "find_capstone_production_governance_and_kev_exposure_spans",
+    "audit_capstone_production_governance_and_kev_exposure",
+    "audit_capstone_production_governance_and_kev_exposure_in_doc",
+    "run_night2_grounded_secops_benchmark",
     "evaluate_benchmark_scenario",
     "evaluate_verification_benchmark_suite",
     "highlight_doc_passages",
@@ -1965,5 +2053,6 @@ __all__ = [
     "generate_skillrl_failure_distillation_matrix",
     "get_agent_tools",
 ]
+
 
 

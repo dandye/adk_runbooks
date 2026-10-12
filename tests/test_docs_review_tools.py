@@ -12688,13 +12688,13 @@ class TestCycle27MasterCrossHorizonSynthesisAndBenchmark:
 
     suite = evaluate_verification_benchmark_suite(include_extended_night2=True)
     assert suite["status"] == "success"
-    assert suite["scenario_count"] == 15
-    assert suite["total_seeded_defects"] == 78
-    assert suite["TP"] == 78
+    assert suite["scenario_count"] == 16
+    assert suite["total_seeded_defects"] == 83
+    assert suite["TP"] == 83
     assert suite["FP"] == 0
     assert suite["FN"] == 0
-    assert suite["total_negative_controls"] == 31
-    assert suite["TN"] == 31
+    assert suite["total_negative_controls"] == 33
+    assert suite["TN"] == 33
     assert suite["micro_precision"] == 1.0
     assert suite["micro_recall"] == 1.0
     assert suite["micro_f1"] == 1.0
@@ -12731,28 +12731,29 @@ class TestCycle27MasterCrossHorizonSynthesisAndBenchmark:
       self,
   ) -> None:
     """6. Verifies `generate_master_evolution_synthesis_report()` returns
-    structured telemetry for all 29 horizons (`H1`-`H29`), 5 capability pillars,
-    15 benchmark scenarios, and 9 `SkillRL` rules."""
+    structured telemetry for all 30 horizons (`H1`-`H30`), 5 capability pillars,
+    16 benchmark scenarios, and 10 `SkillRL` rules."""
     from manager.tools.docs_review_tools import (
         generate_master_evolution_synthesis_report,
     )
 
     report = generate_master_evolution_synthesis_report()
     assert report["status"] == "success"
-    assert report["total_cycles_completed"] == 28
-    assert report["total_horizons_completed"] == 29
-    assert len(report["horizons"]) == 29
+    assert report["total_cycles_completed"] == 29
+    assert report["total_horizons_completed"] == 30
+    assert report["total_horizons_delivered"] == 30
+    assert len(report["horizons"]) == 30
     assert report["horizon_ids"][0] == "H1"
-    assert report["horizon_ids"][-1] == "H29"
+    assert report["horizon_ids"][-1] == "H30"
     assert report["capability_pillar_count"] == 5
     assert len(report["capability_pillars"]) == 5
-    assert report["scenario_count"] == 15
-    assert report["total_seeded_defects"] == 78
-    assert report["total_negative_controls"] == 31
+    assert report["scenario_count"] == 16
+    assert report["total_seeded_defects"] == 83
+    assert report["total_negative_controls"] == 33
     assert report["micro_precision"] == 1.0
     assert report["micro_recall"] == 1.0
     assert report["micro_f1"] == 1.0
-    assert report["skillrl_rule_count"] == 9
+    assert report["skillrl_rule_count"] == 10
 
   def test_verify_and_annotate_google_doc_includes_master_readiness_summary(
       self,
@@ -12922,7 +12923,7 @@ class TestCycle28Yaral2DataTableExportAndPostAcceptWorkflow:
     """3. Verifies `BENCH-15-YARAL2-EXPORT-DATA-TABLE-AND-STIX-SIGHTINGS` achieves
     `TP == 5`, `FP == 0`, `FN == 0`, `TN == 2`, `f1 == 1.0`, `pass2_idempotent == True`,
     and full suite `evaluate_verification_benchmark_suite(include_extended_night2=True)`
-    achieves `15` scenarios, `78` seeded defects, `31` negative controls, and
+    achieves `16` scenarios, `83` seeded defects, `33` negative controls, and
     `micro_f1 == 1.0`."""
     from manager.tools.docs_review_tools import (
         evaluate_benchmark_scenario,
@@ -12944,13 +12945,13 @@ class TestCycle28Yaral2DataTableExportAndPostAcceptWorkflow:
 
     suite = evaluate_verification_benchmark_suite(include_extended_night2=True)
     assert suite["status"] == "success"
-    assert suite["scenario_count"] == 15
-    assert suite["total_seeded_defects"] == 78
-    assert suite["TP"] == 78
+    assert suite["scenario_count"] == 16
+    assert suite["total_seeded_defects"] == 83
+    assert suite["TP"] == 83
     assert suite["FP"] == 0
     assert suite["FN"] == 0
-    assert suite["total_negative_controls"] == 31
-    assert suite["TN"] == 31
+    assert suite["total_negative_controls"] == 33
+    assert suite["TN"] == 33
     assert suite["micro_f1"] == 1.0
 
   def test_grounded_soar_review_workflow_two_stage_and_semantic_branches_include_post_accept_readiness(
@@ -13017,12 +13018,14 @@ class TestCycle28Yaral2DataTableExportAndPostAcceptWorkflow:
       self,
   ) -> None:
     """5. Verifies `SKILLRL-09-YARAL2-DATA-TABLE-EXPORT-AND-ALERT-STREAM-SAFETY`
-    is present (`9` total rules across `H25`..`H29`)."""
+    is present (`9` total rules across `H25`..`H29` when `include_h30_capstone_governance=False`)."""
     from manager.tools.docs_review_tools import (
         generate_skillrl_failure_distillation_matrix,
     )
 
-    matrix = generate_skillrl_failure_distillation_matrix()
+    matrix = generate_skillrl_failure_distillation_matrix(
+        include_h30_capstone_governance=False,
+    )
     assert matrix["status"] == "success"
     assert matrix["rule_count"] == 9
     assert matrix["family_count"] == 9
@@ -13167,6 +13170,189 @@ class TestCycle28Yaral2DataTableExportAndPostAcceptWorkflow:
       decl = ft._get_declaration()
       assert decl is not None
       assert decl.name == expected_name
+
+
+class TestCycle29CapstoneProductionGovernanceAndKevExposure:
+  """Cycle 29 (H30) unit tests for Epistemic Inventory-First CISA KEV Exposure Gate,
+  Chronicle Native Dashboards RULE_DETECTIONS Verifier, Chronicle SOAR Content Hub
+  Python 3.11 Packaging Guard, Disciplined Hillclimber Anti-Memorization Validator,
+  OpenTelemetry / Cloudtop mTLS Resilience, and 9-Hour Capstone Certification (BENCH-16)."""
+
+  def test_audit_capstone_production_governance_and_kev_exposure_detects_all_5_defects(
+      self,
+  ) -> None:
+    """1. Verifies `audit_capstone_production_governance_and_kev_exposure` detects all
+    5 H30 defect classes and preserves both `valid_h30_capstone_production_readiness_control`
+    and `valid_standard_yara_file_signature_control` (`strings:` / `uint16(0) == 0x5A4D`,
+    explicitly distinguished from Chronicle SIEM YARA-L 2.0 `YL2` UDM event detection rules)."""
+    from manager.tools.docs_review_tools import (
+        EXTENDED_NIGHT2_BENCHMARK_SCENARIOS,
+        audit_capstone_production_governance_and_kev_exposure,
+    )
+
+    bench16 = next(
+        sc
+        for sc in EXTENDED_NIGHT2_BENCHMARK_SCENARIOS
+        if sc["scenario_id"]
+        == "BENCH-16-CAPSTONE-KEV-DASHBOARD-SOAR-HILLCLIMB-OTEL"
+    )
+    res = audit_capstone_production_governance_and_kev_exposure(
+        bench16["markdown_content"]
+    )
+    assert res["status"] == "success"
+    assert res["horizon_id"] == "H30"
+    assert len(res["defects"]) == 5
+    detected_types = {d["defect_type"] for d in res["defects"]}
+    assert detected_types == {
+        "cisa_kev_missing_inventory_first_gate",
+        "native_dashboard_rule_detections_threat_path_misuse",
+        "soar_content_hub_package_and_dependency_conflict",
+        "hillclimber_prompt_fixture_memorization_and_short_circuit",
+        "otel_trace_attribute_overflow_and_mtls_crash",
+    }
+    for defect in res["defects"]:
+      assert defect["category"] == "H30_CAPSTONE_GOVERNANCE"
+      assert defect["remediation_proposal"]["action_type"] == "replace_text"
+      assert defect["remediation_proposal"]["target_text"] == defect["evidence"]
+      assert len(defect["remediation_proposal"]["replacement_text"]) > 20
+
+    assert (
+        "valid_h30_capstone_production_readiness_control"
+        in res["negative_controls_preserved"]
+    )
+    assert (
+        "valid_standard_yara_file_signature_control"
+        in res["negative_controls_preserved"]
+    )
+    assert res["summary"]["readiness_status"] == "ACTION_REQUIRED"
+
+  def test_bench_16_capstone_kev_dashboard_soar_hillclimb_otel_perfect_f1(
+      self,
+  ) -> None:
+    """2. Verifies `BENCH-16-CAPSTONE-KEV-DASHBOARD-SOAR-HILLCLIMB-OTEL` achieves
+    `TP == 5`, `FP == 0`, `FN == 0`, `TN == 2` (`F1 == 1.0000`) and full 16-scenario
+    Night-2 benchmark suite achieves `83/83` TP, `0` FP, `0` FN, `33/33` TN,
+    `micro_f1 == 1.0000`, and `pass2_idempotency_rate == 1.0000`."""
+    from manager.tools.docs_review_tools import (
+        evaluate_benchmark_scenario,
+        run_night2_grounded_secops_benchmark,
+    )
+
+    b16 = evaluate_benchmark_scenario(
+        "BENCH-16-CAPSTONE-KEV-DASHBOARD-SOAR-HILLCLIMB-OTEL"
+    )
+    assert b16["status"] == "success"
+    assert b16["TP"] == 5
+    assert b16["FP"] == 0
+    assert b16["FN"] == 0
+    assert b16["TN"] == 2
+    assert b16["precision"] == 1.0
+    assert b16["recall"] == 1.0
+    assert b16["f1"] == 1.0
+    assert b16["pass2_idempotent"] is True
+
+    suite = run_night2_grounded_secops_benchmark()
+    assert suite["status"] == "success"
+    assert suite["scenario_count"] == 16
+    assert suite["total_seeded_defects"] == 83
+    assert suite["true_positives"] == 83
+    assert suite["false_positives"] == 0
+    assert suite["false_negatives"] == 0
+    assert suite["total_negative_controls"] == 33
+    assert suite["true_negatives"] == 33
+    assert suite["micro_precision"] == 1.0
+    assert suite["micro_recall"] == 1.0
+    assert suite["micro_f1"] == 1.0
+    assert suite["pass2_idempotency_rate"] == 1.0
+
+  def test_skillrl_10_and_master_evolution_synthesis_report_30_horizons(
+      self,
+  ) -> None:
+    """3. Verifies `generate_skillrl_failure_distillation_matrix` includes
+    `SKILLRL-10-CAPSTONE-PRODUCTION-GOVERNANCE-GATE` (`10` rules across `H25`..`H30`)
+    and `generate_master_evolution_synthesis_report` reports `total_cycles_completed == 29`
+    and `total_horizons_delivered == 30`."""
+    from manager.tools.docs_review_tools import (
+        generate_master_evolution_synthesis_report,
+        generate_skillrl_failure_distillation_matrix,
+    )
+
+    matrix = generate_skillrl_failure_distillation_matrix()
+    assert matrix["status"] == "success"
+    assert matrix["rule_count"] == 10
+    assert matrix["horizons_covered"] == [
+        "H25",
+        "H26",
+        "H27",
+        "H28",
+        "H29",
+        "H30",
+    ]
+    assert "SKILLRL-10-CAPSTONE-PRODUCTION-GOVERNANCE-GATE" in matrix["rule_ids"]
+    h30_rule = matrix["rules_by_id"][
+        "SKILLRL-10-CAPSTONE-PRODUCTION-GOVERNANCE-GATE"
+    ]
+    assert h30_rule["horizon_id"] == "H30"
+    assert len(h30_rule["defect_classes_covered"]) == 5
+
+    report = generate_master_evolution_synthesis_report()
+    assert report["status"] == "success"
+    assert report["horizon"] == "H30"
+    assert report["total_cycles_completed"] == 29
+    assert report["total_horizons_completed"] == 30
+    assert report["total_horizons_delivered"] == 30
+    assert report["scenario_count"] == 16
+    assert report["total_seeded_defects"] == 83
+    assert report["total_negative_controls"] == 33
+    assert report["skillrl_rule_count"] == 10
+
+  def test_post_accept_readiness_convergence_with_h30_remediations(
+      self,
+  ) -> None:
+    """4. Verifies `verify_post_accept_secops_doc_readiness` converges from `5`
+    `H30` defects to `0` defects (`convergence_rate == 1.0`, `is_converged is True`,
+    `post_accept_readiness_status == "CERTIFIED_READY"`) when `H30` remediations
+    are applied."""
+    from manager.tools.docs_review_tools import (
+        EXTENDED_NIGHT2_BENCHMARK_SCENARIOS,
+        audit_capstone_production_governance_and_kev_exposure,
+        verify_post_accept_secops_doc_readiness,
+    )
+
+    bench16 = next(
+        sc
+        for sc in EXTENDED_NIGHT2_BENCHMARK_SCENARIOS
+        if sc["scenario_id"]
+        == "BENCH-16-CAPSTONE-KEV-DASHBOARD-SOAR-HILLCLIMB-OTEL"
+    )
+    before_text = bench16["markdown_content"]
+    audit_before = audit_capstone_production_governance_and_kev_exposure(
+        before_text
+    )
+    assert len(audit_before["defects"]) == 5
+
+    after_text = before_text
+    for defect in sorted(
+        audit_before["defects"],
+        key=lambda d: int(d["char_start"]),
+        reverse=True,
+    ):
+      prop = defect["remediation_proposal"]
+      after_text = after_text.replace(
+          prop["target_text"], prop["replacement_text"], 1
+      )
+
+    convergence = verify_post_accept_secops_doc_readiness(
+        before_text, after_text
+    )
+    assert convergence["status"] == "success"
+    assert convergence["pre_accept_defect_count"] == 5
+    assert convergence["post_accept_defect_count"] == 0
+    assert convergence["convergence_rate"] == 1.0
+    assert convergence["is_converged"] is True
+    assert convergence["post_accept_readiness_status"] == "CERTIFIED_READY"
+    assert convergence["post_accept_verdict"] == "APPROVED_FOR_SOC_EXECUTION"
+
 
 
 

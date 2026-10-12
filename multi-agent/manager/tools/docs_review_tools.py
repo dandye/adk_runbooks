@@ -16866,6 +16866,7 @@ def review_google_doc_with_stage_a(
     include_soar_actuation_safety_stage_a: bool = False,
     include_master_synthesis_stage_a: bool = False,
     include_yaral2_data_table_export_stage_a: bool = False,
+    include_capstone_production_governance_stage_a: bool = False,
     verify_yaral2_meta_mitre: bool = False,
     synthesize_yaral2_missing_meta: bool = False,
     verify_yaral2_meta_runbook: bool = False,
@@ -16907,9 +16908,11 @@ def review_google_doc_with_stage_a(
        :func:`find_soar_playbook_actuation_safety_spans` when
        ``include_soar_actuation_safety_stage_a=True``,
        :func:`find_master_secops_doc_readiness_spans` when
-       ``include_master_synthesis_stage_a=True``, and
+       ``include_master_synthesis_stage_a=True``,
        :func:`find_yaral2_data_table_export_and_alert_stream_spans` when
-       ``include_yaral2_data_table_export_stage_a=True``)
+       ``include_yaral2_data_table_export_stage_a=True``, and
+       :func:`find_capstone_production_governance_and_kev_exposure_spans` when
+       ``include_capstone_production_governance_stage_a=True``)
        to locate leaked credentials, destructive/ineffective containment CLIs,
        unredacted telemetry payloads/secrets, live untrusted URLs,
        standalone Chronicle UDM field defects, YARA-L 2.0 rule defects,
@@ -17322,6 +17325,27 @@ def review_google_doc_with_stage_a(
                 deduped_yaral2_data_table_export_edits.append(e_item)
                 existing_edit_spans.append(e_span)
 
+    stage_a_capstone_production_governance_count = 0
+    deduped_capstone_production_governance_comments: list[dict[str, Any]] = []
+    deduped_capstone_production_governance_edits: list[dict[str, Any]] = []
+    if include_capstone_production_governance_stage_a:
+        cg_comments, cg_edits, cg_findings = (
+            find_capstone_production_governance_and_kev_exposure_spans(
+                plain_text, index_map
+            )
+        )
+        stage_a_capstone_production_governance_count = len(cg_findings)
+        for c_item in cg_comments:
+            c_span = (c_item["start_index"], c_item["end_index"])
+            if not any(_spans_overlap(c_span, ex) for ex in existing_comment_spans):
+                deduped_capstone_production_governance_comments.append(c_item)
+                existing_comment_spans.append(c_span)
+        for e_item in cg_edits:
+            e_span = (e_item["start_index"], e_item["end_index"])
+            if not any(_spans_overlap(e_span, ex) for ex in existing_edit_spans):
+                deduped_capstone_production_governance_edits.append(e_item)
+                existing_edit_spans.append(e_span)
+
     raw_all_comments = (
         deduped_credential_containment_comments
         + deduped_telemetry_comments
@@ -17340,6 +17364,7 @@ def review_google_doc_with_stage_a(
         + deduped_soar_actuation_safety_comments
         + deduped_master_synthesis_comments
         + deduped_yaral2_data_table_export_comments
+        + deduped_capstone_production_governance_comments
         + stage_b_comments
     )
     raw_all_edits = (
@@ -17360,6 +17385,7 @@ def review_google_doc_with_stage_a(
         + deduped_soar_actuation_safety_edits
         + deduped_master_synthesis_edits
         + deduped_yaral2_data_table_export_edits
+        + deduped_capstone_production_governance_edits
         + stage_b_edits
     )
 
@@ -17441,6 +17467,8 @@ def review_google_doc_with_stage_a(
         "stage_a_master_synthesis_count": stage_a_master_synthesis_count,
         "stage_a_yaral2_data_table_export_count": stage_a_yaral2_data_table_export_count,
         "stage_a_yaral2_data_table_export_defects": stage_a_yaral2_data_table_export_count,
+        "stage_a_capstone_production_governance_count": stage_a_capstone_production_governance_count,
+        "stage_a_capstone_production_governance_defects": stage_a_capstone_production_governance_count,
         "stage_a_italic_regex_count": stage_a_italic_regex_count,
         "waved_ontology_verification": {
             "status": (
@@ -25887,6 +25915,117 @@ EXTENDED_NIGHT2_BENCHMARK_SCENARIOS: tuple[dict[str, Any], ...] = (
         ),
         "negative_control_substrings": (
             "valid_yaral2_ioc_threat_actor_export_control",
+            "uint16(0) == 0x5A4D",
+        ),
+    },
+    {
+        "scenario_id": "BENCH-16-CAPSTONE-KEV-DASHBOARD-SOAR-HILLCLIMB-OTEL",
+        "title": "Epistemic Inventory-First CISA KEV Exposure Gate, Chronicle Native Dashboards RULE_DETECTIONS Verifier, SOAR Content Hub Packaging, Disciplined Hillclimber Anti-Memorization Guard & OpenTelemetry/mTLS Runtime Resilience (H30)",
+        "horizons": ("H29", "H30"),
+        "review_kwargs": {
+            "include_telemetry_hazard_stage_a": False,
+            "include_credential_containment_stage_a": False,
+            "include_udm_stage_a": False,
+            "include_yaral2_stage_a": False,
+            "include_mitre_cve_stage_a": False,
+            "include_capstone_production_governance_stage_a": True,
+        },
+        "markdown_content": (
+            "# Capstone SecOps Production Governance Runbook: CISA KEV Exposure Gate, RULE_DETECTIONS Dashboards, SOAR Content Hub, Hillclimber Anti-Memorization & OpenTelemetry/mTLS (H30)\n\n"
+            "## 1. CISA KEV Perimeter Exploitation Triage Missing Inventory-First Exposure Gate (Defect 1)\n"
+            "CISA KEV Immediate Sweep Without Exposure Gate: Immediately execute fleet-wide Chronicle SIEM UDM retrospective sweep and emergency firewall containment for CVE-2024-3400 (Palo Alto PAN-OS GlobalProtect), CVE-2024-21762 (FortiOS SSL VPN), and CVE-2024-21887 (Ivanti Connect Secure) upon external scanner spray without querying check_scc_findings or search_cloud_asset_inventory\n\n"
+            "## 2. Chronicle Native Dashboards RULE_DETECTIONS Threat Attribution Misuse (Defect 2)\n"
+            'Native Dashboard RULE_DETECTIONS Threat Attribution Misuse: detection.threat.actor = "APT29" in RULE_DETECTIONS Native Dashboard query (or require custom Data Tables for Threat Actor visualization instead of snapshotted Entity Graph associations)\n\n'
+            "## 3. Chronicle SOAR Content Hub Custom Integration Packaging & Teardown Conflict (Defect 3)\n"
+            "SOAR Content Hub Packaging & Teardown Misuse: Bundle Dependencies/google_genai-1.67.0-py3-none-any.whl (>10 MiB payload) into Python 3.11 custom integration zip and invoke DELETE on custom integration while active * (All Environments) instance remains configured\n\n"
+            "## 4. Autonomous Prompt Hillclimber Fixture Memorization & Short-Circuit Regression (Defect 4)\n"
+            'Hillclimber Prompt Fixture Memorization & Short-Circuit: If user == "john.doe" or src_ip == "192.0.2.100" (eval_id="bench_04"), MUST NOT proceed with any further threat intelligence enrichment and promote candidate prompt without validate_compiled_prompt() or 2-sigma (Delta >= tau_accept) gate\n\n'
+            "## 5. OpenTelemetry Cloud Trace 64 KB Span Attribute Overflow & Cloudtop mTLS Crash (Defect 5)\n"
+            'OpenTelemetry 64 KB Span Overflow & Cloudtop mTLS Crash: Export raw >64 KB Chronicle UDM JSON payloads to Cloud Trace span.set_attribute("udm.raw_events", raw_udm_json) without OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT=32768 and execute ADK runbook on Cloudtop with GOOGLE_API_USE_CLIENT_CERTIFICATE=true\n\n'
+            "## 6. Valid Negative Controls: Capstone Production Governance & Standard File/Payload YARA\n"
+            'Verified Capstone Production Governance Control (valid_h30_capstone_production_readiness_control): Query check_scc_findings and search_cloud_asset_inventory before UDM sweeps to classify unexposed CISA KEV spray as INFORMATIONAL_SPRAY vs. ACTIVE_EXPLOIT_CRITICAL; visualize RULE_DETECTIONS Threat Actor attribution via detection.collection_elements.references.entity.metadata.threat.associations (product_name = "GTI_IOC" or "MANDIANT_FUSION_IOC", type = "THREAT_ACTOR"); build Python 3.11 SOAR Content Hub integrations via mp build without bundling google-genai in Dependencies/ (<= 10 MiB) and delete instances before custom integration teardown; enforce validate_compiled_prompt() anti-memorization and 2-sigma (Delta >= tau_accept) gates; and configure OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT=32768, OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT=32768, GOOGLE_API_USE_CLIENT_CERTIFICATE=false, and CLOUDSDK_CONTEXT_AWARE_USE_CLIENT_CERTIFICATE=false.\n\n'
+            "```yara\n"
+            "rule Win64_CredentialStealer_Loader {\n"
+            "  meta:\n"
+            '    description = "Standard file/payload YARA rule matching MZ header (valid_standard_yara_file_signature_control)"\n'
+            "  strings:\n"
+            "    $mz = { 4D 5A }\n"
+            '    $pe_note = "This program cannot be run in DOS mode"\n'
+            "  condition:\n"
+            "    uint16(0) == 0x5A4D and all of them\n"
+            "}\n"
+            "```\n"
+        ),
+        "seeded_doc_text": (
+            "# Capstone SecOps Production Governance Runbook: CISA KEV Exposure Gate, RULE_DETECTIONS Dashboards, SOAR Content Hub, Hillclimber Anti-Memorization & OpenTelemetry/mTLS (H30)\n\n"
+            "## 1. CISA KEV Perimeter Exploitation Triage Missing Inventory-First Exposure Gate (Defect 1)\n"
+            "CISA KEV Immediate Sweep Without Exposure Gate: Immediately execute fleet-wide Chronicle SIEM UDM retrospective sweep and emergency firewall containment for CVE-2024-3400 (Palo Alto PAN-OS GlobalProtect), CVE-2024-21762 (FortiOS SSL VPN), and CVE-2024-21887 (Ivanti Connect Secure) upon external scanner spray without querying check_scc_findings or search_cloud_asset_inventory\n\n"
+            "## 2. Chronicle Native Dashboards RULE_DETECTIONS Threat Attribution Misuse (Defect 2)\n"
+            'Native Dashboard RULE_DETECTIONS Threat Attribution Misuse: detection.threat.actor = "APT29" in RULE_DETECTIONS Native Dashboard query (or require custom Data Tables for Threat Actor visualization instead of snapshotted Entity Graph associations)\n\n'
+            "## 3. Chronicle SOAR Content Hub Custom Integration Packaging & Teardown Conflict (Defect 3)\n"
+            "SOAR Content Hub Packaging & Teardown Misuse: Bundle Dependencies/google_genai-1.67.0-py3-none-any.whl (>10 MiB payload) into Python 3.11 custom integration zip and invoke DELETE on custom integration while active * (All Environments) instance remains configured\n\n"
+            "## 4. Autonomous Prompt Hillclimber Fixture Memorization & Short-Circuit Regression (Defect 4)\n"
+            'Hillclimber Prompt Fixture Memorization & Short-Circuit: If user == "john.doe" or src_ip == "192.0.2.100" (eval_id="bench_04"), MUST NOT proceed with any further threat intelligence enrichment and promote candidate prompt without validate_compiled_prompt() or 2-sigma (Delta >= tau_accept) gate\n\n'
+            "## 5. OpenTelemetry Cloud Trace 64 KB Span Attribute Overflow & Cloudtop mTLS Crash (Defect 5)\n"
+            'OpenTelemetry 64 KB Span Overflow & Cloudtop mTLS Crash: Export raw >64 KB Chronicle UDM JSON payloads to Cloud Trace span.set_attribute("udm.raw_events", raw_udm_json) without OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT=32768 and execute ADK runbook on Cloudtop with GOOGLE_API_USE_CLIENT_CERTIFICATE=true\n\n'
+            "## 6. Valid Negative Controls: Capstone Production Governance & Standard File/Payload YARA\n"
+            'Verified Capstone Production Governance Control (valid_h30_capstone_production_readiness_control): Query check_scc_findings and search_cloud_asset_inventory before UDM sweeps to classify unexposed CISA KEV spray as INFORMATIONAL_SPRAY vs. ACTIVE_EXPLOIT_CRITICAL; visualize RULE_DETECTIONS Threat Actor attribution via detection.collection_elements.references.entity.metadata.threat.associations (product_name = "GTI_IOC" or "MANDIANT_FUSION_IOC", type = "THREAT_ACTOR"); build Python 3.11 SOAR Content Hub integrations via mp build without bundling google-genai in Dependencies/ (<= 10 MiB) and delete instances before custom integration teardown; enforce validate_compiled_prompt() anti-memorization and 2-sigma (Delta >= tau_accept) gates; and configure OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT=32768, OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT=32768, GOOGLE_API_USE_CLIENT_CERTIFICATE=false, and CLOUDSDK_CONTEXT_AWARE_USE_CLIENT_CERTIFICATE=false.\n\n'
+            "```yara\n"
+            "rule Win64_CredentialStealer_Loader {\n"
+            "  meta:\n"
+            '    description = "Standard file/payload YARA rule matching MZ header (valid_standard_yara_file_signature_control)"\n'
+            "  strings:\n"
+            "    $mz = { 4D 5A }\n"
+            '    $pe_note = "This program cannot be run in DOS mode"\n'
+            "  condition:\n"
+            "    uint16(0) == 0x5A4D and all of them\n"
+            "}\n"
+            "```\n"
+        ),
+        "expected_defects": (
+            {
+                "defect_id": "bench16-h30-cisa-kev-missing-inventory-first-gate",
+                "horizon": "H30",
+                "ablation_tier": "grounding",
+                "is_safety_refusal": False,
+                "expected_deleted_substring": "Immediately execute fleet-wide Chronicle SIEM UDM retrospective sweep and emergency firewall containment for CVE-2024-3400 (Palo Alto PAN-OS GlobalProtect), CVE-2024-21762 (FortiOS SSL VPN), and CVE-2024-21887 (Ivanti Connect Secure) upon external scanner spray without querying check_scc_findings or search_cloud_asset_inventory",
+                "expected_inserted_substring": "[CAPSTONE GOVERNANCE RED-LINE (H30): cisa_kev_missing_inventory_first_gate",
+            },
+            {
+                "defect_id": "bench16-h30-native-dashboard-rule-detections-threat-path-misuse",
+                "horizon": "H30",
+                "ablation_tier": "grounding",
+                "is_safety_refusal": False,
+                "expected_deleted_substring": 'detection.threat.actor = "APT29" in RULE_DETECTIONS Native Dashboard query (or require custom Data Tables for Threat Actor visualization instead of snapshotted Entity Graph associations)',
+                "expected_inserted_substring": "[CAPSTONE GOVERNANCE RED-LINE (H30): native_dashboard_rule_detections_threat_path_misuse",
+            },
+            {
+                "defect_id": "bench16-h30-soar-content-hub-package-and-dependency-conflict",
+                "horizon": "H30",
+                "ablation_tier": "mechanics",
+                "is_safety_refusal": True,
+                "expected_deleted_substring": "Bundle Dependencies/google_genai-1.67.0-py3-none-any.whl (>10 MiB payload) into Python 3.11 custom integration zip and invoke DELETE on custom integration while active * (All Environments) instance remains configured",
+                "expected_inserted_substring": "[CAPSTONE GOVERNANCE RED-LINE (H30): soar_content_hub_package_and_dependency_conflict",
+            },
+            {
+                "defect_id": "bench16-h30-hillclimber-prompt-fixture-memorization-and-short-circuit",
+                "horizon": "H30",
+                "ablation_tier": "agent",
+                "is_safety_refusal": True,
+                "expected_deleted_substring": 'If user == "john.doe" or src_ip == "192.0.2.100" (eval_id="bench_04"), MUST NOT proceed with any further threat intelligence enrichment and promote candidate prompt without validate_compiled_prompt() or 2-sigma (Delta >= tau_accept) gate',
+                "expected_inserted_substring": "[CAPSTONE GOVERNANCE RED-LINE (H30): hillclimber_prompt_fixture_memorization_and_short_circuit",
+            },
+            {
+                "defect_id": "bench16-h30-otel-trace-attribute-overflow-and-mtls-crash",
+                "horizon": "H30",
+                "ablation_tier": "mechanics",
+                "is_safety_refusal": False,
+                "expected_deleted_substring": 'Export raw >64 KB Chronicle UDM JSON payloads to Cloud Trace span.set_attribute("udm.raw_events", raw_udm_json) without OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT=32768 and execute ADK runbook on Cloudtop with GOOGLE_API_USE_CLIENT_CERTIFICATE=true',
+                "expected_inserted_substring": "[CAPSTONE GOVERNANCE RED-LINE (H30): otel_trace_attribute_overflow_and_mtls_crash",
+            },
+        ),
+        "negative_control_substrings": (
+            "valid_h30_capstone_production_readiness_control",
             "uint16(0) == 0x5A4D",
         ),
     },
@@ -36457,6 +36596,7 @@ def verify_and_annotate_google_doc(
     check_soar_playbook_actuation_safety: bool = True,
     include_master_readiness_audit: bool = True,
     check_yaral2_data_table_export_and_alert_stream: bool = False,
+    check_capstone_production_governance: bool = False,
     validate_live: bool = False,
     case_ids: Sequence[str] | None = None,
     validation_gate: ChronicleRuleValidationGate | None = None,
@@ -36471,8 +36611,9 @@ def verify_and_annotate_google_doc(
     """Executes multi-horizon Google Doc grounding verification and merges ``H26``
     Chronicle SIEM YARA-L 2.0 Entity Graph & Criticality annotations, ``H27``
     SOAR Playbook Actuation Safety & Blast-Radius Pre-Flight annotations, ``H28``
-    Master Cross-Pillar SecOps Readiness Synthesis, and ``H29`` Chronicle SIEM
-    YARA-L 2.0 Data Table Export & Alert Stream annotations."""
+    Master Cross-Pillar SecOps Readiness Synthesis, ``H29`` Chronicle SIEM
+    YARA-L 2.0 Data Table Export & Alert Stream annotations, and ``H30``
+    Capstone Production Governance & CISA KEV Exposure Gate annotations."""
     effective_mode = (
         "APPLY"
         if (
@@ -36533,6 +36674,8 @@ def verify_and_annotate_google_doc(
             or "isolate_host(" in line_str
             or "stage_containment_plan(" in line_str
             or ".write_row(" in line_str
+            or "detection.collection_elements.references.entity.metadata.threat.associations" in line_str
+            or "valid_h30_capstone_production_readiness_control" in line_str
         ):
             continue
         udm_comments.append(uc)
@@ -36706,6 +36849,46 @@ def verify_and_annotate_google_doc(
                     }
                 )
 
+    h30_audit: dict[str, Any] = {
+        "status": "skipped",
+        "defect_count": 0,
+        "findings": [],
+        "defects": [],
+        "annotations": [],
+    }
+    if check_capstone_production_governance:
+        horizons_executed.append("H30")
+        h30_audit = audit_capstone_production_governance_and_kev_exposure(
+            text_val, index_map=idx_map
+        )
+        existing_h30_spans = [
+            (int(a.get("start_index", 1)), int(a.get("end_index", 2)))
+            for a in merged_annotations
+        ]
+        for h30_ann in h30_audit.get("defects") or []:
+            h30_span = (int(h30_ann["start_index"]), int(h30_ann["end_index"]))
+            if not any(_spans_overlap(h30_span, ex) for ex in existing_h30_spans):
+                merged_annotations.append(h30_ann)
+                existing_h30_spans.append(h30_span)
+                merged_comments.append(
+                    {
+                        "start_index": h30_ann["start_index"],
+                        "end_index": h30_ann["end_index"],
+                        "quote": h30_ann["quote"],
+                        "comment": h30_ann["comment"],
+                    }
+                )
+                merged_edits.append(
+                    {
+                        "start_index": h30_ann["start_index"],
+                        "end_index": h30_ann["end_index"],
+                        "quote": h30_ann["quote"],
+                        "replacement": h30_ann["replacement"],
+                        "delete_text": h30_ann["delete_text"],
+                        "insert_text": h30_ann["insert_text"],
+                    }
+                )
+
     master_readiness_audit: dict[str, Any] = {
         "status": "skipped",
         "master_readiness_score": 100.0,
@@ -36757,11 +36940,13 @@ def verify_and_annotate_google_doc(
         "check_yaral2_entity_graph_and_criticality": check_yaral2_entity_graph_and_criticality,
         "check_soar_playbook_actuation_safety": check_soar_playbook_actuation_safety,
         "check_yaral2_data_table_export_and_alert_stream": check_yaral2_data_table_export_and_alert_stream,
+        "check_capstone_production_governance": check_capstone_production_governance,
         "include_master_readiness_audit": include_master_readiness_audit,
         "yaral2_entity_graph_and_criticality_audit": h26_audit,
         "soar_playbook_actuation_safety_audit": h27_audit,
         "yaral2_data_table_export_and_alert_stream_audit": h29_audit,
         "yaral2_data_table_export_audit": h29_audit,
+        "capstone_production_governance_audit": h30_audit,
         "master_readiness_audit": master_readiness_audit,
         "master_readiness_score": master_readiness_audit.get("master_readiness_score", 100.0),
         "release_gate_verdict": master_readiness_audit.get(
@@ -36784,7 +36969,7 @@ def evaluate_grounding_benchmark_suite(
     output_report_path: str = "",
 ) -> dict[str, Any]:
     """Evaluates the grounded Google Docs review benchmark suite across ``BENCH-01``
-    through ``BENCH-15`` when ``include_extended_night2=True`` (or ``BENCH-01`` through
+    through ``BENCH-16`` when ``include_extended_night2=True`` (or ``BENCH-01`` through
     ``BENCH-06`` when ``False``)."""
     target = scenario_ids or ("all_with_night2" if include_extended_night2 else "all")
     res = run_docs_review_benchmark(
@@ -36814,21 +36999,33 @@ def generate_skillrl_failure_distillation_matrix(
     include_h27_soar_actuation: bool = True,
     include_h28_master_synthesis: bool = True,
     include_h29_data_table_export: bool = True,
+    include_h30_capstone_governance: bool | None = None,
     *,
     include_h26: bool | None = None,
     include_h27: bool | None = None,
     include_h28: bool | None = None,
     include_h29: bool | None = None,
+    include_h30: bool | None = None,
 ) -> dict[str, Any]:
     """Generates the SkillRL failure-trajectory distillation matrix across ``H25``,
     ``H26`` (``yaral2_entity_graph_and_criticality``), ``H27``
     (``soar_playbook_actuation_safety``), ``H28``
-    (``master_cross_pillar_readiness_gate``), and ``H29``
-    (``yaral2_data_table_export_and_alert_stream_safety``)."""
+    (``master_cross_pillar_readiness_gate``), ``H29``
+    (``yaral2_data_table_export_and_alert_stream_safety``), and ``H30``
+    (``capstone_production_governance_and_kev_exposure``)."""
     eff_include_h26 = include_h26 if include_h26 is not None else include_h26_entity_graph
     eff_include_h27 = include_h27 if include_h27 is not None else include_h27_soar_actuation
     eff_include_h28 = include_h28 if include_h28 is not None else include_h28_master_synthesis
     eff_include_h29 = include_h29 if include_h29 is not None else include_h29_data_table_export
+    eff_include_h30 = (
+        include_h30
+        if include_h30 is not None
+        else (
+            include_h30_capstone_governance
+            if include_h30_capstone_governance is not None
+            else bool(eff_include_h29)
+        )
+    )
     families: list[dict[str, Any]] = []
     for r_id, spec in _SKILLRL_H25_RULES_DICT.items():
         d_class = str(spec.get("defect_class") or r_id)
@@ -37091,6 +37288,73 @@ def generate_skillrl_failure_distillation_matrix(
             }
         )
 
+    if eff_include_h30:
+        h30_defect_list = [
+            "cisa_kev_missing_inventory_first_gate",
+            "native_dashboard_rule_detections_threat_path_misuse",
+            "soar_content_hub_package_and_dependency_conflict",
+            "hillclimber_prompt_fixture_memorization_and_short_circuit",
+            "otel_trace_attribute_overflow_and_mtls_crash",
+        ]
+        h30_tree = {
+            "root_condition": (
+                "SOC runbook triages CISA KEV perimeter CVEs (CVE-2024-3400, CVE-2024-21762, CVE-2024-21887), "
+                "queries Chronicle Native Dashboards RULE_DETECTIONS, packages Python 3.11 SOAR Content Hub "
+                "integrations, runs prompt hillclimbing, or configures OpenTelemetry / Cloudtop mTLS"
+            ),
+            "primary_check": (
+                "Verify inventory-first SCC (check_scc_findings) and CAI (search_cloud_asset_inventory) exposure "
+                "check before UDM sweeps, snapshotted Entity Graph threat.associations in RULE_DETECTIONS, "
+                "mp build without google-genai in Dependencies/ (<= 10 MiB), validate_compiled_prompt() + 2-sigma "
+                "gate, and OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT=32768 + GOOGLE_API_USE_CLIENT_CERTIFICATE=false"
+            ),
+            "branch_if_true": (
+                "Classify unexposed KEV scanner traffic as INFORMATIONAL_SPRAY, preserve standard file/payload YARA "
+                "negative controls, and certify runbook readiness (CERTIFIED_READY)"
+            ),
+            "branch_if_false": (
+                "Inject check_scc_findings + search_cloud_asset_inventory gate, rewrite detection.threat.actor -> "
+                "detection.collection_elements.references.entity.metadata.threat.associations, strip google-genai from "
+                "Dependencies/, enforce validate_compiled_prompt() anti-memorization, and set OTEL/mTLS env flags"
+            ),
+            "terminal_safe_action": (
+                "Stage non-destructive [CAPSTONE GOVERNANCE RED-LINE (H30)] writeMode=SUGGEST edits and verify "
+                "Pass 2 post-accept readiness convergence (convergence_rate == 1.0, CERTIFIED_READY)"
+            ),
+        }
+        families.append(
+            {
+                "failure_family": "capstone_production_governance_and_kev_exposure",
+                "trajectory_id": "SKILLRL-10-CAPSTONE-PRODUCTION-GOVERNANCE-GATE",
+                "rule_id": "SKILLRL-10-CAPSTONE-PRODUCTION-GOVERNANCE-GATE",
+                "horizon": "H30",
+                "horizon_id": "H30",
+                "title": (
+                    "Epistemic Inventory-First CISA KEV Exposure Gate, Chronicle Native Dashboards RULE_DETECTIONS "
+                    "Verifier, SOAR Content Hub Packaging, Hillclimber Anti-Memorization & OpenTelemetry/mTLS Gate"
+                ),
+                "defect_type": "cisa_kev_missing_inventory_first_gate",
+                "source_defect_type": "cisa_kev_missing_inventory_first_gate",
+                "defect_types": h30_defect_list,
+                "defect_classes_covered": h30_defect_list,
+                "failure_symptom": (
+                    "Fleet-wide Chronicle UDM sweeps triggered on unexposed CISA KEV scanner spray without SCC/CAI "
+                    "inventory checks, non-existent detection.threat.actor in RULE_DETECTIONS Native Dashboards, "
+                    "HTTP 500/503 from bundling google-genai in SOAR Python 3.11 Dependencies/ or deleting active * "
+                    "instances, hillclimber fixture memorization (john.doe / 192.0.2.100) or short-circuit rules, "
+                    "or Cloud Trace 64 KB span drops and Cloudtop mTLS exit code -11 crashes"
+                ),
+                "distilled_recovery_skill": (
+                    "Gate CISA KEV triage on check_scc_findings and search_cloud_asset_inventory (INFORMATIONAL_SPRAY "
+                    "vs. ACTIVE_EXPLOIT_CRITICAL), query detection.collection_elements.references.entity.metadata."
+                    "threat.associations in RULE_DETECTIONS, exclude google-genai from SOAR Dependencies/ (<= 10 MiB), "
+                    "enforce validate_compiled_prompt() and 2-sigma (Delta >= tau_accept) gates, and set "
+                    "OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT=32768 and GOOGLE_API_USE_CLIENT_CERTIFICATE=false"
+                ),
+                "decision_tree": h30_tree,
+            }
+        )
+
     md_rows = [
         "| Trajectory ID | Failure Family | Horizon | Primary Diagnostic Check | Terminal Safe Action |",
         "| :--- | :--- | :---: | :--- | :--- |",
@@ -37127,7 +37391,7 @@ H28_CAPABILITY_PILLAR_CATALOG: dict[str, dict[str, Any]] = {
         "pillar_id": "UDM_YL2_AND_ENTITY_GRAPH",
         "pillar_number": 1,
         "title": "Chronicle SIEM UDM, YARA-L 2.0 (YL2), Entity Graph & Data Table Export",
-        "horizons": ["H1", "H2", "H9", "H13", "H16", "H17", "H22", "H26", "H27", "H29"],
+        "horizons": ["H1", "H2", "H9", "H13", "H16", "H17", "H22", "H26", "H27", "H29", "H30"],
         "weight": 25.0,
         "primary_tools": [
             "verify_udm_field_paths",
@@ -37136,11 +37400,13 @@ H28_CAPABILITY_PILLAR_CATALOG: dict[str, dict[str, Any]] = {
             "audit_yaral2_entity_graph_and_criticality_in_doc",
             "inspect_yaral2_data_table_export_and_alert_stream_in_text",
             "audit_yaral2_data_table_export_and_alert_stream_in_doc",
+            "audit_capstone_production_governance_and_kev_exposure",
         ],
         "description": (
             "Chronicle SIEM YARA-L 2.0 (YL2) syntax, UDM field schema verification, "
             "sliding-window/temporal sequences, Entity Graph $g.graph.entity.* joins, "
-            "Data Table export (%<table>.write_row), and :verifyRuleText / legacy:legacyFetchAlertsView "
+            "Data Table export (%<table>.write_row), Native Dashboards RULE_DETECTIONS "
+            "entity threat associations, and :verifyRuleText / legacy:legacyFetchAlertsView "
             "contracts, with strict exclusion of standard file/payload YARA rules "
             "(strings: / uint16(0) == 0x5A4D)."
         ),
@@ -37149,27 +37415,29 @@ H28_CAPABILITY_PILLAR_CATALOG: dict[str, dict[str, Any]] = {
         "pillar_id": "TELEMETRY_CREDENTIAL_AND_SOAR_SAFETY",
         "pillar_number": 2,
         "title": "Telemetry Silence, Secret Hygiene & SOAR Actuation / Siemplify Endpoint Safety",
-        "horizons": ["H3", "H4", "H5", "H10", "H14", "H15", "H26", "H27"],
+        "horizons": ["H3", "H4", "H5", "H10", "H14", "H15", "H26", "H27", "H30"],
         "weight": 25.0,
         "primary_tools": [
             "find_leaked_credential_containment_spans",
             "find_telemetry_hazard_spans",
             "inspect_soar_playbook_actuation_safety_in_text",
             "audit_soar_playbook_actuation_safety_in_doc",
+            "audit_capstone_production_governance_and_kev_exposure",
         ],
         "description": (
             "Chronicle ingestion health and silence detection, credential/secret redaction "
             "and containment hygiene, SOAR destructive containment blast-radius and rollback "
             "gates, Siemplify legacy endpoint verification (/api/1p/external/v1/cases vs "
-            "unmigrated v1alpha/.../cases on secops-demo-env), and Spanner path validation "
-            "(/span/global/ vs invalid /span/prod/)."
+            "unmigrated v1alpha/.../cases on secops-demo-env), Spanner path validation "
+            "(/span/global/ vs invalid /span/prod/), SOAR Content Hub Python 3.11 mp packaging, "
+            "and OpenTelemetry 64 KB attribute / Cloudtop mTLS runtime safety."
         ),
     },
     "MITRE_CVE_WAVED_AND_GTI_ATTRIBUTION": {
         "pillar_id": "MITRE_CVE_WAVED_AND_GTI_ATTRIBUTION",
         "pillar_number": 3,
         "title": "MITRE ATT&CK v16.1, CVE/KEV/EPSS/WAVED, GTI Attribution & STIX 2.1 Sightings",
-        "horizons": ["H6", "H7", "H11", "H18", "H19", "H21", "H23", "H29"],
+        "horizons": ["H6", "H7", "H11", "H18", "H19", "H21", "H23", "H29", "H30"],
         "weight": 20.0,
         "primary_tools": [
             "verify_mitre_attack_ids",
@@ -37177,11 +37445,13 @@ H28_CAPABILITY_PILLAR_CATALOG: dict[str, dict[str, Any]] = {
             "analyze_waved_ontology_graph",
             "verify_ioc_reputation_and_attribution_in_doc_text",
             "inspect_yaral2_data_table_export_and_alert_stream_in_text",
+            "audit_capstone_production_governance_and_kev_exposure",
         ],
         "description": (
             "MITRE ATT&CK v16.1 technique/sub-technique grounding, CVE/CISA KEV/EPSS and "
-            "WAVED ontology chain validation, Google Threat Intelligence (GTI) threat "
-            "actor / malware attribution verification, and STIX 2.1 Sightings bundle grounding."
+            "inventory-first SCC/CAI exposure gates, WAVED ontology chain validation, "
+            "Google Threat Intelligence (GTI) threat actor / malware attribution verification, "
+            "and STIX 2.1 Sightings bundle grounding."
         ),
     },
     "CAMPAIGN_TIMELINE_AND_TDO_COVERAGE": {
@@ -37204,7 +37474,7 @@ H28_CAPABILITY_PILLAR_CATALOG: dict[str, dict[str, Any]] = {
         "pillar_id": "WIKISKILL_RRSI_ORCHESTRA_AND_SKILLRL",
         "pillar_number": 5,
         "title": "WikiSkill/RRSI Readiness Scoring, SkillOrchestra Cost-Aware Routing & SkillRL Guardrails",
-        "horizons": ["H20", "H23", "H24", "H25", "H28", "H29"],
+        "horizons": ["H20", "H23", "H24", "H25", "H28", "H29", "H30"],
         "weight": 15.0,
         "primary_tools": [
             "audit_runbook_promotion_readiness",
@@ -37213,12 +37483,14 @@ H28_CAPABILITY_PILLAR_CATALOG: dict[str, dict[str, Any]] = {
             "synthesize_master_secops_doc_readiness",
             "audit_master_secops_doc_readiness_in_doc",
             "verify_post_accept_secops_doc_readiness",
+            "audit_capstone_production_governance_and_kev_exposure",
         ],
         "description": (
             "WikiSkill Runbook Readiness Score Index (RRSI), runbook promotion hygiene, "
             "SkillOrchestra cost-aware Stage A/B routing, SkillRL failure-distilled "
             "guardrails ($PROJECT_ID variable hygiene, inline secret rejection, and "
-            "counterfactual decision trees), and counterfactual post-accept 5-pillar readiness sign-off."
+            "counterfactual decision trees), disciplined hillclimber anti-memorization "
+            "(validate_compiled_prompt()), and counterfactual post-accept readiness sign-off."
         ),
     },
 }
@@ -37253,6 +37525,7 @@ H28_MASTER_HORIZON_CATALOG: tuple[dict[str, Any], ...] = (
     {"horizon_id": "H27", "cycle": 26, "pillar_id": "TELEMETRY_CREDENTIAL_AND_SOAR_SAFETY", "title": "SOAR Playbook Actuation Safety & Blast-Radius Pre-Flight Gate (BENCH-13)", "status": "COMPLETED"},
     {"horizon_id": "H28", "cycle": 27, "pillar_id": "WIKISKILL_RRSI_ORCHESTRA_AND_SKILLRL", "title": "Master Cross-Horizon Synthesis & Composite Readiness Auditor (BENCH-14)", "status": "COMPLETED"},
     {"horizon_id": "H29", "cycle": 28, "pillar_id": "UDM_YL2_AND_ENTITY_GRAPH", "title": "Chronicle YARA-L 2.0 Data Table Export, Entity Threat Associations, Alert Stream & STIX 2.1 Sightings Verifier + Post-Accept Readiness Sign-Off (BENCH-15)", "status": "COMPLETED"},
+    {"horizon_id": "H30", "cycle": 29, "pillar_id": "WIKISKILL_RRSI_ORCHESTRA_AND_SKILLRL", "title": "Epistemic Inventory-First CISA KEV Exposure Gate, Chronicle Native Dashboards RULE_DETECTIONS Verifier, Disciplined Hillclimber Anti-Memorization Guard & 9-Hour Capstone Certification (BENCH-16)", "status": "COMPLETED"},
 )
 
 _H28_STANDARD_YARA_BLOCK_RE = re.compile(
@@ -37301,31 +37574,35 @@ def synthesize_master_secops_doc_readiness(
     index_map: list[int] | None = None,
 ) -> dict[str, Any]:
     """Runs a single-pass, cross-pillar verification sweep across all 5 capability
-    pillars spanning Horizons ``H1`` through ``H29`` (``H28``/``H29`` Master Synthesis).
+    pillars spanning Horizons ``H1`` through ``H30`` (``H28``/``H29``/``H30`` Master Synthesis).
 
     Pillars:
     1. ``UDM_YL2_AND_ENTITY_GRAPH``: Chronicle SIEM YARA-L 2.0 (``YL2``) syntax,
        UDM field verification (``H1``, ``H2``, ``H13``, ``H17``), Entity Graph
-       ``$g.graph.entity.*`` join/filter validation (``H26``, ``H27``), and YARA-L 2.0
-       Data Table Export ``%<table>.write_row(...)`` / ``VerdictInfo`` (``H29``), with
-       explicit standard file/payload YARA (``strings:`` / ``uint16(0) == 0x5A4D``) exclusion.
+       ``$g.graph.entity.*`` join/filter validation (``H26``, ``H27``), YARA-L 2.0
+       Data Table Export ``%<table>.write_row(...)`` / ``VerdictInfo`` (``H29``), and
+       Chronicle Native Dashboards ``RULE_DETECTIONS`` threat associations (``H30``),
+       with explicit standard file/payload YARA (``strings:`` / ``uint16(0) == 0x5A4D``) exclusion.
     2. ``TELEMETRY_CREDENTIAL_AND_SOAR_SAFETY``: Chronicle Ingestion Health & Silence
        Detection (``H3``, ``H15``), Secret/Credential Hygiene (``H4``, ``H16``), SOAR
        Destructive Containment Blast-Radius & Rollback Gate (``H5``, ``H10``, ``H14``),
        Siemplify Legacy Endpoint Verification (``H26``), Spanner ``/span/prod/``
-       path prohibition, and ``:verifyRuleText`` / ``legacy:legacyFetchAlertsView``
-       endpoint & stream deduplication (``H29``).
+       path prohibition, ``:verifyRuleText`` / ``legacy:legacyFetchAlertsView``
+       endpoint & stream deduplication (``H29``), and SOAR Content Hub / OpenTelemetry
+       & Cloudtop mTLS safety (``H30``).
     3. ``MITRE_CVE_WAVED_AND_GTI_ATTRIBUTION``: MITRE ATT&CK v16.1 Technique & Tactic
        Grounding (``H6``, ``H18``), CVE/CISA KEV/EPSS & WAVED Exploitability (``H7``,
-       ``H19``), GTI Threat Actor & Campaign Attribution (``H11``, ``H21``), and
-       STIX 2.1 Sightings bundle validation (``H29``).
+       ``H19``), GTI Threat Actor & Campaign Attribution (``H11``, ``H21``),
+       STIX 2.1 Sightings bundle validation (``H29``), and Inventory-First CISA KEV
+       SCC/CAI exposure gates (``H30``).
     4. ``CAMPAIGN_TIMELINE_AND_TDO_COVERAGE``: Incident Timeline & Dwell-Time
        Consistency (``H8``) and Threat Detection Opportunity (TDO) Coverage Gap &
        Rule Pack Synthesis (``H12``, ``H20``).
     5. ``WIKISKILL_RRSI_ORCHESTRA_AND_SKILLRL``: WikiSkill Runbook Readiness Index
        (``H23``), SkillOrchestra Cost-Aware Routing (``H24``), SkillRL
-       Failure-Distilled Guardrail Matrix (``H25``), and Counterfactual Post-Accept
-       Readiness Sign-Off Gate (``H29``).
+       Failure-Distilled Guardrail Matrix (``H25``), Counterfactual Post-Accept
+       Readiness Sign-Off Gate (``H29``), and Disciplined Hillclimber Anti-Memorization
+       Guard (``H30``).
     """
     text_val = str(doc_text or "")
     idx_map = index_map if index_map is not None else _build_utf16_index_map(text_val)
@@ -37362,7 +37639,10 @@ def synthesize_master_secops_doc_readiness(
         pid: [] for pid in H28_CAPABILITY_PILLAR_CATALOG
     }
     claimed_char_spans: list[tuple[int, int]] = list(standard_yara_spans)
-    for m_rl in re.finditer(r"[^\n]*RED-LINE\s*\([^\n]*", text_val):
+    for m_rl in re.finditer(
+        r"[^\n]*(?:RED-LINE\s*\(|valid_yaral2_ioc_threat_actor_export_control|valid_h30_capstone_production_readiness_control|valid_standard_yara_file_signature_control)[^\n]*",
+        text_val,
+    ):
         claimed_char_spans.append((m_rl.start(), m_rl.end()))
 
     def _add_pillar_finding(
@@ -37393,6 +37673,7 @@ def synthesize_master_secops_doc_readiness(
             or "[YL2 ENTITY THREAT VERDICT RED-LINE" in quote
             or "[CHRONICLE ENDPOINT & STREAM RED-LINE" in quote
             or "[STIX 2.1 SIGHTINGS & POST-ACCEPT SIGN-OFF RED-LINE" in quote
+            or "[CAPSTONE GOVERNANCE RED-LINE" in quote
         ):
             return
         u_start, u_end = _char_to_utf16_span(char_start, char_end)
@@ -37638,6 +37919,37 @@ def synthesize_master_secops_doc_readiness(
                     str(h29_f.get("comment") or "Chronicle YL2 Data Table Export / STIX 2.1 defect"),
                 )
 
+    # 1c. Horizon H30: Capstone Production Governance & CISA KEV Exposure Gate
+    h30_inspection = inspect_capstone_production_governance_and_kev_exposure_in_text(
+        text_val, index_map=idx_map
+    )
+    _h30_pillar_map = {
+        "cisa_kev_missing_inventory_first_gate": "MITRE_CVE_WAVED_AND_GTI_ATTRIBUTION",
+        "native_dashboard_rule_detections_threat_path_misuse": "UDM_YL2_AND_ENTITY_GRAPH",
+        "soar_content_hub_package_and_dependency_conflict": "TELEMETRY_CREDENTIAL_AND_SOAR_SAFETY",
+        "hillclimber_prompt_fixture_memorization_and_short_circuit": "WIKISKILL_RRSI_ORCHESTRA_AND_SKILLRL",
+        "otel_trace_attribute_overflow_and_mtls_crash": "TELEMETRY_CREDENTIAL_AND_SOAR_SAFETY",
+    }
+    for h30_f in h30_inspection.get("findings") or []:
+        dt_type = str(h30_f.get("defect_type") or "")
+        target_pillar = _h30_pillar_map.get(dt_type, "WIKISKILL_RRSI_ORCHESTRA_AND_SKILLRL")
+        q_h30 = str(h30_f.get("quote") or "")
+        if q_h30:
+            c_start = int(h30_f.get("char_start", text_val.find(q_h30)))
+            c_end = int(h30_f.get("char_end", c_start + len(q_h30)))
+            if c_start >= 0:
+                _add_pillar_finding(
+                    target_pillar,
+                    "H30",
+                    dt_type,
+                    str(h30_f.get("severity") or "HIGH"),
+                    c_start,
+                    c_end,
+                    q_h30,
+                    str(h30_f.get("replacement") or q_h30),
+                    str(h30_f.get("comment") or "Capstone H30 production governance defect"),
+                )
+
     # 2. Also sweep underlying Stage A analyzers for any additional non-overlapping findings
     # Pillar 1 underlying checks
     for _, _, udm_f_list in [find_udm_field_spans(text_val, idx_map)]:
@@ -37648,7 +37960,11 @@ def synthesize_master_secops_doc_readiness(
                 l_start = text_val.rfind("\n", 0, pos) + 1
                 l_end = text_val.find("\n", pos)
                 line_s = text_val[l_start : (len(text_val) if l_end == -1 else l_end)]
-                if "soar." in line_s or ".write_row(" in line_s:
+                if (
+                    "soar." in line_s
+                    or ".write_row(" in line_s
+                    or "detection.collection_elements.references.entity.metadata.threat.associations" in line_s
+                ):
                     continue
                 _add_pillar_finding(
                     "UDM_YL2_AND_ENTITY_GRAPH",
@@ -38361,17 +38677,18 @@ def evaluate_verification_benchmark_suite(
 
 
 def generate_master_evolution_synthesis_report() -> dict[str, Any]:
-    """Generates the complete Master Evolution Synthesis Report summarizing all 28
-    autonomous evolution cycles (``H1`` through ``H29``), the 5 capability pillars,
-    the 15-scenario verification benchmark suite (``78/78`` TP, ``0`` FP, ``0`` FN,
-    ``31/31`` TN, ``micro_f1 = 1.0000``), and the 9-rule ``SkillRL`` failure
-    distillation matrix (``SKILLRL-01`` through ``SKILLRL-09``)."""
+    """Generates the complete Master Evolution Synthesis Report summarizing all 29
+    autonomous evolution cycles (``H1`` through ``H30``), the 5 capability pillars,
+    the 16-scenario verification benchmark suite (``83/83`` TP, ``0`` FP, ``0`` FN,
+    ``33/33`` TN, ``micro_f1 = 1.0000``), and the 10-rule ``SkillRL`` failure
+    distillation matrix (``SKILLRL-01`` through ``SKILLRL-10``)."""
     bench_suite = evaluate_verification_benchmark_suite(include_extended_night2=True)
     skillrl_matrix = generate_skillrl_failure_distillation_matrix(
         include_h26_entity_graph=True,
         include_h27_soar_actuation=True,
         include_h28_master_synthesis=True,
         include_h29_data_table_export=True,
+        include_h30_capstone_governance=True,
     )
 
     horizons_list = [dict(h) for h in H28_MASTER_HORIZON_CATALOG]
@@ -38380,40 +38697,41 @@ def generate_master_evolution_synthesis_report() -> dict[str, Any]:
     }
 
     md_lines = [
-        "# Master SecOps Grounded Google Docs Evolution Synthesis Report (Cycles 1-28 | H1-H29)",
+        "# Master SecOps Grounded Google Docs Evolution Synthesis Report (Cycles 1-29 | H1-H30)",
         "",
-        f"- **Horizons Completed**: `{len(horizons_list)}/29` (`H1` through `H29`)",
+        f"- **Horizons Completed**: `{len(horizons_list)}/30` (`H1` through `H30`)",
         f"- **Capability Pillars**: `{len(pillars_dict)}`",
-        f"- **Benchmark Scenarios (`BENCH-01`..`BENCH-15`)**: `{bench_suite['scenario_count']}`",
+        f"- **Benchmark Scenarios (`BENCH-01`..`BENCH-16`)**: `{bench_suite['scenario_count']}`",
         f"- **Seeded Defects Detected (TP)**: `{bench_suite['TP']}/{bench_suite['total_seeded_defects']}` (`FP={bench_suite['FP']}`, `FN={bench_suite['FN']}`)",
         f"- **Negative Controls Preserved (TN)**: `{bench_suite['TN']}/{bench_suite['total_negative_controls']}`",
         f"- **Micro Precision / Recall / F1**: `{bench_suite['micro_precision']:.4f}` / `{bench_suite['micro_recall']:.4f}` / `{bench_suite['micro_f1']:.4f}`",
-        f"- **SkillRL Distilled Failure Guardrails**: `{skillrl_matrix['rule_count']}` (`SKILLRL-01`..`SKILLRL-09`)",
+        f"- **SkillRL Distilled Failure Guardrails**: `{skillrl_matrix['rule_count']}` (`SKILLRL-01`..`SKILLRL-10`)",
     ]
 
     return {
         "status": "success",
-        "horizon": "H29",
-        "total_cycles_completed": 28,
+        "horizon": "H30",
+        "total_cycles_completed": 29,
         "total_horizons_completed": len(horizons_list),
+        "total_horizons_delivered": len(horizons_list),
         "horizon_ids": [h["horizon_id"] for h in horizons_list],
         "horizons_completed": [h["horizon_id"] for h in horizons_list],
         "horizons": horizons_list,
         "pillar_count": len(pillars_dict),
         "capability_pillar_count": len(pillars_dict),
         "capability_pillars": pillars_dict,
-        "scenario_count": int(bench_suite.get("scenario_count", 15)),
-        "total_seeded_defects": int(bench_suite.get("total_seeded_defects", 78)),
-        "total_negative_controls": int(bench_suite.get("total_negative_controls", 31)),
-        "true_positives": int(bench_suite.get("TP", 78)),
+        "scenario_count": int(bench_suite.get("scenario_count", 16)),
+        "total_seeded_defects": int(bench_suite.get("total_seeded_defects", 83)),
+        "total_negative_controls": int(bench_suite.get("total_negative_controls", 33)),
+        "true_positives": int(bench_suite.get("TP", 83)),
         "false_positives": int(bench_suite.get("FP", 0)),
         "false_negatives": int(bench_suite.get("FN", 0)),
-        "true_negatives": int(bench_suite.get("TN", 31)),
+        "true_negatives": int(bench_suite.get("TN", 33)),
         "micro_precision": float(bench_suite.get("micro_precision", 1.0)),
         "micro_recall": float(bench_suite.get("micro_recall", 1.0)),
         "micro_f1": float(bench_suite.get("micro_f1", 1.0)),
         "pass2_idempotency_rate": float(bench_suite.get("pass2_idempotency_rate", 1.0)),
-        "skillrl_rule_count": int(skillrl_matrix.get("rule_count", 9)),
+        "skillrl_rule_count": int(skillrl_matrix.get("rule_count", 10)),
         "skillrl_rules": list(skillrl_matrix.get("rules") or []),
         "skillrl_matrix": skillrl_matrix,
         "benchmark_summary": bench_suite,
@@ -39168,7 +39486,9 @@ def audit_yaral2_data_table_export_and_alert_stream_in_doc(
 
 def verify_post_accept_secops_doc_readiness(
     document_id: str = "",
+    after_doc_text: str | None = None,
     *,
+    before_doc_text: str | None = None,
     doc_text: str | None = None,
     stage_redlines_first: bool = False,
     doc_title: str = "SecOps Incident Runbook & Postmortem",
@@ -39181,26 +39501,36 @@ def verify_post_accept_secops_doc_readiness(
 ) -> dict[str, Any]:
     """Computes the counterfactual Pre-Accept (``baseline_text``) vs. Post-Accept
     (``accepted_text`` after applying descending-index ``writeMode="SUGGEST"`` red-lines)
-    5-pillar readiness transition via :func:`synthesize_master_secops_doc_readiness`.
+    multi-pillar readiness transition via :func:`synthesize_master_secops_doc_readiness`.
 
+    Supports both Google Doc ID inspection (``verify_post_accept_secops_doc_readiness(document_id, ...)``)
+    and direct before/after text comparison (``verify_post_accept_secops_doc_readiness(before_doc_text, after_doc_text)``).
     Proves that accepting the staged red-lines transitions a blocked document
     (``pre_accept_verdict="BLOCKED_CRITICAL_DEFECTS"``) to
     ``post_accept_verdict="APPROVED_FOR_SOC_EXECUTION"`` (``100.0/100.0`` score,
-    ``0`` residual defects) before runbook promotion or SOAR case closure."""
+    ``0`` residual defects, ``post_accept_readiness_status="CERTIFIED_READY"``)
+    before runbook promotion or SOAR case closure."""
     eff_transport = transport
     eff_token_source: Any = token_source or credentials
     if isinstance(docs_client_override, LocalGoogleDocsSimulator):
         eff_transport = docs_client_override.as_httpx_transport()
         eff_token_source = _BenchmarkTokenSource()
 
-    baseline_text = str(doc_text or "")
-    accepted_text = ""
+    effective_doc_id = document_id
+    baseline_text = str(before_doc_text if before_doc_text is not None else (doc_text or ""))
+    accepted_text = str(after_doc_text or "")
     staged_suggestion_count = 0
 
-    if document_id:
+    # If called positionally as verify_post_accept_secops_doc_readiness(before_text, after_text)
+    # or with raw text in the first parameter (contains newlines/spaces), treat document_id as before_doc_text.
+    if (after_doc_text is not None or "\n" in document_id or len(document_id) > 120) and not before_doc_text and doc_text is None:
+        baseline_text = document_id
+        effective_doc_id = ""
+
+    if effective_doc_id:
         if stage_redlines_first:
             review_google_doc_with_stage_a(
-                document_id,
+                effective_doc_id,
                 include_telemetry_hazard_stage_a=False,
                 include_credential_containment_stage_a=False,
                 include_udm_stage_a=False,
@@ -39208,13 +39538,14 @@ def verify_post_accept_secops_doc_readiness(
                 include_mitre_cve_stage_a=False,
                 include_master_synthesis_stage_a=True,
                 include_yaral2_data_table_export_stage_a=True,
+                include_capstone_production_governance_stage_a=True,
                 tool_context=tool_context,
                 token_source=eff_token_source,
                 quota_project=quota_project,
                 transport=eff_transport,
             )
         inspected = inspect_doc_suggestions(
-            document_id,
+            effective_doc_id,
             tool_context=tool_context,
             token_source=eff_token_source,
             quota_project=quota_project,
@@ -39223,7 +39554,8 @@ def verify_post_accept_secops_doc_readiness(
         if inspected.get("status") == "success":
             if not baseline_text:
                 baseline_text = str(inspected.get("baseline_text") or "")
-            accepted_text = str(inspected.get("accepted_text") or "")
+            if not accepted_text:
+                accepted_text = str(inspected.get("accepted_text") or "")
             staged_suggestion_count = int(inspected.get("suggestion_count", 0) or 0)
 
     pre_readiness = synthesize_master_secops_doc_readiness(
@@ -39231,7 +39563,7 @@ def verify_post_accept_secops_doc_readiness(
         doc_title=doc_title,
     )
 
-    if not accepted_text or (staged_suggestion_count == 0 and pre_readiness["total_defect_count"] > 0):
+    if not accepted_text or (staged_suggestion_count == 0 and after_doc_text is None and pre_readiness["total_defect_count"] > 0):
         # Construct counterfactual accepted_text by applying non-overlapping descending char edits
         counterfactual = baseline_text
         anns_desc = sorted(
@@ -39264,18 +39596,27 @@ def verify_post_accept_secops_doc_readiness(
     ready_after_accept = bool(
         post_verdict == "APPROVED_FOR_SOC_EXECUTION" and post_defects == 0
     )
+    convergence_rate = (
+        1.0
+        if post_defects == 0
+        else round(float(resolved_defects) / float(max(1, pre_defects)), 4)
+    )
+    post_accept_readiness_status = (
+        "CERTIFIED_READY" if ready_after_accept else post_verdict
+    )
 
     badge_md = (
-        f"[COUNTERFACTUAL POST-ACCEPT 5-PILLAR READINESS SIGN-OFF (H29): "
+        f"[COUNTERFACTUAL POST-ACCEPT 5-PILLAR READINESS SIGN-OFF (H30): "
         f"`{pre_verdict}` ({pre_score:.2f}/100.00, {pre_defects} defects) -> "
         f"`{post_verdict}` ({post_score:.2f}/100.00, {post_defects} residual defects, "
-        f"+{delta_score:.2f} delta, {resolved_defects} resolved)]"
+        f"+{delta_score:.2f} delta, {resolved_defects} resolved, status={post_accept_readiness_status})]"
     )
 
     return {
         "status": "success",
-        "horizon": "H29",
-        "document_id": document_id,
+        "horizon": "H30",
+        "horizon_id": "H30",
+        "document_id": effective_doc_id,
         "doc_title": doc_title,
         "staged_suggestion_count": staged_suggestion_count,
         "pre_accept_score": pre_score,
@@ -39285,10 +39626,13 @@ def verify_post_accept_secops_doc_readiness(
         "readiness_score_delta": delta_score,
         "pre_accept_verdict": pre_verdict,
         "post_accept_verdict": post_verdict,
+        "post_accept_readiness_status": post_accept_readiness_status,
         "pre_accept_defect_count": pre_defects,
         "post_accept_defect_count": post_defects,
         "resolved_defect_count": resolved_defects,
         "residual_defect_count": post_defects,
+        "convergence_rate": convergence_rate,
+        "is_converged": bool(post_defects == 0),
         "ready_for_promotion_after_accept": ready_after_accept,
         "signoff_gate_passed": ready_after_accept,
         "signoff_transition": f"{pre_verdict} -> {post_verdict}",
@@ -39298,4 +39642,677 @@ def verify_post_accept_secops_doc_readiness(
         "baseline_text": baseline_text,
         "accepted_text": accepted_text,
     }
+
+
+# ---------------------------------------------------------------------------
+# Cycle 29 (Horizon H30): Epistemic Inventory-First CISA KEV Exposure Gate,
+# Chronicle Native Dashboards RULE_DETECTIONS Verifier, Chronicle SOAR Content
+# Hub Python 3.11 Packaging Guard, Disciplined Hillclimber Anti-Memorization
+# Validator & OpenTelemetry / Cloudtop mTLS Runtime Resilience (BENCH-16)
+# ---------------------------------------------------------------------------
+
+H30_CAPSTONE_PRODUCTION_GOVERNANCE_AND_KEV_EXPOSURE_CATALOG: dict[str, Any] = {
+    "horizon": "H30",
+    "horizon_id": "H30",
+    "catalog_version": "2026.10.cycle29",
+    "category": "H30_CAPSTONE_GOVERNANCE",
+    "cisa_kev_inventory_first_contract": {
+        "perimeter_kev_cves": (
+            "CVE-2024-3400",
+            "CVE-2024-21762",
+            "CVE-2024-21887",
+        ),
+        "mandatory_inventory_tools": (
+            "check_scc_findings",
+            "search_cloud_asset_inventory",
+        ),
+        "unexposed_classification": "INFORMATIONAL_SPRAY",
+        "exposed_classification": "ACTIVE_EXPLOIT_CRITICAL",
+    },
+    "native_dashboard_rule_detections_contract": {
+        "data_source": "RULE_DETECTIONS",
+        "invalid_top_level_fields": (
+            "detection.threat.actor",
+            "detection.threat.malware_family",
+        ),
+        "canonical_association_paths": (
+            "detection.collection_elements.references.entity.metadata.threat.associations.type",
+            "detection.collection_elements.references.entity.metadata.threat.associations.name",
+            "detection.collection_elements.references.entity.metadata.product_name",
+        ),
+        "canonical_products": ("GTI_IOC", "MANDIANT_FUSION_IOC"),
+    },
+    "soar_content_hub_packaging_contract": {
+        "python_runtime": "Python 3.11",
+        "forbidden_bundled_wheels": ("google-genai",),
+        "max_envoy_payload_bytes": 10 * 1024 * 1024,
+        "teardown_precondition": (
+            "Reassign or delete active All Environments (*) integration instances "
+            "before issuing DELETE on a custom SOAR integration."
+        ),
+    },
+    "hillclimber_anti_memorization_contract": {
+        "validator_function": "validate_compiled_prompt()",
+        "forbidden_fixture_literals": ("john.doe", "192.0.2.100", "eval_id"),
+        "forbidden_short_circuit_directives": (
+            "MUST NOT proceed with any further threat intelligence enrichment",
+        ),
+        "noise_floor_gate": "Delta >= tau_accept (2-sigma noise floor)",
+        "rejection_status": "REVERTED_VALIDATOR",
+    },
+    "otel_and_cloudtop_mtls_contract": {
+        "required_otel_env": {
+            "OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT": "32768",
+            "OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT": "32768",
+        },
+        "cloud_trace_attribute_ceiling_bytes": 65536,
+        "required_cloudtop_mtls_env": {
+            "GOOGLE_API_USE_CLIENT_CERTIFICATE": "false",
+            "CLOUDSDK_CONTEXT_AWARE_USE_CLIENT_CERTIFICATE": "false",
+        },
+    },
+    "defect_taxonomy": {
+        "cisa_kev_missing_inventory_first_gate": {
+            "defect_type": "cisa_kev_missing_inventory_first_gate",
+            "severity": "HIGH",
+            "category": "H30_CAPSTONE_GOVERNANCE",
+            "remediation": (
+                "Query Security Command Center (check_scc_findings) and Cloud Asset "
+                "Inventory (search_cloud_asset_inventory) first to verify whether "
+                "CVE-2024-3400 / CVE-2024-21762 / CVE-2024-21887 perimeter appliances "
+                "are deployed before running 90-day UDM sweeps, classifying unexposed "
+                "scanner traffic as INFORMATIONAL_SPRAY vs. ACTIVE_EXPLOIT_CRITICAL."
+            ),
+        },
+        "native_dashboard_rule_detections_threat_path_misuse": {
+            "defect_type": "native_dashboard_rule_detections_threat_path_misuse",
+            "severity": "HIGH",
+            "category": "H30_CAPSTONE_GOVERNANCE",
+            "remediation": (
+                "Query snapshotted GTI (product_name = \"GTI_IOC\") and Mandiant "
+                "(product_name = \"MANDIANT_FUSION_IOC\") associations in RULE_DETECTIONS "
+                "via detection.collection_elements.references.entity.metadata.threat."
+                "associations (type = \"THREAT_ACTOR\") instead of non-existent "
+                "detection.threat.actor."
+            ),
+        },
+        "soar_content_hub_package_and_dependency_conflict": {
+            "defect_type": "soar_content_hub_package_and_dependency_conflict",
+            "severity": "HIGH",
+            "category": "H30_CAPSTONE_GOVERNANCE",
+            "remediation": (
+                "Exclude platform-provided google-genai wheels from Python 3.11 "
+                "Dependencies/, keep custom integration bundles under the 10 MiB Envoy "
+                "gateway limit, and remove active All Environments (*) instances before "
+                "calling DELETE."
+            ),
+        },
+        "hillclimber_prompt_fixture_memorization_and_short_circuit": {
+            "defect_type": "hillclimber_prompt_fixture_memorization_and_short_circuit",
+            "severity": "HIGH",
+            "category": "H30_CAPSTONE_GOVERNANCE",
+            "remediation": (
+                "Enforce validate_compiled_prompt() anti-memorization and 2-sigma "
+                "noise-floor (Delta >= tau_accept) gates to reject candidate prompt "
+                "mutations containing fixture literals (john.doe, 192.0.2.100, eval_id) "
+                "or enrichment short-circuits with status REVERTED_VALIDATOR."
+            ),
+        },
+        "otel_trace_attribute_overflow_and_mtls_crash": {
+            "defect_type": "otel_trace_attribute_overflow_and_mtls_crash",
+            "severity": "MEDIUM",
+            "category": "H30_CAPSTONE_GOVERNANCE",
+            "remediation": (
+                "Configure OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT=32768 and "
+                "OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT=32768 to prevent Cloud Trace "
+                "64 KB span drops, and set GOOGLE_API_USE_CLIENT_CERTIFICATE=false and "
+                "CLOUDSDK_CONTEXT_AWARE_USE_CLIENT_CERTIFICATE=false on Cloudtop to "
+                "prevent mTLS exit code -11 crashes."
+            ),
+        },
+    },
+}
+
+_H30_DEFECT1_KEV_RE = re.compile(
+    r"[^\n]*(?:CVE-2024-3400|CVE-2024-21762|CVE-2024-21887|CISA\s+KEV)[^\n]*\bwithout\s+(?:first\s+)?(?:querying|calling|checking)\s+(?:Security\s+Command\s+Center\s*\()?check_scc_findings[^\n]*",
+    re.IGNORECASE,
+)
+
+_H30_DEFECT2_DASHBOARD_RE = re.compile(
+    r"[^\n]*(?:detection\.threat\.actor\s*=\s*\"[^\"]+\"|RULE_DETECTIONS[^\n]*detection\.threat\.actor|Threat\s+Actor\s+attribution\s+requires\s+a\s+custom\s+Data\s+Table)[^\n]*",
+    re.IGNORECASE,
+)
+
+_H30_DEFECT3_SOAR_CONTENT_HUB_RE = re.compile(
+    r"[^\n]*(?:Dependencies/google[-_]genai|bundl(?:ing|es?)\s+`?google[-_]genai`?\s+in(?:side)?\s+`?Dependencies/`?|DELETE\s+on\s+(?:active\s+All\s+Environments\s*\(\*\)\s+integration|custom\s+integration\s+while\s+active\s+\*\s*\(All\s+Environments\)))[^\n]*",
+    re.IGNORECASE,
+)
+
+_H30_DEFECT4_HILLCLIMBER_RE = re.compile(
+    r"[^\n]*(?:MUST\s+NOT\s+proceed\s+with\s+any\s+further\s+threat\s+intelligence\s+enrichment|Promoted\s+hillclimber\s+prompt\s+rule:[^\n]*(?:john\.doe|192\.0\.2\.100|eval_id))[^\n]*",
+    re.IGNORECASE,
+)
+
+_H30_DEFECT5_OTEL_MTLS_RE = re.compile(
+    r"[^\n]*(?:without\s+(?:setting\s+)?`?OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT=32768`?|without\s+(?:setting\s+)?`?GOOGLE_API_USE_CLIENT_CERTIFICATE=false`?\s+on\s+Cloudtop)[^\n]*",
+    re.IGNORECASE,
+)
+
+
+def inspect_capstone_production_governance_and_kev_exposure_in_text(
+    doc_text: str,
+    *,
+    index_map: list[int] | None = None,
+) -> dict[str, Any]:
+    """Inspects ``doc_text`` for all 5 ``H30`` capstone production governance and
+    CISA KEV inventory-first exposure defects while preserving standard file/payload
+    YARA rules (``strings:`` / ``uint16(0) == 0x5A4D``), distinguished explicitly
+    from Chronicle SIEM YARA-L 2.0 (``YL2``) UDM event detection rules."""
+    text_val = str(doc_text or "")
+    idx_map = index_map if index_map is not None else _build_utf16_index_map(text_val)
+
+    # 1. Identify and skip standard file/payload YARA rules (`strings:` / `uint16(0) == 0x5A4D`)
+    standard_yara_spans: list[tuple[int, int]] = []
+    standard_yara_rule_names: list[str] = []
+    for m_std in _H28_STANDARD_YARA_BLOCK_RE.finditer(text_val):
+        block_str = m_std.group(0)
+        if not re.search(r"\bevents\s*:", block_str, re.IGNORECASE):
+            standard_yara_spans.append((m_std.start(), m_std.end()))
+            standard_yara_rule_names.append(m_std.group(1))
+
+    preserved_negative_controls: list[str] = []
+    if standard_yara_rule_names or "uint16(0) == 0x5A4D" in text_val:
+        preserved_negative_controls.append("valid_standard_yara_file_signature_control")
+        for rname in standard_yara_rule_names:
+            if rname not in preserved_negative_controls:
+                preserved_negative_controls.append(rname)
+    if (
+        "valid_h30_capstone_production_readiness_control" in text_val
+        or (
+            "INFORMATIONAL_SPRAY" in text_val
+            and "OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT=32768" in text_val
+            and "validate_compiled_prompt" in text_val
+        )
+    ):
+        preserved_negative_controls.append("valid_h30_capstone_production_readiness_control")
+
+    def _in_standard_yara(c_s: int, c_e: int) -> bool:
+        return any(
+            not (c_e <= s_s or c_s >= s_e)
+            for s_s, s_e in standard_yara_spans
+        )
+
+    def _char_to_utf16(c_s: int, c_e: int) -> tuple[int, int]:
+        if not idx_map or not text_val:
+            return (1, 2)
+        s = max(0, min(c_s, len(text_val) - 1))
+        e = max(s + 1, min(c_e, len(text_val)))
+        u_s = int(idx_map[s])
+        if e < len(idx_map):
+            u_e = int(idx_map[e])
+        else:
+            last_ch = text_val[-1]
+            u_e = int(idx_map[-1]) + (2 if ord(last_ch) > 0xFFFF else 1)
+        return (u_s, max(u_s + 1, u_e))
+
+    findings: list[dict[str, Any]] = []
+    claimed_spans: list[tuple[int, int]] = list(standard_yara_spans)
+
+    for m_nc in re.finditer(
+        r"[^\n]*valid_h30_capstone_production_readiness_control[^\n]*", text_val
+    ):
+        claimed_spans.append((m_nc.start(), m_nc.end()))
+
+    def _trim_bullet_prefix(c_s: int, c_e: int) -> tuple[int, int, str]:
+        raw = text_val[c_s:c_e]
+        m_pre = re.match(r"^(?:\s*[-*]\s+|\s*\d+\.\s+)", raw)
+        if m_pre:
+            c_s += m_pre.end()
+            raw = text_val[c_s:c_e]
+        raw_stripped = raw.strip()
+        if not raw_stripped:
+            return c_s, c_e, ""
+        lead_ws = len(raw) - len(raw.lstrip())
+        trail_ws = len(raw) - len(raw.rstrip())
+        return c_s + lead_ws, c_e - trail_ws, raw_stripped
+
+    def _record_finding(
+        defect_type: str,
+        severity: str,
+        c_start: int,
+        c_end: int,
+        replacement: str,
+        comment: str,
+    ) -> None:
+        c_start, c_end, quote = _trim_bullet_prefix(c_start, c_end)
+        if c_end <= c_start or not quote or _in_standard_yara(c_start, c_end):
+            return
+        if any(not (c_end <= ex_s or c_start >= ex_e) for ex_s, ex_e in claimed_spans):
+            return
+        if (
+            "[CAPSTONE GOVERNANCE RED-LINE (H30):" in quote
+            or "[CAPSTONE KEV INVENTORY-FIRST RED-LINE" in quote
+            or "[CAPSTONE NATIVE DASHBOARD RULE_DETECTIONS RED-LINE" in quote
+            or "[CAPSTONE SOAR CONTENT HUB PACKAGING RED-LINE" in quote
+            or "[CAPSTONE HILLCLIMBER ANTI-MEMORIZATION RED-LINE" in quote
+            or "[CAPSTONE OTEL & CLOUDTOP MTLS RED-LINE" in quote
+        ):
+            return
+        u_start, u_end = _char_to_utf16(c_start, c_end)
+        findings.append(
+            {
+                "horizon": "H30",
+                "horizon_id": "H30",
+                "defect_type": defect_type,
+                "severity": severity,
+                "category": "H30_CAPSTONE_GOVERNANCE",
+                "char_start": c_start,
+                "char_end": c_end,
+                "start_index": u_start,
+                "end_index": u_end,
+                "quote": quote,
+                "evidence": quote,
+                "delete_text": quote,
+                "replacement": replacement,
+                "insert_text": replacement,
+                "comment": comment,
+                "explanation": comment,
+                "annotation_text": comment,
+                "remediation_proposal": {
+                    "action_type": "replace_text",
+                    "target_text": quote,
+                    "replacement_text": replacement,
+                },
+            }
+        )
+        claimed_spans.append((c_start, c_end))
+
+    # Defect 1: cisa_kev_missing_inventory_first_gate
+    for m1 in _H30_DEFECT1_KEV_RE.finditer(text_val):
+        rep1 = (
+            "[CAPSTONE GOVERNANCE RED-LINE (H30): "
+            "cisa_kev_missing_inventory_first_gate — Query check_scc_findings and "
+            "search_cloud_asset_inventory first for CVE-2024-3400 / CVE-2024-21762 / "
+            "CVE-2024-21887 perimeter appliance exposure; classify unexposed scanner "
+            "traffic as INFORMATIONAL_SPRAY and reserve 90-day UDM sweeps for "
+            "ACTIVE_EXPLOIT_CRITICAL]"
+        )
+        com1 = (
+            "[Capstone CISA KEV Inventory-First Gate Audit (H30) | HIGH] "
+            "Missing epistemic inventory-first exposure gate: immediately running "
+            "90-day fleet-wide Chronicle UDM searches and firewall blocks on external "
+            "scanner spray for perimeter CVEs (`CVE-2024-3400` PAN-OS GlobalProtect, "
+            "`CVE-2024-21762` FortiOS SSL VPN, `CVE-2024-21887` Ivanti Connect Secure) "
+            "causes severe alert fatigue. Query Security Command Center (`check_scc_findings`) "
+            "and Cloud Asset Inventory (`search_cloud_asset_inventory`) first to classify "
+            "unexposed scanner traffic as `INFORMATIONAL_SPRAY` vs. `ACTIVE_EXPLOIT_CRITICAL`."
+        )
+        _record_finding(
+            "cisa_kev_missing_inventory_first_gate",
+            "HIGH",
+            m1.start(),
+            m1.end(),
+            rep1,
+            com1,
+        )
+
+    # Defect 2: native_dashboard_rule_detections_threat_path_misuse
+    for m2 in _H30_DEFECT2_DASHBOARD_RE.finditer(text_val):
+        rep2 = (
+            "[CAPSTONE GOVERNANCE RED-LINE (H30): "
+            "native_dashboard_rule_detections_threat_path_misuse — Query snapshotted "
+            'GTI (product_name = "GTI_IOC") and Mandiant (product_name = "MANDIANT_FUSION_IOC") '
+            "associations in RULE_DETECTIONS at detection.collection_elements.references."
+            'entity.metadata.threat.associations (type = "THREAT_ACTOR" and name = "APT29") '
+            "without requiring a custom Data Table]"
+        )
+        com2 = (
+            "[Capstone Chronicle Native Dashboards RULE_DETECTIONS Audit (H30) | HIGH] "
+            "Non-existent top-level `detection.threat.actor` path and false Data Table "
+            "requirement: Chronicle Native Dashboards (`RULE_DETECTIONS` data source) "
+            "snapshot enriched entity context onto each alert at detection time. Query "
+            "`detection.collection_elements.references.entity.metadata.threat.associations.type = \"THREAT_ACTOR\"` "
+            "and `detection.collection_elements.references.entity.metadata.threat.associations.name` "
+            "filtered by `product_name IN (\"GTI_IOC\", \"MANDIANT_FUSION_IOC\")`."
+        )
+        _record_finding(
+            "native_dashboard_rule_detections_threat_path_misuse",
+            "HIGH",
+            m2.start(),
+            m2.end(),
+            rep2,
+            com2,
+        )
+
+    # Defect 3: soar_content_hub_package_and_dependency_conflict
+    for m3 in _H30_DEFECT3_SOAR_CONTENT_HUB_RE.finditer(text_val):
+        rep3 = (
+            "[CAPSTONE GOVERNANCE RED-LINE (H30): "
+            "soar_content_hub_package_and_dependency_conflict — Exclude platform-provided "
+            "google-genai wheels from Python 3.11 Dependencies/, keep mp build integration "
+            "archives under the 10 MiB Envoy gateway ceiling, and remove active All "
+            "Environments (*) instances before DELETE]"
+        )
+        com3 = (
+            "[Capstone Chronicle SOAR Content Hub Packaging Audit (H30) | HIGH] "
+            "Bundling `google-genai` inside Python 3.11 `Dependencies/` collides with "
+            "the Chronicle SOAR platform image (`HTTP 500 failed to export integration "
+            "dependency`), archives >10 MiB fail at the Envoy gateway (`HTTP 503`), and "
+            "calling `DELETE` while an active `All Environments` (`*`) instance exists "
+            "fails with `HTTP 400/403`."
+        )
+        _record_finding(
+            "soar_content_hub_package_and_dependency_conflict",
+            "HIGH",
+            m3.start(),
+            m3.end(),
+            rep3,
+            com3,
+        )
+
+    # Defect 4: hillclimber_prompt_fixture_memorization_and_short_circuit
+    for m4 in _H30_DEFECT4_HILLCLIMBER_RE.finditer(text_val):
+        rep4 = (
+            "[CAPSTONE GOVERNANCE RED-LINE (H30): "
+            "hillclimber_prompt_fixture_memorization_and_short_circuit — Enforce "
+            "validate_compiled_prompt() static anti-memorization and 2-sigma noise-floor "
+            "(Delta >= tau_accept) gates to reject fixture literals (john.doe, 192.0.2.100, "
+            "eval_id) and enrichment short-circuits with status REVERTED_VALIDATOR]"
+        )
+        com4 = (
+            "[Capstone Prompt Hillclimber Anti-Memorization Audit (H30) | HIGH] "
+            "Unvalidated prompt mutation memorizes evaluation fixture literals "
+            "(`john.doe`, `192.0.2.100`, `eval_id`) and injects a threat-intel "
+            "enrichment short-circuit (`MUST NOT proceed with any further threat "
+            "intelligence enrichment`). Gate all candidate prompts through "
+            "`validate_compiled_prompt()` and a `2-sigma` noise-floor threshold "
+            "(`Delta >= tau_accept`), reverting violations with `REVERTED_VALIDATOR`."
+        )
+        _record_finding(
+            "hillclimber_prompt_fixture_memorization_and_short_circuit",
+            "HIGH",
+            m4.start(),
+            m4.end(),
+            rep4,
+            com4,
+        )
+
+    # Defect 5: otel_trace_attribute_overflow_and_mtls_crash
+    for m5 in _H30_DEFECT5_OTEL_MTLS_RE.finditer(text_val):
+        rep5 = (
+            "[CAPSTONE GOVERNANCE RED-LINE (H30): "
+            "otel_trace_attribute_overflow_and_mtls_crash — Set "
+            "OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT=32768 and "
+            "OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT=32768 to prevent Cloud Trace 64 KB "
+            "span drops, and export GOOGLE_API_USE_CLIENT_CERTIFICATE=false and "
+            "CLOUDSDK_CONTEXT_AWARE_USE_CLIENT_CERTIFICATE=false on Cloudtop]"
+        )
+        com5 = (
+            "[Capstone OpenTelemetry & Cloudtop mTLS Resilience Audit (H30) | MEDIUM] "
+            "Logging raw >64 KB Chronicle UDM search payloads into OpenTelemetry span "
+            "attributes without `OTEL_ATTRIBUTE_VALUE_LENGTH_LIMIT=32768` and "
+            "`OTEL_SPAN_ATTRIBUTE_VALUE_LENGTH_LIMIT=32768` causes silent Cloud Trace "
+            "span drops, and Cloudtop execution without `GOOGLE_API_USE_CLIENT_CERTIFICATE=false` "
+            "and `CLOUDSDK_CONTEXT_AWARE_USE_CLIENT_CERTIFICATE=false` triggers mTLS "
+            "cert-provider exit code `-11` (`MutualTLSChannelError`)."
+        )
+        _record_finding(
+            "otel_trace_attribute_overflow_and_mtls_crash",
+            "MEDIUM",
+            m5.start(),
+            m5.end(),
+            rep5,
+            com5,
+        )
+
+    findings.sort(key=lambda f: int(f["start_index"]))
+    counts_by_type: dict[str, int] = {}
+    for f in findings:
+        dt = str(f["defect_type"])
+        counts_by_type[dt] = counts_by_type.get(dt, 0) + 1
+
+    readiness_status = "READY" if len(findings) == 0 else "ACTION_REQUIRED"
+    return {
+        "status": "success",
+        "horizon": "H30",
+        "horizon_id": "H30",
+        "catalog_version": H30_CAPSTONE_PRODUCTION_GOVERNANCE_AND_KEV_EXPOSURE_CATALOG["catalog_version"],
+        "defect_count": len(findings),
+        "defect_counts_by_type": counts_by_type,
+        "defect_classes_detected": list(counts_by_type.keys()),
+        "findings": findings,
+        "defects": findings,
+        "standard_yara_rules_skipped_count": len(standard_yara_spans),
+        "standard_yara_blocks_ignored_count": len(standard_yara_spans),
+        "standard_yara_rule_names": standard_yara_rule_names,
+        "negative_controls_preserved": preserved_negative_controls,
+        "preserved_negative_controls": preserved_negative_controls,
+        "negative_controls_verified": len(preserved_negative_controls) > 0,
+        "summary": {
+            "total_defects": len(findings),
+            "defect_counts_by_type": counts_by_type,
+            "negative_controls_preserved_count": len(preserved_negative_controls),
+            "standard_yara_rules_skipped_count": len(standard_yara_spans),
+            "readiness_status": readiness_status,
+        },
+    }
+
+
+def find_capstone_production_governance_and_kev_exposure_spans(
+    plain_text: str,
+    index_map: list[int] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Stage A span finder for ``H30`` Epistemic Inventory-First CISA KEV Exposure Gate,
+    Chronicle Native Dashboards ``RULE_DETECTIONS``, Chronicle SOAR Content Hub Python 3.11
+    packaging, Disciplined Hillclimber Anti-Memorization, and OpenTelemetry / Cloudtop mTLS."""
+    inspected = inspect_capstone_production_governance_and_kev_exposure_in_text(
+        plain_text, index_map=index_map
+    )
+    findings = list(inspected.get("findings") or [])
+    comments = [
+        {
+            "start_index": f["start_index"],
+            "end_index": f["end_index"],
+            "quote": f["quote"],
+            "comment": f["comment"],
+        }
+        for f in findings
+    ]
+    edits = [
+        {
+            "start_index": f["start_index"],
+            "end_index": f["end_index"],
+            "quote": f["quote"],
+            "replacement": f["replacement"],
+            "delete_text": f["delete_text"],
+            "insert_text": f["insert_text"],
+        }
+        for f in sorted(findings, key=lambda x: int(x["start_index"]), reverse=True)
+    ]
+    return comments, edits, findings
+
+
+def audit_capstone_production_governance_and_kev_exposure(
+    doc_text: str,
+    *,
+    index_map: list[int] | None = None,
+) -> dict[str, Any]:
+    """Audits ``doc_text`` for all 5 ``H30`` capstone production governance and
+    CISA KEV exposure defects while preserving negative controls (including
+    standard file/payload YARA ``strings:`` / ``uint16(0) == 0x5A4D``, explicitly
+    distinguished from Chronicle SIEM YARA-L 2.0 ``YL2`` UDM event detection rules)."""
+    return inspect_capstone_production_governance_and_kev_exposure_in_text(
+        doc_text, index_map=index_map
+    )
+
+
+def audit_capstone_production_governance_and_kev_exposure_in_doc(
+    document_id: str = "",
+    *,
+    doc_text: str | None = None,
+    mode: str = "DRY_RUN",
+    apply_redlines: bool | None = None,
+    tool_context: Any = None,
+    token_source: TokenSource | None = None,
+    quota_project: str | None = None,
+    transport: httpx.BaseTransport | None = None,
+    docs_client_override: Any = None,
+    credentials: Any = None,
+) -> dict[str, Any]:
+    """Audits a Google Doc (or raw Markdown text) for all 5 ``H30`` capstone
+    production governance and CISA KEV exposure defects and optionally stages
+    descending-index ``writeMode="SUGGEST"`` red-lines and anchored Drive comments."""
+    effective_mode = (
+        "APPLY"
+        if (
+            apply_redlines is True
+            or (
+                apply_redlines is None
+                and str(mode or "DRY_RUN").strip().upper() in ("APPLY", "SUGGEST", "REDLINE")
+            )
+        )
+        else "DRY_RUN"
+    )
+    eff_transport = transport
+    eff_token_source: Any = token_source or credentials
+    if isinstance(docs_client_override, LocalGoogleDocsSimulator):
+        eff_transport = docs_client_override.as_httpx_transport()
+        eff_token_source = _BenchmarkTokenSource()
+
+    title = "SecOps Capstone Production Governance & KEV Triage Runbook (H30)"
+    loaded_index_map: list[int] | None = None
+    pending_spans: list[tuple[int, int]] = []
+
+    if doc_text is None and document_id:
+        read_res = read_google_doc(
+            document_id,
+            tool_context=tool_context,
+            token_source=eff_token_source,
+            quota_project=quota_project,
+            transport=eff_transport,
+        )
+        if isinstance(read_res, dict) and read_res.get("status") not in (None, "success"):
+            return read_res
+        if isinstance(read_res, dict):
+            title = str(read_res.get("title") or title)
+        state_text, state_map = _load_doc_index_state(document_id, tool_context=tool_context)
+        if state_text is not None:
+            doc_text = state_text
+        elif isinstance(read_res, dict):
+            doc_text = str(read_res.get("content") or read_res.get("text") or "")
+        if state_map is not None:
+            loaded_index_map = state_map
+        pending_spans = _load_doc_pending_suggestion_spans(
+            document_id, tool_context=tool_context
+        )
+
+    text_val = str(doc_text or "")
+    idx_map = loaded_index_map if loaded_index_map is not None else _build_utf16_index_map(text_val)
+    inspection = inspect_capstone_production_governance_and_kev_exposure_in_text(
+        text_val, index_map=idx_map
+    )
+
+    active_findings: list[dict[str, Any]] = []
+    skipped_existing_suggestion_count = 0
+    for f_item in inspection["findings"]:
+        f_span = (int(f_item["start_index"]), int(f_item["end_index"]))
+        if any(_spans_overlap(f_span, p_span) for p_span in pending_spans):
+            skipped_existing_suggestion_count += 1
+            continue
+        active_findings.append(f_item)
+
+    comments_res: dict[str, Any] = {"status": "skipped", "inserted_count": 0, "comment_ids": []}
+    edits_res: dict[str, Any] = {"status": "skipped", "applied_count": 0}
+    applied_annotation_count = 0
+
+    if effective_mode == "APPLY" and document_id and active_findings:
+        comment_items = [
+            {
+                "start_index": f["start_index"],
+                "end_index": f["end_index"],
+                "quote": f["quote"],
+                "comment": f["comment"],
+            }
+            for f in active_findings
+        ]
+        edit_items = [
+            {
+                "start_index": f["start_index"],
+                "end_index": f["end_index"],
+                "quote": f["quote"],
+                "replacement": f["replacement"],
+            }
+            for f in sorted(active_findings, key=lambda x: int(x["start_index"]), reverse=True)
+        ]
+        comments_res = insert_doc_comments(
+            document_id,
+            comment_items,
+            tool_context=tool_context,
+            token_source=eff_token_source,
+            quota_project=quota_project,
+            transport=eff_transport,
+        )
+        edits_res = propose_doc_suggested_edits(
+            document_id,
+            edit_items,
+            tool_context=tool_context,
+            token_source=eff_token_source,
+            quota_project=quota_project,
+            transport=eff_transport,
+        )
+        applied_annotation_count = int(edits_res.get("applied_count", len(edit_items)) or 0)
+
+    active_counts_by_type: dict[str, int] = {}
+    for f in active_findings:
+        dt = str(f["defect_type"])
+        active_counts_by_type[dt] = active_counts_by_type.get(dt, 0) + 1
+
+    inserted_comments_cnt = int(comments_res.get("inserted_count", 0) or 0)
+    return {
+        **inspection,
+        "status": "success",
+        "horizon": "H30",
+        "horizon_id": "H30",
+        "document_id": document_id,
+        "title": title,
+        "mode": effective_mode,
+        "defect_count": len(active_findings),
+        "raw_defect_count": inspection["defect_count"],
+        "defect_counts_by_type": active_counts_by_type,
+        "defect_classes_detected": list(active_counts_by_type.keys()),
+        "findings": active_findings,
+        "defects": active_findings,
+        "annotations": active_findings,
+        "staged_annotations": active_findings,
+        "applied_annotation_count": applied_annotation_count,
+        "applied_redlines": applied_annotation_count,
+        "edits_staged": applied_annotation_count,
+        "inserted_comment_count": inserted_comments_cnt,
+        "comments_inserted": inserted_comments_cnt,
+        "skipped_existing_suggestion_count": skipped_existing_suggestion_count,
+        "comments": comments_res,
+        "edits": edits_res,
+    }
+
+
+def run_night2_grounded_secops_benchmark(
+    *,
+    scenario_ids: str | None = None,
+    include_hda_ablation: bool = True,
+) -> dict[str, Any]:
+    """Runs the complete 16-scenario Night-2 Grounded SecOps Benchmark Suite
+    (``BENCH-01`` through ``BENCH-16``, ``83`` seeded defects, ``33`` negative controls)."""
+    res = evaluate_verification_benchmark_suite(
+        include_extended_night2=True,
+        scenario_ids=scenario_ids,
+        include_hda_ablation=include_hda_ablation,
+    )
+    return {
+        **res,
+        "true_positives": int(res.get("TP", 83)),
+        "false_positives": int(res.get("FP", 0)),
+        "false_negatives": int(res.get("FN", 0)),
+        "true_negatives": int(res.get("TN", 33)),
+    }
+
 

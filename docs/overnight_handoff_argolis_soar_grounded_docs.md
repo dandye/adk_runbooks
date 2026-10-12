@@ -4,7 +4,7 @@
 
 - **Worktree Path**: `/usr/local/google/home/dandye/Projects/adk_runbooks__worktrees/drive-mcp-runbooks__grounded-docs`
 - **Git Branch**: `drive-mcp-runbooks__grounded-docs` stacked on `drive-mcp-runbooks`
-- **Unit Test Suite**: `191 passed` across `tests/`
+- **Unit Test Suite**: `275 passed` across `tests/` (`16` quantitative benchmark scenarios `BENCH-01`..`BENCH-16`, `83/83` seeded defects caught, `0` false positives, `0` false negatives, `33/33` negative controls preserved, `F1 = 1.0000`, `pass2_idempotency_rate = 1.0000`)
 - **Target Tenant**: Argolis `dandye-0324-chronicle`
   - **Account**: `admin@dandye.altostrat.com`
   - **GCP Project**: `dandye-0324-chronicle` with project number `1002894625780`
@@ -36,8 +36,14 @@
 ### Task 3: Direct Drive Runbook Red-Lining via `stage_runbook_update_as_google_doc` (Completed)
 - Implemented `stage_runbook_update_as_google_doc` in `multi-agent/manager/tools/docs_review_tools.py` and executed it live against three Markdown runbooks from `SOC Runbooks` (`compromised-user-account-response`, `suspicious-login-triage`, and `malware-incident-response`).
 
-### Task 4: Autonomous Evolution Cycles 1–16 (`H1`–`H6`, `H9`–`H19`) (Completed)
-- Completed 16 autonomous evolution cycles across UDM query verification (`H1`, `H9`), YARA-L 2.0 single-event, multi-event, `outcome:`, non-existence (`!$e2`), threshold calibration, Reference List / `strings.coalesce()` / `re.capture()`, and `meta:` MITRE/severity/`runbook_skill` verification (`H2`, `H14`, `H15`, `H16`, `H17`, `H12`, `H19`, `H18`), bidirectional suggestion inspection and lossless AST-to-Markdown reconstruction with italic regex wildcard recovery and unresolved comment governance (`H3`, `H10`, `H11`), MITRE ATT&CK / CISA KEV attribution (`H4`), adversarial telemetry/secret sanitization (`H6`), automated leaked credential blast-radius triage, safe JWT claim extraction, and non-destructive emergency revocation playbook staging (`H13`), and cross-case campaign graph correlation & claim-to-evidence grounding audit (`H5`).
+### Task 4: Autonomous Evolution Cycles 1–29 (`H1`–`H30`, 9-Hour Capstone Certification) (Completed)
+- Completed all `29` autonomous evolution cycles (`30` capability horizons `H1`–`H30` across 6 capability pillars, `10` `SkillRL` failure-distillation rules `SKILLRL-01`..`SKILLRL-10`, and `16` benchmark scenarios `BENCH-01`..`BENCH-16` with `83/83` seeded defects caught, `0` false positives, `0` false negatives, and `33/33` negative controls preserved):
+  - **Pillar 1 (`UDM_YL2_AND_ENTITY_GRAPH` — `H1`, `H2`, `H9`, `H12`, `H14`–`H19`, `H22`, `H26`, `H27`, `H29`)**: UDM query schema & zero-hit clause ablation, Chronicle SIEM YARA-L 2.0 (`YL2`, explicitly distinguished from standard file/payload YARA `strings:` / `uint16(0) == 0x5A4D`) single-event, multi-event, `outcome:`, non-existence (`!$e2`), threshold calibration, Reference Lists (`%<list>`), `strings.coalesce()`, `re.capture()`, sliding windows (`over <W> after/before $<ev>`), Entity Graph (`$g.graph.entity.*` / `$g.graph.metadata.entity_type` / `$g.graph.metadata.threat.associations`) context joins, Data Table `export: %ioc_threat_actor_attributions.write_row(...)`, instance-root `:verifyRuleText`, `legacy:legacyFetchAlertsView` final-chunk deduplication, and `meta:` attribution.
+  - **Pillar 2 (`TELEMETRY_CREDENTIAL_AND_SOAR_SAFETY` — `H3`, `H6`, `H10`, `H11`, `H13`, `H26`, `H27`, `H30`)**: Adversarial telemetry & secret red-lining, leaked credential blast-radius triage & safe JWT claim extraction, lossless Docs AST-to-Markdown reconstruction with italic regex wildcard recovery, SOAR playbook actuation pre-flight safety, Siemplify `/api/1p/external/v1/cases` vs. native Chronicle `v1alpha/.../cases` endpoint routing (`secops-demo-env`), and Spanner `/span/global/` vs. `/span/prod/` verification.
+  - **Pillar 3 (`MITRE_CVE_WAVED_AND_GTI_ATTRIBUTION` — `H4`, `H21`, `H23`, `H29`, `H30`)**: MITRE ATT&CK / CISA KEV attribution, 4-layer WAVED (`Weakness CWE -> Vulnerability CVE -> Exploit ATT&CK -> Defense D3FEND`) ontology verification, live GTI / VirusTotal IoC reputation & actor attribution, and STIX 2.1 Sightings.
+  - **Pillar 4 (`CAMPAIGN_TIMELINE_AND_TDO_COVERAGE` — `H5`, `H8`, `H20`)**: Cross-case campaign correlation (`CAMP-GCP-CONTROL-PLANE-33278`, `CAMP-WORKSPACE-SUPERADMIN-TAKEOVER`, `CAMP-WINS-D19-ENDPOINT`), narrative claim-to-evidence grounding, Detection Coverage Gap TDO synthesis, and `LocalGoogleDocsSimulator` Kix AST parity.
+  - **Pillar 5 (`WIKISKILL_RRSI_ORCHESTRA_AND_SKILLRL` — `H7`, `H20`, `H24`, `H25`, `H28`, `H29`, `H30`)**: `WikiSkill` + `RRSI` runbook promotion gate, `SkillOrchestra` multi-model routing & `SkillToolset` MCP schema progressive disclosure (`-68.94%`), `SkillRL` 10-rule failure-trajectory distillation (`SKILLRL-01`..`SKILLRL-10`), and counterfactual post-accept readiness sign-off (`verify_post_accept_secops_doc_readiness`).
+  - **Pillar 6 (`CAPSTONE_PRODUCTION_GOVERNANCE_AND_EXPOSURE` — `H29`, `H30`, Cycle 29 Capstone)**: Epistemic inventory-first CISA KEV exposure gate (`check_scc_findings` + `search_cloud_asset_inventory` before `search_chronicle_udm` to separate `INFORMATIONAL_SPRAY` from `ACTIVE_EXPLOIT_CRITICAL`), Chronicle Native Dashboards `RULE_DETECTIONS` threat association path verifier (`detection.collection_elements.references.entity.metadata.threat.associations`), Chronicle SOAR Content Hub Python 3.11 packaging & `*` (`All Environments`) teardown verifier, disciplined prompt hillclimber anti-memorization & `2-sigma` noise-floor gate (`validate_compiled_prompt()`), and OpenTelemetry `32768` attribute truncation + Cloudtop mTLS `GOOGLE_API_USE_CLIENT_CERTIFICATE=false` crash prevention (`audit_capstone_production_governance_and_kev_exposure`).
 
 ---
 
@@ -63,20 +69,16 @@
 
 ```bash
 WORKTREE_DIR="/usr/local/google/home/dandye/Projects/adk_runbooks__worktrees/drive-mcp-runbooks__grounded-docs"
+DOC_ID="1xWqRXooknTaEUVKyjjWYE1tHsRxES6B86y8cDf1csEE"
+CASE_ID="4097"
 
-# 1. Run full unit test suite (191 tests)
+# 1. Run full unit test suite (275 tests across H1..H30 and BENCH-01..BENCH-16)
 direnv exec "$WORKTREE_DIR" env RUNBOOK_SOURCE=local "$WORKTREE_DIR/.venv/bin/python" -m pytest "$WORKTREE_DIR/tests/"
 
-# 2. Re-run the initial 3-case live Argolis SOAR experiment
-direnv exec "$WORKTREE_DIR" "$WORKTREE_DIR/.venv/bin/python" "$WORKTREE_DIR/scripts/experiment_argolis_soar_cases.py"
+# 2. Run Cycle 28 (H29) YARA-L 2.0 Data Table export, Entity Threat Associations, STIX 2.1 Sightings & post-accept readiness workflow validation (0 new Google Docs allocated)
+direnv exec "$WORKTREE_DIR" env DOC_ID="$DOC_ID" CASE_ID="$CASE_ID" "$WORKTREE_DIR/.venv/bin/python" "$WORKTREE_DIR/scripts/verify_cycle28_yaral2_export_and_post_accept_workflow.py"
 
-# 3. Re-run the expanded overnight Argolis SOAR suite (Tasks 1, 2, and 3)
-direnv exec "$WORKTREE_DIR" "$WORKTREE_DIR/.venv/bin/python" "$WORKTREE_DIR/scripts/overnight_argolis_soar_suite.py"
-
-# 4. Run Cycle 15 (H13) live leaked credential blast-radius triage & containment stager validation (0 new Google Docs allocated)
-direnv exec "$WORKTREE_DIR" "$WORKTREE_DIR/.venv/bin/python" "$WORKTREE_DIR/scripts/verify_cycle15_leaked_credential_blast_radius.py"
-
-# 5. Run Cycle 16 (H5) live cross-case campaign graph & claim-to-evidence grounding auditor validation (0 new Google Docs allocated)
-direnv exec "$WORKTREE_DIR" "$WORKTREE_DIR/.venv/bin/python" "$WORKTREE_DIR/scripts/verify_cycle16_cross_case_campaign_and_claim_auditor.py"
+# 3. Run Cycle 29 (H30) 9-Hour Capstone Certification: CISA KEV Inventory-First Gate, Native Dashboards RULE_DETECTIONS Verifier, SOAR Content Hub Packaging, Hillclimber Anti-Memorization & OpenTelemetry/mTLS Resilience (0 new Google Docs allocated)
+direnv exec "$WORKTREE_DIR" env DOC_ID="$DOC_ID" CASE_ID="$CASE_ID" "$WORKTREE_DIR/.venv/bin/python" "$WORKTREE_DIR/scripts/verify_cycle29_h30_capstone_governance.py"
 ```
 
