@@ -93,6 +93,16 @@ from .docs_review_tools import (
     verify_and_annotate_google_doc,
     evaluate_grounding_benchmark_suite,
     generate_skillrl_failure_distillation_matrix,
+    H28_CAPABILITY_PILLAR_CATALOG,
+    H28_MASTER_HORIZON_CATALOG,
+    synthesize_master_secops_doc_readiness as _synthesize_master_secops_doc_readiness,
+    audit_master_secops_doc_readiness_in_doc as _audit_master_secops_doc_readiness_in_doc,
+    generate_master_evolution_synthesis_report as _generate_master_evolution_synthesis_report,
+    evaluate_benchmark_scenario,
+    evaluate_verification_benchmark_suite,
+    highlight_doc_passages,
+    create_anchored_doc_comment,
+    insert_executive_summary_banner,
 )
 
 logger = logging.getLogger(__name__)
@@ -1596,6 +1606,68 @@ def audit_soar_playbook_actuation_safety_in_doc(
   )
 
 
+def synthesize_master_secops_doc_readiness(
+    doc_text: str,
+    doc_title: str = "SecOps Incident Runbook & Postmortem",
+) -> dict:
+  """Runs a single-pass cross-pillar verification sweep across all 5 capability pillars (H1-H28).
+
+  Pillars:
+  1. `UDM_YL2_AND_ENTITY_GRAPH`: Chronicle SIEM YARA-L 2.0 (`YL2`) syntax, UDM field paths, and Entity Graph `$g.graph.entity.*` context joins (excluding standard file/payload YARA `strings:` rules).
+  2. `TELEMETRY_CREDENTIAL_AND_SOAR_SAFETY`: Telemetry silence, secret hygiene, SOAR containment blast-radius/rollback gates, Siemplify `/api/1p/external/v1/cases` vs unmigrated `v1alpha/.../cases`, and `/span/global/` vs invalid `/span/prod/`.
+  3. `MITRE_CVE_WAVED_AND_GTI_ATTRIBUTION`: MITRE ATT&CK v16.1, CVE/CISA KEV/EPSS/WAVED ontology, and GTI threat actor/malware attribution.
+  4. `CAMPAIGN_TIMELINE_AND_TDO_COVERAGE`: Incident timeline chronology, dwell-time consistency, and Threat Detection Opportunity (TDO) coverage.
+  5. `WIKISKILL_RRSI_ORCHESTRA_AND_SKILLRL`: WikiSkill Runbook Readiness Score Index (RRSI), SkillOrchestra routing, and SkillRL failure-distilled guardrails.
+
+  Args:
+      doc_text (str): Plain text or Markdown content to audit.
+      doc_title (str): Title of the SecOps document.
+
+  Returns:
+      dict: Master readiness score, release gate verdict, 5-pillar breakdown, non-overlapping annotations, and executive sign-off banner.
+  """
+  return _synthesize_master_secops_doc_readiness(
+      doc_text=doc_text,
+      doc_title=doc_title,
+  )
+
+
+def audit_master_secops_doc_readiness_in_doc(
+    doc_id: str,
+    apply_highlights: bool = True,
+    create_comments: bool = True,
+    prepend_executive_banner: bool = False,
+    tool_context: ToolContext | None = None,
+) -> dict:
+  """Audits a live Google Doc across all 5 SecOps capability pillars (H1-H28) and applies highlights, anchored comments, and an executive Go/No-Go release banner.
+
+  Args:
+      doc_id (str): The Google Docs documentId.
+      apply_highlights (bool): Whether to highlight defective spans (#FFF2CC) via Google Docs API v1.
+      create_comments (bool): Whether to create anchored comments via Google Drive API v3.
+      prepend_executive_banner (bool): Whether to prepend the executive sign-off banner at the top of the document.
+
+  Returns:
+      dict: Master readiness score, release gate verdict, pillar breakdown, highlight/comment counts, and banner status.
+  """
+  return _audit_master_secops_doc_readiness_in_doc(
+      doc_id=doc_id,
+      apply_highlights=apply_highlights,
+      create_comments=create_comments,
+      prepend_executive_banner=prepend_executive_banner,
+      tool_context=tool_context,
+  )
+
+
+def generate_master_evolution_synthesis_report() -> dict:
+  """Generates the complete Master Evolution Synthesis Report across all 27 cycles (H1-H28), 14 benchmark scenarios (73 seeded defects, 29 negative controls), and 8 SkillRL failure-distilled guardrails.
+
+  Returns:
+      dict: Structured synthesis report across all 28 horizons, 5 capability pillars, 14 benchmark scenarios, and 8 SkillRL rules.
+  """
+  return _generate_master_evolution_synthesis_report()
+
+
 def get_agent_tools():
   """Initializes and returns MCP toolsets and progressive discovery tools.
 
@@ -1662,6 +1734,15 @@ def get_agent_tools():
   wrapped_audit_soar_playbook_actuation_safety_in_doc = instrument_tool(
       audit_soar_playbook_actuation_safety_in_doc
   )
+  wrapped_synthesize_master_secops_doc_readiness = instrument_tool(
+      synthesize_master_secops_doc_readiness
+  )
+  wrapped_audit_master_secops_doc_readiness_in_doc = instrument_tool(
+      audit_master_secops_doc_readiness_in_doc
+  )
+  wrapped_generate_master_evolution_synthesis_report = instrument_tool(
+      generate_master_evolution_synthesis_report
+  )
   wrapped_sanitize_and_redline_telemetry_in_doc = instrument_tool(
       sanitize_and_redline_telemetry_in_doc
   )
@@ -1721,6 +1802,9 @@ def get_agent_tools():
       wrapped_audit_yaral2_entity_graph_and_criticality_in_doc,
       wrapped_inspect_soar_playbook_actuation_safety_in_text,
       wrapped_audit_soar_playbook_actuation_safety_in_doc,
+      wrapped_synthesize_master_secops_doc_readiness,
+      wrapped_audit_master_secops_doc_readiness_in_doc,
+      wrapped_generate_master_evolution_synthesis_report,
       wrapped_sanitize_and_redline_telemetry_in_doc,
       wrapped_triage_and_redline_leaked_credentials_in_doc,
       wrapped_audit_and_redline_claim_evidence_and_campaign_in_doc,
@@ -1740,3 +1824,32 @@ def get_agent_tools():
       get_execution_metrics,  # Not wrapped to avoid recursive metrics
       *workflow_tools,
   )
+
+
+__all__ = [
+    "H26_CANONICAL_ENTITY_CRITICALITY_PROFILES",
+    "H27_CANONICAL_SOAR_ACTUATION_SAFETY_CATALOG",
+    "H28_CAPABILITY_PILLAR_CATALOG",
+    "H28_MASTER_HORIZON_CATALOG",
+    "ChronicleRuleValidationGate",
+    "audit_yaral2_entity_graph_and_criticality_in_doc",
+    "inspect_yaral2_entity_graph_and_criticality_in_text",
+    "find_yaral2_entity_graph_and_criticality_spans",
+    "inspect_soar_playbook_actuation_safety_in_text",
+    "find_soar_playbook_actuation_safety_spans",
+    "format_soar_playbook_actuation_safety_appendix",
+    "audit_soar_playbook_actuation_safety_in_doc",
+    "synthesize_master_secops_doc_readiness",
+    "audit_master_secops_doc_readiness_in_doc",
+    "generate_master_evolution_synthesis_report",
+    "evaluate_benchmark_scenario",
+    "evaluate_verification_benchmark_suite",
+    "highlight_doc_passages",
+    "create_anchored_doc_comment",
+    "insert_executive_summary_banner",
+    "verify_and_annotate_google_doc",
+    "evaluate_grounding_benchmark_suite",
+    "generate_skillrl_failure_distillation_matrix",
+    "get_agent_tools",
+]
+

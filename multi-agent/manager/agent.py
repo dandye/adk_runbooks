@@ -54,6 +54,12 @@ from .tools.tools import (
     audit_and_redline_runbook_promotion_in_doc,
     inspect_yaral2_entity_graph_and_criticality_in_text,
     audit_yaral2_entity_graph_and_criticality_in_doc,
+    inspect_soar_playbook_actuation_safety_in_text,
+    audit_soar_playbook_actuation_safety_in_doc,
+    synthesize_master_secops_doc_readiness,
+    audit_master_secops_doc_readiness_in_doc,
+    generate_master_evolution_synthesis_report,
+    evaluate_verification_benchmark_suite,
     verify_and_annotate_google_doc,
     evaluate_grounding_benchmark_suite,
     generate_skillrl_failure_distillation_matrix,
@@ -175,8 +181,12 @@ root_agent = Agent(
     - audit_yaral2_entity_graph_and_criticality_in_doc
     - inspect_soar_playbook_actuation_safety_in_text
     - audit_soar_playbook_actuation_safety_in_doc
+    - synthesize_master_secops_doc_readiness
+    - audit_master_secops_doc_readiness_in_doc
+    - generate_master_evolution_synthesis_report
     - verify_and_annotate_google_doc
     - evaluate_grounding_benchmark_suite
+    - evaluate_verification_benchmark_suite
     - generate_skillrl_failure_distillation_matrix
     - evaluate_infosec_doc_reviewer
     - verify_and_redline_udm_queries_in_doc

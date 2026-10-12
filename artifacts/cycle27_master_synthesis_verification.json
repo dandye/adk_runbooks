@@ -1,0 +1,119 @@
+{
+  "cycle": 27,
+  "horizon": "H28",
+  "title": "Master Night 1 + Night 2 Cross-Horizon Synthesis, End-to-End Composite Playbook & Postmortem Readiness Auditor (audit_master_secops_doc_readiness_in_doc), BENCH-14 Composite Benchmark & Reference Architecture Publication",
+  "timestamp_utc": "2026-10-12T11:17:39.465138+00:00",
+  "catalog_version": "H28-2026-10-12-v1",
+  "pillar_count": 5,
+  "pillar_ids": [
+    "UDM_YL2_AND_ENTITY_GRAPH",
+    "TELEMETRY_CREDENTIAL_AND_SOAR_SAFETY",
+    "MITRE_CVE_WAVED_AND_GTI_ATTRIBUTION",
+    "CAMPAIGN_TIMELINE_AND_TDO_COVERAGE",
+    "WIKISKILL_RRSI_ORCHESTRA_AND_SKILLRL"
+  ],
+  "benchmark_bench14": {
+    "scenario_id": "BENCH-14-MASTER-COMPOSITE-SECOPS-SYNTHESIS",
+    "TP": 5,
+    "FP": 0,
+    "FN": 0,
+    "TN": 2,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "pass2_idempotency_rate": 1.0
+  },
+  "benchmark_all_with_night2": {
+    "scenario_count": 14,
+    "total_expected_defects": 73,
+    "TP": 73,
+    "FP": 0,
+    "FN": 0,
+    "TN": 29,
+    "micro_precision": 1.0,
+    "micro_recall": 1.0,
+    "micro_f1": 1.0,
+    "pass2_idempotency_rate": 1.0,
+    "overall_hda_error": 0.0,
+    "google_drive_write_calls": 0
+  },
+  "skillrl_distillation": {
+    "family_count": 8,
+    "rule_count": 8,
+    "horizons_covered": [
+      "H25",
+      "H26",
+      "H27",
+      "H28"
+    ],
+    "h28_rule_id": "SKILLRL-08-MASTER-CROSS-PILLAR-READINESS-GATE"
+  },
+  "master_evolution_synthesis": {
+    "total_cycles_completed": 27,
+    "horizons_completed": [
+      "H1",
+      "H2",
+      "H3",
+      "H4",
+      "H5",
+      "H6",
+      "H7",
+      "H8",
+      "H9",
+      "H10",
+      "H11",
+      "H12",
+      "H13",
+      "H14",
+      "H15",
+      "H16",
+      "H17",
+      "H18",
+      "H19",
+      "H20",
+      "H21",
+      "H22",
+      "H23",
+      "H24",
+      "H25",
+      "H26",
+      "H27",
+      "H28"
+    ],
+    "pillar_count": 5,
+    "skillrl_rule_count": 8
+  },
+  "live_chronicle_siem_verification": {
+    "status": "success",
+    "remediated_rule_name": "yaral2_composite_entity_graph_remediated",
+    "rule_valid": true,
+    "validate_rule_raw": "{'content': [{'type': 'text', 'text': 'Rule Validation Results:\\n\\n Rule validation PASSED\\nThe rule syntax is correct and ready for testing or deployment.\\n'}], 'structuredContent': {'result': 'Rule Validation Results:\\n\\n Rule validation PASSED\\nThe rule syntax is correct and ready for testing or deployment.\\n'}, 'isError': False}",
+    "search_udm_raw": "{'content': [{'type': 'text', 'text': '{\\n  \"events\": [\\n    {\\n      \"name\": \"projects/dandye-0324-chronicle/locations/us/instances/7e977ce4-f45d-43b2-aea0-52f8b66acd80/events/AAAAAHTJVZBByezsM2bHWe7zCl4AAAAABgAAACAAAAA%3D\",\\n      \"udm\": {\\n        \"metadata\": {\\n          \"productLogId\": \"1366207\",\\n          \"eventTimestamp\": \"2026-02-07T10:06:28Z\",\\n          \"eventType\": \"PROCESS_LAUNCH\",\\n          \"vendorName\": \"Microsoft\",\\n          \"productName\": \"Microsoft-Windows-Sysmon\",\\n          \"productEventType\": \"1\",\\n          \"ingestedTimestamp\": \"2026-02-08T07:01:37.624491Z\",\\n          ",
+    "search_udm_has_events": true
+  },
+  "live_google_doc_verification": {
+    "document_id": "1xWqRXooknTaEUVKyjjWYE1tHsRxES6B86y8cDf1csEE",
+    "title": "Cycle27_H28_Live_Master_Cross_Pillar_Synthesis_Validation_20261012",
+    "web_view_link": "https://docs.google.com/document/d/1xWqRXooknTaEUVKyjjWYE1tHsRxES6B86y8cDf1csEE/edit?usp=drivesdk",
+    "new_docs_created": 0,
+    "master_readiness_audit": {
+      "release_gate_verdict": "BLOCKED_CRITICAL_DEFECTS",
+      "master_readiness_score": 39.5,
+      "pillar_count": 5,
+      "total_defect_count": 5,
+      "critical_defect_count": 5,
+      "standard_yara_blocks_ignored_count": 1,
+      "highlighted_count": 5,
+      "comments_created_count": 5,
+      "executive_banner_prepended": true
+    },
+    "stage_a_pass1_and_pass2": {
+      "pass1_applied_redlines": 5,
+      "pass1_false_positive_redlines": 0,
+      "fee2e2_span_count": 0,
+      "dcfce7_span_count": 0,
+      "pass2_applied_redlines": 0,
+      "pass2_skipped_existing_suggestion_count": 5
+    }
+  }
+}
