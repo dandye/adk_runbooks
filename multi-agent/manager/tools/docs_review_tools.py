@@ -14000,6 +14000,7 @@ def review_google_doc_with_stage_a(
     include_mitre_cve_stage_a: bool = True,
     include_claim_campaign_stage_a: bool = False,
     include_tdo_coverage_stage_a: bool = False,
+    include_runbook_promotion_stage_a: bool = False,
     token_source: TokenSource | None = None,
     quota_project: str | None = None,
     transport: httpx.BaseTransport | None = None,
@@ -14017,15 +14018,17 @@ def review_google_doc_with_stage_a(
        :func:`find_yaral2_rule_spans` when ``include_yaral2_stage_a=True``,
        :func:`find_mitre_and_cve_spans` when ``include_mitre_cve_stage_a=True``,
        :func:`find_claim_evidence_and_campaign_spans` when
-       ``include_claim_campaign_stage_a=True``, and
+       ``include_claim_campaign_stage_a=True``,
        :func:`find_detection_coverage_and_tdo_spans` when
-       ``include_tdo_coverage_stage_a=True``)
+       ``include_tdo_coverage_stage_a=True``, and
+       :func:`find_runbook_promotion_readiness_spans` when
+       ``include_runbook_promotion_stage_a=True``)
        to locate leaked credentials, destructive/ineffective containment CLIs,
        unredacted telemetry payloads/secrets, live untrusted URLs,
        standalone Chronicle UDM field defects, YARA-L 2.0 rule defects,
-       MITRE ATT&CK / CVE defects, narrative claim/campaign defects, and
-       Detection Coverage / TDO defects by numeric UTF-16 span without echoing
-       them through an LLM.
+       MITRE ATT&CK / CVE defects, narrative claim/campaign defects,
+       Detection Coverage / TDO defects, and case-specific runbook IoC leakage
+       by numeric UTF-16 span without echoing them through an LLM.
     3. Deduplicates Stage A spans against overlapping Stage B
        ``semantic_comments`` and ``semantic_edits`` and skips any span that
        overlaps an existing pending suggestion (multi-pass idempotency).
@@ -14241,6 +14244,25 @@ def review_google_doc_with_stage_a(
                 deduped_tdo_coverage_edits.append(e_item)
                 existing_edit_spans.append(e_span)
 
+    stage_a_runbook_promotion_count = 0
+    deduped_runbook_promotion_comments: list[dict[str, Any]] = []
+    deduped_runbook_promotion_edits: list[dict[str, Any]] = []
+    if include_runbook_promotion_stage_a:
+        rp_comments, rp_edits, rp_findings = (
+            find_runbook_promotion_readiness_spans(plain_text, index_map)
+        )
+        stage_a_runbook_promotion_count = len(rp_findings)
+        for c_item in rp_comments:
+            c_span = (c_item["start_index"], c_item["end_index"])
+            if not any(_spans_overlap(c_span, ex) for ex in existing_comment_spans):
+                deduped_runbook_promotion_comments.append(c_item)
+                existing_comment_spans.append(c_span)
+        for e_item in rp_edits:
+            e_span = (e_item["start_index"], e_item["end_index"])
+            if not any(_spans_overlap(e_span, ex) for ex in existing_edit_spans):
+                deduped_runbook_promotion_edits.append(e_item)
+                existing_edit_spans.append(e_span)
+
     raw_all_comments = (
         deduped_credential_containment_comments
         + deduped_telemetry_comments
@@ -14250,6 +14272,7 @@ def review_google_doc_with_stage_a(
         + deduped_mitre_cve_comments
         + deduped_claim_campaign_comments
         + deduped_tdo_coverage_comments
+        + deduped_runbook_promotion_comments
         + stage_b_comments
     )
     raw_all_edits = (
@@ -14261,6 +14284,7 @@ def review_google_doc_with_stage_a(
         + deduped_mitre_cve_edits
         + deduped_claim_campaign_edits
         + deduped_tdo_coverage_edits
+        + deduped_runbook_promotion_edits
         + stage_b_edits
     )
 
@@ -14332,6 +14356,7 @@ def review_google_doc_with_stage_a(
         "stage_a_mitre_cve_count": stage_a_mitre_cve_count,
         "stage_a_claim_campaign_count": stage_a_claim_campaign_count,
         "stage_a_tdo_coverage_count": stage_a_tdo_coverage_count,
+        "stage_a_runbook_promotion_count": stage_a_runbook_promotion_count,
         "stage_a_italic_regex_count": stage_a_italic_regex_count,
         "skipped_existing_suggestion_count": skipped_existing_suggestion_count,
         "comments": comments_res,
@@ -14351,6 +14376,7 @@ def stage_runbook_update_as_google_doc(
     include_credential_containment_stage_a: bool = True,
     include_claim_campaign_stage_a: bool = False,
     include_tdo_coverage_stage_a: bool = False,
+    include_runbook_promotion_stage_a: bool = False,
     skill_content_override: str | None = None,
     client: DriveMcpClient | None = None,
     token_source: TokenSource | None = None,
@@ -14405,6 +14431,7 @@ def stage_runbook_update_as_google_doc(
         include_credential_containment_stage_a=include_credential_containment_stage_a,
         include_claim_campaign_stage_a=include_claim_campaign_stage_a,
         include_tdo_coverage_stage_a=include_tdo_coverage_stage_a,
+        include_runbook_promotion_stage_a=include_runbook_promotion_stage_a,
         token_source=token_source,
         quota_project=quota_project,
         transport=transport,
@@ -14427,6 +14454,9 @@ def stage_runbook_update_as_google_doc(
         "stage_a_mitre_cve_count": review_res.get("stage_a_mitre_cve_count", 0),
         "stage_a_claim_campaign_count": review_res.get("stage_a_claim_campaign_count", 0),
         "stage_a_tdo_coverage_count": review_res.get("stage_a_tdo_coverage_count", 0),
+        "stage_a_runbook_promotion_count": review_res.get(
+            "stage_a_runbook_promotion_count", 0
+        ),
         "stage_a_italic_regex_count": review_res.get("stage_a_italic_regex_count", 0),
         "comments": review_res.get("comments", {}),
         "edits": review_res.get("edits", {}),
@@ -15029,6 +15059,16 @@ def export_accepted_doc_to_markdown(
     accept_suggestion_ids: str | list[str] | set[str] | tuple[str, ...] | None = None,
     reconstruct_markdown_structure: bool = True,
     require_resolved_comments: bool = False,
+    enforce_rrsi_promotion_gate: bool = False,
+    baseline_markdown: str | None = None,
+    max_l1_churn_ratio: float = 0.35,
+    max_added_lines: int = 120,
+    validation_score_delta: float | None = None,
+    hda_attribution: dict[str, float] | None = None,
+    tau_accept: float = 0.015,
+    require_purpose_contract: bool = True,
+    require_fallback_guidance: bool = True,
+    skill_impact_ledger_path: str = "",
     output_path: str = "",
     publish_to_drive: bool = False,
     drive_title: str = "",
@@ -15055,7 +15095,13 @@ def export_accepted_doc_to_markdown(
     3. When ``require_resolved_comments=True``, queries Google Drive API v3
        ``files.comments`` via :func:`list_doc_comments` and blocks export/promotion
        with ``status="blocked_unresolved_comments"`` if any unresolved comment exists.
-    4. Optionally writes the accepted Markdown to ``output_path`` and/or publishes
+    4. When ``enforce_rrsi_promotion_gate=True``, runs :func:`audit_runbook_promotion_readiness`
+       to verify zero case-specific IoC leakage, preserved slow-update invariants,
+       bounded L1 edit churn, explicit ``PURPOSE``/fallback contracts, and
+       held-out validation lift ``>= tau_accept``, blocking promotion with
+       ``status="blocked_rrsi_promotion_gate"`` and rolling back to
+       ``baseline_markdown`` when any gate fails.
+    5. Optionally writes the accepted Markdown to ``output_path`` and/or publishes
        it to Google Drive via :func:`publish_report_to_drive`.
     """
     inspected = inspect_doc_suggestions(
@@ -15188,6 +15234,77 @@ def export_accepted_doc_to_markdown(
                 "drive_error": None,
             }
 
+    promotion_audit: dict[str, Any] | None = None
+    impact_ledger_res: dict[str, Any] | None = None
+    resolved_baseline_md = baseline_markdown
+    if resolved_baseline_md is None and skill_content_override is not None:
+        resolved_baseline_md = skill_content_override
+    elif resolved_baseline_md is None and effective_skill_name and enforce_rrsi_promotion_gate:
+        try:
+            from .drive_tools import build_skill_registry
+
+            reg = build_skill_registry()
+            loaded_base = reg.get_skill_content(effective_skill_name)
+            if loaded_base and not loaded_base.startswith("Skill '"):
+                resolved_baseline_md = loaded_base
+        except Exception:
+            resolved_baseline_md = ""
+
+    if enforce_rrsi_promotion_gate or skill_impact_ledger_path.strip():
+        promotion_audit = audit_runbook_promotion_readiness(
+            accepted_markdown,
+            skill_name=effective_skill_name,
+            baseline_markdown=resolved_baseline_md or "",
+            max_l1_churn_ratio=max_l1_churn_ratio,
+            max_added_lines=max_added_lines,
+            validation_score_delta=validation_score_delta,
+            hda_attribution=hda_attribution,
+            tau_accept=tau_accept,
+            require_purpose_contract=require_purpose_contract,
+            require_fallback_guidance=require_fallback_guidance,
+        )
+        if skill_impact_ledger_path and skill_impact_ledger_path.strip():
+            impact_ledger_res = append_wikiskill_impact_log(
+                promotion_audit,
+                ledger_path=skill_impact_ledger_path.strip(),
+                document_id=document_id,
+            )
+        if enforce_rrsi_promotion_gate and not promotion_audit.get("promotion_ready", False):
+            reasons_str = "; ".join(promotion_audit.get("blocking_reasons") or [])
+            return {
+                "status": "blocked_rrsi_promotion_gate",
+                "message": (
+                    f"Runbook promotion blocked by RRSI + WikiSkill Promotion Gate for "
+                    f"{effective_skill_name or document_id!r}: {reasons_str}"
+                ),
+                "document_id": document_id,
+                "title": inspected["title"],
+                "skill_name": effective_skill_name,
+                "suggestion_count": inspected["suggestion_count"],
+                "accepted_suggestion_count": inspected["accepted_suggestion_count"],
+                "suggestions": inspected["suggestions"],
+                "unified_diff": inspected["unified_diff"],
+                "unresolved_comment_count": unresolved_comment_count,
+                "resolved_comment_count": resolved_comment_count,
+                "unresolved_comments": unresolved_comments,
+                "headings_reconstructed_count": headings_reconstructed_count,
+                "list_items_reconstructed_count": list_items_reconstructed_count,
+                "tables_reconstructed_count": tables_reconstructed_count,
+                "italic_regex_wildcards_recovered_count": italic_regex_wildcards_recovered_count,
+                "frontmatter_restored": frontmatter_restored,
+                "frontmatter_valid": bool(parsed_fm.get("name")),
+                "frontmatter": parsed_fm,
+                "accepted_markdown": accepted_markdown,
+                "markdown": accepted_markdown,
+                "rollback_markdown": resolved_baseline_md or "",
+                "promotion_audit": promotion_audit,
+                "impact_ledger": impact_ledger_res,
+                "char_count": len(accepted_markdown),
+                "output_path": None,
+                "drive": None,
+                "drive_error": None,
+            }
+
     saved_path: str | None = None
     if output_path and output_path.strip():
         out_file = Path(output_path.strip()).resolve()
@@ -15237,6 +15354,8 @@ def export_accepted_doc_to_markdown(
         "frontmatter": parsed_fm,
         "accepted_markdown": accepted_markdown,
         "markdown": accepted_markdown,
+        "promotion_audit": promotion_audit,
+        "impact_ledger": impact_ledger_res,
         "char_count": len(accepted_markdown),
         "output_path": saved_path,
         "drive": drive_result,
@@ -18808,5 +18927,1060 @@ def analyze_and_redline_detection_coverage_gaps_in_doc(
         "comments_inserted": int(comments_res.get("inserted_count", 0) or 0),
         "edits_proposed": int(edits_res.get("applied_count", 0) or 0),
     }
+
+
+# ---------------------------------------------------------------------------
+# Cycle 18 (H7 / Track 2): Closed-Loop WikiSkill + RRSI Runbook Promotion Gate,
+# Pre-Promotion Case-Specificity Critic, Protected Slow-Update Invariants &
+# Persistent Skill-Impact Provenance Ledger
+# ---------------------------------------------------------------------------
+
+CANONICAL_CASE_SPECIFIC_IOC_PARAMETERIZATION_CATALOG: dict[str, dict[str, str]] = {
+    "104.198.226.161": {
+        "placeholder": "<PRINCIPAL_IP>",
+        "cli_placeholder": "<SOURCE_IP>",
+        "entity_kind": "ipv4",
+        "motivating_case": "33278",
+        "description": "Case 33278 GCP IAM privilege escalation & Cloud SQL deletion source IP",
+    },
+    "79.154.246.114": {
+        "placeholder": "<PRINCIPAL_IP>",
+        "cli_placeholder": "<SOURCE_IP>",
+        "entity_kind": "ipv4",
+        "motivating_case": "33287",
+        "description": "Cases 33281/33283/33287 Google Workspace Super-Admin takeover source IP",
+    },
+    "34.135.255.85": {
+        "placeholder": "<PRINCIPAL_IP>",
+        "cli_placeholder": "<SOURCE_IP>",
+        "entity_kind": "ipv4",
+        "motivating_case": "33282",
+        "description": "Case 33282 SSH brute-force source IP",
+    },
+    "wins-d19": {
+        "placeholder": "<PRINCIPAL_HOSTNAME>",
+        "cli_placeholder": "<TARGET_HOST>",
+        "entity_kind": "hostname",
+        "motivating_case": "33280",
+        "description": "Cases 33269/33280/33285 Windows endpoint hostname",
+    },
+    "wins-d20": {
+        "placeholder": "<PRINCIPAL_HOSTNAME>",
+        "cli_placeholder": "<TARGET_HOST>",
+        "entity_kind": "hostname",
+        "motivating_case": "33280",
+        "description": "Case 33280 secondary Windows endpoint hostname",
+    },
+    "hello@base-production.iam.gserviceaccount.com": {
+        "placeholder": "<SERVICE_ACCOUNT_EMAIL>",
+        "cli_placeholder": "<SERVICE_ACCOUNT_EMAIL>",
+        "entity_kind": "service_account",
+        "motivating_case": "33278",
+        "description": "Case 33278 escalated GCP service account email",
+    },
+    "294955789222-compute@developer.gserviceaccount.com": {
+        "placeholder": "<SERVICE_ACCOUNT_EMAIL>",
+        "cli_placeholder": "<SERVICE_ACCOUNT_EMAIL>",
+        "entity_kind": "service_account",
+        "motivating_case": "33278",
+        "description": "Case 33278 default compute service account email",
+    },
+    "admin@mydomain.com": {
+        "placeholder": "<USER_EMAIL>",
+        "cli_placeholder": "<USER_EMAIL>",
+        "entity_kind": "user_email",
+        "motivating_case": "33287",
+        "description": "Cases 33281/33287 compromised Google Workspace admin email",
+    },
+    "bruce.wayne@the.org": {
+        "placeholder": "<USER_EMAIL>",
+        "cli_placeholder": "<USER_EMAIL>",
+        "entity_kind": "user_email",
+        "motivating_case": "33287",
+        "description": "Case 33287 Google Workspace actor email",
+    },
+    "alina.levine@gmail.com": {
+        "placeholder": "<EXTERNAL_RECIPIENT_EMAIL>",
+        "cli_placeholder": "<EXTERNAL_RECIPIENT_EMAIL>",
+        "entity_kind": "user_email",
+        "motivating_case": "33283",
+        "description": "Case 33283 external Google Drive exfiltration recipient email",
+    },
+    "lisawalker": {
+        "placeholder": "<TARGET_USER>",
+        "cli_placeholder": "<TARGET_USER>",
+        "entity_kind": "username",
+        "motivating_case": "33280",
+        "description": "Cases 33269/33280/33285 compromised Windows username",
+    },
+    "projects/base-analytics/instances/prod-customers": {
+        "placeholder": "projects/<GCP_PROJECT_ID>/instances/<CLOUDSQL_INSTANCE>",
+        "cli_placeholder": "projects/<GCP_PROJECT_ID>/instances/<CLOUDSQL_INSTANCE>",
+        "entity_kind": "gcp_resource",
+        "motivating_case": "33278",
+        "description": "Case 33278 deleted Cloud SQL instance resource path",
+    },
+    "projects/base-production": {
+        "placeholder": "projects/<GCP_PROJECT_ID>",
+        "cli_placeholder": "projects/<GCP_PROJECT_ID>",
+        "entity_kind": "gcp_resource",
+        "motivating_case": "33278",
+        "description": "Case 33278 GCP project resource path",
+    },
+}
+
+PROTECTED_RUNBOOK_SLOW_UPDATE_INVARIANTS: tuple[str, ...] = (
+    "triage",
+    "investigation",
+    "containment",
+    "eradication",
+    "recovery",
+    "overview",
+    "prerequisites",
+    "phase 1",
+    "phase 2",
+    "phase 3",
+)
+
+_DESTRUCTIVE_CLI_ANTIPATTERN_RES: tuple[tuple[str, re.Pattern[str]], ...] = (
+    (
+        "destructive_service_account_delete",
+        re.compile(r"\bgcloud\s+iam\s+service-accounts\s+delete\b", re.IGNORECASE),
+    ),
+    (
+        "local_only_gcloud_auth_revoke",
+        re.compile(r"\bgcloud\s+auth\s+revoke\b", re.IGNORECASE),
+    ),
+    (
+        "destructive_workspace_user_delete",
+        re.compile(
+            r"\bgam\s+user\s+\S+\s+delete\b(?!\s+tokens\b)",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "destructive_ad_computer_remove",
+        re.compile(r"\bRemove-ADComputer\b", re.IGNORECASE),
+    ),
+    (
+        "destructive_aws_access_key_delete",
+        re.compile(r"\baws\s+iam\s+delete-access-key\b", re.IGNORECASE),
+    ),
+    (
+        "destructive_gcp_project_delete",
+        re.compile(r"\bgcloud\s+projects\s+delete\b", re.IGNORECASE),
+    ),
+    (
+        "destructive_cloudsql_instance_delete",
+        re.compile(r"\bgcloud\s+sql\s+instances\s+delete\b", re.IGNORECASE),
+    ),
+)
+
+_CASE_COUPLED_HEADING_RE = re.compile(
+    r"^(?P<hashes>#{1,4}\s+)?(?P<prefix>(?:(?:\d+\.\s+)?(?:Post-Incident\s+|Operational\s+|Initial\s+)?(?:Lessons\s+Learned|Step\s+\d+\s*:[^\n(]*|Phase\s+\d+\s*:[^\n(]*|Containment[^\n(]*|Remediation[^\n(]*|Investigation[^\n(]*|Triage[^\n(]*?)))\s*(?:from\s+|for\s+|in\s+|\(\s*)?(?:SOAR\s+)?Cases?\s+#?(?P<case_ids>\d{4,6}(?:\s*(?:,|and|&|/)\s*#?\d{4,6})*)\s*\)?[ \t]*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+_OPERATIONAL_COMMAND_OR_UDM_LINE_RE = re.compile(
+    r"(?:\b(?:gcloud|gam|Disable-ADAccount|Set-ADUser|Revoke-AzureADUserAllRefreshToken|aws\s+iam)\b|"
+    r"\b(?:metadata\.log_type|principal\.ip|src\.ip|target\.ip|principal\.hostname|target\.hostname|"
+    r"target\.resource\.name|principal\.user\.userid|target\.user\.userid|"
+    r"principal\.user\.email_addresses|target\.user\.email_addresses|security_result\.about\.email|"
+    r"target\.process\.command_line|principal\.process\.command_line)\s*(?:=|!=)|"
+    r"^[ \t]*(?:[-*]\s+|\d+\.\s+).*(?:\bIAM\b|\bOAuth\b|\bsessions?\b|\btokens?\b|\bcredentials?\b|"
+    r"service\s+account|lateral\s+movement|Cloud\s+SQL|\bChronicle\b|\bUDM\b|\bpivot\b|"
+    r"\brevoke\b|\bdisable\b|\bsuspend\b|\binspect\b|\bcheck\b))",
+    re.IGNORECASE,
+)
+
+_UDM_HUNT_LINE_FOR_FALLBACK_RE = re.compile(
+    r"^[ \t]*(?:[-*]\s+|\d+\.\s+)?(?:[^\r\n]*`[^`\n]*\b(?:metadata\.log_type|principal\.ip|src\.ip|target\.ip|principal\.hostname|target\.hostname|principal\.user\.userid|target\.user\.userid|target\.resource\.name)\s*=\s*\"[^\"]+\"[^`\n]*`[^\r\n]*|"
+    r"(?:UDM\s+(?:Hunt|Query|Search)|Primary\s+UDM\s+Query)\s*:\s*`?[^\n]+`?)[ \t]*$",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+_WIKISKILL_PURPOSE_CONTRACT_RE = re.compile(
+    r"(?:##+\s+Runbook\s+Purpose\s*&\s*Promotion\s+Contract|PURPOSE\s+Contract\s*:|"
+    r"Protected\s+Slow-Update\s+Invariants\s*:)",
+    re.IGNORECASE,
+)
+
+
+def _extract_motivating_cases_from_text(text: str) -> list[str]:
+    """Extracts unique sorted SOAR case numbers referenced in ``text``."""
+    found: set[str] = set()
+    for m in re.finditer(
+        r"\b(?:SOAR\s+)?Cases?\s+#?(\d{4,6})(?:\s*(?:,|and|&|/)\s*#?(\d{4,6}))?(?:\s*(?:,|and|&|/)\s*#?(\d{4,6}))?",
+        text,
+        re.IGNORECASE,
+    ):
+        for grp in m.groups():
+            if grp and grp.isdigit():
+                found.add(grp)
+    for tok, meta in CANONICAL_CASE_SPECIFIC_IOC_PARAMETERIZATION_CATALOG.items():
+        if tok in text and meta.get("motivating_case"):
+            found.add(meta["motivating_case"])
+    return sorted(found)
+
+
+def find_runbook_promotion_readiness_spans(
+    plain_text: str,
+    index_map: list[int] | None = None,
+    *,
+    skill_name: str = "",
+    baseline_markdown: str = "",
+    synthesize_missing_purpose_contract: bool = True,
+    synthesize_missing_fallback_guidance: bool = True,
+    require_purpose_contract: bool | None = None,
+    require_fallback_guidance: bool | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Scans a runbook Google Doc draft for RRSI + WikiSkill promotion defects."""
+    if require_purpose_contract is not None:
+        synthesize_missing_purpose_contract = bool(require_purpose_contract)
+    if require_fallback_guidance is not None:
+        synthesize_missing_fallback_guidance = bool(require_fallback_guidance)
+    if not plain_text:
+        return [], [], []
+    if index_map is None or len(index_map) != len(plain_text):
+        index_map = list(range(1, len(plain_text) + 1))
+
+    rule_char_ranges: list[tuple[int, int]] = [
+        (int(rb["char_start"]), int(rb["char_end"]))
+        for rb in _iter_yaral2_rule_blocks(plain_text)
+    ]
+
+    def _in_yaral2_rule(offset: int) -> bool:
+        return any(rs <= offset < re_end for rs, re_end in rule_char_ranges)
+
+    candidates: list[dict[str, Any]] = []
+    motivating_cases = _extract_motivating_cases_from_text(plain_text)
+
+    # 1. Detect case-coupled section/step headings outside YARA-L 2.0 rules
+    for hm in _CASE_COUPLED_HEADING_RE.finditer(plain_text):
+        if _in_yaral2_rule(hm.start()):
+            continue
+        full_heading = hm.group(0)
+        hashes = hm.group("hashes") or ""
+        prefix = (hm.group("prefix") or "").strip()
+        case_ids_raw = (hm.group("case_ids") or "").strip()
+        if re.search(r"lessons\s+learned", prefix, re.IGNORECASE):
+            generalized_title = "Operational Lessons Learned & Edge-Case Guards"
+        else:
+            generalized_title = re.sub(
+                r"\s+(?:from|for|in)\s*$", "", prefix, flags=re.IGNORECASE
+            ).strip()
+        replacement = f"{hashes}{generalized_title}"
+        if replacement == full_heading:
+            continue
+        s_idx = int(index_map[hm.start()])
+        e_idx = int(index_map[hm.end() - 1]) + 1
+        comment_text = (
+            f"[RRSI / WikiSkill Pre-Promotion Critic: case_specific_heading_coupling] "
+            f"Heading {full_heading.strip()!r} couples a reusable operational runbook section to "
+            f"specific SOAR case ID(s) ({case_ids_raw}). Generalize the heading to "
+            f"{replacement.strip()!r} and record motivating case provenance in the "
+            f"Runbook Purpose & Promotion Contract."
+        )
+        candidates.append(
+            {
+                "defect_type": "case_specific_heading_coupling",
+                "subtype": "case_coupled_heading",
+                "start_index": s_idx,
+                "end_index": e_idx,
+                "quote": full_heading,
+                "matched_text": full_heading,
+                "replacement": replacement,
+                "replacement_text": replacement,
+                "comment": comment_text,
+                "motivating_case": case_ids_raw,
+                "entity_kind": "case_heading",
+            }
+        )
+
+    # 2. Detect case-specific IoCs / entities inside operational CLI commands or UDM hunt lines
+    for line_m in re.finditer(r"^[^\r\n]+$", plain_text, re.MULTILINE):
+        line_text = line_m.group(0)
+        line_start = line_m.start()
+        if _in_yaral2_rule(line_start):
+            continue
+        # Skip explicit provenance/historical note lines so we only parameterize executable commands/queries
+        if re.search(
+            r"(?:^\s*>\s*|Provenance\s+note|Motivating\s+Case\s+Provenance|Historical\s+Case\s+Example|Runbook\s+Purpose\s*&\s*Promotion\s+Contract)",
+            line_text,
+            re.IGNORECASE,
+        ):
+            continue
+        if not _OPERATIONAL_COMMAND_OR_UDM_LINE_RE.search(line_text):
+            continue
+
+        is_udm_line = bool(
+            re.search(
+                r"\b(?:metadata\.log_type|principal\.|target\.|src\.|security_result\.)[A-Za-z0-9_.]*\s*(?:=|!=)",
+                line_text,
+            )
+        )
+        # Sort catalog keys longest-first so 'projects/base-analytics/instances/prod-customers'
+        # matches before 'projects/base-production'.
+        for literal_ioc in sorted(
+            CANONICAL_CASE_SPECIFIC_IOC_PARAMETERIZATION_CATALOG.keys(),
+            key=len,
+            reverse=True,
+        ):
+            meta = CANONICAL_CASE_SPECIFIC_IOC_PARAMETERIZATION_CATALOG[literal_ioc]
+            placeholder = (
+                meta["placeholder"] if is_udm_line else meta["cli_placeholder"]
+            )
+            esc_ioc = re.escape(literal_ioc)
+            # Match literal_ioc when not already inside <...> placeholder brackets
+            ioc_pattern = re.compile(
+                rf"(?<![A-Za-z0-9_<@./-]){esc_ioc}(?![A-Za-z0-9_>./-])"
+            )
+            for im in ioc_pattern.finditer(line_text):
+                abs_start = line_start + im.start()
+                abs_end = line_start + im.end()
+                if _in_yaral2_rule(abs_start):
+                    continue
+                s_idx = int(index_map[abs_start])
+                e_idx = int(index_map[abs_end - 1]) + 1
+                matched_str = plain_text[abs_start:abs_end]
+                comment_text = (
+                    f"[RRSI / SkillsBench Pre-Promotion Leakage Critic: case_specific_ioc_leakage] "
+                    f"Hardcoded incident-specific {meta['entity_kind']} {matched_str!r} "
+                    f"(from SOAR Case {meta['motivating_case']}: {meta['description']}) "
+                    f"inside a reusable runbook command/query causes artifact overfitting (Delta_A) "
+                    f"on future incidents. Parameterize as {placeholder!r}."
+                )
+                candidates.append(
+                    {
+                        "defect_type": "case_specific_ioc_leakage",
+                        "subtype": "case_specific_ioc_leakage",
+                        "start_index": s_idx,
+                        "end_index": e_idx,
+                        "quote": matched_str,
+                        "matched_text": matched_str,
+                        "replacement": placeholder,
+                        "replacement_text": placeholder,
+                        "comment": comment_text,
+                        "entity_kind": meta["entity_kind"],
+                        "leaked_value": matched_str,
+                        "placeholder": placeholder,
+                        "motivating_case": meta["motivating_case"],
+                    }
+                )
+
+    # 3. Detect UDM hunt lines missing a counterfactual zero-hit fallback guard (SkillRL T^-)
+    if synthesize_missing_fallback_guidance:
+        for udm_m in _UDM_HUNT_LINE_FOR_FALLBACK_RE.finditer(plain_text):
+            if _in_yaral2_rule(udm_m.start()):
+                continue
+            sec_start, sec_end = _section_bounds_for_offset(plain_text, udm_m.start())
+            section_slice = plain_text[sec_start:sec_end]
+            if re.search(
+                r"(?:Fallback\s*\(?Zero-Hit|diagnose_empty_udm_query|diagnose_zero_hit_udm_query|clause[- ]ablation|returns?\s+0\s+(?:events|hits))",
+                section_slice,
+                re.IGNORECASE,
+            ):
+                continue
+            line_text = udm_m.group(0)
+            # Determine if any inner IoC candidate already overlaps this line; if so,
+            # fold the inner IoC parameterization into the full-line replacement so we
+            # never emit overlapping UTF-16 spans!
+            line_s_idx = int(index_map[udm_m.start()])
+            line_e_idx = int(index_map[udm_m.end() - 1]) + 1
+            repaired_line = line_text
+            folded_iocs: list[str] = []
+            remaining_candidates: list[dict[str, Any]] = []
+            for cand in candidates:
+                c_span = (int(cand["start_index"]), int(cand["end_index"]))
+                if (
+                    cand["defect_type"] == "case_specific_ioc_leakage"
+                    and _spans_overlap(c_span, (line_s_idx, line_e_idx))
+                ):
+                    repaired_line = repaired_line.replace(
+                        str(cand["quote"]), str(cand["replacement"])
+                    )
+                    folded_iocs.append(
+                        f"{cand['quote']} -> {cand['replacement']}"
+                    )
+                else:
+                    remaining_candidates.append(cand)
+            candidates = remaining_candidates
+
+            fallback_bullet = (
+                "\n- **Fallback (Zero-Hit Recovery)**: If the primary UDM query returns 0 events, "
+                "execute single-clause ablation (`diagnose_zero_hit_udm_query`) to isolate the "
+                "over-constrained predicate and relax exact equality (`=`) to case-insensitive "
+                "regex (`/.*<PATTERN>.*/ nocase`) across sibling `principal.*` and `target.*` roles."
+            )
+            replacement = f"{repaired_line}{fallback_bullet}"
+            folded_note = (
+                f" Also parameterized leaked case IoC(s): {', '.join(folded_iocs)}."
+                if folded_iocs
+                else ""
+            )
+            comment_text = (
+                f"[SkillRL / WikiSkill Counterfactual Failure Guard (T^-): missing_udm_zero_hit_fallback] "
+                f"UDM hunting step lacks a counterfactual zero-hit fallback path. Append a "
+                f"Zero-Hit Recovery guard specifying single-clause ablation and regex/role relaxation.{folded_note}"
+            )
+            candidates.append(
+                {
+                    "defect_type": "missing_udm_zero_hit_fallback",
+                    "subtype": "missing_udm_zero_hit_fallback",
+                    "start_index": line_s_idx,
+                    "end_index": line_e_idx,
+                    "quote": line_text,
+                    "matched_text": line_text,
+                    "replacement": replacement,
+                    "replacement_text": replacement,
+                    "comment": comment_text,
+                    "folded_iocs": folded_iocs,
+                }
+            )
+
+    # 4. Synthesize missing WikiSkill PURPOSE & RRSI Promotion Contract header
+    if synthesize_missing_purpose_contract and not _WIKISKILL_PURPOSE_CONTRACT_RE.search(
+        plain_text
+    ):
+        # Find the first non-frontmatter title or first line to anchor the PURPOSE contract
+        fm_match = _FRONTMATTER_BLOCK_RE.match(plain_text)
+        search_offset = fm_match.end() if fm_match else 0
+        title_line_m = re.search(
+            r"^[ \t]*(?:#+\s+[^\r\n]+|[A-Z][^\r\n]{4,120})[ \t]*$",
+            plain_text[search_offset:],
+            re.MULTILINE,
+        )
+        if title_line_m:
+            abs_t_start = search_offset + title_line_m.start()
+            abs_t_end = search_offset + title_line_m.end()
+            anchor_quote = plain_text[abs_t_start:abs_t_end]
+            s_idx = int(index_map[abs_t_start])
+            e_idx = int(index_map[abs_t_end - 1]) + 1
+            if not any(
+                _spans_overlap((s_idx, e_idx), (int(c["start_index"]), int(c["end_index"])))
+                for c in candidates
+            ):
+                inferred_skill = skill_name.strip() or "operational-secops-runbook"
+                cases_str = (
+                    ", ".join(f"SOAR Case #{cid}" for cid in motivating_cases)
+                    if motivating_cases
+                    else "General SOC Operations"
+                )
+                purpose_block = (
+                    f"{anchor_quote}\n\n"
+                    f"## Runbook Purpose & Promotion Contract (WikiSkill / RRSI)\n"
+                    f"- **Target Skill (`skills/`)**: `{inferred_skill}`\n"
+                    f"- **Trigger & Applicability Scope**: Reusable across matching alert families using parameterized `<PLACEHOLDER>` entities (zero hardcoded case IoCs).\n"
+                    f"- **Protected Slow-Update Invariants (`SkillOpt`)**: Preserves core IRP phases (`Triage`, `Investigation`, `Containment`, `Eradication`, `Recovery`) and enforces reversible containment (`disable` / `suspend`).\n"
+                    f"- **Fallback (Zero-Hit Recovery)**: When a primary UDM query returns 0 events, run single-clause ablation (`diagnose_zero_hit_udm_query`) and pivot across `principal.*` / `target.*` roles.\n"
+                    f"- **Motivating Case Provenance (`wiki/skill-impact.md`)**: {cases_str}"
+                )
+                comment_text = (
+                    f"[WikiSkill / RRSI Promotion Contract Gate: missing_wikiskill_purpose_contract] "
+                    f"Runbook draft lacks an explicit PURPOSE & Promotion Contract block. "
+                    f"Synthesizing a structured contract declaring applicability scope, "
+                    f"protected slow-update invariants, zero-hit fallback rules, and motivating case provenance ({cases_str})."
+                )
+                candidates.append(
+                    {
+                        "defect_type": "missing_wikiskill_purpose_contract",
+                        "subtype": "missing_runbook_purpose_contract",
+                        "start_index": s_idx,
+                        "end_index": e_idx,
+                        "quote": anchor_quote,
+                        "matched_text": anchor_quote,
+                        "replacement": purpose_block,
+                        "replacement_text": purpose_block,
+                        "comment": comment_text,
+                        "motivating_cases": motivating_cases,
+                    }
+                )
+
+    # Sort by start_index ascending and filter out any overlapping spans
+    candidates.sort(key=lambda item: (int(item["start_index"]), int(item["end_index"])))
+    non_overlapping: list[dict[str, Any]] = []
+    occupied_spans: list[tuple[int, int]] = []
+    for cand in candidates:
+        sp = (int(cand["start_index"]), int(cand["end_index"]))
+        if any(_spans_overlap(sp, prev) for prev in occupied_spans):
+            continue
+        occupied_spans.append(sp)
+        non_overlapping.append(cand)
+
+    comments: list[dict[str, Any]] = []
+    edits: list[dict[str, Any]] = []
+    findings: list[dict[str, Any]] = []
+    for item in non_overlapping:
+        comments.append(
+            {
+                "start_index": item["start_index"],
+                "end_index": item["end_index"],
+                "quote": item["quote"],
+                "comment": item["comment"],
+            }
+        )
+        edits.append(
+            {
+                "start_index": item["start_index"],
+                "end_index": item["end_index"],
+                "quote": item["quote"],
+                "replacement": item["replacement"],
+                "replacement_text": item["replacement"],
+            }
+        )
+        findings.append(item)
+
+    return comments, edits, findings
+
+
+def audit_runbook_promotion_readiness(
+    candidate_markdown: str,
+    *,
+    skill_name: str = "",
+    baseline_markdown: str = "",
+    max_l1_churn_ratio: float = 0.35,
+    max_added_lines: int = 120,
+    validation_score_delta: float | None = None,
+    hda_attribution: dict[str, float] | None = None,
+    tau_accept: float = 0.015,
+    lambda_l1: float = 0.02,
+    require_purpose_contract: bool = True,
+    require_fallback_guidance: bool = True,
+) -> dict[str, Any]:
+    """Evaluates a candidate Markdown runbook against the RRSI + WikiSkill Promotion Gate."""
+    text = candidate_markdown or ""
+    idx_map = list(range(1, len(text) + 1))
+    _, _, raw_findings = find_runbook_promotion_readiness_spans(
+        text,
+        idx_map,
+        skill_name=skill_name,
+        baseline_markdown=baseline_markdown,
+        synthesize_missing_purpose_contract=require_purpose_contract,
+        synthesize_missing_fallback_guidance=require_fallback_guidance,
+    )
+
+    leaked_ioc_findings = [
+        f
+        for f in raw_findings
+        if f.get("defect_type") == "case_specific_ioc_leakage"
+        or f.get("folded_iocs")
+    ]
+    leaked_ioc_count = sum(
+        len(f.get("folded_iocs") or [1])
+        if f.get("defect_type") == "missing_udm_zero_hit_fallback"
+        else 1
+        for f in leaked_ioc_findings
+    )
+    case_coupled_heading_count = sum(
+        1
+        for f in raw_findings
+        if f.get("defect_type") == "case_specific_heading_coupling"
+    )
+    missing_fallback_count = sum(
+        1
+        for f in raw_findings
+        if f.get("defect_type") == "missing_udm_zero_hit_fallback"
+    )
+    has_purpose_contract = bool(_WIKISKILL_PURPOSE_CONTRACT_RE.search(text))
+
+    # Check protected slow-update invariants against baseline_markdown & destructive CLI rules
+    missing_protected_headings: list[str] = []
+    if baseline_markdown and baseline_markdown.strip():
+        base_headings = [
+            m.group(1).strip()
+            for m in re.finditer(
+                r"^#{1,3}\s+([^\r\n]+)$", baseline_markdown, re.MULTILINE
+            )
+        ]
+        cand_lower = text.lower()
+        for bh in base_headings:
+            bh_clean = re.sub(r"^\d+(?:\.\d+)*\.?\s+", "", bh).strip()
+            bh_norm = bh_clean.lower()
+            if any(
+                inv in bh_norm for inv in PROTECTED_RUNBOOK_SLOW_UPDATE_INVARIANTS
+            ):
+                if bh_norm not in cand_lower:
+                    missing_protected_headings.append(bh_clean)
+
+    destructive_cli_violations: list[str] = []
+    for anti_name, anti_re in _DESTRUCTIVE_CLI_ANTIPATTERN_RES:
+        if anti_re.search(text):
+            destructive_cli_violations.append(anti_name)
+
+    _, _, telemetry_hazards = find_telemetry_hazard_spans(text, idx_map)
+    unredacted_hazard_count = len(telemetry_hazards)
+
+    protected_invariants_satisfied = (
+        len(missing_protected_headings) == 0
+        and len(destructive_cli_violations) == 0
+        and unredacted_hazard_count == 0
+    )
+
+    # Compute L1 line churn metrics on runbook body (excluding restored YAML frontmatter)
+    cand_body = _FRONTMATTER_BLOCK_RE.sub("", text, count=1).lstrip()
+    cand_lines = cand_body.splitlines()
+    candidate_line_count = len(cand_lines)
+    if baseline_markdown and baseline_markdown.strip():
+        base_body = _FRONTMATTER_BLOCK_RE.sub("", baseline_markdown, count=1).lstrip()
+        base_lines = base_body.splitlines()
+        baseline_line_count = len(base_lines)
+        matcher = difflib.SequenceMatcher(None, base_lines, cand_lines)
+        added_line_count = 0
+        deleted_line_count = 0
+        for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+            if tag == "insert":
+                added_line_count += j2 - j1
+            elif tag == "delete":
+                deleted_line_count += i2 - i1
+            elif tag == "replace":
+                deleted_line_count += i2 - i1
+                added_line_count += j2 - j1
+        l1_churn_lines = added_line_count + deleted_line_count
+        l1_churn_ratio = round(
+            l1_churn_lines / max(baseline_line_count, 1), 4
+        )
+        l1_budget_satisfied = (
+            l1_churn_ratio <= max_l1_churn_ratio
+            and added_line_count <= max_added_lines
+        )
+    else:
+        baseline_line_count = candidate_line_count
+        added_line_count = 0
+        deleted_line_count = 0
+        l1_churn_lines = 0
+        l1_churn_ratio = 0.0
+        l1_budget_satisfied = candidate_line_count <= max(max_added_lines * 4, 500)
+
+    # Evaluate RRSI validation noise-floor gate (tau_accept = 0.0150) & HDA decomposition
+    normalized_hda: dict[str, float] | None = None
+    effective_val_delta = validation_score_delta
+    hda_gate_passed = True
+    if isinstance(hda_attribution, dict) and hda_attribution:
+        dg = float(
+            hda_attribution.get("delta_g", hda_attribution.get("delta_G", 0.0)) or 0.0
+        )
+        dt = float(
+            hda_attribution.get("delta_t", hda_attribution.get("delta_T", 0.0)) or 0.0
+        )
+        da = float(
+            hda_attribution.get("delta_a", hda_attribution.get("delta_A", 0.0)) or 0.0
+        )
+        total_d = round(dg + dt + da, 4)
+        normalized_hda = {
+            "delta_g": round(dg, 4),
+            "delta_t": round(dt, 4),
+            "delta_a": round(da, 4),
+            "delta_G": round(dg, 4),
+            "delta_T": round(dt, 4),
+            "delta_A": round(da, 4),
+            "delta_total": total_d,
+        }
+        if effective_val_delta is None:
+            effective_val_delta = total_d
+        # Genuine generalizable transfer Delta_G must clear tau_accept and dominate artifact overfitting |Delta_A|
+        if dg < tau_accept or (da < 0 and abs(da) >= dg):
+            hda_gate_passed = False
+
+    if effective_val_delta is not None:
+        penalized_validation_delta = round(
+            float(effective_val_delta) - (lambda_l1 * l1_churn_ratio), 4
+        )
+        validation_gate_passed = (
+            penalized_validation_delta >= tau_accept and hda_gate_passed
+        )
+    else:
+        penalized_validation_delta = None
+        validation_gate_passed = hda_gate_passed
+
+    blocking_reasons: list[str] = []
+    if leaked_ioc_count > 0:
+        blocking_reasons.append(
+            f"case_specific_ioc_leakage: {leaked_ioc_count} hardcoded incident IoC/entity literal(s) detected"
+        )
+    if case_coupled_heading_count > 0:
+        blocking_reasons.append(
+            f"case_specific_heading_coupling: {case_coupled_heading_count} case-coupled heading(s) detected"
+        )
+    if require_fallback_guidance and missing_fallback_count > 0:
+        blocking_reasons.append(
+            f"missing_udm_zero_hit_fallback: {missing_fallback_count} UDM hunt step(s) lack Zero-Hit Recovery fallback guidance"
+        )
+    if require_purpose_contract and not has_purpose_contract:
+        blocking_reasons.append(
+            "missing_wikiskill_purpose_contract: missing Runbook Purpose & Promotion Contract section"
+        )
+    if not protected_invariants_satisfied:
+        if missing_protected_headings:
+            blocking_reasons.append(
+                f"missing_protected_headings: missing slow-update heading(s) {missing_protected_headings}"
+            )
+        if destructive_cli_violations:
+            blocking_reasons.append(
+                f"unsafe_telemetry_or_destructive_cli: destructive CLI anti-pattern(s) {destructive_cli_violations}"
+            )
+        if unredacted_hazard_count > 0:
+            blocking_reasons.append(
+                f"unsafe_telemetry_or_destructive_cli: {unredacted_hazard_count} unredacted telemetry/credential hazard(s)"
+            )
+    if not l1_budget_satisfied:
+        blocking_reasons.append(
+            f"l1_edit_budget_exceeded: l1_churn_ratio={l1_churn_ratio:.4f} (max={max_l1_churn_ratio:.4f}), "
+            f"added_lines={added_line_count} (max={max_added_lines})"
+        )
+    if not validation_gate_passed:
+        blocking_reasons.append(
+            f"validation_below_noise_floor: penalized_validation_delta={penalized_validation_delta} "
+            f"< tau_accept={tau_accept} (hda={normalized_hda})"
+        )
+        if normalized_hda and normalized_hda["delta_g"] < 0:
+            blocking_reasons.append(
+                f"hda_grounding_regression: delta_G={normalized_hda['delta_g']} < 0"
+            )
+
+    promotion_ready = len(blocking_reasons) == 0
+    decision = "PROMOTED" if promotion_ready else "REJECTED_ROLLBACK"
+    motivating_cases = _extract_motivating_cases_from_text(text)
+    cases_label = ", ".join(motivating_cases) if motivating_cases else "none"
+    val_label = (
+        f"{penalized_validation_delta:+.4f} (tau={tau_accept:.4f})"
+        if penalized_validation_delta is not None
+        else f"N/A (tau={tau_accept:.4f})"
+    )
+    hda_label = (
+        f"dG={normalized_hda['delta_g']:+.4f}, dT={normalized_hda['delta_t']:+.4f}, dA={normalized_hda['delta_a']:+.4f}"
+        if normalized_hda
+        else "N/A"
+    )
+    impact_entry_md = (
+        f"| `{skill_name or 'unnamed-skill'}` | **{decision}** | `{cases_str if (cases_str := cases_label) else 'none'}` | "
+        f"`{leaked_ioc_count}` | `{l1_churn_ratio:.4f}` (`+{added_line_count}/-{deleted_line_count}`) | "
+        f"`{val_label}` | `{hda_label}` | "
+        f"{'All RRSI + WikiSkill gates passed' if promotion_ready else '; '.join(blocking_reasons)} |"
+    )
+
+    return {
+        "status": "success",
+        "skill_name": skill_name,
+        "promotion_ready": promotion_ready,
+        "decision": decision,
+        "blocking_reasons": blocking_reasons,
+        "finding_count": len(raw_findings),
+        "findings": raw_findings,
+        "leaked_ioc_count": leaked_ioc_count,
+        "case_specific_ioc_count": leaked_ioc_count,
+        "case_coupled_heading_count": case_coupled_heading_count,
+        "missing_fallback_count": missing_fallback_count,
+        "has_purpose_contract": has_purpose_contract,
+        "protected_invariants_satisfied": protected_invariants_satisfied,
+        "missing_protected_headings": missing_protected_headings,
+        "destructive_cli_violations": destructive_cli_violations,
+        "destructive_cli_count": len(destructive_cli_violations),
+        "unredacted_hazard_count": unredacted_hazard_count,
+        "baseline_line_count": baseline_line_count,
+        "candidate_line_count": candidate_line_count,
+        "added_line_count": added_line_count,
+        "deleted_line_count": deleted_line_count,
+        "l1_churn_lines": l1_churn_lines,
+        "l1_churn_ratio": l1_churn_ratio,
+        "max_l1_churn_ratio": max_l1_churn_ratio,
+        "max_added_lines": max_added_lines,
+        "l1_budget_satisfied": l1_budget_satisfied,
+        "l1_budget_passed": l1_budget_satisfied,
+        "validation_score_delta": effective_val_delta,
+        "penalized_validation_delta": penalized_validation_delta,
+        "tau_accept": tau_accept,
+        "lambda_l1": lambda_l1,
+        "hda_attribution": normalized_hda,
+        "hda_Decomposition": normalized_hda,
+        "validation_gate_passed": validation_gate_passed,
+        "motivating_cases": motivating_cases,
+        "wikiskill_impact_entry_markdown": impact_entry_md,
+    }
+
+
+def append_wikiskill_impact_log(
+    audit_result: dict[str, Any],
+    *,
+    ledger_path: str,
+    document_id: str = "",
+    motivating_cases: list[str] | None = None,
+) -> dict[str, Any]:
+    """Appends a WikiSkill + RRSI promotion or rollback record to ``skill-impact.md``."""
+    from datetime import datetime, timezone
+
+    target = Path(ledger_path.strip()).resolve()
+    target.parent.mkdir(parents=True, exist_ok=True)
+    header = (
+        "# WikiSkill & RRSI Runbook Promotion Impact Ledger\n\n"
+        "| Timestamp (UTC) | Document ID | Skill Name | Decision | Motivating Cases | Leaked IoCs | L1 Churn Ratio (+Add/-Del) | Penalized Validation Delta | HDA (dG / dT / dA) | Gate Summary |\n"
+        "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n"
+    )
+    existing = target.read_text(encoding="utf-8") if target.exists() else ""
+    if not existing.strip():
+        existing = header
+
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    skill_name = str(audit_result.get("skill_name") or "unnamed-skill")
+    decision = str(audit_result.get("decision") or "REJECTED_ROLLBACK")
+    cases = motivating_cases or list(audit_result.get("motivating_cases") or [])
+    cases_str = ", ".join(cases) if cases else "none"
+    leaked_cnt = int(audit_result.get("leaked_ioc_count", 0) or 0)
+    l1_ratio = float(audit_result.get("l1_churn_ratio", 0.0) or 0.0)
+    added_cnt = int(audit_result.get("added_line_count", 0) or 0)
+    deleted_cnt = int(audit_result.get("deleted_line_count", 0) or 0)
+    pen_val = audit_result.get("penalized_validation_delta")
+    tau_val = float(audit_result.get("tau_accept", 0.015) or 0.015)
+    val_str = (
+        f"{float(pen_val):+.4f} (tau={tau_val:.4f})"
+        if pen_val is not None
+        else f"N/A (tau={tau_val:.4f})"
+    )
+    hda = audit_result.get("hda_attribution")
+    hda_str = (
+        f"dG={hda['delta_g']:+.4f}, dT={hda['delta_t']:+.4f}, dA={hda['delta_a']:+.4f}"
+        if isinstance(hda, dict)
+        else "N/A"
+    )
+    reasons = list(audit_result.get("blocking_reasons") or [])
+    summary_str = (
+        "All RRSI + WikiSkill gates passed"
+        if decision == "PROMOTED"
+        else "; ".join(reasons)
+    )
+    row = (
+        f"| `{ts}` | `{document_id or 'local'}` | `{skill_name}` | **{decision}** | "
+        f"`{cases_str}` | `{leaked_cnt}` | `{l1_ratio:.4f}` (`+{added_cnt}/-{deleted_cnt}`) | "
+        f"`{val_str}` | `{hda_str}` | {summary_str} |\n"
+    )
+    updated = existing.rstrip("\n") + "\n" + row
+    target.write_text(updated, encoding="utf-8")
+    return {
+        "status": "success",
+        "ledger_path": str(target),
+        "decision": decision,
+        "skill_name": skill_name,
+        "document_id": document_id,
+        "row_markdown": row.strip(),
+    }
+
+
+def audit_and_redline_runbook_promotion_in_doc(
+    document_id: str,
+    *,
+    skill_name: str = "",
+    baseline_markdown: str = "",
+    synthesize_missing_purpose_contract: bool = True,
+    synthesize_missing_fallback_guidance: bool = True,
+    require_purpose_contract: bool | None = None,
+    require_fallback_guidance: bool | None = None,
+    max_l1_churn_ratio: float = 0.35,
+    max_added_lines: int = 120,
+    validation_score_delta: float | None = None,
+    hda_attribution: dict[str, float] | None = None,
+    tau_accept: float = 0.015,
+    skill_impact_ledger_path: str = "",
+    tool_context: Any = None,
+    token_source: TokenSource | None = None,
+    quota_project: str | None = None,
+    transport: httpx.BaseTransport | None = None,
+) -> dict[str, Any]:
+    """Audits a Google Doc runbook draft for RRSI + WikiSkill promotion readiness and stages Suggested Edits."""
+    if require_purpose_contract is not None:
+        synthesize_missing_purpose_contract = bool(require_purpose_contract)
+    if require_fallback_guidance is not None:
+        synthesize_missing_fallback_guidance = bool(require_fallback_guidance)
+    read_res = read_google_doc(
+        document_id,
+        tool_context=tool_context,
+        token_source=token_source,
+        quota_project=quota_project,
+        transport=transport,
+    )
+    if read_res.get("status") != "success":
+        return read_res
+
+    plain_text, index_map = _load_doc_index_state(
+        document_id, tool_context=tool_context
+    )
+    if plain_text is None or index_map is None:
+        return {
+            "status": "error",
+            "message": "Failed to load UTF-16 index map after read_google_doc.",
+        }
+
+    pending_spans = _load_doc_pending_suggestion_spans(
+        document_id, tool_context=tool_context
+    )
+
+    effective_skill_name = skill_name.strip()
+    if not effective_skill_name:
+        title_match = re.match(
+            r"^Runbook_Redline_([A-Za-z0-9_-]+?)_Case_",
+            str(read_res.get("title") or ""),
+        )
+        if title_match:
+            effective_skill_name = title_match.group(1).strip()
+
+    pre_audit = audit_runbook_promotion_readiness(
+        plain_text,
+        skill_name=effective_skill_name,
+        baseline_markdown=baseline_markdown,
+        max_l1_churn_ratio=max_l1_churn_ratio,
+        max_added_lines=max_added_lines,
+        validation_score_delta=validation_score_delta,
+        hda_attribution=hda_attribution,
+        tau_accept=tau_accept,
+        require_purpose_contract=synthesize_missing_purpose_contract,
+        require_fallback_guidance=synthesize_missing_fallback_guidance,
+    )
+
+    raw_comments, raw_edits, raw_findings = find_runbook_promotion_readiness_spans(
+        plain_text,
+        index_map,
+        skill_name=effective_skill_name,
+        baseline_markdown=baseline_markdown,
+        synthesize_missing_purpose_contract=synthesize_missing_purpose_contract,
+        synthesize_missing_fallback_guidance=synthesize_missing_fallback_guidance,
+    )
+
+    filtered_comments: list[dict[str, Any]] = []
+    filtered_edits: list[dict[str, Any]] = []
+    active_findings: list[dict[str, Any]] = []
+    skipped_existing_suggestion_count = 0
+
+    for c_item, e_item, f_item in zip(raw_comments, raw_edits, raw_findings):
+        e_span = (int(e_item["start_index"]), int(e_item["end_index"]))
+        if any(_spans_overlap(e_span, p_span) for p_span in pending_spans):
+            skipped_existing_suggestion_count += 1
+            continue
+        filtered_comments.append(c_item)
+        filtered_edits.append(e_item)
+        active_findings.append(f_item)
+
+    comments_res: dict[str, Any] = {
+        "status": "skipped",
+        "inserted_count": 0,
+        "comment_ids": [],
+    }
+    if filtered_comments:
+        comments_res = insert_doc_comments(
+            document_id,
+            filtered_comments,
+            tool_context=tool_context,
+            token_source=token_source,
+            quota_project=quota_project,
+            transport=transport,
+        )
+        if comments_res.get("status") != "success":
+            return {
+                "status": "error",
+                "message": f"insert_doc_comments failed: {comments_res.get('message')}",
+                "comments": comments_res,
+            }
+
+    edits_res: dict[str, Any] = {"status": "skipped", "applied_count": 0}
+    if filtered_edits:
+        edits_res = propose_doc_suggested_edits(
+            document_id,
+            filtered_edits,
+            tool_context=tool_context,
+            token_source=token_source,
+            quota_project=quota_project,
+            transport=transport,
+        )
+        if edits_res.get("status") != "success":
+            return {
+                "status": "error",
+                "message": f"propose_doc_suggested_edits failed: {edits_res.get('message')}",
+                "comments": comments_res,
+                "edits": edits_res,
+            }
+
+    # Simulate accepting all newly proposed edits to compute post-redline promotion audit
+    simulated_accepted_text = plain_text
+    for f_item in sorted(
+        active_findings, key=lambda item: int(item["start_index"]), reverse=True
+    ):
+        s_pos = int(f_item["start_index"]) - 1
+        e_pos = int(f_item["end_index"]) - 1
+        if 0 <= s_pos <= e_pos <= len(simulated_accepted_text):
+            simulated_accepted_text = (
+                simulated_accepted_text[:s_pos]
+                + str(f_item["replacement"])
+                + simulated_accepted_text[e_pos:]
+            )
+
+    post_audit = audit_runbook_promotion_readiness(
+        simulated_accepted_text,
+        skill_name=effective_skill_name,
+        baseline_markdown=baseline_markdown,
+        max_l1_churn_ratio=max_l1_churn_ratio,
+        max_added_lines=max_added_lines,
+        validation_score_delta=validation_score_delta,
+        hda_attribution=hda_attribution,
+        tau_accept=tau_accept,
+        require_purpose_contract=synthesize_missing_purpose_contract,
+        require_fallback_guidance=synthesize_missing_fallback_guidance,
+    )
+
+    impact_ledger_res: dict[str, Any] | None = None
+    if skill_impact_ledger_path and skill_impact_ledger_path.strip():
+        impact_ledger_res = append_wikiskill_impact_log(
+            post_audit,
+            ledger_path=skill_impact_ledger_path.strip(),
+            document_id=document_id,
+        )
+
+    leaked_ioc_repaired_cnt = sum(
+        len(f.get("folded_iocs") or [1])
+        if f.get("defect_type") == "missing_udm_zero_hit_fallback"
+        else 1
+        for f in active_findings
+        if f.get("defect_type") == "case_specific_ioc_leakage"
+        or f.get("folded_iocs")
+    )
+    heading_coupling_repaired_cnt = sum(
+        1
+        for f in active_findings
+        if f.get("defect_type") == "case_specific_heading_coupling"
+    )
+    fallback_synthesized_cnt = sum(
+        1
+        for f in active_findings
+        if f.get("defect_type") == "missing_udm_zero_hit_fallback"
+    )
+    purpose_synthesized_cnt = sum(
+        1
+        for f in active_findings
+        if f.get("defect_type") == "missing_wikiskill_purpose_contract"
+    )
+
+    return {
+        "status": "success",
+        "document_id": document_id,
+        "title": read_res.get("title", ""),
+        "skill_name": effective_skill_name,
+        "char_count": len(plain_text),
+        "finding_count": len(active_findings),
+        "promotion_findings_count": len(active_findings),
+        "leaked_ioc_repaired_count": leaked_ioc_repaired_cnt,
+        "heading_coupling_repaired_count": heading_coupling_repaired_cnt,
+        "fallback_synthesized_count": fallback_synthesized_cnt,
+        "purpose_contract_synthesized_count": purpose_synthesized_cnt,
+        "pre_redline_promotion_ready": bool(pre_audit["promotion_ready"]),
+        "post_redline_promotion_ready": bool(post_audit["promotion_ready"]),
+        "promotion_ready_after_redline": bool(post_audit["promotion_ready"]),
+        "pre_redline_audit": pre_audit,
+        "post_redline_audit": post_audit,
+        "impact_ledger": impact_ledger_res,
+        "ledger_entry": impact_ledger_res,
+        "skipped_existing_suggestion_count": skipped_existing_suggestion_count,
+        "findings": active_findings,
+        "comments": comments_res,
+        "edits": edits_res,
+        "comments_inserted": int(comments_res.get("inserted_count", 0) or 0),
+        "edits_proposed": int(edits_res.get("applied_count", 0) or 0),
+    }
+
 
 

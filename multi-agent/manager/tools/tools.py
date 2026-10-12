@@ -36,6 +36,7 @@ from .grounding_tools import (
 from .docs_review_tools import (
     analyze_and_redline_detection_coverage_gaps_in_doc as _analyze_and_redline_detection_coverage_gaps_in_doc,
     audit_and_redline_claim_evidence_and_campaign_in_doc as _audit_and_redline_claim_evidence_and_campaign_in_doc,
+    audit_and_redline_runbook_promotion_in_doc as _audit_and_redline_runbook_promotion_in_doc,
     create_google_doc as _create_google_doc,
     export_accepted_doc_to_markdown as _export_accepted_doc_to_markdown,
     insert_doc_comments as _insert_doc_comments,
@@ -747,6 +748,14 @@ def export_accepted_doc_to_markdown(
     accept_suggestion_ids: str = "",
     reconstruct_markdown_structure: bool = True,
     require_resolved_comments: bool = False,
+    enforce_rrsi_promotion_gate: bool = False,
+    max_l1_churn_ratio: float = 0.35,
+    max_added_lines: int = 120,
+    validation_score_delta: float | None = None,
+    tau_accept: float = 0.015,
+    require_purpose_contract: bool = True,
+    require_fallback_guidance: bool = True,
+    skill_impact_ledger_path: str = "",
     output_path: str = "",
     publish_to_drive: bool = False,
     drive_title: str = "",
@@ -762,8 +771,10 @@ def export_accepted_doc_to_markdown(
   (`--- ... ---`) from the source `skill_name` when Google Docs horizontal-rule
   conversion stripped the frontmatter delimiters, enforces the Unresolved Comment
   Governance Gate (`status="blocked_unresolved_comments"`) when
-  `require_resolved_comments=True` and open comments exist, and optionally writes
-  the exported Markdown to `output_path` or publishes it to Drive.
+  `require_resolved_comments=True` and open comments exist, enforces the
+  WikiSkill + RRSI Runbook Promotion Gate (`status="blocked_rrsi_promotion_gate"`)
+  when `enforce_rrsi_promotion_gate=True`, and optionally writes the exported
+  Markdown to `output_path` or publishes it to Drive.
 
   Args:
       document_id (str): The Google Docs documentId.
@@ -771,6 +782,14 @@ def export_accepted_doc_to_markdown(
       accept_suggestion_ids (str): Optional JSON array or comma-separated list of `suggest.*` IDs to accept.
       reconstruct_markdown_structure (bool): Whether to reconstruct `#` headings, lists, tables, and italic-stripped regex wildcards from the Google Docs AST.
       require_resolved_comments (bool): Whether to block export (`status="blocked_unresolved_comments"`) when unresolved review comments remain on the Google Doc.
+      enforce_rrsi_promotion_gate (bool): Whether to enforce the WikiSkill + RRSI Runbook Promotion Gate (`status="blocked_rrsi_promotion_gate"`).
+      max_l1_churn_ratio (float): Maximum allowed L1 character churn ratio against baseline runbook (default 0.35).
+      max_added_lines (int): Maximum net added lines budget (default 120).
+      validation_score_delta (float | None): Optional penalized validation score delta (`Delta S_penalized`).
+      tau_accept (float): Minimum required validation score delta above noise floor (default 0.015).
+      require_purpose_contract (bool): Whether to require a `Runbook Purpose & Promotion Contract` section.
+      require_fallback_guidance (bool): Whether to require zero-hit recovery fallback guidance for UDM steps.
+      skill_impact_ledger_path (str): Optional file path for the WikiSkill `skill-impact.md` promotion ledger.
       output_path (str): Optional local file path to save the exported Markdown.
       publish_to_drive (bool): Whether to publish the exported Markdown to Google Drive.
       drive_title (str): Optional Drive filename override when publishing to Drive.
@@ -783,7 +802,7 @@ def export_accepted_doc_to_markdown(
              "list_items_reconstructed_count", "tables_reconstructed_count",
              "italic_regex_wildcards_recovered_count", "frontmatter_restored",
              "frontmatter_valid", "frontmatter", "accepted_markdown", "unified_diff",
-             "output_path", "drive"}.
+             "promotion_audit", "output_path", "drive"}.
   """
   return _export_accepted_doc_to_markdown(
       document_id=document_id,
@@ -791,6 +810,14 @@ def export_accepted_doc_to_markdown(
       accept_suggestion_ids=accept_suggestion_ids or None,
       reconstruct_markdown_structure=reconstruct_markdown_structure,
       require_resolved_comments=require_resolved_comments,
+      enforce_rrsi_promotion_gate=enforce_rrsi_promotion_gate,
+      max_l1_churn_ratio=max_l1_churn_ratio,
+      max_added_lines=max_added_lines,
+      validation_score_delta=validation_score_delta,
+      tau_accept=tau_accept,
+      require_purpose_contract=require_purpose_contract,
+      require_fallback_guidance=require_fallback_guidance,
+      skill_impact_ledger_path=skill_impact_ledger_path,
       output_path=output_path,
       publish_to_drive=publish_to_drive,
       drive_title=drive_title,
@@ -1109,6 +1136,66 @@ def analyze_and_redline_detection_coverage_gaps_in_doc(
   )
 
 
+def audit_and_redline_runbook_promotion_in_doc(
+    document_id: str,
+    skill_name: str = "",
+    require_purpose_contract: bool = True,
+    require_fallback_guidance: bool = True,
+    max_l1_churn_ratio: float = 0.35,
+    max_added_lines: int = 120,
+    validation_score_delta: float | None = None,
+    tau_accept: float = 0.015,
+    skill_impact_ledger_path: str = "",
+    tool_context: ToolContext = None,
+) -> dict:
+  """Audits a Google Doc runbook draft for WikiSkill + RRSI promotion readiness and stages Suggested Edits (`writeMode="SUGGEST"`).
+
+  Implements the closed-loop WikiSkill + RRSI Runbook Promotion Gate:
+  1. Parameterizes leaked case-specific IoCs (`104.198.226.161` -> `<PRINCIPAL_IP>`,
+     `wins-d19` -> `<PRINCIPAL_HOSTNAME>`, `hello@base-production.iam.gserviceaccount.com`
+     -> `<SERVICE_ACCOUNT_EMAIL>`, `admin@mydomain.com` -> `<USER_EMAIL>`,
+     `lisawalker` -> `<TARGET_USER>`, `projects/base-analytics/instances/prod-customers`
+     -> `projects/<GCP_PROJECT_ID>/instances/<CLOUDSQL_INSTANCE>`) and case-coupled
+     headings (`SOAR Case <ID>`) outside historical provenance notes and YARA-L 2.0 rules.
+  2. Synthesizes missing `Runbook Purpose & Promotion Contract (WikiSkill / RRSI)`
+     sections (`missing_runbook_purpose_contract`) and counterfactual `Fallback (Zero-Hit Recovery):`
+     guidance (`missing_udm_zero_hit_fallback`).
+  3. Evaluates slow-update invariants (`missing_protected_headings`), L1 edit-budget
+     regularization (`max_l1_churn_ratio`, `max_added_lines`), and validation
+     noise-floor gating (`validation_score_delta >= tau_accept`), logging an
+     auditable entry to `skill-impact.md` when `skill_impact_ledger_path` is provided.
+
+  Args:
+      document_id (str): The Google Docs documentId.
+      skill_name (str): Optional runbook skill name in SOC Runbooks (e.g. 'compromised-user-account-response').
+      require_purpose_contract (bool): Whether to require and stage a `Runbook Purpose & Promotion Contract` section.
+      require_fallback_guidance (bool): Whether to require and stage zero-hit recovery fallback guidance for UDM steps.
+      max_l1_churn_ratio (float): Maximum allowed L1 character churn ratio against baseline runbook (default 0.35).
+      max_added_lines (int): Maximum net added lines budget (default 120).
+      validation_score_delta (float | None): Optional penalized validation score delta (`Delta S_penalized`).
+      tau_accept (float): Minimum required validation score delta above noise floor (default 0.015).
+      skill_impact_ledger_path (str): Optional file path for the WikiSkill `skill-impact.md` promotion ledger.
+
+  Returns:
+      dict: {"status", "document_id", "title", "skill_name", "char_count",
+             "promotion_findings_count", "findings", "pre_redline_audit",
+             "post_redline_audit", "promotion_ready_after_redline", "ledger_entry",
+             "skipped_existing_suggestion_count", "comments", "edits"}.
+  """
+  return _audit_and_redline_runbook_promotion_in_doc(
+      document_id=document_id,
+      skill_name=skill_name,
+      require_purpose_contract=require_purpose_contract,
+      require_fallback_guidance=require_fallback_guidance,
+      max_l1_churn_ratio=max_l1_churn_ratio,
+      max_added_lines=max_added_lines,
+      validation_score_delta=validation_score_delta,
+      tau_accept=tau_accept,
+      skill_impact_ledger_path=skill_impact_ledger_path,
+      tool_context=tool_context,
+  )
+
+
 def get_agent_tools():
   """Initializes and returns MCP toolsets and progressive discovery tools.
 
@@ -1163,6 +1250,9 @@ def get_agent_tools():
   wrapped_analyze_and_redline_detection_coverage_gaps_in_doc = instrument_tool(
       analyze_and_redline_detection_coverage_gaps_in_doc
   )
+  wrapped_audit_and_redline_runbook_promotion_in_doc = instrument_tool(
+      audit_and_redline_runbook_promotion_in_doc
+  )
   wrapped_inspect_doc_suggestions = instrument_tool(inspect_doc_suggestions)
   wrapped_list_doc_comments = instrument_tool(list_doc_comments)
   wrapped_export_accepted_doc_to_markdown = instrument_tool(
@@ -1200,6 +1290,7 @@ def get_agent_tools():
       wrapped_triage_and_redline_leaked_credentials_in_doc,
       wrapped_audit_and_redline_claim_evidence_and_campaign_in_doc,
       wrapped_analyze_and_redline_detection_coverage_gaps_in_doc,
+      wrapped_audit_and_redline_runbook_promotion_in_doc,
       wrapped_inspect_doc_suggestions,
       wrapped_list_doc_comments,
       wrapped_export_accepted_doc_to_markdown,

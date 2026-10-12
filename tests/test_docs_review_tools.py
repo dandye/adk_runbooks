@@ -9247,3 +9247,437 @@ def test_review_google_doc_with_stage_a_includes_tdo_coverage_stage_a() -> None:
     assert res["edits"]["applied_count"] == 3
 
 
+# ==============================================================================
+# Cycle 18 (H7): Closed-Loop WikiSkill + RRSI Runbook Promotion Gate Tests
+# ==============================================================================
+
+
+def test_find_runbook_promotion_readiness_spans_parameterizes_case_iocs_and_folds_overlaps() -> None:
+    """Verifies that find_runbook_promotion_readiness_spans detects case-specific IoCs,
+    case-coupled headings, missing zero-hit fallback guidance (folding inner IoCs
+    so spans never overlap), and missing Runbook Purpose & Promotion Contract sections,
+    while ignoring literals inside YARA-L 2.0 rules and provenance notes."""
+    from manager.tools.docs_review_tools import (
+        find_runbook_promotion_readiness_spans,
+        audit_runbook_promotion_readiness,
+    )
+
+    doc_text = (
+        "# Compromised User Account Response Runbook\n"
+        "> Provenance note: Lessons learned promoted from SOAR Case 33278 (104.198.226.161).\n\n"
+        "## 1. Initial Triage (SOAR Case 33278)\n"
+        "- Pivot on `principal.ip = \"104.198.226.161\"` and `principal.hostname = \"wins-d19\"` in Chronicle SIEM.\n"
+        "- Inspect IAM bindings for `hello@base-production.iam.gserviceaccount.com` and `admin@mydomain.com`.\n"
+        "- Check lateral movement for user `lisawalker` and Cloud SQL instance `projects/base-analytics/instances/prod-customers`.\n\n"
+        "## 2. Containment & Remediation\n"
+        "- Revoke active OAuth tokens and disable compromised credentials (`--dry-run` first).\n\n"
+        "rule case_33278_setiampolicy {\n"
+        "  meta:\n"
+        '    author = "SecOps Agent"\n'
+        "  events:\n"
+        '    $e.principal.ip = "104.198.226.161"\n'
+        "  condition:\n"
+        "    $e\n"
+        "}\n"
+    )
+    _, _, findings = find_runbook_promotion_readiness_spans(
+        doc_text,
+        skill_name="compromised-user-account-response",
+        require_purpose_contract=True,
+        require_fallback_guidance=True,
+    )
+    subtypes = [f["subtype"] for f in findings]
+    assert "case_coupled_heading" in subtypes
+    assert "case_specific_ioc_leakage" in subtypes
+    assert "missing_udm_zero_hit_fallback" in subtypes
+    assert "missing_runbook_purpose_contract" in subtypes
+
+    # Verify strict non-overlapping UTF-16 spans
+    sorted_spans = sorted(findings, key=lambda item: (item["start_index"], item["end_index"]))
+    for i in range(len(sorted_spans) - 1):
+        assert sorted_spans[i]["end_index"] <= sorted_spans[i + 1]["start_index"], (
+            f"Overlapping spans: {sorted_spans[i]} vs {sorted_spans[i + 1]}"
+        )
+
+    # Verify the UDM line with 104.198.226.161 and wins-d19 had its inner IoCs folded
+    # into the missing_udm_zero_hit_fallback replacement
+    fallback_finding = next(
+        f for f in findings if f["subtype"] == "missing_udm_zero_hit_fallback"
+    )
+    assert "<PRINCIPAL_IP>" in fallback_finding["replacement"]
+    assert "<PRINCIPAL_HOSTNAME>" in fallback_finding["replacement"]
+    assert "Fallback (Zero-Hit Recovery)" in fallback_finding["replacement"]
+
+    # Simulate accepting all suggested edits in descending start_index order
+    repaired_text = doc_text
+    for f in sorted(findings, key=lambda item: item["start_index"], reverse=True):
+        s_pos = f["start_index"] - 1
+        e_pos = f["end_index"] - 1
+        assert repaired_text[s_pos:e_pos] == f["matched_text"]
+        repaired_text = repaired_text[:s_pos] + f["replacement"] + repaired_text[e_pos:]
+
+    # After applying all suggested edits, audit_runbook_promotion_readiness should pass
+    post_audit = audit_runbook_promotion_readiness(
+        repaired_text,
+        skill_name="compromised-user-account-response",
+    )
+    assert post_audit["promotion_ready"] is True
+    assert post_audit["blocking_reasons"] == []
+    assert post_audit["case_specific_ioc_count"] == 0
+    assert post_audit["has_purpose_contract"] is True
+    assert post_audit["missing_fallback_count"] == 0
+
+
+def test_audit_runbook_promotion_readiness_enforces_slow_update_invariants_and_l1_budget() -> None:
+    """Verifies that audit_runbook_promotion_readiness enforces protected slow-update
+    headings, destructive CLI safety invariants, L1 edit-budget regularization, and
+    RRSI validation noise-floor gating (Delta S_penalized >= tau_accept and HDA)."""
+    from manager.tools.docs_review_tools import audit_runbook_promotion_readiness
+
+    baseline_md = (
+        "# Compromised User Account Response Runbook\n\n"
+        "## Runbook Purpose & Promotion Contract (WikiSkill / RRSI)\n"
+        "- **Purpose**: Reusable SOP.\n"
+        "- **Input Parameters**: `<PRINCIPAL_IP>`\n\n"
+        "## 1. Initial Triage\n"
+        "- Query `principal.ip = \"<PRINCIPAL_IP>\"`.\n"
+        "  - **Fallback (Zero-Hit Recovery)**: Broaden search.\n\n"
+        "## 2. Containment & Remediation\n"
+        "- Revoke sessions with `--dry-run` first.\n"
+    )
+    # Candidate that deletes "## 2. Containment & Remediation" and adds a destructive CLI command
+    bad_candidate_md = (
+        "# Compromised User Account Response Runbook\n\n"
+        "## Runbook Purpose & Promotion Contract (WikiSkill / RRSI)\n"
+        "- **Purpose**: Reusable SOP.\n"
+        "- **Input Parameters**: `<PRINCIPAL_IP>`\n\n"
+        "## 1. Initial Triage\n"
+        "- Query `principal.ip = \"<PRINCIPAL_IP>\"`.\n"
+        "  - **Fallback (Zero-Hit Recovery)**: Broaden search.\n"
+        "- Run `gcloud projects delete prod-project --quiet` immediately.\n"
+    )
+    audit_bad = audit_runbook_promotion_readiness(
+        bad_candidate_md,
+        baseline_markdown=baseline_md,
+        skill_name="compromised-user-account-response",
+        max_l1_churn_ratio=0.10,
+        validation_score_delta=0.008,  # Below tau_accept = 0.015
+        hda_attribution={"delta_G": -0.02, "delta_T": 0.03, "delta_A": -0.002},
+        tau_accept=0.015,
+    )
+    assert audit_bad["promotion_ready"] is False
+    assert "Containment & Remediation" in audit_bad["missing_protected_headings"]
+    assert audit_bad["destructive_cli_count"] >= 1
+    assert audit_bad["l1_budget_passed"] is False
+    assert audit_bad["validation_gate_passed"] is False
+    assert audit_bad["hda_Decomposition"]["delta_total"] == 0.008
+    assert any("missing_protected_headings" in r for r in audit_bad["blocking_reasons"])
+    assert any("unsafe_telemetry_or_destructive_cli" in r for r in audit_bad["blocking_reasons"])
+    assert any("l1_edit_budget_exceeded" in r for r in audit_bad["blocking_reasons"])
+    assert any("validation_below_noise_floor" in r for r in audit_bad["blocking_reasons"])
+    assert any("hda_grounding_regression" in r for r in audit_bad["blocking_reasons"])
+
+
+def test_export_accepted_doc_to_markdown_rrsi_promotion_gate_blocks_and_rolls_back(
+    tmp_path,
+) -> None:
+    """Verifies that export_accepted_doc_to_markdown(..., enforce_rrsi_promotion_gate=True)
+    blocks promotion and returns rollback_markdown + logs REJECTED_ROLLBACK to skill-impact.md
+    when case-specific IoCs remain, and promotes + logs PROMOTED when all gates pass."""
+    import httpx
+    from skills.drive_registry import StaticTokenSource
+    from manager.tools.docs_review_tools import export_accepted_doc_to_markdown
+
+    ledger_file = tmp_path / "skill-impact.md"
+    output_file = tmp_path / "compromised-user-account-response.md"
+
+    # 1. Unparameterized doc that fails the RRSI promotion gate
+    unready_text = (
+        "# Compromised User Account Response Runbook\n\n"
+        "## 1. Initial Triage (SOAR Case 33278)\n"
+        "- Pivot on `principal.ip = \"104.198.226.161\"` in Chronicle SIEM.\n\n"
+        "## 2. Containment & Remediation\n"
+        "- Disable user account.\n"
+    )
+    mock_unready_doc = {
+        "documentId": "doc-rrsi-block",
+        "title": "Unready Runbook Draft",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": len(unready_text) + 1,
+                                "textRun": {"content": unready_text},
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+    }
+    res_blocked = export_accepted_doc_to_markdown(
+        "doc-rrsi-block",
+        skill_name="compromised-user-account-response",
+        enforce_rrsi_promotion_gate=True,
+        validation_score_delta=0.025,
+        skill_impact_ledger_path=str(ledger_file),
+        output_path=str(output_file),
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(
+            lambda req: httpx.Response(200, json=mock_unready_doc)
+        ),
+    )
+    assert res_blocked["status"] == "blocked_rrsi_promotion_gate"
+    assert res_blocked["promotion_audit"]["promotion_ready"] is False
+    assert res_blocked["rollback_markdown"] is not None
+    assert not output_file.exists()
+    assert ledger_file.exists()
+    ledger_text = ledger_file.read_text(encoding="utf-8")
+    assert "REJECTED_ROLLBACK" in ledger_text
+
+    # 2. Parameterized doc that passes the RRSI promotion gate
+    ready_text = (
+        "# Compromised User Account Response Runbook\n\n"
+        "## Runbook Purpose & Promotion Contract (WikiSkill / RRSI)\n"
+        "- **Purpose**: Reusable SOP.\n"
+        "- **Input Parameters**: `<PRINCIPAL_IP>`, `<TARGET_USER>`\n\n"
+        "## 1. Initial Triage\n"
+        "- Pivot on `principal.ip = \"<PRINCIPAL_IP>\"` in Chronicle SIEM.\n"
+        "  - **Fallback (Zero-Hit Recovery)**: Broaden UDM search.\n\n"
+        "## 2. Containment & Remediation\n"
+        "- Disable `<TARGET_USER>` account after `--dry-run` verification.\n"
+    )
+    mock_ready_doc = {
+        "documentId": "doc-rrsi-pass",
+        "title": "Ready Runbook Draft",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": len(ready_text) + 1,
+                                "textRun": {"content": ready_text},
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+    }
+    res_passed = export_accepted_doc_to_markdown(
+        "doc-rrsi-pass",
+        skill_name="compromised-user-account-response",
+        baseline_markdown=ready_text,
+        enforce_rrsi_promotion_gate=True,
+        max_l1_churn_ratio=1.0,
+        validation_score_delta=0.042,
+        skill_impact_ledger_path=str(ledger_file),
+        output_path=str(output_file),
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(
+            lambda req: httpx.Response(200, json=mock_ready_doc)
+        ),
+    )
+    assert res_passed["status"] == "success"
+    assert res_passed["promotion_audit"]["promotion_ready"] is True
+    assert output_file.exists()
+    ledger_text_after = ledger_file.read_text(encoding="utf-8")
+    assert "PROMOTED" in ledger_text_after
+
+
+def test_audit_and_redline_runbook_promotion_in_doc_end_to_end_and_idempotency(
+    tmp_path,
+) -> None:
+    """Verifies audit_and_redline_runbook_promotion_in_doc against a mocked Google Docs
+    API v1 transport, checking descending startIndex ordering, post-redline promotion
+    readiness, skill-impact.md ledger logging, Pass 2 idempotency, and ADK FunctionTool
+    schema declaration."""
+    import json
+    import httpx
+    from google.adk.tools.function_tool import FunctionTool
+    from skills.drive_registry import StaticTokenSource
+    from manager.tools.docs_review_tools import audit_and_redline_runbook_promotion_in_doc
+    from manager.tools import tools as tools_module
+
+    doc_text = (
+        "# Compromised User Account Response Runbook\n\n"
+        "## 1. Initial Triage (SOAR Case 33278)\n"
+        "- Pivot on `principal.ip = \"104.198.226.161\"` and `principal.hostname = \"wins-d19\"` in Chronicle SIEM.\n"
+        "- Inspect service account `hello@base-production.iam.gserviceaccount.com`.\n\n"
+        "## 2. Containment & Remediation\n"
+        "- Revoke OAuth tokens for `admin@mydomain.com` (`--dry-run` first).\n"
+    )
+    mock_doc = {
+        "documentId": "doc-h7-e2e",
+        "title": "Cycle 18 H7 E2E Runbook Draft",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": len(doc_text) + 1,
+                                "textRun": {"content": doc_text},
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+    }
+    batch_calls: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=mock_doc)
+        payload = json.loads(request.content.decode("utf-8"))
+        batch_calls.append(payload)
+        reqs = payload.get("requests", [])
+        if reqs and "insertComment" in reqs[0]:
+            return httpx.Response(
+                200,
+                json={
+                    "replies": [
+                        {"insertComment": {"commentId": f"c-h7-{i+1}"}}
+                        for i in range(len(reqs))
+                    ]
+                },
+            )
+        return httpx.Response(200, json={"replies": [{} for _ in reqs]})
+
+    ledger_path = tmp_path / "skill-impact.md"
+    res1 = audit_and_redline_runbook_promotion_in_doc(
+        "doc-h7-e2e",
+        skill_name="compromised-user-account-response",
+        max_l1_churn_ratio=1.0,
+        validation_score_delta=0.035,
+        skill_impact_ledger_path=str(ledger_path),
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(handler),
+    )
+    assert res1["status"] == "success"
+    assert res1["promotion_findings_count"] == 5
+    assert res1["pre_redline_audit"]["promotion_ready"] is False
+    assert res1["post_redline_audit"]["promotion_ready"] is True
+    assert res1["promotion_ready_after_redline"] is True
+    assert res1["comments"]["inserted_count"] == 5
+    assert res1["edits"]["applied_count"] == 5
+    assert ledger_path.exists()
+    assert "PROMOTED" in ledger_path.read_text(encoding="utf-8")
+
+    delete_starts = [
+        req["deleteContentRange"]["range"]["startIndex"]
+        for req in batch_calls[1]["requests"]
+        if "deleteContentRange" in req
+    ]
+    assert delete_starts == sorted(delete_starts, reverse=True)
+
+    # Pass 2 idempotency when suggestions are already pending
+    mock_doc_pass2 = {
+        "documentId": "doc-h7-e2e",
+        "title": "Cycle 18 H7 E2E Runbook Draft",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": len(doc_text) + 1,
+                                "textRun": {
+                                    "content": doc_text,
+                                    "suggestedDeletionIds": ["suggest.h7.existing"],
+                                },
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+    }
+    res2 = audit_and_redline_runbook_promotion_in_doc(
+        "doc-h7-e2e",
+        skill_name="compromised-user-account-response",
+        max_l1_churn_ratio=1.0,
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(
+            lambda req: httpx.Response(200, json=mock_doc_pass2)
+        ),
+    )
+    assert res2["promotion_findings_count"] == 0
+    assert res2["skipped_existing_suggestion_count"] == 5
+    assert res2["comments"]["inserted_count"] == 0
+    assert res2["edits"]["applied_count"] == 0
+
+    # Verify ADK FunctionTool schema declaration
+    ft = FunctionTool(tools_module.audit_and_redline_runbook_promotion_in_doc)
+    decl = ft._get_declaration()
+    assert decl.name == "audit_and_redline_runbook_promotion_in_doc"
+    props = (decl.parameters_json_schema or {}).get("properties", {})
+    assert "document_id" in props
+    assert "skill_name" in props
+    assert "max_l1_churn_ratio" in props
+    assert "validation_score_delta" in props
+    assert "tool_context" not in props
+
+
+def test_review_google_doc_with_stage_a_includes_runbook_promotion_stage_a() -> None:
+    """Verifies that review_google_doc_with_stage_a(..., include_runbook_promotion_stage_a=True)
+    populates stage_a_runbook_promotion_count without overlapping spans."""
+    import json
+    import httpx
+    from skills.drive_registry import StaticTokenSource
+    from manager.tools.docs_review_tools import review_google_doc_with_stage_a
+
+    doc_text = (
+        "# Compromised User Account Response Runbook\n\n"
+        "## 1. Initial Triage (SOAR Case 33278)\n"
+        "- Pivot on `principal.ip = \"104.198.226.161\"` in Chronicle SIEM.\n\n"
+        "## 2. Containment & Remediation\n"
+        "- Revoke sessions for `admin@mydomain.com`.\n"
+    )
+    mock_doc = {
+        "documentId": "doc-h7-stage-a",
+        "title": "Cycle 18 H7 Stage A Test",
+        "body": {
+            "content": [
+                {
+                    "paragraph": {
+                        "elements": [
+                            {
+                                "startIndex": 1,
+                                "endIndex": len(doc_text) + 1,
+                                "textRun": {"content": doc_text},
+                            }
+                        ]
+                    }
+                }
+            ]
+        },
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(200, json=mock_doc)
+        payload = json.loads(request.content.decode("utf-8"))
+        reqs = payload.get("requests", [])
+        return httpx.Response(200, json={"replies": [{} for _ in reqs]})
+
+    res = review_google_doc_with_stage_a(
+        "doc-h7-stage-a",
+        include_runbook_promotion_stage_a=True,
+        token_source=StaticTokenSource("adc-token"),
+        transport=httpx.MockTransport(handler),
+    )
+    assert res["status"] == "success"
+    assert res["stage_a_runbook_promotion_count"] == 4
+    assert res["edits"]["applied_count"] == 4
+
+
+

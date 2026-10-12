@@ -43,6 +43,7 @@ from .tools.tools import (
     triage_and_redline_leaked_credentials_in_doc,
     audit_and_redline_claim_evidence_and_campaign_in_doc,
     analyze_and_redline_detection_coverage_gaps_in_doc,
+    audit_and_redline_runbook_promotion_in_doc,
     inspect_doc_suggestions,
     list_doc_comments,
     export_accepted_doc_to_markdown,
