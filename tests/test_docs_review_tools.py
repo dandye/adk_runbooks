@@ -10217,9 +10217,501 @@ def test_evaluate_infosec_doc_reviewer_with_waved_benchmark_scenario() -> None:
         include_hda_ablation=True,
     )
     assert res_all_night2["status"] == "success"
-    assert res_all_night2["scenario_count"] == 7
-    assert res_all_night2["total_expected_defects"] == 38
+    assert res_all_night2["scenario_count"] >= 7
+    assert res_all_night2["total_expected_defects"] >= 38
     assert res_all_night2["f1_score"] == 1.0
+
+
+def test_extract_yaral2_multi_event_spec_parses_sliding_windows_and_timestamp_comparisons() -> None:
+    """H22 Suite 1: Verifies UTF-16 span extraction for canonical ($ip over 15m after $iam)
+    and malformed sliding windows (within 15 minutes following $ip, over 15m before $iam)
+    plus events: timestamp comparisons ($iam.metadata.event_timestamp.seconds < $sql.metadata.event_timestamp.seconds,
+    $iam.timestamp > $sql.metadata.event_timestamp)."""
+    from manager.tools.docs_review_tools import (
+        _build_utf16_index_map,
+        extract_yaral2_multi_event_spec,
+        infer_yaral2_event_var_kill_chain_stage,
+    )
+
+    canonical_rule = (
+        "rule valid_gcp_iam_to_cloudsql {\n"
+        "  events:\n"
+        '    $iam.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $iam.security_result.rule_name = "SetIamPolicy"\n'
+        "    $iam.principal.ip = $ip\n"
+        '    $sql.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $sql.security_result.rule_name = /.*cloudsql\\.instances\\.delete.*/\n'
+        "    $sql.principal.ip = $ip\n"
+        "    $iam.metadata.event_timestamp.seconds < $sql.metadata.event_timestamp.seconds\n"
+        "  match:\n"
+        "    $ip over 15m after $iam\n"
+        "  condition:\n"
+        "    $iam and $sql\n"
+        "}\n"
+    )
+    iam_stage = infer_yaral2_event_var_kill_chain_stage(canonical_rule, "$iam")
+    sql_stage = infer_yaral2_event_var_kill_chain_stage(canonical_rule, "$sql")
+    assert iam_stage["stage_rank"] < sql_stage["stage_rank"]
+
+    canon_map = _build_utf16_index_map(canonical_rule)
+    canon_spec = extract_yaral2_multi_event_spec(
+        canonical_rule,
+        rule_char_start=0,
+        full_plain_text=canonical_rule,
+        index_map=canon_map,
+    )
+    assert canon_spec["is_multi_event"] is True
+    assert len(canon_spec["match_clauses"]) == 1
+    mc0 = canon_spec["match_clauses"][0]
+    assert mc0["has_sliding_window"] is True
+    assert mc0["sliding_window_raw"] == "over 15m after $iam"
+    assert mc0["sliding_window_normalized"] == "over 15m after $iam"
+    assert mc0["sliding_window_syntax_valid"] is True
+    assert mc0["sliding_window_valid"] is True
+    assert mc0["sliding_direction_normalized"] == "after"
+    assert mc0["sliding_direction_contradicted"] is False
+    assert mc0["pivot_event_var"] == "$iam"
+    assert mc0["pivot_is_declared_event_var"] is True
+    assert mc0["window_seconds"] == 900
+
+    assert len(canon_spec["timestamp_comparisons"]) == 1
+    tc0 = canon_spec["timestamp_comparisons"][0]
+    assert (
+        tc0["comparison_text"]
+        == "$iam.metadata.event_timestamp.seconds < $sql.metadata.event_timestamp.seconds"
+    )
+    assert tc0["lhs_field_valid"] is True
+    assert tc0["rhs_field_valid"] is True
+    assert tc0["order_reversed"] is False
+    assert tc0["comparison_valid"] is True
+
+    malformed_rule = (
+        "rule malformed_sliding_and_ts {\n"
+        "  events:\n"
+        '    $iam.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $iam.security_result.rule_name = "SetIamPolicy"\n'
+        "    $iam.principal.ip = $ip\n"
+        '    $sql.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $sql.security_result.rule_name = /.*cloudsql\\.instances\\.delete.*/\n'
+        "    $sql.principal.ip = $ip\n"
+        "    $iam.timestamp > $sql.metadata.event_timestamp\n"
+        "  match:\n"
+        "    $ip within 15 minutes following $ip\n"
+        "  condition:\n"
+        "    $iam and $sql\n"
+        "}\n"
+    )
+    mal_map = _build_utf16_index_map(malformed_rule)
+    mal_spec = extract_yaral2_multi_event_spec(
+        malformed_rule,
+        rule_char_start=0,
+        full_plain_text=malformed_rule,
+        index_map=mal_map,
+    )
+    mc_mal = mal_spec["match_clauses"][0]
+    assert mc_mal["has_sliding_window"] is True
+    assert mc_mal["sliding_window_raw"] == "within 15 minutes following $ip"
+    assert mc_mal["sliding_window_syntax_valid"] is False
+    assert mc_mal["pivot_event_var"] == "$ip"
+    assert mc_mal["pivot_is_declared_event_var"] is False
+    assert mc_mal["pivot_is_join_placeholder"] is True
+    assert mc_mal["recommended_pivot_event_var"] == "$iam"
+    assert mc_mal["sliding_window_normalized"] == "over 15m after $iam"
+
+    tc_mal = mal_spec["timestamp_comparisons"][0]
+    assert tc_mal["lhs_field_valid"] is False
+    assert tc_mal["rhs_field_valid"] is False
+    assert tc_mal["order_reversed"] is True
+    assert tc_mal["recommended_operator"] == "<"
+    assert (
+        tc_mal["recommended_comparison_text"]
+        == "$iam.metadata.event_timestamp.seconds < $sql.metadata.event_timestamp.seconds"
+    )
+
+
+def test_find_yaral2_rule_spans_repairs_sliding_window_and_timestamp_ordering_defects() -> None:
+    """H22 Suite 2: Verifies deterministic repair across invalid_sliding_window_syntax,
+    sliding_window_pivot_event_mismatch, sliding_window_direction_contradiction,
+    invalid_event_timestamp_field, and reversed_kill_chain_timestamp_order with
+    strictly non-overlapping UTF-16 spans and zero false positives on valid sliding-window rules."""
+    from manager.tools.docs_review_tools import (
+        _build_utf16_index_map,
+        _spans_overlap,
+        find_yaral2_rule_spans,
+    )
+
+    doc_text = (
+        "rule valid_sliding_window_control {\n"
+        "  events:\n"
+        '    $iam.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $iam.security_result.rule_name = "SetIamPolicy"\n'
+        "    $iam.principal.ip = $src_ip\n"
+        '    $sql.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $sql.security_result.rule_name = /.*cloudsql\\.instances\\.delete.*/\n'
+        "    $sql.principal.ip = $src_ip\n"
+        "    $iam.metadata.event_timestamp.seconds <= $sql.metadata.event_timestamp.seconds\n"
+        "  match:\n"
+        "    $src_ip over 15m after $iam\n"
+        "  condition:\n"
+        "    $iam and $sql\n"
+        "}\n\n"
+        "rule defect_1_syntax_and_ts_field {\n"
+        "  events:\n"
+        '    $iam.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $iam.security_result.rule_name = "SetIamPolicy"\n'
+        "    $iam.principal.ip = $ip\n"
+        '    $sql.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $sql.security_result.rule_name = /.*cloudsql\\.instances\\.delete.*/\n'
+        "    $sql.principal.ip = $ip\n"
+        "    $iam.timestamp < $sql.metadata.event_timestamp.seconds\n"
+        "  match:\n"
+        "    $ip within 15 minutes following $iam\n"
+        "  condition:\n"
+        "    $iam and $sql\n"
+        "}\n\n"
+        "rule defect_2_pivot_and_reversed_order {\n"
+        "  events:\n"
+        '    $tamper.metadata.log_type = "WORKSPACE_ACTIVITY"\n'
+        '    $tamper.security_result.rule_name = /.*DELETE_SAML2_SERVICE_PROVIDER_CONFIG.*/\n'
+        "    $tamper.principal.user.email_addresses = $user\n"
+        '    $exfil.metadata.log_type = "WORKSPACE_ACTIVITY"\n'
+        '    $exfil.security_result.rule_name = /.*CREATE_DATA_TRANSFER_REQUEST.*/\n'
+        "    $exfil.principal.user.email_addresses = $user\n"
+        "    $tamper.metadata.event_timestamp.seconds > $exfil.metadata.event_timestamp.seconds\n"
+        "  match:\n"
+        "    $user over 15m after $user\n"
+        "  condition:\n"
+        "    $tamper and $exfil\n"
+        "}\n\n"
+        "rule defect_3_direction_contradiction {\n"
+        "  events:\n"
+        '    $exec.metadata.event_type = "PROCESS_LAUNCH"\n'
+        '    $exec.target.process.file.full_path = /.*powershell\\.exe.*/ nocase\n'
+        "    $exec.principal.hostname = $host\n"
+        '    $svc.metadata.event_type = "PROCESS_LAUNCH"\n'
+        '    $svc.target.process.file.full_path = /.*DERPService\\.exe.*/ nocase\n'
+        "    $svc.principal.hostname = $host\n"
+        "    $exec.metadata.event_timestamp.seconds < $svc.metadata.event_timestamp.seconds\n"
+        "  match:\n"
+        "    $host over 15m before $exec\n"
+        "  condition:\n"
+        "    $exec and $svc\n"
+        "}\n"
+    )
+    idx_map = _build_utf16_index_map(doc_text)
+    comments, edits, findings = find_yaral2_rule_spans(doc_text, idx_map)
+
+    assert len(findings) == 5
+    assert len(comments) == 5
+    assert len(edits) == 5
+
+    # Zero findings on valid_sliding_window_control
+    flagged_rules = {f["rule_name"] for f in findings}
+    assert "valid_sliding_window_control" not in flagged_rules
+
+    defect_types = {f["defect_type"] for f in findings}
+    assert defect_types == {
+        "invalid_sliding_window_syntax",
+        "sliding_window_pivot_event_mismatch",
+        "sliding_window_direction_contradiction",
+        "invalid_event_timestamp_field",
+        "reversed_kill_chain_timestamp_order",
+    }
+
+    # Verify non-overlapping UTF-16 spans
+    spans = [(int(e["start_index"]), int(e["end_index"])) for e in edits]
+    for i in range(len(spans)):
+        for j in range(i + 1, len(spans)):
+            assert not _spans_overlap(spans[i], spans[j]), (
+                f"Overlapping spans: {spans[i]} vs {spans[j]}"
+            )
+
+
+def test_evaluate_yaral2_temporal_sequence_and_zero_hit_reversed_timestamp_diagnosis() -> None:
+    """H22 Suite 3: Verifies that _run_multi_event_siem_retrohunt and
+    diagnose_zero_hit_yaral2_rule parse metadata.event_timestamp from SIEM UDM events,
+    compute chronological_pair_count, reversed_pair_count, within_window_pair_count,
+    and observed_min_delta_seconds, and automatically diagnose and pivot
+    zero_hit_reversed_timestamp_sequence."""
+    from manager.tools.docs_review_tools import (
+        _run_multi_event_siem_retrohunt,
+        diagnose_zero_hit_yaral2_rule,
+        verify_yaral2_rule_with_siem,
+    )
+
+    # Case 33287: SAML2 config deletion at 14:19:45Z followed 65s later by Drive transfer at 14:20:50Z
+    def _mock_siem_search(query: str, max_events: int = 20):
+        if "DELETE_SAML2_SERVICE_PROVIDER_CONFIG" in query:
+            return {
+                "events": [
+                    {
+                        "udm": {
+                            "metadata": {
+                                "log_type": "WORKSPACE_ACTIVITY",
+                                "event_timestamp": "2026-02-07T14:19:45Z",
+                            },
+                            "security_result": [
+                                {
+                                    "rule_name": "Event Name: DELETE_SAML2_SERVICE_PROVIDER_CONFIG"
+                                }
+                            ],
+                            "principal": {
+                                "user": {
+                                    "email_addresses": ["admin@mydomain.com"]
+                                }
+                            },
+                        }
+                    }
+                ]
+            }
+        if "CREATE_DATA_TRANSFER_REQUEST" in query:
+            return {
+                "events": [
+                    {
+                        "udm": {
+                            "metadata": {
+                                "log_type": "WORKSPACE_ACTIVITY",
+                                "event_timestamp": "2026-02-07T14:20:50Z",
+                            },
+                            "security_result": [
+                                {
+                                    "rule_name": "Event Name: CREATE_DATA_TRANSFER_REQUEST"
+                                }
+                            ],
+                            "principal": {
+                                "user": {
+                                    "email_addresses": ["admin@mydomain.com"]
+                                }
+                            },
+                        }
+                    }
+                ]
+            }
+        return {"events": []}
+
+    def _mock_validate(rule_text: str):
+        return {"valid": True, "message": "Rule is valid."}
+
+    # Generic event variable names $a and $b with equal static stage rank (if we use generic predicates)
+    # or explicit reversed timestamp inequality $tamper.metadata.event_timestamp.seconds > $exfil.metadata.event_timestamp.seconds
+    reversed_rule = (
+        "rule workspace_saml2_to_drive_reversed_ts {\n"
+        "  events:\n"
+        '    $tamper.metadata.log_type = "WORKSPACE_ACTIVITY"\n'
+        '    $tamper.security_result.rule_name = /.*DELETE_SAML2_SERVICE_PROVIDER_CONFIG.*/\n'
+        "    $tamper.principal.user.email_addresses = $user\n"
+        '    $exfil.metadata.log_type = "WORKSPACE_ACTIVITY"\n'
+        '    $exfil.security_result.rule_name = /.*CREATE_DATA_TRANSFER_REQUEST.*/\n'
+        "    $exfil.principal.user.email_addresses = $user\n"
+        "    $tamper.metadata.event_timestamp.seconds > $exfil.metadata.event_timestamp.seconds\n"
+        "  match:\n"
+        "    $user over 15m after $tamper\n"
+        "  condition:\n"
+        "    $tamper and $exfil\n"
+        "}\n"
+    )
+
+    me_raw = _run_multi_event_siem_retrohunt(
+        reversed_rule,
+        siem_search_fn=_mock_siem_search,
+    )
+    assert me_raw["temporal_sequence_verified"] is False
+    assert me_raw["chronological_pair_count"] == 0
+    assert me_raw["reversed_pair_count"] == 1
+    assert me_raw["observed_min_delta_seconds"] == 65
+
+    diag = diagnose_zero_hit_yaral2_rule(
+        reversed_rule,
+        siem_validate_fn=_mock_validate,
+        siem_search_fn=_mock_siem_search,
+    )
+    assert diag["status"] == "success"
+    assert diag["diagnosis_class"] == "zero_hit_reversed_timestamp_sequence"
+    assert diag["pivot_verified"] is True
+    assert diag["pivot_compiler_verified"] is True
+    assert diag["chronological_pair_count"] == 1
+    assert diag["reversed_pair_count"] == 1
+    assert diag["within_window_pair_count"] == 1
+    assert diag["observed_min_delta_seconds"] == 65
+    assert (
+        "$tamper.metadata.event_timestamp.seconds < $exfil.metadata.event_timestamp.seconds"
+        in diag["pivoted_rule_text"]
+    )
+
+    ver = verify_yaral2_rule_with_siem(
+        reversed_rule,
+        siem_validate_fn=_mock_validate,
+        siem_search_fn=_mock_siem_search,
+    )
+    assert ver["status"] == "success"
+    assert ver["compiler_verified"] is True
+    assert ver["temporal_sequence_verified"] is True
+    assert ver["chronological_pair_count"] == 1
+    assert ver["within_window_pair_count"] == 1
+    assert ver["observed_min_delta_seconds"] == 65
+
+
+def test_verify_and_redline_yaral2_rules_in_doc_sliding_window_and_sequence_e2e() -> None:
+    """H22 Suite 4: Verifies end-to-end Google Docs red-lining of YARA-L 2.0 sliding-window
+    and timestamp-ordering defects via LocalGoogleDocsSimulator, confirming descending
+    startIndex edit order, accepted-text convergence, and Pass 2 idempotency."""
+    from skills.drive_registry import StaticTokenSource
+    from manager.tools.docs_review_tools import (
+        LocalGoogleDocsSimulator,
+        clear_doc_index_cache,
+        inspect_doc_suggestions,
+        verify_and_redline_yaral2_rules_in_doc,
+    )
+
+    clear_doc_index_cache()
+    sim = LocalGoogleDocsSimulator()
+    transport = sim.as_httpx_transport()
+    token_source = StaticTokenSource("sim-token")
+
+    doc_md = (
+        "# Sliding Window & Kill-Chain Sequence Verification Test\n\n"
+        "```yaral\n"
+        "rule gcp_iam_to_cloudsql_case_33278 {\n"
+        "  events:\n"
+        '    $iam.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $iam.security_result.rule_name = "SetIamPolicy"\n'
+        "    $iam.principal.ip = $ip\n"
+        '    $sql.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+        '    $sql.security_result.rule_name = /.*cloudsql\\.instances\\.delete.*/\n'
+        "    $sql.principal.ip = $ip\n"
+        "    $iam.timestamp > $sql.metadata.event_timestamp\n"
+        "  match:\n"
+        "    $ip within 15 minutes following $ip\n"
+        "  condition:\n"
+        "    $iam and $sql\n"
+        "}\n"
+        "```\n"
+    )
+    sim.create_or_reset_doc(
+        "doc-h22-e2e",
+        "H22 Sliding Window E2E",
+        doc_md,
+        simulate_drive_markdown_import=False,
+    )
+
+    def _mock_siem_search(query: str, max_events: int = 20):
+        if "SetIamPolicy" in query:
+            return {
+                "events": [
+                    {
+                        "udm": {
+                            "metadata": {
+                                "log_type": "GCP_CLOUDAUDIT",
+                                "event_timestamp": "2026-02-07T14:43:29Z",
+                            },
+                            "security_result": [{"rule_name": "SetIamPolicy"}],
+                            "principal": {"ip": ["104.198.226.161"]},
+                        }
+                    }
+                ]
+            }
+        return {
+            "events": [
+                {
+                    "udm": {
+                        "metadata": {
+                            "log_type": "GCP_CLOUDAUDIT",
+                            "event_timestamp": "2026-02-07T14:43:39Z",
+                        },
+                        "security_result": [
+                            {
+                                "rule_name": "Method Name: cloudsql.instances.delete"
+                            }
+                        ],
+                        "principal": {"ip": ["104.198.226.161"]},
+                    }
+                }
+            ]
+        }
+
+    def _mock_validate(rule_text: str):
+        return {"valid": True, "message": "Rule is valid."}
+
+    pass1 = verify_and_redline_yaral2_rules_in_doc(
+        "doc-h22-e2e",
+        run_live_siem_check=True,
+        siem_validate_fn=_mock_validate,
+        siem_search_fn=_mock_siem_search,
+        token_source=token_source,
+        transport=transport,
+    )
+    assert pass1["status"] == "success"
+    assert pass1["yaral2_findings_count"] == 4
+    assert pass1["edits"]["applied_count"] == 4
+    assert pass1["comments"]["inserted_count"] == 4
+
+    inspected = inspect_doc_suggestions(
+        "doc-h22-e2e",
+        token_source=token_source,
+        transport=transport,
+    )
+    accepted = inspected["accepted_text"]
+    assert (
+        "$iam.metadata.event_timestamp.seconds < $sql.metadata.event_timestamp.seconds"
+        in accepted
+    )
+    assert "$ip over 15m after $iam" in accepted
+
+    # Pass 2 must skip all existing suggestions
+    pass2 = verify_and_redline_yaral2_rules_in_doc(
+        "doc-h22-e2e",
+        run_live_siem_check=True,
+        siem_validate_fn=_mock_validate,
+        siem_search_fn=_mock_siem_search,
+        token_source=token_source,
+        transport=transport,
+    )
+    assert pass2["status"] == "success"
+    assert pass2["edits"]["applied_count"] == 0
+    assert pass2["skipped_existing_suggestion_count"] == 4
+
+
+def test_evaluate_infosec_doc_reviewer_with_bench08_sliding_window_and_sequence() -> None:
+    """H22 Suite 5: Verifies that evaluate_infosec_doc_reviewer(scenario_ids='all_with_night2')
+    executes BENCH-08-YARAL2-SLIDING-WINDOW-AND-KILLCHAIN-SEQUENCE with span_precision == 1.0,
+    defect_recall == 1.0, f1_score == 1.0, false_positive_rate == 0.0, and
+    pass2_idempotency_rate == 1.0."""
+    from manager.tools.docs_review_tools import evaluate_infosec_doc_reviewer
+
+    res_b8 = evaluate_infosec_doc_reviewer(
+        scenario_ids="BENCH-08-YARAL2-SLIDING-WINDOW-AND-KILLCHAIN-SEQUENCE",
+        include_hda_ablation=False,
+    )
+    assert res_b8["status"] == "success"
+    assert res_b8["scenario_count"] == 1
+    assert res_b8["total_expected_defects"] == 5
+    assert res_b8["true_positive_edits"] == 5
+    assert res_b8["false_positive_edits"] == 0
+    assert res_b8["false_negative_defects"] == 0
+    assert res_b8["span_precision"] == 1.0
+    assert res_b8["defect_recall"] == 1.0
+    assert res_b8["f1_score"] == 1.0
+    assert res_b8["false_positive_rate"] == 0.0
+    assert res_b8["pass2_idempotency_rate"] == 1.0
+    assert (
+        res_b8["negative_controls_preserved"]
+        == res_b8["total_negative_controls"]
+    )
+
+    res_all_night2 = evaluate_infosec_doc_reviewer(
+        scenario_ids="all_with_night2",
+        include_hda_ablation=True,
+    )
+    assert res_all_night2["status"] == "success"
+    assert res_all_night2["scenario_count"] == 8
+    assert res_all_night2["total_expected_defects"] == 43
+    assert res_all_night2["true_positive_edits"] == 43
+    assert res_all_night2["false_positive_edits"] == 0
+    assert res_all_night2["false_negative_defects"] == 0
+    assert res_all_night2["span_precision"] == 1.0
+    assert res_all_night2["defect_recall"] == 1.0
+    assert res_all_night2["f1_score"] == 1.0
+    assert res_all_night2["pass2_idempotency_rate"] == 1.0
 
 
 

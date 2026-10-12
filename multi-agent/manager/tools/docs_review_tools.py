@@ -38,6 +38,7 @@ import os
 import re
 import sys
 import threading
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
@@ -1329,7 +1330,8 @@ _YARAL2_JOIN_LHS_BINDING_RE = re.compile(
 )
 _YARAL2_MATCH_CLAUSE_RE = re.compile(
     r"(\$(?:[A-Za-z_][A-Za-z0-9_]*)(?:\s*,\s*\$[A-Za-z_][A-Za-z0-9_]*)*)"
-    r"(?:[ \t]+((?:(over|within|for|by)[ \t]+)?(\d+)[ \t]*([A-Za-z]+)))?",
+    r"(?:[ \t]+((?:(over|within|for|by)[ \t]+)?(\d+)[ \t]*([A-Za-z]+))"
+    r"(?:[ \t]+(before|after|following|since|from|until|prior[ \t]+to)[ \t]+\$([A-Za-z_][A-Za-z0-9_]*))?)?",
     re.IGNORECASE,
 )
 _YARAL2_TIME_UNIT_MAP: dict[str, str] = {
@@ -1351,6 +1353,52 @@ _YARAL2_TIME_UNIT_MAP: dict[str, str] = {
     "d": "d",
     "day": "d",
     "days": "d",
+}
+_YARAL2_TIME_UNIT_SECONDS: dict[str, int] = {
+    "s": 1,
+    "m": 60,
+    "h": 3600,
+    "d": 86400,
+}
+_YARAL2_SLIDING_DIRECTION_MAP: dict[str, str] = {
+    "after": "after",
+    "following": "after",
+    "since": "after",
+    "from": "after",
+    "before": "before",
+    "prior to": "before",
+    "until": "before",
+}
+CANONICAL_UDM_TIMESTAMP_FIELD = "metadata.event_timestamp.seconds"
+KNOWN_UDM_TIMESTAMP_FIELD_ALIASES: frozenset[str] = frozenset(
+    {
+        "timestamp",
+        "event_timestamp",
+        "metadata.timestamp",
+        "metadata.event_timestamp",
+        "metadata.event_timestamp.seconds",
+        "metadata.event_timestamp.sec",
+        "metadata.event_timestamp.epoch",
+        "metadata.event_timestamp.nanos",
+        "metadata.ingested_timestamp",
+        "metadata.ingested_timestamp.seconds",
+        "time",
+        "event_time",
+        "metadata.time",
+    }
+)
+_YARAL2_TIMESTAMP_COMPARISON_RE = re.compile(
+    r"\$([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_.]*)"
+    r"([ \t]*(<=|>=|<|>)[ \t]*)"
+    r"\$([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_.]*)(?![A-Za-z0-9_.])"
+)
+KILL_CHAIN_STAGE_ORDER: dict[str, int] = {
+    "initial_access_or_recon": 10,
+    "execution": 20,
+    "privilege_escalation_or_defense_evasion": 30,
+    "persistence_or_credential_access": 40,
+    "lateral_movement_or_collection": 50,
+    "exfiltration_or_impact": 60,
 }
 VALID_YARAL2_OUTCOME_AGG_FUNCS: tuple[str, ...] = (
     "max",
@@ -3216,6 +3264,40 @@ def _camel_to_snake(name: str) -> str:
     return _UDM_SNAKE_KEY_OVERRIDES.get(step2, step2)
 
 
+def _parse_udm_timestamp_to_epoch_seconds(val: Any) -> int | None:
+    """Parses a Chronicle UDM timestamp (RFC-3339 / ISO-8601 string, epoch seconds int/str,
+    or protobuf Timestamp dict ``{"seconds": ...}``) into integer Unix epoch seconds."""
+    if val is None or isinstance(val, bool):
+        return None
+    if isinstance(val, int):
+        return val
+    if isinstance(val, float):
+        return int(val)
+    if isinstance(val, dict):
+        sec_val = val.get("seconds")
+        if sec_val is not None:
+            return _parse_udm_timestamp_to_epoch_seconds(sec_val)
+        return None
+    raw = str(val).strip()
+    if not raw:
+        return None
+    if re.fullmatch(r"-?\d+(?:\.\d+)?", raw):
+        try:
+            return int(float(raw))
+        except ValueError:
+            return None
+    iso_str = raw
+    if iso_str.endswith("Z") or iso_str.endswith("z"):
+        iso_str = iso_str[:-1] + "+00:00"
+    try:
+        dt = datetime.fromisoformat(iso_str)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return int(dt.timestamp())
+    except ValueError:
+        return None
+
+
 def _extract_udm_event_field_values(udm_event: dict[str, Any]) -> dict[str, list[str]]:
     """Recursively flattens a Chronicle SIEM UDM event dictionary into canonical snake_case UDM field paths.
 
@@ -3223,7 +3305,9 @@ def _extract_udm_event_field_values(udm_event: dict[str, Any]) -> dict[str, list
     ``commandLine``, ``emailAddresses``, ``productEventType``, ``resourceType``, and
     ``fullPath``) into canonical snake_case UDM paths (such as ``target.process.command_line``,
     ``principal.user.email_addresses``, ``metadata.product_event_type``, and
-    ``target.resource.name``), and sanitizes all scalar values via :func:`sanitize_telemetry_text`.
+    ``target.resource.name``), normalizes ``metadata.event_timestamp`` into integer Unix epoch
+    seconds under ``metadata.event_timestamp.seconds``, and sanitizes all scalar values via
+    :func:`sanitize_telemetry_text`.
     """
     field_values: dict[str, list[str]] = {}
     if not isinstance(udm_event, dict):
@@ -3252,6 +3336,28 @@ def _extract_udm_event_field_values(udm_event: dict[str, Any]) -> dict[str, list
                 bucket.append(sanitized_str)
 
     _walk(root, "")
+
+    for ts_key in ("metadata.event_timestamp", "metadata.ingested_timestamp"):
+        sec_key = f"{ts_key}.seconds"
+        if ts_key in field_values:
+            sec_bucket = field_values.setdefault(sec_key, [])
+            for raw_ts in field_values[ts_key]:
+                epoch_sec = _parse_udm_timestamp_to_epoch_seconds(raw_ts)
+                if epoch_sec is not None:
+                    sec_str = str(epoch_sec)
+                    if sec_str not in sec_bucket:
+                        sec_bucket.append(sec_str)
+        elif sec_key in field_values:
+            ts_bucket = field_values.setdefault(ts_key, [])
+            for raw_sec in field_values[sec_key]:
+                epoch_sec = _parse_udm_timestamp_to_epoch_seconds(raw_sec)
+                if epoch_sec is not None:
+                    sec_str = str(epoch_sec)
+                    if sec_str not in field_values[sec_key]:
+                        field_values[sec_key].append(sec_str)
+                    if sec_str not in ts_bucket:
+                        ts_bucket.append(sec_str)
+
     return field_values
 
 
@@ -6259,6 +6365,242 @@ def _find_outcome_rhs_bounds(
     return expr_start, expr_end
 
 
+def infer_yaral2_event_var_kill_chain_stage(
+    rule_text: str,
+    event_var: str,
+    *,
+    _predicates: list[dict[str, Any]] | None = None,
+    _event_vars: list[str] | None = None,
+) -> dict[str, Any]:
+    """Classifies a declared YARA-L 2.0 (``YL2``) event stream variable (such as ``$iam``,
+    ``$sql``, ``$tamper``, ``$exfil``, ``$exec``, ``$svc``, ``$e1``, ``$e2``) into its
+    MITRE ATT&CK / operational kill-chain phase rank using ``KILL_CHAIN_STAGE_ORDER``
+    (``initial_access_or_recon=10``, ``execution=20``,
+    ``privilege_escalation_or_defense_evasion=30``, ``persistence_or_credential_access=40``,
+    ``lateral_movement_or_collection=50``, ``exfiltration_or_impact=60``).
+    """
+    raw_ev = str(event_var or "").strip()
+    norm_ev = raw_ev if raw_ev.startswith("$") else f"${raw_ev}"
+    ev_name = norm_ev.lstrip("$").lower()
+
+    preds = (
+        _predicates
+        if _predicates is not None
+        else extract_yaral2_event_predicates(rule_text)
+    )
+    if _event_vars is not None:
+        all_evs = list(_event_vars)
+    else:
+        all_evs = []
+        for ev_m in _YARAL2_EVENT_FIELD_RE.finditer(rule_text):
+            tok = f"${ev_m.group(1)}"
+            if tok not in all_evs:
+                all_evs.append(tok)
+
+    decl_idx = all_evs.index(norm_ev) if norm_ev in all_evs else 0
+    ev_preds = [p for p in preds if str(p.get("event_var")) == norm_ev]
+    combined_blob = " ".join(
+        f"{p.get('canonical_field', '')} {p.get('rhs_value', '')} {p.get('predicate_text', '')}"
+        for p in ev_preds
+    ).lower()
+
+    matched_indicators: list[str] = []
+    stage_name: str | None = None
+
+    impact_tokens = (
+        "cloudsql.instances.delete",
+        "create_data_transfer_request",
+        "delete_bucket",
+        "storage.objects.delete",
+        "datasets.delete",
+        "tables.delete",
+        "instances.delete",
+        "vssadmin",
+        "wbadmin",
+        "bcdedit",
+        "ransom",
+        "exfil",
+        "data_destruction",
+    )
+    lateral_tokens = (
+        "psexec",
+        "wmiexec",
+        "smb",
+        "rdp",
+        "winrm",
+        "archive",
+        "7z.exe",
+        "rar.exe",
+    )
+    persistence_tokens = (
+        "derpservice",
+        "service_creation",
+        "scheduled_task",
+        "schtasks",
+        "sc.exe",
+        "currentversion\\run",
+        "lsass",
+        "mimikatz",
+        "comsvcs",
+        "procdump",
+        "ntds.dit",
+        "sekurlsa",
+        "dcsync",
+    )
+    privesc_evasion_tokens = (
+        "setiampolicy",
+        "delete_saml2_service_provider_config",
+        "change_allowed_two_step_verification_methods",
+        "createserviceaccountkey",
+        "setorgpolicy",
+        "disableserviceaccount",
+        "wevtutil",
+        "clear-eventlog",
+        "timestomp",
+        "modify_registry",
+    )
+    execution_tokens = (
+        "powershell",
+        "pwsh",
+        "cmd.exe",
+        "wscript",
+        "cscript",
+        "mshta",
+        "rundll32",
+        "regsvr32",
+        "bash",
+        "process_launch",
+    )
+    recon_initial_tokens = (
+        "user_login",
+        "network_connection",
+        "network_http",
+        "network_dns",
+        "whoami",
+        "ipconfig",
+        "nltest",
+        "systeminfo",
+        "netstat",
+    )
+
+    for tok in impact_tokens:
+        if tok in combined_blob:
+            matched_indicators.append(tok)
+            stage_name = "exfiltration_or_impact"
+    if stage_name is None and ev_name in (
+        "sql",
+        "exfil",
+        "impact",
+        "destroy",
+        "delete",
+        "del",
+        "wipe",
+        "transfer",
+    ):
+        matched_indicators.append(f"var:{ev_name}")
+        stage_name = "exfiltration_or_impact"
+
+    if stage_name is None:
+        for tok in lateral_tokens:
+            if tok in combined_blob:
+                matched_indicators.append(tok)
+                stage_name = "lateral_movement_or_collection"
+        if stage_name is None and ev_name in (
+            "lateral",
+            "lat",
+            "collect",
+            "collection",
+            "stage",
+        ):
+            matched_indicators.append(f"var:{ev_name}")
+            stage_name = "lateral_movement_or_collection"
+
+    if stage_name is None:
+        for tok in persistence_tokens:
+            if tok in combined_blob:
+                matched_indicators.append(tok)
+                stage_name = "persistence_or_credential_access"
+        if stage_name is None and ev_name in (
+            "svc",
+            "service",
+            "persist",
+            "persistence",
+            "cred",
+            "creds",
+            "dump",
+            "lsass",
+        ):
+            matched_indicators.append(f"var:{ev_name}")
+            stage_name = "persistence_or_credential_access"
+
+    if stage_name is None:
+        for tok in privesc_evasion_tokens:
+            if tok in combined_blob:
+                matched_indicators.append(tok)
+                stage_name = "privilege_escalation_or_defense_evasion"
+        if stage_name is None and ev_name in (
+            "iam",
+            "tamper",
+            "priv",
+            "privesc",
+            "evasion",
+            "def",
+            "policy",
+            "saml",
+        ):
+            matched_indicators.append(f"var:{ev_name}")
+            stage_name = "privilege_escalation_or_defense_evasion"
+
+    if stage_name is None:
+        for tok in execution_tokens:
+            if tok in combined_blob:
+                matched_indicators.append(tok)
+                stage_name = "execution"
+        if stage_name is None and ev_name in (
+            "exec",
+            "proc",
+            "cmd",
+            "ps",
+            "script",
+        ):
+            matched_indicators.append(f"var:{ev_name}")
+            stage_name = "execution"
+
+    if stage_name is None:
+        for tok in recon_initial_tokens:
+            if tok in combined_blob:
+                matched_indicators.append(tok)
+                stage_name = "initial_access_or_recon"
+        if stage_name is None and ev_name in (
+            "login",
+            "auth",
+            "recon",
+            "init",
+            "initial",
+            "net",
+            "dns",
+        ):
+            matched_indicators.append(f"var:{ev_name}")
+            stage_name = "initial_access_or_recon"
+
+    is_specific = bool(stage_name is not None)
+    if stage_name is None:
+        stage_name = "initial_access_or_recon"
+
+    rank = int(KILL_CHAIN_STAGE_ORDER[stage_name])
+    return {
+        "event_var": norm_ev,
+        "event_var_name": ev_name,
+        "stage": stage_name,
+        "stage_name": stage_name,
+        "rank": rank,
+        "stage_rank": rank,
+        "is_specific": is_specific,
+        "declaration_index": decl_idx,
+        "matched_indicators": matched_indicators,
+    }
+
+
 def extract_yaral2_multi_event_spec(
     rule_text: str,
     rule_char_start: int = 0,
@@ -6266,9 +6608,11 @@ def extract_yaral2_multi_event_spec(
     index_map: list[int] | None = None,
 ) -> dict[str, Any]:
     """Parses multi-line and Drive-collapsed single-line YARA-L 2.0 (``YL2``) rules into
-    per-event-stream UDM queries, cross-event join bindings, ``match:`` clauses,
-    ``outcome:`` variable bindings (including ``CASE WHEN`` / ``iff()`` / ``if()`` conditionals),
-    ``condition:`` variable tokens, and ``condition_outcome_comparisons`` with exact 1-based UTF-16 spans.
+    per-event-stream UDM queries, cross-event join bindings, ``match:`` clauses (including
+    fixed hop windows and ``before``/``after`` sliding windows), ``events:`` inter-event
+    ``timestamp_comparisons``, ``outcome:`` variable bindings (including ``CASE WHEN`` /
+    ``iff()`` / ``if()`` conditionals), ``condition:`` variable tokens, and
+    ``condition_outcome_comparisons`` with exact 1-based UTF-16 spans.
     """
     if full_plain_text is None:
         full_plain_text = rule_text
@@ -6295,6 +6639,7 @@ def extract_yaral2_multi_event_spec(
     event_var_names: list[str] = []
     raw_join_bindings: list[dict[str, Any]] = []
     join_placeholders: list[str] = []
+    raw_timestamp_comparisons: list[dict[str, Any]] = []
     match_clauses: list[dict[str, Any]] = []
     outcome_vars: list[str] = []
     outcome_var_names: list[str] = []
@@ -6431,13 +6776,110 @@ def extract_yaral2_multi_event_spec(
                     }
                 )
 
+            for tc_m in _YARAL2_TIMESTAMP_COMPARISON_RE.finditer(sec_body):
+                tc_span = (tc_m.start(), tc_m.end())
+                if any(_spans_overlap(tc_span, c_span) for c_span in comment_spans):
+                    continue
+                lhs_var_name = tc_m.group(1)
+                lhs_field = tc_m.group(2)
+                op_raw = tc_m.group(3)
+                op_str = tc_m.group(4)
+                rhs_var_name = tc_m.group(5)
+                rhs_field = tc_m.group(6)
+
+                lhs_f_lower = lhs_field.lower()
+                rhs_f_lower = rhs_field.lower()
+                is_ts_cmp = (
+                    lhs_f_lower in KNOWN_UDM_TIMESTAMP_FIELD_ALIASES
+                    or rhs_f_lower in KNOWN_UDM_TIMESTAMP_FIELD_ALIASES
+                    or "timestamp" in lhs_f_lower
+                    or "timestamp" in rhs_f_lower
+                )
+                if not is_ts_cmp:
+                    continue
+
+                loc_cmp_s = b_start + tc_m.start(0)
+                loc_cmp_e = b_start + tc_m.end(0)
+                loc_lhs_s = b_start + tc_m.start(1) - 1
+                loc_lhs_e = b_start + tc_m.end(2)
+                loc_op_s = b_start + tc_m.start(4)
+                loc_op_e = b_start + tc_m.end(4)
+                loc_rhs_s = b_start + tc_m.start(5) - 1
+                loc_rhs_e = b_start + tc_m.end(6)
+
+                cmp_u_s, cmp_u_e = _to_utf16_span(loc_cmp_s, loc_cmp_e)
+                lhs_u_s, lhs_u_e = _to_utf16_span(loc_lhs_s, loc_lhs_e)
+                op_u_s, op_u_e = _to_utf16_span(loc_op_s, loc_op_e)
+                rhs_u_s, rhs_u_e = _to_utf16_span(loc_rhs_s, loc_rhs_e)
+                op_rhs_u_s, op_rhs_u_e = _to_utf16_span(loc_op_s, loc_rhs_e)
+                lhs_op_u_s, lhs_op_u_e = _to_utf16_span(loc_lhs_s, loc_op_e)
+
+                lhs_ev = f"${lhs_var_name}"
+                rhs_ev = f"${rhs_var_name}"
+                lhs_canon_vf = f"{lhs_ev}.{CANONICAL_UDM_TIMESTAMP_FIELD}"
+                rhs_canon_vf = f"{rhs_ev}.{CANONICAL_UDM_TIMESTAMP_FIELD}"
+
+                raw_timestamp_comparisons.append(
+                    {
+                        "comparison_index": len(raw_timestamp_comparisons),
+                        "comparison_text": rule_text[loc_cmp_s:loc_cmp_e],
+                        "local_comparison_start": loc_cmp_s,
+                        "local_comparison_end": loc_cmp_e,
+                        "comparison_start_index": cmp_u_s,
+                        "comparison_end_index": cmp_u_e,
+                        "lhs_event_var": lhs_ev,
+                        "lhs_event_var_name": lhs_var_name,
+                        "lhs_field_token": lhs_field,
+                        "lhs_var_field_token": f"{lhs_ev}.{lhs_field}",
+                        "lhs_canonical_field": CANONICAL_UDM_TIMESTAMP_FIELD,
+                        "lhs_canonical_var_field": lhs_canon_vf,
+                        "lhs_field_valid": bool(
+                            lhs_field == CANONICAL_UDM_TIMESTAMP_FIELD
+                        ),
+                        "local_lhs_start": loc_lhs_s,
+                        "local_lhs_end": loc_lhs_e,
+                        "lhs_start_index": lhs_u_s,
+                        "lhs_end_index": lhs_u_e,
+                        "operator": op_str,
+                        "operator_raw": op_raw,
+                        "local_operator_start": loc_op_s,
+                        "local_operator_end": loc_op_e,
+                        "operator_start_index": op_u_s,
+                        "operator_end_index": op_u_e,
+                        "rhs_event_var": rhs_ev,
+                        "rhs_event_var_name": rhs_var_name,
+                        "rhs_field_token": rhs_field,
+                        "rhs_var_field_token": f"{rhs_ev}.{rhs_field}",
+                        "rhs_canonical_field": CANONICAL_UDM_TIMESTAMP_FIELD,
+                        "rhs_canonical_var_field": rhs_canon_vf,
+                        "rhs_field_valid": bool(
+                            rhs_field == CANONICAL_UDM_TIMESTAMP_FIELD
+                        ),
+                        "local_rhs_start": loc_rhs_s,
+                        "local_rhs_end": loc_rhs_e,
+                        "rhs_start_index": rhs_u_s,
+                        "rhs_end_index": rhs_u_e,
+                        "local_operator_rhs_start": loc_op_s,
+                        "local_operator_rhs_end": loc_rhs_e,
+                        "operator_rhs_start_index": op_rhs_u_s,
+                        "operator_rhs_end_index": op_rhs_u_e,
+                        "local_lhs_operator_start": loc_lhs_s,
+                        "local_lhs_operator_end": loc_op_e,
+                        "lhs_operator_start_index": lhs_op_u_s,
+                        "lhs_operator_end_index": lhs_op_u_e,
+                    }
+                )
+
         elif sec_name == "match":
             for mc_m in _YARAL2_MATCH_CLAUSE_RE.finditer(sec_body):
                 mc_span = (mc_m.start(), mc_m.end())
                 if any(_spans_overlap(mc_span, c_span) for c_span in comment_spans):
                     continue
                 prefix_slice = sec_body[: mc_m.start()]
-                if re.search(r"(?i)\b(?:before|after)[ \t]+$", prefix_slice):
+                if re.search(
+                    r"(?i)\b(?:before|after|following|since|from|until|prior[ \t]+to)[ \t]+$",
+                    prefix_slice,
+                ):
                     continue
 
                 vars_group_start = b_start + mc_m.start(1)
@@ -6467,6 +6909,7 @@ def extract_yaral2_multi_event_spec(
                 win_end_idx: int | None = None
                 window_valid = False
                 window_normalized: str | None = None
+                window_seconds: int | None = None
 
                 if window_raw is not None:
                     local_win_start = b_start + mc_m.start(2)
@@ -6480,6 +6923,78 @@ def extract_yaral2_multi_event_spec(
                     if norm_unit and dur_num:
                         window_normalized = f"over {dur_num}{norm_unit}"
                         window_valid = bool(window_raw == window_normalized)
+                        window_seconds = int(dur_num) * int(
+                            _YARAL2_TIME_UNIT_SECONDS.get(norm_unit, 60)
+                        )
+
+                sliding_dir_raw = mc_m.group(6)
+                pivot_name = mc_m.group(7)
+                has_sliding_window = bool(
+                    window_raw is not None
+                    and sliding_dir_raw is not None
+                    and pivot_name is not None
+                )
+                local_dir_start: int | None = None
+                local_dir_end: int | None = None
+                dir_start_idx: int | None = None
+                dir_end_idx: int | None = None
+                local_pivot_start: int | None = None
+                local_pivot_end: int | None = None
+                pivot_start_idx: int | None = None
+                pivot_end_idx: int | None = None
+                local_sw_start: int | None = None
+                local_sw_end: int | None = None
+                sw_start_idx: int | None = None
+                sw_end_idx: int | None = None
+                local_sw_prefix_start: int | None = None
+                local_sw_prefix_end: int | None = None
+                sw_prefix_start_idx: int | None = None
+                sw_prefix_end_idx: int | None = None
+                sliding_dir_norm: str | None = None
+                sliding_dir_syntax_valid = False
+                sliding_window_syntax_valid = False
+                sliding_window_raw: str | None = None
+                sliding_prefix_raw: str | None = None
+                pivot_event_var: str | None = None
+
+                if has_sliding_window and local_win_start is not None:
+                    local_dir_start = b_start + mc_m.start(6)
+                    local_dir_end = b_start + mc_m.end(6)
+                    dir_start_idx, dir_end_idx = _to_utf16_span(
+                        local_dir_start, local_dir_end
+                    )
+                    local_pivot_start = b_start + mc_m.start(7) - 1
+                    local_pivot_end = b_start + mc_m.end(7)
+                    pivot_start_idx, pivot_end_idx = _to_utf16_span(
+                        local_pivot_start, local_pivot_end
+                    )
+                    local_sw_start = local_win_start
+                    local_sw_end = local_pivot_end
+                    sw_start_idx, sw_end_idx = _to_utf16_span(
+                        local_sw_start, local_sw_end
+                    )
+                    local_sw_prefix_start = local_win_start
+                    local_sw_prefix_end = local_dir_end
+                    sw_prefix_start_idx, sw_prefix_end_idx = _to_utf16_span(
+                        local_sw_prefix_start, local_sw_prefix_end
+                    )
+                    sliding_window_raw = rule_text[local_sw_start:local_sw_end]
+                    sliding_prefix_raw = rule_text[
+                        local_sw_prefix_start:local_sw_prefix_end
+                    ]
+                    norm_dir_key = re.sub(
+                        r"\s+", " ", str(sliding_dir_raw).strip().lower()
+                    )
+                    sliding_dir_norm = _YARAL2_SLIDING_DIRECTION_MAP.get(
+                        norm_dir_key, "after"
+                    )
+                    sliding_dir_syntax_valid = bool(
+                        str(sliding_dir_raw) in ("after", "before")
+                    )
+                    sliding_window_syntax_valid = bool(
+                        window_valid and sliding_dir_syntax_valid
+                    )
+                    pivot_event_var = f"${pivot_name}"
 
                 loc_clause_s = b_start + mc_m.start(0)
                 loc_clause_e = b_start + mc_m.end(0)
@@ -6505,10 +7020,44 @@ def extract_yaral2_multi_event_spec(
                         "window_raw": window_raw,
                         "window_valid": window_valid,
                         "window_normalized": window_normalized,
+                        "window_seconds": window_seconds,
                         "local_window_start": local_win_start,
                         "local_window_end": local_win_end,
                         "window_start_index": win_start_idx,
                         "window_end_index": win_end_idx,
+                        "has_sliding_window": has_sliding_window,
+                        "sliding_window_raw": sliding_window_raw,
+                        "sliding_window_syntax_valid": sliding_window_syntax_valid,
+                        "sliding_window_valid": False,
+                        "sliding_window_normalized": None,
+                        "local_sliding_window_start": local_sw_start,
+                        "local_sliding_window_end": local_sw_end,
+                        "sliding_window_start_index": sw_start_idx,
+                        "sliding_window_end_index": sw_end_idx,
+                        "sliding_prefix_raw": sliding_prefix_raw,
+                        "sliding_prefix_normalized": None,
+                        "local_sliding_prefix_start": local_sw_prefix_start,
+                        "local_sliding_prefix_end": local_sw_prefix_end,
+                        "sliding_prefix_start_index": sw_prefix_start_idx,
+                        "sliding_prefix_end_index": sw_prefix_end_idx,
+                        "sliding_direction_raw": sliding_dir_raw,
+                        "sliding_direction_normalized": sliding_dir_norm,
+                        "sliding_direction_syntax_valid": sliding_dir_syntax_valid,
+                        "sliding_direction_contradicted": False,
+                        "recommended_sliding_direction": sliding_dir_norm,
+                        "local_sliding_direction_start": local_dir_start,
+                        "local_sliding_direction_end": local_dir_end,
+                        "sliding_direction_start_index": dir_start_idx,
+                        "sliding_direction_end_index": dir_end_idx,
+                        "pivot_event_var": pivot_event_var,
+                        "pivot_event_name": pivot_name,
+                        "pivot_is_declared_event_var": False,
+                        "pivot_is_join_placeholder": False,
+                        "recommended_pivot_event_var": pivot_event_var,
+                        "local_pivot_start": local_pivot_start,
+                        "local_pivot_end": local_pivot_end,
+                        "pivot_start_index": pivot_start_idx,
+                        "pivot_end_index": pivot_end_idx,
                     }
                 )
 
@@ -6875,6 +7424,155 @@ def extract_yaral2_multi_event_spec(
     }
     reference_lists = _extract_yaral2_reference_lists(rule_text)
 
+    event_kill_chain_stages: dict[str, dict[str, Any]] = {
+        ev: infer_yaral2_event_var_kill_chain_stage(
+            rule_text, ev, _predicates=predicates, _event_vars=event_vars
+        )
+        for ev in event_vars
+    }
+    candidate_stage_vars = positive_event_vars if positive_event_vars else event_vars
+    ordered_stage_vars = sorted(
+        candidate_stage_vars,
+        key=lambda ev: (
+            int(event_kill_chain_stages.get(ev, {}).get("rank", 10)),
+            int(event_kill_chain_stages.get(ev, {}).get("declaration_index", 0)),
+        ),
+    )
+    earliest_stage_ev = ordered_stage_vars[0] if ordered_stage_vars else None
+
+    for mc in match_clauses:
+        if not mc.get("has_sliding_window"):
+            continue
+        pivot_ev = str(mc.get("pivot_event_var") or "")
+        pivot_name = str(mc.get("pivot_event_name") or "")
+        clause_ph_names = {
+            str(p["placeholder_name"]) for p in mc.get("placeholders", [])
+        }
+        pivot_is_declared = bool(pivot_ev in event_vars)
+        pivot_is_placeholder = bool(
+            pivot_ev in join_placeholders or pivot_name in clause_ph_names
+        )
+        rec_pivot_ev = (
+            pivot_ev
+            if pivot_is_declared
+            else (earliest_stage_ev or (event_vars[0] if event_vars else pivot_ev))
+        )
+        dir_norm = str(mc.get("sliding_direction_normalized") or "after")
+        pivot_rank = int(
+            event_kill_chain_stages.get(rec_pivot_ev, {}).get("rank", 10)
+        )
+        other_ranks = [
+            int(event_kill_chain_stages[ev]["rank"])
+            for ev in candidate_stage_vars
+            if ev != rec_pivot_ev and ev in event_kill_chain_stages
+        ]
+        if other_ranks and all(pivot_rank < r for r in other_ranks):
+            expected_dir = "after"
+        elif other_ranks and all(pivot_rank > r for r in other_ranks):
+            expected_dir = "before"
+        else:
+            expected_dir = dir_norm
+
+        dir_contradicted = bool(dir_norm != expected_dir)
+        dur_norm = str(
+            mc.get("window_normalized") or mc.get("window_raw") or ""
+        ).strip()
+        mc["pivot_is_declared_event_var"] = pivot_is_declared
+        mc["pivot_is_join_placeholder"] = pivot_is_placeholder
+        mc["recommended_pivot_event_var"] = rec_pivot_ev
+        mc["sliding_direction_contradicted"] = dir_contradicted
+        mc["recommended_sliding_direction"] = expected_dir
+        mc["sliding_prefix_normalized"] = f"{dur_norm} {expected_dir}"
+        mc["sliding_window_normalized"] = (
+            f"{dur_norm} {expected_dir} {rec_pivot_ev}"
+        )
+        mc["sliding_window_valid"] = bool(
+            mc.get("sliding_window_syntax_valid")
+            and pivot_is_declared
+            and not dir_contradicted
+        )
+
+    timestamp_comparisons: list[dict[str, Any]] = []
+    for tc in raw_timestamp_comparisons:
+        lhs_ev = str(tc["lhs_event_var"])
+        rhs_ev = str(tc["rhs_event_var"])
+        op = str(tc["operator"])
+        lhs_stage = event_kill_chain_stages.get(
+            lhs_ev,
+            infer_yaral2_event_var_kill_chain_stage(
+                rule_text, lhs_ev, _predicates=predicates, _event_vars=event_vars
+            ),
+        )
+        rhs_stage = event_kill_chain_stages.get(
+            rhs_ev,
+            infer_yaral2_event_var_kill_chain_stage(
+                rule_text, rhs_ev, _predicates=predicates, _event_vars=event_vars
+            ),
+        )
+        lhs_rank = int(lhs_stage.get("rank", 10))
+        rhs_rank = int(rhs_stage.get("rank", 10))
+
+        expected_relation: str | None = None
+        if lhs_rank < rhs_rank:
+            expected_relation = "lhs_before_rhs"
+        elif lhs_rank > rhs_rank:
+            expected_relation = "lhs_after_rhs"
+        else:
+            for mc in match_clauses:
+                if mc.get("has_sliding_window") and mc.get(
+                    "pivot_is_declared_event_var"
+                ):
+                    p_ev = str(mc.get("pivot_event_var") or "")
+                    p_dir = str(
+                        mc.get("recommended_sliding_direction")
+                        or mc.get("sliding_direction_normalized")
+                        or "after"
+                    )
+                    if (p_ev == lhs_ev and p_dir == "after") or (
+                        p_ev == rhs_ev and p_dir == "before"
+                    ):
+                        expected_relation = "lhs_before_rhs"
+                        break
+                    if (p_ev == lhs_ev and p_dir == "before") or (
+                        p_ev == rhs_ev and p_dir == "after"
+                    ):
+                        expected_relation = "lhs_after_rhs"
+                        break
+
+        if expected_relation == "lhs_before_rhs" and op in (">", ">="):
+            is_reversed_order = True
+            recommended_op = "<=" if op == ">=" else "<"
+        elif expected_relation == "lhs_after_rhs" and op in ("<", "<="):
+            is_reversed_order = True
+            recommended_op = ">=" if op == "<=" else ">"
+        else:
+            is_reversed_order = False
+            recommended_op = op
+
+        canon_cmp_str = (
+            f"{tc['lhs_canonical_var_field']} {recommended_op} {tc['rhs_canonical_var_field']}"
+        )
+        tc_enriched = dict(tc)
+        tc_enriched.update(
+            {
+                "lhs_kill_chain_stage": lhs_stage,
+                "rhs_kill_chain_stage": rhs_stage,
+                "expected_relation": expected_relation,
+                "is_reversed_order": is_reversed_order,
+                "order_reversed": is_reversed_order,
+                "reversed_order": is_reversed_order,
+                "recommended_operator": recommended_op,
+                "canonical_comparison": canon_cmp_str,
+                "recommended_comparison_text": canon_cmp_str,
+                "comparison_valid": bool(
+                    tc["lhs_field_valid"]
+                    and tc["rhs_field_valid"]
+                    and not is_reversed_order
+                ),
+            }
+        )
+        timestamp_comparisons.append(tc_enriched)
+
     return {
         "event_vars": event_vars,
         "event_var_names": event_var_names,
@@ -6882,12 +7580,14 @@ def extract_yaral2_multi_event_spec(
         "negated_event_vars": negated_event_vars,
         "is_non_existence": is_non_existence,
         "is_multi_event": len(event_vars) >= 2,
+        "event_kill_chain_stages": event_kill_chain_stages,
         "predicates": predicates,
         "per_event_predicates": per_event_predicates,
         "per_event_udm_queries": per_event_udm_queries,
         "reference_lists": reference_lists,
         "join_bindings": join_bindings,
         "join_placeholders": join_placeholders,
+        "timestamp_comparisons": timestamp_comparisons,
         "match_clauses": match_clauses,
         "outcome_vars": outcome_vars,
         "outcome_var_names": outcome_var_names,
@@ -8980,6 +9680,464 @@ def find_yaral2_meta_runbook_and_severity_spans(
     return comments, edits, findings
 
 
+def _find_rule_temporal_and_sliding_window_defects(
+    rule_text: str,
+    rule_name: str,
+    multi_spec: dict[str, Any] | None = None,
+    *,
+    udm_doc_url: str = DEFAULT_UDM_FIELD_LIST_URL,
+    yaral2_doc_url: str = DEFAULT_YARAL2_DOC_URL,
+) -> list[dict[str, Any]]:
+    """Inspects a single YARA-L 2.0 (``YL2``) rule block for the 5 H22 temporal and
+    sliding-window defect classes:
+    - ``invalid_sliding_window_syntax``
+    - ``sliding_window_pivot_event_mismatch``
+    - ``sliding_window_direction_contradiction``
+    - ``invalid_event_timestamp_field``
+    - ``reversed_kill_chain_timestamp_order``
+    Returns non-overlapping rule-local defect records.
+    """
+    spec = (
+        multi_spec
+        if isinstance(multi_spec, dict)
+        else extract_yaral2_multi_event_spec(rule_text)
+    )
+    defects: list[dict[str, Any]] = []
+
+    for tc in spec.get("timestamp_comparisons", []):
+        lhs_valid = bool(tc.get("lhs_field_valid"))
+        rhs_valid = bool(tc.get("rhs_field_valid"))
+        is_rev = bool(tc.get("is_reversed_order"))
+        lhs_ev = str(tc.get("lhs_event_var") or "")
+        rhs_ev = str(tc.get("rhs_event_var") or "")
+        lhs_vf = str(tc.get("lhs_var_field_token") or "")
+        rhs_vf = str(tc.get("rhs_var_field_token") or "")
+        lhs_canon_vf = str(tc.get("lhs_canonical_var_field") or "")
+        rhs_canon_vf = str(tc.get("rhs_canonical_var_field") or "")
+        lhs_field = str(tc.get("lhs_field_token") or "")
+        rhs_field = str(tc.get("rhs_field_token") or "")
+        canon_ts_field = str(
+            tc.get("lhs_canonical_field") or CANONICAL_UDM_TIMESTAMP_FIELD
+        )
+        op_str = str(tc.get("operator") or "")
+        rec_op = str(tc.get("recommended_operator") or op_str)
+        lhs_stage_info = tc.get("lhs_kill_chain_stage") or {}
+        rhs_stage_info = tc.get("rhs_kill_chain_stage") or {}
+        lhs_stage = str(lhs_stage_info.get("stage") or "initial_access_or_recon")
+        rhs_stage = str(rhs_stage_info.get("stage") or "exfiltration_or_impact")
+
+        if is_rev and not lhs_valid:
+            loc_lhs_s = int(tc["local_lhs_start"])
+            loc_lhs_e = int(tc["local_lhs_end"])
+            defects.append(
+                {
+                    "local_start": loc_lhs_s,
+                    "local_end": loc_lhs_e,
+                    "defect_type": "invalid_event_timestamp_field",
+                    "event_var": lhs_ev,
+                    "quote": lhs_vf,
+                    "replacement": lhs_canon_vf,
+                    "invalid_field": lhs_field,
+                    "canonical_field": canon_ts_field,
+                    "comment": (
+                        f"Deterministic YARA-L 2.0 (YL2) Event Timestamp Field Check in rule '{rule_name}': "
+                        f"'{lhs_vf}' uses non-canonical or unextracted protobuf timestamp path '{lhs_field}'. "
+                        f"Chronicle YARA-L 2.0 integer timestamp comparisons require '{lhs_canon_vf}' ({udm_doc_url})."
+                    ),
+                }
+            )
+            loc_op_rhs_s = int(tc["local_operator_rhs_start"])
+            loc_op_rhs_e = int(tc["local_operator_rhs_end"])
+            op_rhs_quote = rule_text[loc_op_rhs_s:loc_op_rhs_e]
+            op_rhs_rep = f"{rec_op} {rhs_canon_vf}"
+            defects.append(
+                {
+                    "local_start": loc_op_rhs_s,
+                    "local_end": loc_op_rhs_e,
+                    "defect_type": "reversed_kill_chain_timestamp_order",
+                    "event_var": rhs_ev,
+                    "quote": op_rhs_quote,
+                    "replacement": op_rhs_rep,
+                    "invalid_field": op_rhs_quote,
+                    "canonical_field": op_rhs_rep,
+                    "comment": (
+                        f"Deterministic YARA-L 2.0 (YL2) Kill-Chain Timestamp Order Check in rule '{rule_name}': "
+                        f"timestamp inequality '{tc['comparison_text']}' reverses the causal kill-chain sequence "
+                        f"where '{lhs_ev}' ({lhs_stage}) precedes '{rhs_ev}' ({rhs_stage}). "
+                        f"Replace '{op_rhs_quote}' with '{op_rhs_rep}' so '{lhs_ev}' precedes '{rhs_ev}' ({yaral2_doc_url})."
+                    ),
+                }
+            )
+        elif is_rev and lhs_valid and not rhs_valid:
+            loc_lhs_op_s = int(tc["local_lhs_operator_start"])
+            loc_lhs_op_e = int(tc["local_lhs_operator_end"])
+            lhs_op_quote = rule_text[loc_lhs_op_s:loc_lhs_op_e]
+            lhs_op_rep = f"{lhs_canon_vf} {rec_op}"
+            defects.append(
+                {
+                    "local_start": loc_lhs_op_s,
+                    "local_end": loc_lhs_op_e,
+                    "defect_type": "reversed_kill_chain_timestamp_order",
+                    "event_var": lhs_ev,
+                    "quote": lhs_op_quote,
+                    "replacement": lhs_op_rep,
+                    "invalid_field": lhs_op_quote,
+                    "canonical_field": lhs_op_rep,
+                    "comment": (
+                        f"Deterministic YARA-L 2.0 (YL2) Kill-Chain Timestamp Order Check in rule '{rule_name}': "
+                        f"timestamp inequality '{tc['comparison_text']}' reverses the causal kill-chain sequence "
+                        f"where '{lhs_ev}' ({lhs_stage}) precedes '{rhs_ev}' ({rhs_stage}). "
+                        f"Replace '{lhs_op_quote}' with '{lhs_op_rep}' ({yaral2_doc_url})."
+                    ),
+                }
+            )
+            loc_rhs_s = int(tc["local_rhs_start"])
+            loc_rhs_e = int(tc["local_rhs_end"])
+            defects.append(
+                {
+                    "local_start": loc_rhs_s,
+                    "local_end": loc_rhs_e,
+                    "defect_type": "invalid_event_timestamp_field",
+                    "event_var": rhs_ev,
+                    "quote": rhs_vf,
+                    "replacement": rhs_canon_vf,
+                    "invalid_field": rhs_field,
+                    "canonical_field": canon_ts_field,
+                    "comment": (
+                        f"Deterministic YARA-L 2.0 (YL2) Event Timestamp Field Check in rule '{rule_name}': "
+                        f"'{rhs_vf}' uses non-canonical or unextracted protobuf timestamp path '{rhs_field}'. "
+                        f"Chronicle YARA-L 2.0 integer timestamp comparisons require '{rhs_canon_vf}' ({udm_doc_url})."
+                    ),
+                }
+            )
+        elif is_rev:
+            loc_cmp_s = int(tc["local_comparison_start"])
+            loc_cmp_e = int(tc["local_comparison_end"])
+            cmp_quote = str(tc["comparison_text"])
+            cmp_rep = str(tc["canonical_comparison"])
+            defects.append(
+                {
+                    "local_start": loc_cmp_s,
+                    "local_end": loc_cmp_e,
+                    "defect_type": "reversed_kill_chain_timestamp_order",
+                    "event_var": lhs_ev,
+                    "quote": cmp_quote,
+                    "replacement": cmp_rep,
+                    "invalid_field": cmp_quote,
+                    "canonical_field": cmp_rep,
+                    "comment": (
+                        f"Deterministic YARA-L 2.0 (YL2) Kill-Chain Timestamp Order Check in rule '{rule_name}': "
+                        f"'{cmp_quote}' requires '{lhs_ev}' ({lhs_stage}) to occur after '{rhs_ev}' ({rhs_stage}), "
+                        f"contradicting the causal kill-chain sequence. Replace '{cmp_quote}' with '{cmp_rep}' ({yaral2_doc_url})."
+                    ),
+                }
+            )
+        else:
+            if not lhs_valid:
+                loc_lhs_s = int(tc["local_lhs_start"])
+                loc_lhs_e = int(tc["local_lhs_end"])
+                defects.append(
+                    {
+                        "local_start": loc_lhs_s,
+                        "local_end": loc_lhs_e,
+                        "defect_type": "invalid_event_timestamp_field",
+                        "event_var": lhs_ev,
+                        "quote": lhs_vf,
+                        "replacement": lhs_canon_vf,
+                        "invalid_field": lhs_field,
+                        "canonical_field": canon_ts_field,
+                        "comment": (
+                            f"Deterministic YARA-L 2.0 (YL2) Event Timestamp Field Check in rule '{rule_name}': "
+                            f"'{lhs_vf}' uses non-canonical or unextracted protobuf timestamp path '{lhs_field}'. "
+                            f"Chronicle YARA-L 2.0 integer timestamp comparisons require '{lhs_canon_vf}' ({udm_doc_url})."
+                        ),
+                    }
+                )
+            if not rhs_valid:
+                loc_rhs_s = int(tc["local_rhs_start"])
+                loc_rhs_e = int(tc["local_rhs_end"])
+                defects.append(
+                    {
+                        "local_start": loc_rhs_s,
+                        "local_end": loc_rhs_e,
+                        "defect_type": "invalid_event_timestamp_field",
+                        "event_var": rhs_ev,
+                        "quote": rhs_vf,
+                        "replacement": rhs_canon_vf,
+                        "invalid_field": rhs_field,
+                        "canonical_field": canon_ts_field,
+                        "comment": (
+                            f"Deterministic YARA-L 2.0 (YL2) Event Timestamp Field Check in rule '{rule_name}': "
+                            f"'{rhs_vf}' uses non-canonical or unextracted protobuf timestamp path '{rhs_field}'. "
+                            f"Chronicle YARA-L 2.0 integer timestamp comparisons require '{rhs_canon_vf}' ({udm_doc_url})."
+                        ),
+                    }
+                )
+
+    for mc in spec.get("match_clauses", []):
+        if not mc.get("has_sliding_window"):
+            continue
+        syntax_defect = not bool(mc.get("sliding_window_syntax_valid"))
+        pivot_defect = not bool(mc.get("pivot_is_declared_event_var"))
+        dir_defect = bool(mc.get("sliding_direction_contradicted"))
+        if not (syntax_defect or pivot_defect or dir_defect):
+            continue
+
+        pivot_raw = str(mc.get("pivot_event_var") or "")
+        rec_pivot = str(mc.get("recommended_pivot_event_var") or pivot_raw)
+        sw_raw = str(mc.get("sliding_window_raw") or "")
+        sw_norm = str(mc.get("sliding_window_normalized") or "")
+        prefix_raw = str(mc.get("sliding_prefix_raw") or "")
+        prefix_norm = str(mc.get("sliding_prefix_normalized") or "")
+        rec_dir = str(mc.get("recommended_sliding_direction") or "after")
+
+        if pivot_defect and (syntax_defect or dir_defect):
+            loc_pref_s = int(mc["local_sliding_prefix_start"])
+            loc_pref_e = int(mc["local_sliding_prefix_end"])
+            pref_dtype = (
+                "invalid_sliding_window_syntax"
+                if syntax_defect
+                else "sliding_window_direction_contradiction"
+            )
+            defects.append(
+                {
+                    "local_start": loc_pref_s,
+                    "local_end": loc_pref_e,
+                    "defect_type": pref_dtype,
+                    "quote": prefix_raw,
+                    "replacement": prefix_norm,
+                    "invalid_field": prefix_raw,
+                    "canonical_field": prefix_norm,
+                    "comment": (
+                        f"Deterministic YARA-L 2.0 (YL2) Sliding Window Syntax Check in rule '{rule_name}': "
+                        f"'{prefix_raw}' is not valid Chronicle YARA-L 2.0 sliding-window syntax. "
+                        f"Use canonical 'over <N><s|m|h|d> <before|after>' syntax '{prefix_norm}' ({yaral2_doc_url})."
+                    ),
+                }
+            )
+            loc_piv_s = int(mc["local_pivot_start"])
+            loc_piv_e = int(mc["local_pivot_end"])
+            defects.append(
+                {
+                    "local_start": loc_piv_s,
+                    "local_end": loc_piv_e,
+                    "defect_type": "sliding_window_pivot_event_mismatch",
+                    "quote": pivot_raw,
+                    "replacement": rec_pivot,
+                    "invalid_field": pivot_raw,
+                    "canonical_field": rec_pivot,
+                    "comment": (
+                        f"Deterministic YARA-L 2.0 (YL2) Sliding Window Pivot Check in rule '{rule_name}': "
+                        f"sliding window pivot '{pivot_raw}' references a match placeholder or undeclared variable "
+                        f"instead of a declared events variable. Replace '{pivot_raw}' with '{rec_pivot}' ({yaral2_doc_url})."
+                    ),
+                }
+            )
+        elif pivot_defect:
+            loc_piv_s = int(mc["local_pivot_start"])
+            loc_piv_e = int(mc["local_pivot_end"])
+            defects.append(
+                {
+                    "local_start": loc_piv_s,
+                    "local_end": loc_piv_e,
+                    "defect_type": "sliding_window_pivot_event_mismatch",
+                    "quote": pivot_raw,
+                    "replacement": rec_pivot,
+                    "invalid_field": pivot_raw,
+                    "canonical_field": rec_pivot,
+                    "comment": (
+                        f"Deterministic YARA-L 2.0 (YL2) Sliding Window Pivot Check in rule '{rule_name}': "
+                        f"sliding window pivot '{pivot_raw}' references a match placeholder or undeclared variable "
+                        f"instead of a declared events variable. Replace '{pivot_raw}' with '{rec_pivot}' ({yaral2_doc_url})."
+                    ),
+                }
+            )
+        elif syntax_defect and dir_defect:
+            loc_win_s = int(mc["local_window_start"])
+            loc_win_e = int(mc["local_window_end"])
+            win_raw = str(mc.get("window_raw") or "")
+            win_norm = str(mc.get("window_normalized") or "")
+            defects.append(
+                {
+                    "local_start": loc_win_s,
+                    "local_end": loc_win_e,
+                    "defect_type": "invalid_sliding_window_syntax",
+                    "quote": win_raw,
+                    "replacement": win_norm,
+                    "invalid_field": win_raw,
+                    "canonical_field": win_norm,
+                    "comment": (
+                        f"Deterministic YARA-L 2.0 (YL2) Sliding Window Syntax Check in rule '{rule_name}': "
+                        f"'{win_raw}' is not valid Chronicle YARA-L 2.0 duration syntax; replace with '{win_norm}' ({yaral2_doc_url})."
+                    ),
+                }
+            )
+            loc_dir_s = int(mc["local_sliding_direction_start"])
+            loc_piv_e = int(mc["local_pivot_end"])
+            dir_piv_quote = rule_text[loc_dir_s:loc_piv_e]
+            dir_piv_rep = f"{rec_dir} {rec_pivot}"
+            defects.append(
+                {
+                    "local_start": loc_dir_s,
+                    "local_end": loc_piv_e,
+                    "defect_type": "sliding_window_direction_contradiction",
+                    "quote": dir_piv_quote,
+                    "replacement": dir_piv_rep,
+                    "invalid_field": dir_piv_quote,
+                    "canonical_field": dir_piv_rep,
+                    "comment": (
+                        f"Deterministic YARA-L 2.0 (YL2) Sliding Window Direction Check in rule '{rule_name}': "
+                        f"sliding window anchor '{dir_piv_quote}' contradicts the causal kill-chain sequence "
+                        f"for pivot '{rec_pivot}'. Replace '{dir_piv_quote}' with '{dir_piv_rep}' ({yaral2_doc_url})."
+                    ),
+                }
+            )
+        elif syntax_defect:
+            loc_sw_s = int(mc["local_sliding_window_start"])
+            loc_sw_e = int(mc["local_sliding_window_end"])
+            defects.append(
+                {
+                    "local_start": loc_sw_s,
+                    "local_end": loc_sw_e,
+                    "defect_type": "invalid_sliding_window_syntax",
+                    "quote": sw_raw,
+                    "replacement": sw_norm,
+                    "invalid_field": sw_raw,
+                    "canonical_field": sw_norm,
+                    "comment": (
+                        f"Deterministic YARA-L 2.0 (YL2) Sliding Window Syntax Check in rule '{rule_name}': "
+                        f"'{sw_raw}' is not valid Chronicle YARA-L 2.0 sliding-window syntax. "
+                        f"Use canonical 'over <N><s|m|h|d> <before|after> $<event_var>' syntax '{sw_norm}' ({yaral2_doc_url})."
+                    ),
+                }
+            )
+        elif dir_defect:
+            loc_sw_s = int(mc["local_sliding_window_start"])
+            loc_sw_e = int(mc["local_sliding_window_end"])
+            defects.append(
+                {
+                    "local_start": loc_sw_s,
+                    "local_end": loc_sw_e,
+                    "defect_type": "sliding_window_direction_contradiction",
+                    "quote": sw_raw,
+                    "replacement": sw_norm,
+                    "invalid_field": sw_raw,
+                    "canonical_field": sw_norm,
+                    "comment": (
+                        f"Deterministic YARA-L 2.0 (YL2) Sliding Window Direction Check in rule '{rule_name}': "
+                        f"'{sw_raw}' anchors sliding window direction 'before' on initial kill-chain stage '{rec_pivot}', "
+                        f"contradicting the chronological sequence of events. Replace '{sw_raw}' with '{sw_norm}' ({yaral2_doc_url})."
+                    ),
+                }
+            )
+
+    return defects
+
+
+def find_yaral2_temporal_and_sliding_window_spans(
+    plain_text: str,
+    index_map: list[int] | None = None,
+    *,
+    udm_doc_url: str = DEFAULT_UDM_FIELD_LIST_URL,
+    yaral2_doc_url: str = DEFAULT_YARAL2_DOC_URL,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Scans ``plain_text`` for Chronicle SIEM YARA-L 2.0 (``YL2``) detection rules and
+    computes non-overlapping 1-based UTF-16 ``(comments, edits, findings)`` across the
+    5 H22 sliding-window and temporal sequence defect classes:
+    - ``invalid_sliding_window_syntax``
+    - ``sliding_window_pivot_event_mismatch``
+    - ``sliding_window_direction_contradiction``
+    - ``invalid_event_timestamp_field``
+    - ``reversed_kill_chain_timestamp_order``
+    """
+    comments: list[dict[str, Any]] = []
+    edits: list[dict[str, Any]] = []
+    findings: list[dict[str, Any]] = []
+    if not plain_text:
+        return comments, edits, findings
+    if index_map is None:
+        index_map = _build_utf16_index_map(plain_text)
+    if not index_map:
+        return comments, edits, findings
+
+    for block in _iter_yaral2_rule_blocks(plain_text):
+        rule_name = str(block["rule_name"])
+        rule_char_start = int(block["char_start"])
+        rule_text = str(block["rule_text"])
+        multi_spec = extract_yaral2_multi_event_spec(
+            rule_text,
+            rule_char_start=rule_char_start,
+            full_plain_text=plain_text,
+            index_map=index_map,
+        )
+        temp_defects = _find_rule_temporal_and_sliding_window_defects(
+            rule_text,
+            rule_name,
+            multi_spec,
+            udm_doc_url=udm_doc_url,
+            yaral2_doc_url=yaral2_doc_url,
+        )
+        if not temp_defects:
+            continue
+
+        repaired_rule = rule_text
+        for defect in sorted(
+            temp_defects, key=lambda d: int(d["local_start"]), reverse=True
+        ):
+            l_s = int(defect["local_start"])
+            l_e = int(defect["local_end"])
+            repaired_rule = (
+                repaired_rule[:l_s]
+                + str(defect["replacement"])
+                + repaired_rule[l_e:]
+            )
+        repaired_rule = _normalize_yaral2_re_regex_calls(repaired_rule)
+
+        for defect in sorted(temp_defects, key=lambda d: int(d["local_start"])):
+            abs_start = rule_char_start + int(defect["local_start"])
+            abs_end = rule_char_start + int(defect["local_end"]) - 1
+            start_idx = index_map[abs_start]
+            end_idx = index_map[abs_end] + _utf16_code_unit_len(
+                plain_text[abs_end]
+            )
+            quote = str(defect["quote"])
+            replacement = str(defect["replacement"])
+            comment_text = str(defect["comment"])
+
+            comments.append(
+                {
+                    "start_index": start_idx,
+                    "end_index": end_idx,
+                    "quote": quote,
+                    "comment": comment_text,
+                }
+            )
+            edits.append(
+                {
+                    "start_index": start_idx,
+                    "end_index": end_idx,
+                    "quote": quote,
+                    "replacement": replacement,
+                }
+            )
+            findings.append(
+                {
+                    "rule_name": rule_name,
+                    "defect_type": defect["defect_type"],
+                    "invalid_field": defect["invalid_field"],
+                    "canonical_field": defect["canonical_field"],
+                    "quote": quote,
+                    "replacement": replacement,
+                    "start_index": start_idx,
+                    "end_index": end_idx,
+                    "original_rule_text": rule_text,
+                    "repaired_rule_text": repaired_rule,
+                }
+            )
+
+    return comments, edits, findings
+
+
 def find_yaral2_rule_spans(
     plain_text: str,
     index_map: list[int],
@@ -9548,7 +10706,8 @@ def find_yaral2_rule_spans(
                 win_raw = mc.get("window_raw")
                 win_norm = mc.get("window_normalized")
                 if (
-                    win_raw
+                    not mc.get("has_sliding_window")
+                    and win_raw
                     and not mc.get("window_valid")
                     and win_norm
                     and mc.get("local_window_start") is not None
@@ -9574,6 +10733,36 @@ def find_yaral2_rule_spans(
                             ),
                         }
                     )
+
+        # (d1b) Sliding windows ('over <W> after/before $<ev>'), event timestamp fields, and kill-chain timestamp ordering
+        temporal_defects = _find_rule_temporal_and_sliding_window_defects(
+            rule_text,
+            rule_name,
+            multi_spec,
+            udm_doc_url=udm_doc_url,
+            yaral2_doc_url=yaral2_doc_url,
+        )
+        for td in temporal_defects:
+            td_s = int(td["local_start"])
+            td_e = int(td["local_end"])
+            if any(
+                _spans_overlap(
+                    (int(d["local_start"]), int(d["local_end"])),
+                    (td_s, td_e),
+                )
+                and d.get("defect_type") != "invalid_udm_field"
+                for d in rule_defects
+            ):
+                continue
+            rule_defects = [
+                d
+                for d in rule_defects
+                if not _spans_overlap(
+                    (int(d["local_start"]), int(d["local_end"])),
+                    (td_s, td_e),
+                )
+            ]
+            rule_defects.append(td)
 
         # (d2) 'outcome:' section non-canonical conditionals, strings.*, re.capture(), aggregation functions, and unaggregated fields in match rules
         if multi_spec["outcome_bindings"]:
@@ -10651,7 +11840,7 @@ def _run_multi_event_siem_retrohunt(
         f"{ev}: {q}" for ev, q in per_event_queries.items() if q
     )
 
-    return {
+    prelim_result: dict[str, Any] = {
         "is_multi_event": True,
         "is_non_existence": is_non_existence,
         "siem_verified": siem_verified,
@@ -10671,6 +11860,333 @@ def _run_multi_event_siem_retrohunt(
         "shared_join_values": shared_join_values,
         "correlated_event_count": correlated_event_count,
         "summary_query": summary_query,
+    }
+    temporal_eval = evaluate_yaral2_temporal_sequence(rule_text, prelim_result)
+    prelim_result.update(
+        {
+            "temporal_evaluation": temporal_eval,
+            "chronological_pair_count": int(
+                temporal_eval.get("chronological_pair_count", 0) or 0
+            ),
+            "reversed_pair_count": int(
+                temporal_eval.get("reversed_pair_count", 0) or 0
+            ),
+            "within_window_pair_count": int(
+                temporal_eval.get("within_window_pair_count", 0) or 0
+            ),
+            "observed_min_delta_seconds": temporal_eval.get(
+                "observed_min_delta_seconds"
+            ),
+            "observed_max_delta_seconds": temporal_eval.get(
+                "observed_max_delta_seconds"
+            ),
+            "temporal_sequence_verified": bool(
+                temporal_eval.get("temporal_sequence_verified")
+            ),
+        }
+    )
+    return prelim_result
+
+
+def evaluate_yaral2_temporal_sequence(
+    rule_text: str,
+    multi_event_retrohunt: dict[str, Any],
+) -> dict[str, Any]:
+    """Evaluates causal timestamp ordering (``$e1.metadata.event_timestamp.seconds < $e2.metadata.event_timestamp.seconds``)
+    and sliding-window duration bounds (``match: $key over <W> after/before $<ev>``) across
+    Chronicle SIEM UDM event pairs sharing join keys in ``multi_event_retrohunt``.
+
+    Computes ``chronological_pair_count``, ``reversed_pair_count``, ``within_window_pair_count``,
+    ``observed_min_delta_seconds``, ``observed_max_delta_seconds``, and ``temporal_sequence_verified``,
+    and synthesizes a pivoted rule when empirical SIEM timestamps reverse the rule's inequality
+    or sliding-window direction (``reversed_pair_count > 0`` and ``chronological_pair_count == 0``).
+    """
+    spec = extract_yaral2_multi_event_spec(rule_text)
+    positive_event_vars: list[str] = list(
+        spec.get("positive_event_vars") or spec.get("event_vars") or []
+    )
+    corr_count = int(
+        multi_event_retrohunt.get("correlated_event_count", 0) or 0
+    )
+    if len(positive_event_vars) < 2:
+        return {
+            "has_timestamp_telemetry": False,
+            "chronological_pair_count": 1 if corr_count > 0 else 0,
+            "reversed_pair_count": 0,
+            "within_window_pair_count": 1 if corr_count > 0 else 0,
+            "observed_min_delta_seconds": 0 if corr_count > 0 else None,
+            "observed_max_delta_seconds": 0 if corr_count > 0 else None,
+            "temporal_sequence_verified": bool(corr_count > 0),
+            "sequence_reversed_in_siem": False,
+            "pivoted_rule_text": rule_text,
+        }
+
+    ts_cmps = list(spec.get("timestamp_comparisons") or [])
+    match_clauses = list(spec.get("match_clauses") or [])
+    stages = dict(spec.get("event_kill_chain_stages") or {})
+
+    window_seconds: int | None = None
+    sliding_mc: dict[str, Any] | None = None
+    for mc in match_clauses:
+        if window_seconds is None and mc.get("window_seconds") is not None:
+            window_seconds = int(mc["window_seconds"])
+        if sliding_mc is None and mc.get("has_sliding_window"):
+            sliding_mc = mc
+
+    allow_equal = True
+    if ts_cmps:
+        first_tc = ts_cmps[0]
+        lhs_ev = str(first_tc["lhs_event_var"])
+        rhs_ev = str(first_tc["rhs_event_var"])
+        op_str = str(first_tc["operator"])
+        if op_str in ("<", "<="):
+            rule_early_ev = lhs_ev
+            rule_late_ev = rhs_ev
+            allow_equal = bool(op_str == "<=")
+        else:
+            rule_early_ev = rhs_ev
+            rule_late_ev = lhs_ev
+            allow_equal = bool(op_str == ">=")
+    elif sliding_mc is not None:
+        piv_ev = str(sliding_mc.get("pivot_event_var") or "")
+        if piv_ev not in positive_event_vars:
+            piv_ev = str(
+                sliding_mc.get("recommended_pivot_event_var")
+                or positive_event_vars[0]
+            )
+        other_ev = next(
+            (ev for ev in positive_event_vars if ev != piv_ev),
+            positive_event_vars[-1],
+        )
+        dir_norm = str(sliding_mc.get("sliding_direction_normalized") or "after")
+        if dir_norm == "after":
+            rule_early_ev, rule_late_ev = piv_ev, other_ev
+        else:
+            rule_early_ev, rule_late_ev = other_ev, piv_ev
+    else:
+        ordered_pos = sorted(
+            positive_event_vars[:2],
+            key=lambda ev: (
+                int(stages.get(ev, {}).get("rank", 10)),
+                int(stages.get(ev, {}).get("declaration_index", 0)),
+            ),
+        )
+        rule_early_ev, rule_late_ev = ordered_pos[0], ordered_pos[1]
+
+    join_placeholder = multi_event_retrohunt.get("join_placeholder")
+    join_bindings = list(
+        multi_event_retrohunt.get("join_bindings")
+        or spec.get("join_bindings")
+        or []
+    )
+    shared_join_values = list(
+        multi_event_retrohunt.get("shared_join_values") or []
+    )
+    shared_lower = {v.lower() for v in shared_join_values}
+    per_event_maps = dict(
+        multi_event_retrohunt.get("per_event_event_maps") or {}
+    )
+
+    join_field_by_ev: dict[str, str] = {}
+    for jb in join_bindings:
+        if join_placeholder is None or str(jb.get("placeholder_var")) == str(
+            join_placeholder
+        ):
+            ev_k = str(jb.get("event_var") or "")
+            if ev_k and ev_k not in join_field_by_ev:
+                join_field_by_ev[ev_k] = str(jb.get("canonical_field") or "")
+
+    def _extract_keyed_timestamps(ev_var: str) -> list[tuple[str, int]]:
+        ev_maps = list(per_event_maps.get(ev_var) or [])
+        j_field = join_field_by_ev.get(ev_var, "")
+        records: list[tuple[str, int]] = []
+        for em in ev_maps:
+            if not isinstance(em, dict):
+                continue
+            ts_vals = (
+                em.get("metadata.event_timestamp.seconds")
+                or em.get("metadata.event_timestamp")
+                or []
+            )
+            epochs = [
+                ep
+                for raw_v in ts_vals
+                for ep in [_parse_udm_timestamp_to_epoch_seconds(raw_v)]
+                if ep is not None
+            ]
+            if not epochs:
+                continue
+            j_vals = em.get(j_field, []) if j_field else []
+            matched_keys = [
+                v.lower()
+                for v in j_vals
+                if not shared_lower or v.lower() in shared_lower
+            ]
+            if not matched_keys and not j_vals:
+                matched_keys = ["*"]
+            for k in matched_keys:
+                for ep in epochs:
+                    records.append((k, ep))
+        return records
+
+    early_records = _extract_keyed_timestamps(rule_early_ev)
+    late_records = _extract_keyed_timestamps(rule_late_ev)
+
+    if not early_records or not late_records:
+        return {
+            "has_timestamp_telemetry": False,
+            "early_event_var": rule_early_ev,
+            "late_event_var": rule_late_ev,
+            "window_seconds": window_seconds,
+            "chronological_pair_count": 1 if corr_count > 0 else 0,
+            "reversed_pair_count": 0,
+            "within_window_pair_count": 1 if corr_count > 0 else 0,
+            "observed_min_delta_seconds": 0 if corr_count > 0 else None,
+            "observed_max_delta_seconds": 0 if corr_count > 0 else None,
+            "temporal_sequence_verified": bool(corr_count > 0),
+            "sequence_reversed_in_siem": False,
+            "pivoted_rule_text": rule_text,
+        }
+
+    chronological_pair_count = 0
+    reversed_pair_count = 0
+    within_window_pair_count = 0
+    same_second_pair_count = 0
+    forward_deltas: list[int] = []
+    reverse_deltas: list[int] = []
+
+    for k_e, t_e in early_records:
+        for k_l, t_l in late_records:
+            if k_e != "*" and k_l != "*" and k_e != k_l:
+                continue
+            if t_e < t_l or (allow_equal and t_e == t_l):
+                chronological_pair_count += 1
+                delta_sec = int(t_l - t_e)
+                forward_deltas.append(delta_sec)
+                if window_seconds is None or 0 <= delta_sec <= window_seconds:
+                    within_window_pair_count += 1
+            elif t_e > t_l:
+                rev_delta_sec = int(t_e - t_l)
+                if (
+                    window_seconds is None
+                    or 0 <= rev_delta_sec <= window_seconds
+                ):
+                    reversed_pair_count += 1
+                    reverse_deltas.append(rev_delta_sec)
+            elif t_e == t_l:
+                same_second_pair_count += 1
+
+    if (
+        chronological_pair_count == 0
+        and reversed_pair_count == 0
+        and same_second_pair_count > 0
+    ):
+        chronological_pair_count = same_second_pair_count
+        within_window_pair_count = same_second_pair_count
+        forward_deltas.append(0)
+
+    active_deltas = forward_deltas if forward_deltas else reverse_deltas
+    observed_min_delta = min(active_deltas) if active_deltas else None
+    observed_max_delta = max(active_deltas) if active_deltas else None
+    temporal_sequence_verified = bool(within_window_pair_count > 0)
+    sequence_reversed_in_siem = bool(
+        chronological_pair_count == 0 and reversed_pair_count > 0
+    )
+
+    pivoted_rule_text = rule_text
+    recommended_span_target: str | None = None
+    recommended_span_replacement: str | None = None
+    failing_tc_index: int | None = None
+    failing_mc_index: int | None = None
+    reversed_ts_cmps: list[dict[str, Any]] = []
+    reversed_sws: list[dict[str, Any]] = []
+
+    if sequence_reversed_in_siem:
+        replacements_to_apply: list[tuple[int, int, str]] = []
+        op_flip_map = {">": "<", ">=": "<=", "<": ">", "<=": ">="}
+        for idx_tc, tc in enumerate(ts_cmps):
+            cur_op = str(tc["operator"])
+            flipped_op = op_flip_map.get(cur_op, "<")
+            new_cmp = (
+                f"{tc['lhs_canonical_var_field']} {flipped_op} {tc['rhs_canonical_var_field']}"
+            )
+            loc_s = int(tc["local_comparison_start"])
+            loc_e = int(tc["local_comparison_end"])
+            replacements_to_apply.append((loc_s, loc_e, new_cmp))
+            reversed_ts_cmps.append(
+                {
+                    **tc,
+                    "recommended_comparison_text": new_cmp,
+                }
+            )
+            if failing_tc_index is None:
+                failing_tc_index = idx_tc
+                recommended_span_target = "timestamp_comparison"
+                recommended_span_replacement = new_cmp
+
+        for idx_mc, mc in enumerate(match_clauses):
+            if not mc.get("has_sliding_window"):
+                continue
+            cur_dir = str(mc.get("sliding_direction_normalized") or "after")
+            # Only flip the sliding window if either there were no timestamp_comparisons
+            # or the sliding window also points in the reversed direction
+            piv_ev = str(
+                mc.get("recommended_pivot_event_var")
+                or mc.get("pivot_event_var")
+                or ""
+            )
+            # In empirical SIEM, rule_late_ev actually occurred BEFORE rule_early_ev!
+            actual_early_ev = rule_late_ev
+            expected_sw_dir = "after" if piv_ev == actual_early_ev else "before"
+            dur_norm = str(
+                mc.get("window_normalized") or mc.get("window_raw") or ""
+            ).strip()
+            new_sw = f"{dur_norm} {expected_sw_dir} {piv_ev}"
+            loc_sw_s = int(mc["local_sliding_window_start"])
+            loc_sw_e = int(mc["local_sliding_window_end"])
+            if cur_dir != expected_sw_dir or not mc.get(
+                "sliding_window_syntax_valid"
+            ):
+                replacements_to_apply.append((loc_sw_s, loc_sw_e, new_sw))
+                reversed_sws.append(
+                    {
+                        **mc,
+                        "direction": cur_dir,
+                        "recommended_direction": expected_sw_dir,
+                        "recommended_sliding_window": new_sw,
+                    }
+                )
+                if recommended_span_target is None:
+                    failing_mc_index = idx_mc
+                    recommended_span_target = "sliding_window"
+                    recommended_span_replacement = new_sw
+
+        for loc_s, loc_e, rep_str in sorted(
+            replacements_to_apply, key=lambda x: x[0], reverse=True
+        ):
+            pivoted_rule_text = (
+                pivoted_rule_text[:loc_s] + rep_str + pivoted_rule_text[loc_e:]
+            )
+
+    return {
+        "has_timestamp_telemetry": True,
+        "early_event_var": rule_early_ev,
+        "late_event_var": rule_late_ev,
+        "window_seconds": window_seconds,
+        "chronological_pair_count": chronological_pair_count,
+        "reversed_pair_count": reversed_pair_count,
+        "within_window_pair_count": within_window_pair_count,
+        "observed_min_delta_seconds": observed_min_delta,
+        "observed_max_delta_seconds": observed_max_delta,
+        "temporal_sequence_verified": temporal_sequence_verified,
+        "sequence_reversed_in_siem": sequence_reversed_in_siem,
+        "pivoted_rule_text": pivoted_rule_text,
+        "recommended_span_target": recommended_span_target,
+        "recommended_span_replacement": recommended_span_replacement,
+        "failing_timestamp_comparison_index": failing_tc_index,
+        "failing_match_clause_index": failing_mc_index,
+        "reversed_timestamp_comparisons": reversed_ts_cmps,
+        "reversed_sliding_windows": reversed_sws,
     }
 
 
@@ -11714,6 +13230,183 @@ def diagnose_zero_hit_yaral2_rule(
         initial_corr_count = int(me_retro["correlated_event_count"])
 
         if initial_corr_count > 0 and me_retro["siem_verified"]:
+            rep_temp_eval = me_retro.get(
+                "temporal_evaluation"
+            ) or evaluate_yaral2_temporal_sequence(repaired_rule_text, me_retro)
+            orig_temp_eval = evaluate_yaral2_temporal_sequence(
+                rule_text, me_retro
+            )
+            if rep_temp_eval.get("sequence_reversed_in_siem") or (
+                orig_temp_eval.get("sequence_reversed_in_siem")
+                and rep_temp_eval.get("temporal_sequence_verified", True)
+                and static_findings
+                and any(
+                    f.get("defect_type")
+                    in (
+                        "reversed_kill_chain_timestamp_order",
+                        "sliding_window_direction_contradiction",
+                    )
+                    for f in static_findings
+                )
+            ):
+                active_temp_eval = (
+                    rep_temp_eval
+                    if rep_temp_eval.get("sequence_reversed_in_siem")
+                    else orig_temp_eval
+                )
+                pivoted_rule_text = str(
+                    rep_temp_eval.get("pivoted_rule_text")
+                    if rep_temp_eval.get("sequence_reversed_in_siem")
+                    else repaired_rule_text
+                )
+                pivot_compiler_verified, pivot_compiler_output = (
+                    _validate_yaral2_rule_with_compiler(
+                        pivoted_rule_text, siem_validate_fn=siem_validate_fn
+                    )
+                )
+                if pivoted_rule_text != repaired_rule_text:
+                    pivoted_me_retro = _run_multi_event_siem_retrohunt(
+                        pivoted_rule_text,
+                        start_time=start_time,
+                        end_time=end_time,
+                        max_events=max_events,
+                        siem_search_fn=siem_search_fn,
+                    )
+                else:
+                    pivoted_me_retro = me_retro
+                pivoted_temp_eval = pivoted_me_retro.get(
+                    "temporal_evaluation"
+                ) or evaluate_yaral2_temporal_sequence(
+                    pivoted_rule_text, pivoted_me_retro
+                )
+                rev_ts_cmps = list(
+                    active_temp_eval.get("reversed_timestamp_comparisons") or []
+                )
+                rev_sws = list(
+                    active_temp_eval.get("reversed_sliding_windows") or []
+                )
+                if rev_ts_cmps:
+                    first_rev = rev_ts_cmps[0]
+                    rec_span_target = "timestamp_comparison"
+                    rec_span_rep = str(first_rev["recommended_comparison_text"])
+                    failing_pred_obj: dict[str, Any] = {
+                        "predicate_text": str(first_rev["comparison_text"]),
+                        "var_field_token": f"{first_rev['lhs_event_var']}.{first_rev['lhs_canonical_field']}",
+                        "canonical_field": str(
+                            first_rev["lhs_canonical_field"]
+                        ),
+                        "event_var": str(first_rev["lhs_event_var"]),
+                        **first_rev,
+                    }
+                    failing_ts_cmp_idx: int | None = int(
+                        first_rev["comparison_index"]
+                    )
+                    failing_mc_idx: int | None = None
+                elif rev_sws:
+                    first_sw = rev_sws[0]
+                    rec_span_target = "sliding_window_direction"
+                    rec_span_rep = str(first_sw["recommended_direction"])
+                    failing_pred_obj = {
+                        "predicate_text": str(
+                            first_sw.get("sliding_window_raw")
+                            or first_sw.get("direction")
+                            or ""
+                        ),
+                        "var_field_token": str(first_sw.get("direction") or ""),
+                        "canonical_field": str(
+                            first_sw.get("recommended_direction") or ""
+                        ),
+                        "event_var": str(first_sw.get("pivot_event_var") or ""),
+                        **first_sw,
+                    }
+                    failing_ts_cmp_idx = None
+                    failing_mc_idx = int(first_sw["clause_index"])
+                else:
+                    rec_span_target = "timestamp_comparison"
+                    rec_span_rep = ""
+                    failing_pred_obj = {"predicate_text": ""}
+                    failing_ts_cmp_idx = 0
+                    failing_mc_idx = None
+                chrono_pairs = int(
+                    pivoted_temp_eval.get("chronological_pair_count", 0) or 0
+                )
+                rev_pairs = int(
+                    active_temp_eval.get("reversed_pair_count", 0) or 0
+                )
+                within_pairs = int(
+                    pivoted_temp_eval.get("within_window_pair_count", 0) or 0
+                )
+                min_delta = pivoted_temp_eval.get("observed_min_delta_seconds")
+                max_delta = pivoted_temp_eval.get("observed_max_delta_seconds")
+                return {
+                    "status": "success",
+                    "rule_name": rule_name,
+                    "original_rule_text": rule_text,
+                    "repaired_rule_text": repaired_rule_text,
+                    "pivoted_rule_text": pivoted_rule_text,
+                    "static_findings": static_findings,
+                    "has_schema_defect": bool(static_findings),
+                    "is_multi_event": True,
+                    "compiler_verified": compiler_verified,
+                    "compiler_output": compiler_output,
+                    "retrohunt_udm_query": summary_query,
+                    "initial_event_count": 0,
+                    "event_count": initial_corr_count,
+                    "effective_detections": 0,
+                    "calibrated_effective_detections": initial_corr_count,
+                    "zero_hit": True,
+                    "diagnosis_class": "zero_hit_reversed_timestamp_sequence",
+                    "failure_reason": "zero_hit_reversed_timestamp_sequence",
+                    "anchor_query": summary_query,
+                    "anchor_event_count": initial_corr_count,
+                    "failing_predicate_index": None,
+                    "failing_join_binding_index": None,
+                    "failing_timestamp_comparison_index": failing_ts_cmp_idx,
+                    "failing_match_clause_index": failing_mc_idx,
+                    "failing_predicate": failing_pred_obj,
+                    "recommended_field": str(
+                        failing_pred_obj.get("canonical_field") or ""
+                    ),
+                    "recommended_rhs": rec_span_rep,
+                    "recommended_yaral2_predicate": rec_span_rep,
+                    "recommended_span_target": rec_span_target,
+                    "recommended_span_replacement": rec_span_rep,
+                    "pivoted_retrohunt_udm_query": summary_query,
+                    "recommended_query": summary_query,
+                    "pivot_verified": bool(
+                        pivoted_temp_eval.get(
+                            "temporal_sequence_verified", True
+                        )
+                    ),
+                    "pivot_event_count": initial_corr_count,
+                    "pivot_compiler_verified": pivot_compiler_verified,
+                    "pivot_compiler_output": pivot_compiler_output,
+                    "temporal_evaluation": active_temp_eval,
+                    "pivoted_temporal_evaluation": pivoted_temp_eval,
+                    "temporal_sequence_verified": bool(
+                        pivoted_temp_eval.get(
+                            "temporal_sequence_verified", True
+                        )
+                    ),
+                    "chronological_pair_count": chrono_pairs,
+                    "reversed_pair_count": rev_pairs,
+                    "within_window_pair_count": within_pairs,
+                    "observed_min_delta_seconds": min_delta,
+                    "observed_max_delta_seconds": max_delta,
+                    "shared_join_values": list(me_retro["shared_join_values"]),
+                    "observed_values": [
+                        f"delta_seconds={min_delta}"
+                        if min_delta is not None
+                        else f"reversed_pairs={rev_pairs}"
+                    ],
+                    "sample_observed_values": [
+                        f"delta_seconds={min_delta}"
+                        if min_delta is not None
+                        else f"reversed_pairs={rev_pairs}"
+                    ],
+                    "multi_event_retrohunt": pivoted_me_retro,
+                }
+
             outcome_eval = evaluate_yaral2_outcome_thresholds(
                 repaired_rule_text,
                 me_retro,
@@ -11774,6 +13467,25 @@ def diagnose_zero_hit_yaral2_rule(
                     "uncalibrated_comparisons": outcome_eval[
                         "uncalibrated_comparisons"
                     ],
+                    "temporal_evaluation": me_retro.get("temporal_evaluation"),
+                    "temporal_sequence_verified": bool(
+                        me_retro.get("temporal_sequence_verified", True)
+                    ),
+                    "chronological_pair_count": int(
+                        me_retro.get("chronological_pair_count", 0) or 0
+                    ),
+                    "reversed_pair_count": int(
+                        me_retro.get("reversed_pair_count", 0) or 0
+                    ),
+                    "within_window_pair_count": int(
+                        me_retro.get("within_window_pair_count", 0) or 0
+                    ),
+                    "observed_min_delta_seconds": me_retro.get(
+                        "observed_min_delta_seconds"
+                    ),
+                    "observed_max_delta_seconds": me_retro.get(
+                        "observed_max_delta_seconds"
+                    ),
                     "shared_join_values": list(me_retro["shared_join_values"]),
                     "observed_values": [
                         f"{uc['outcome_var']}={uc['empirical_value']}"
@@ -11829,6 +13541,25 @@ def diagnose_zero_hit_yaral2_rule(
                 "outcome_evaluation": outcome_eval,
                 "outcome_values": outcome_eval["outcome_values"],
                 "uncalibrated_comparisons": [],
+                "temporal_evaluation": me_retro.get("temporal_evaluation"),
+                "temporal_sequence_verified": bool(
+                    me_retro.get("temporal_sequence_verified", True)
+                ),
+                "chronological_pair_count": int(
+                    me_retro.get("chronological_pair_count", 0) or 0
+                ),
+                "reversed_pair_count": int(
+                    me_retro.get("reversed_pair_count", 0) or 0
+                ),
+                "within_window_pair_count": int(
+                    me_retro.get("within_window_pair_count", 0) or 0
+                ),
+                "observed_min_delta_seconds": me_retro.get(
+                    "observed_min_delta_seconds"
+                ),
+                "observed_max_delta_seconds": me_retro.get(
+                    "observed_max_delta_seconds"
+                ),
                 "shared_join_values": list(me_retro["shared_join_values"]),
                 "observed_values": list(me_retro["shared_join_values"]),
                 "sample_observed_values": list(me_retro["shared_join_values"]),
@@ -12548,6 +14279,23 @@ def _format_zero_hit_yaral2_comment(
             f"outcome variable '{out_var}' evaluates empirically to {emp_val} (vs. threshold {thresh_val}). "
             f"Calibrate condition comparison to '{rec_span_rep}' ({yaral2_doc_url})."
         )
+    elif diag_class == "zero_hit_reversed_timestamp_sequence":
+        rev_pairs = int(diag_res.get("reversed_pair_count", 0) or 0)
+        chrono_pairs = int(diag_res.get("chronological_pair_count", 0) or 0)
+        min_delta = diag_res.get("observed_min_delta_seconds")
+        delta_note = (
+            f" (observed inter-event delta: {min_delta}s)"
+            if min_delta is not None
+            else ""
+        )
+        reason = (
+            f"Zero-Hit Multi-Event YARA-L 2.0 (YL2) Temporal Sequence Diagnosis in rule '{rule_name}' "
+            f"(zero_hit_reversed_timestamp_sequence): Temporal constraint '{orig_pred_text}' produced "
+            f"0 chronologically ordered UDM event pairs in Chronicle SIEM across {rev_pairs} reversed "
+            f"event pair(s){delta_note}, whereas causal kill-chain ordering '{rec_span_rep}' matches "
+            f"{chrono_pairs} temporally ordered pair(s) ({pivot_count} correlated events). Replace "
+            f"'{orig_pred_text}' with '{rec_span_rep}' ({yaral2_doc_url})."
+        )
     elif diag_class == "exact_match_on_command_line":
         reason = (
             f"Zero-Hit YARA-L 2.0 (YL2) Retrohunt Diagnosis in rule '{rule_name}' "
@@ -12696,12 +14444,19 @@ def verify_yaral2_rule_with_siem(
             multi_event_retrohunt,
             _orig_rule_text=rule_text,
         )
+        orig_temporal_eval = evaluate_yaral2_temporal_sequence(
+            rule_text, multi_event_retrohunt
+        )
 
         if (
             retrohunt_verified
             and (
                 retrohunt_event_count == 0
                 or outcome_evaluation.get("threshold_suppressed")
+                or not multi_event_retrohunt.get(
+                    "temporal_sequence_verified", True
+                )
+                or orig_temporal_eval.get("sequence_reversed_in_siem")
             )
             and diagnose_zero_hit_retrohunt
         ):
@@ -12846,6 +14601,27 @@ def verify_yaral2_rule_with_siem(
         )
     if multi_event_retrohunt is not None:
         result["multi_event_retrohunt"] = multi_event_retrohunt
+        result["temporal_evaluation"] = multi_event_retrohunt.get(
+            "temporal_evaluation"
+        )
+        result["temporal_sequence_verified"] = bool(
+            multi_event_retrohunt.get("temporal_sequence_verified", True)
+        )
+        result["chronological_pair_count"] = int(
+            multi_event_retrohunt.get("chronological_pair_count", 0) or 0
+        )
+        result["reversed_pair_count"] = int(
+            multi_event_retrohunt.get("reversed_pair_count", 0) or 0
+        )
+        result["within_window_pair_count"] = int(
+            multi_event_retrohunt.get("within_window_pair_count", 0) or 0
+        )
+        result["observed_min_delta_seconds"] = multi_event_retrohunt.get(
+            "observed_min_delta_seconds"
+        )
+        result["observed_max_delta_seconds"] = multi_event_retrohunt.get(
+            "observed_max_delta_seconds"
+        )
     if retrohunt_initial_zero_hit_query is not None:
         result["retrohunt_initial_zero_hit_query"] = retrohunt_initial_zero_hit_query
     if zero_hit_diagnosis is not None:
@@ -13024,6 +14800,43 @@ def verify_and_redline_yaral2_rules_in_doc(
                         ]
                         f_pred_idx = zh_diag.get("failing_predicate_index")
                         if (
+                            zh_diag.get("diagnosis_class")
+                            == "zero_hit_reversed_timestamp_sequence"
+                        ):
+                            for f_idx2, ex_f in enumerate(findings):
+                                if str(
+                                    ex_f.get("rule_name") or ""
+                                ) == r_name and ex_f.get("defect_type") in (
+                                    "reversed_kill_chain_timestamp_order",
+                                    "sliding_window_direction_contradiction",
+                                ):
+                                    ex_f.update(
+                                        {
+                                            "zero_hit_diagnosis": "zero_hit_reversed_timestamp_sequence",
+                                            "failure_reason": "zero_hit_reversed_timestamp_sequence",
+                                            "chronological_pair_count": zh_diag.get(
+                                                "chronological_pair_count", 0
+                                            ),
+                                            "reversed_pair_count": zh_diag.get(
+                                                "reversed_pair_count", 0
+                                            ),
+                                            "within_window_pair_count": zh_diag.get(
+                                                "within_window_pair_count", 0
+                                            ),
+                                            "observed_min_delta_seconds": zh_diag.get(
+                                                "observed_min_delta_seconds"
+                                            ),
+                                            "observed_max_delta_seconds": zh_diag.get(
+                                                "observed_max_delta_seconds"
+                                            ),
+                                            "temporal_sequence_verified": zh_diag.get(
+                                                "temporal_sequence_verified",
+                                                True,
+                                            ),
+                                        }
+                                    )
+                                    zero_hit_yaral2_findings_count += 1
+                        elif (
                             zh_diag.get("diagnosis_class")
                             == "uncalibrated_outcome_threshold"
                         ):
@@ -13364,6 +15177,25 @@ def verify_and_redline_yaral2_rules_in_doc(
             findings[idx]["retrohunt_udm_query"] = rule_check.get(
                 "retrohunt_udm_query"
             )
+            if "temporal_sequence_verified" in rule_check:
+                findings[idx]["temporal_sequence_verified"] = rule_check[
+                    "temporal_sequence_verified"
+                ]
+                findings[idx]["chronological_pair_count"] = rule_check.get(
+                    "chronological_pair_count", 0
+                )
+                findings[idx]["reversed_pair_count"] = rule_check.get(
+                    "reversed_pair_count", 0
+                )
+                findings[idx]["within_window_pair_count"] = rule_check.get(
+                    "within_window_pair_count", 0
+                )
+                findings[idx]["observed_min_delta_seconds"] = rule_check.get(
+                    "observed_min_delta_seconds"
+                )
+                findings[idx]["observed_max_delta_seconds"] = rule_check.get(
+                    "observed_max_delta_seconds"
+                )
             if rule_check.get("compiler_verified"):
                 me_info = rule_check.get("multi_event_retrohunt")
                 computed_outcomes_part = ""
@@ -13515,7 +15347,9 @@ def verify_and_redline_yaral2_rules_in_doc(
                     initial_hits = int(
                         initial_me.get("correlated_event_count", 0) or 0
                     )
-                    if initial_hits > 0:
+                    if initial_hits > 0 and initial_me.get(
+                        "temporal_sequence_verified", True
+                    ):
                         initial_out_eval = evaluate_yaral2_outcome_thresholds(
                             normalized_rule,
                             initial_me,
@@ -13549,6 +15383,36 @@ def verify_and_redline_yaral2_rules_in_doc(
                                     "retrohunt_event_count": initial_hits,
                                     "retrohunt_response": initial_me,
                                     "multi_event_retrohunt": initial_me,
+                                    "temporal_evaluation": initial_me.get(
+                                        "temporal_evaluation"
+                                    ),
+                                    "temporal_sequence_verified": bool(
+                                        initial_me.get(
+                                            "temporal_sequence_verified", True
+                                        )
+                                    ),
+                                    "chronological_pair_count": int(
+                                        initial_me.get(
+                                            "chronological_pair_count", 0
+                                        )
+                                        or 0
+                                    ),
+                                    "reversed_pair_count": int(
+                                        initial_me.get("reversed_pair_count", 0)
+                                        or 0
+                                    ),
+                                    "within_window_pair_count": int(
+                                        initial_me.get(
+                                            "within_window_pair_count", 0
+                                        )
+                                        or 0
+                                    ),
+                                    "observed_min_delta_seconds": initial_me.get(
+                                        "observed_min_delta_seconds"
+                                    ),
+                                    "observed_max_delta_seconds": initial_me.get(
+                                        "observed_max_delta_seconds"
+                                    ),
                                     "outcome_evaluation": initial_out_eval,
                                     "outcome_values": initial_out_eval[
                                         "outcome_values"
@@ -13634,6 +15498,126 @@ def verify_and_redline_yaral2_rules_in_doc(
                 span_target = str(
                     zh_diag.get("recommended_span_target") or "predicate"
                 )
+
+                if (
+                    zh_diag.get("diagnosis_class")
+                    == "zero_hit_reversed_timestamp_sequence"
+                ):
+                    doc_ts_cmps = doc_multi_spec["timestamp_comparisons"]
+                    doc_mcs = doc_multi_spec["match_clauses"]
+                    ts_idx = zh_diag.get("failing_timestamp_comparison_index")
+                    mc_idx = zh_diag.get("failing_match_clause_index")
+                    if isinstance(ts_idx, int) and (
+                        0 <= ts_idx < len(doc_ts_cmps)
+                    ):
+                        target_ts = doc_ts_cmps[ts_idx]
+                        t_start = int(target_ts["comparison_start_index"])
+                        t_end = int(target_ts["comparison_end_index"])
+                        t_quote = str(target_ts["comparison_text"])
+                    elif isinstance(mc_idx, int) and (
+                        0 <= mc_idx < len(doc_mcs)
+                    ):
+                        target_mc = doc_mcs[mc_idx]
+                        t_start = int(
+                            target_mc["sliding_direction_start_index"]
+                        )
+                        t_end = int(target_mc["sliding_direction_end_index"])
+                        t_quote = str(target_mc["sliding_direction_raw"])
+                    else:
+                        continue
+                    t_replacement = str(zh_diag["recommended_span_replacement"])
+                    if any(
+                        _spans_overlap((t_start, t_end), p_span)
+                        for p_span in pending_spans
+                    ):
+                        skipped_existing_suggestion_count += 1
+                        continue
+                    if any(
+                        _spans_overlap(
+                            (t_start, t_end),
+                            (
+                                int(existing_e["start_index"]),
+                                int(existing_e["end_index"]),
+                            ),
+                        )
+                        for existing_e in edits
+                    ):
+                        continue
+                    comment_body = _format_zero_hit_yaral2_comment(
+                        zh_diag,
+                        rule_name=r_name,
+                        has_schema_defect=False,
+                        udm_doc_url=udm_doc_url,
+                        yaral2_doc_url=yaral2_doc_url,
+                    )
+                    comments.append(
+                        {
+                            "start_index": t_start,
+                            "end_index": t_end,
+                            "quote": t_quote,
+                            "comment": comment_body,
+                        }
+                    )
+                    edits.append(
+                        {
+                            "start_index": t_start,
+                            "end_index": t_end,
+                            "quote": t_quote,
+                            "replacement": t_replacement,
+                        }
+                    )
+                    findings.append(
+                        {
+                            "rule_name": r_name,
+                            "defect_type": "reversed_kill_chain_timestamp_order",
+                            "invalid_field": t_quote,
+                            "canonical_field": t_replacement,
+                            "quote": t_quote,
+                            "replacement": t_replacement,
+                            "start_index": t_start,
+                            "end_index": t_end,
+                            "original_rule_text": orig_rule,
+                            "repaired_rule_text": zh_diag["pivoted_rule_text"],
+                            "pivoted_rule_text": zh_diag["pivoted_rule_text"],
+                            "is_multi_event": True,
+                            "retrohunt_udm_query": zh_diag[
+                                "pivoted_retrohunt_udm_query"
+                            ],
+                            "zero_hit_diagnosis": "zero_hit_reversed_timestamp_sequence",
+                            "failure_reason": "zero_hit_reversed_timestamp_sequence",
+                            "recommended_yaral2_predicate": t_replacement,
+                            "recommended_span_target": span_target,
+                            "anchor_query": zh_diag["anchor_query"],
+                            "anchor_event_count": zh_diag["anchor_event_count"],
+                            "pivot_event_count": zh_diag["pivot_event_count"],
+                            "pivot_compiler_verified": zh_diag[
+                                "pivot_compiler_verified"
+                            ],
+                            "chronological_pair_count": zh_diag.get(
+                                "chronological_pair_count", 0
+                            ),
+                            "reversed_pair_count": zh_diag.get(
+                                "reversed_pair_count", 0
+                            ),
+                            "within_window_pair_count": zh_diag.get(
+                                "within_window_pair_count", 0
+                            ),
+                            "observed_min_delta_seconds": zh_diag.get(
+                                "observed_min_delta_seconds"
+                            ),
+                            "observed_max_delta_seconds": zh_diag.get(
+                                "observed_max_delta_seconds"
+                            ),
+                            "shared_join_values": zh_diag.get(
+                                "shared_join_values", []
+                            ),
+                            "observed_values": zh_diag.get(
+                                "observed_values", []
+                            ),
+                        }
+                    )
+                    zero_hit_yaral2_findings_count += 1
+                    continue
 
                 if (
                     zh_diag.get("diagnosis_class")
@@ -22422,6 +24406,147 @@ EXTENDED_NIGHT2_BENCHMARK_SCENARIOS: tuple[dict[str, Any], ...] = (
         ),
         "negative_control_substrings": (
             "CVE-2023-4966 mapped to CWE-119 (Buffer Overflow), T1550.004 (Web Session Cookie), and D3-IAA (Authentication Event Thresholding)",
+        ),
+    },
+    {
+        "scenario_id": "BENCH-08-YARAL2-SLIDING-WINDOW-AND-KILLCHAIN-SEQUENCE",
+        "title": "Chronicle SIEM YARA-L 2.0 Sliding Window (over <W> after/before $<ev>), Timestamp Ordering & Kill-Chain Sequence Verification",
+        "horizons": ("H22",),
+        "review_kwargs": {
+            "include_telemetry_hazard_stage_a": False,
+            "include_credential_containment_stage_a": False,
+            "include_udm_stage_a": False,
+            "include_yaral2_stage_a": True,
+            "include_mitre_cve_stage_a": False,
+            "include_waved_ontology_stage_a": False,
+        },
+        "markdown_content": (
+            "# Multi-Stage Kill-Chain Correlation & Sliding-Window Detection Playbook\n\n"
+            "## Valid Negative Control Multi-Event Sliding-Window Rule\n"
+            "```yaral\n"
+            "rule valid_control_sliding_window_rule {\n"
+            "  meta:\n"
+            '    author = "SecOps Detection Engineering"\n'
+            '    severity = "HIGH"\n'
+            "  events:\n"
+            '    $iam.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+            '    $iam.metadata.product_event_type = "SetIamPolicy"\n'
+            "    $iam.principal.ip = $src_ip\n"
+            '    $sql.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+            '    $sql.metadata.product_event_type = "cloudsql.instances.delete"\n'
+            "    $sql.principal.ip = $src_ip\n"
+            "    $iam.metadata.event_timestamp.seconds <= $sql.metadata.event_timestamp.seconds\n"
+            "  match:\n"
+            "    $src_ip over 15m after $iam\n"
+            "  condition:\n"
+            "    $iam and $sql\n"
+            "}\n"
+            "```\n\n"
+            "## Defective Sliding-Window & Timestamp-Ordering YARA-L 2.0 (YL2) Rules\n"
+            "```yaral\n"
+            "rule case_33278_gcp_iam_to_cloudsql_syntax_and_ts_field {\n"
+            "  meta:\n"
+            '    author = "SecOps Detection Engineering"\n'
+            '    severity = "CRITICAL"\n'
+            "  events:\n"
+            '    $iam.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+            '    $iam.metadata.product_event_type = "SetIamPolicy"\n'
+            '    $iam.principal.ip = "104.198.226.161"\n'
+            "    $iam.principal.ip = $ip\n"
+            '    $sql.metadata.log_type = "GCP_CLOUDAUDIT"\n'
+            '    $sql.metadata.product_event_type = "cloudsql.instances.delete"\n'
+            "    $sql.principal.ip = $ip\n"
+            "    $iam.timestamp < $sql.metadata.event_timestamp.seconds\n"
+            "  match:\n"
+            "    $ip within 15 minutes following $iam\n"
+            "  condition:\n"
+            "    $iam and $sql\n"
+            "}\n\n"
+            "rule case_33287_workspace_saml2_to_drive_pivot_and_order {\n"
+            "  meta:\n"
+            '    author = "SecOps Detection Engineering"\n'
+            '    severity = "HIGH"\n'
+            "  events:\n"
+            '    $tamper.metadata.log_type = "WORKSPACE_ACTIVITY"\n'
+            '    $tamper.metadata.product_event_type = "DELETE_SAML2_SERVICE_PROVIDER_CONFIG"\n'
+            '    $tamper.principal.user.email_addresses = "admin@mydomain.com"\n'
+            "    $tamper.principal.user.email_addresses = $user\n"
+            '    $exfil.metadata.log_type = "WORKSPACE_ACTIVITY"\n'
+            '    $exfil.metadata.product_event_type = "CREATE_DATA_TRANSFER_REQUEST"\n'
+            "    $exfil.principal.user.email_addresses = $user\n"
+            "    $tamper.metadata.event_timestamp.seconds > $exfil.metadata.event_timestamp.seconds\n"
+            "  match:\n"
+            "    $user over 15m after $user\n"
+            "  condition:\n"
+            "    $tamper and $exfil\n"
+            "}\n\n"
+            "rule case_33269_wins_d19_exec_to_service_direction_contradiction {\n"
+            "  meta:\n"
+            '    author = "SecOps Detection Engineering"\n'
+            '    severity = "HIGH"\n'
+            "  events:\n"
+            '    $exec.metadata.event_type = "PROCESS_LAUNCH"\n'
+            '    $exec.principal.hostname = "wins-d19"\n'
+            '    $exec.target.process.file.full_path = "C:\\\\Windows\\\\System32\\\\WindowsPowerShell\\\\v1.0\\\\powershell.exe"\n'
+            "    $exec.principal.hostname = $host\n"
+            '    $svc.metadata.event_type = "PROCESS_LAUNCH"\n'
+            '    $svc.principal.hostname = "wins-d19"\n'
+            '    $svc.target.process.file.full_path = "C:\\\\ProgramData\\\\DERPService.exe"\n'
+            "    $svc.principal.hostname = $host\n"
+            "    $exec.metadata.event_timestamp.seconds < $svc.metadata.event_timestamp.seconds\n"
+            "  match:\n"
+            "    $host over 15m before $exec\n"
+            "  condition:\n"
+            "    $exec and $svc\n"
+            "}\n"
+            "```\n"
+        ),
+        "expected_defects": (
+            {
+                "defect_id": "bench08-invalid-ts-field",
+                "horizon": "H22",
+                "ablation_tier": "grounding",
+                "is_safety_refusal": False,
+                "expected_deleted_substring": "$iam.timestamp",
+                "expected_inserted_substring": "$iam.metadata.event_timestamp.seconds",
+            },
+            {
+                "defect_id": "bench08-invalid-sliding-window-syntax",
+                "horizon": "H22",
+                "ablation_tier": "mechanics",
+                "is_safety_refusal": False,
+                "expected_deleted_substring": "within 15 minutes following $iam",
+                "expected_inserted_substring": "over 15m after $iam",
+            },
+            {
+                "defect_id": "bench08-reversed-kill-chain-timestamp-order",
+                "horizon": "H22",
+                "ablation_tier": "grounding",
+                "is_safety_refusal": False,
+                "expected_deleted_substring": "$tamper.metadata.event_timestamp.seconds > $exfil.metadata.event_timestamp.seconds",
+                "expected_inserted_substring": "$tamper.metadata.event_timestamp.seconds < $exfil.metadata.event_timestamp.seconds",
+            },
+            {
+                "defect_id": "bench08-sliding-window-pivot-mismatch",
+                "horizon": "H22",
+                "ablation_tier": "grounding",
+                "is_safety_refusal": False,
+                "expected_deleted_substring": "$user",
+                "expected_inserted_substring": "$tamper",
+            },
+            {
+                "defect_id": "bench08-sliding-window-direction-contradiction",
+                "horizon": "H22",
+                "ablation_tier": "grounding",
+                "is_safety_refusal": False,
+                "expected_deleted_substring": "before",
+                "expected_inserted_substring": "after",
+            },
+        ),
+        "negative_control_substrings": (
+            "rule valid_control_sliding_window_rule {",
+            "$iam.metadata.event_timestamp.seconds <= $sql.metadata.event_timestamp.seconds",
+            "$src_ip over 15m after $iam",
         ),
     },
 )

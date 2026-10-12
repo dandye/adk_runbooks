@@ -34,14 +34,18 @@ from .grounding_tools import (
     init_web_search_agent_tool,
 )
 from .docs_review_tools import (
+    KILL_CHAIN_STAGE_ORDER,
     analyze_and_redline_detection_coverage_gaps_in_doc as _analyze_and_redline_detection_coverage_gaps_in_doc,
     analyze_waved_ontology_graph,
     audit_and_redline_claim_evidence_and_campaign_in_doc as _audit_and_redline_claim_evidence_and_campaign_in_doc,
     audit_and_redline_runbook_promotion_in_doc as _audit_and_redline_runbook_promotion_in_doc,
     create_google_doc as _create_google_doc,
     evaluate_infosec_doc_reviewer as _evaluate_infosec_doc_reviewer,
+    evaluate_yaral2_temporal_sequence,
     export_accepted_doc_to_markdown as _export_accepted_doc_to_markdown,
     find_waved_ontology_spans,
+    find_yaral2_temporal_and_sliding_window_spans,
+    infer_yaral2_event_var_kill_chain_stage,
     insert_doc_comments as _insert_doc_comments,
     inspect_doc_suggestions as _inspect_doc_suggestions,
     list_doc_comments as _list_doc_comments,
