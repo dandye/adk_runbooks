@@ -85,6 +85,11 @@ from .docs_review_tools import (
     inspect_yaral2_entity_graph_and_criticality_in_text as _inspect_yaral2_entity_graph_and_criticality_in_text,
     find_yaral2_entity_graph_and_criticality_spans,
     audit_yaral2_entity_graph_and_criticality_in_doc as _audit_yaral2_entity_graph_and_criticality_in_doc,
+    H27_CANONICAL_SOAR_ACTUATION_SAFETY_CATALOG,
+    inspect_soar_playbook_actuation_safety_in_text as _inspect_soar_playbook_actuation_safety_in_text,
+    find_soar_playbook_actuation_safety_spans,
+    format_soar_playbook_actuation_safety_appendix,
+    audit_soar_playbook_actuation_safety_in_doc as _audit_soar_playbook_actuation_safety_in_doc,
     verify_and_annotate_google_doc,
     evaluate_grounding_benchmark_suite,
     generate_skillrl_failure_distillation_matrix,
@@ -1535,6 +1540,62 @@ def audit_yaral2_entity_graph_and_criticality_in_doc(
   )
 
 
+def inspect_soar_playbook_actuation_safety_in_text(
+    doc_text: str,
+    case_ids: list[str] | None = None,
+) -> dict:
+  """Inspects runbook or incident postmortem text and Chronicle SIEM YARA-L 2.0 (YL2) rules for SOAR Playbook Actuation Safety & Blast-Radius Pre-Flight defects (H27).
+
+  Args:
+      doc_text (str): Plain text or Markdown content to inspect.
+      case_ids (list[str] | None): Optional list of SOAR case IDs for grounding.
+
+  Returns:
+      dict: Structured H27 findings, remediated YARA-L 2.0 rules, comments, and edits.
+  """
+  return _inspect_soar_playbook_actuation_safety_in_text(
+      doc_text=doc_text,
+      case_ids=case_ids,
+  )
+
+
+def audit_soar_playbook_actuation_safety_in_doc(
+    document_id: str,
+    mode: str = "DRY_RUN",
+    apply_redlines: bool | None = None,
+    append_appendix: bool = False,
+    validate_live: bool = False,
+    tool_context: ToolContext | None = None,
+) -> dict:
+  """Audits a Google Doc for SOAR Playbook Actuation Safety & Blast-Radius Pre-Flight defects (H27).
+
+  Detects and surgically red-lines 5 practitioner defect classes:
+  1. `unguarded_host_isolation_action`: `isolate_host` / `quarantine_endpoint` / `edr_isolate_machine` with `auto_execute=True` or without Entity Graph `CRITICAL`/`PRODUCTION` asset pre-flight checks (`wins-d19`, `prod-customers`) and `SOC Manager (Approval)`.
+  2. `unguarded_indicator_block_action`: `block_indicator` / `firewall_block_ip` / `edr_block_hash` lacking pre-flight allowlist exclusions for RFC-1918 private IPs, RFC-5737 documentation subnets (`203.0.113.0/24`), public DNS resolvers (`8.8.8.8`, `1.1.1.1`), IMDS (`169.254.169.254`), or the 0-byte empty-file SHA-256 (`e3b0c442...`).
+  3. `unguarded_identity_disable_or_destructive_action`: Destructive `delete_user` / `delete_service_account` or unapproved `disable_user` on `WORKSPACE_SUPER_ADMIN` (`admin@mydomain.com`, `bruce.wayne@the.org`) or `serviceAccount:hello@base-production.iam.gserviceaccount.com`.
+  4. `missing_soar_rollback_and_dry_run_contract`: SOAR containment policy declaring `dry_run: false`, `rollback_plan: none`, or `approval_gate: none`.
+  5. `yaral2_unsafe_auto_containment_meta`: Chronicle SIEM YARA-L 2.0 (`YL2` — UDM event detection rules, distinct from standard file/payload YARA `strings:` rules) `meta:` blocks declaring `soar_auto_action = "isolate_host_immediate"` or `soar_approval_gate = "none"`.
+
+  Args:
+      document_id (str): The Google Docs documentId.
+      mode (str): "DRY_RUN" (default) or "APPLY".
+      apply_redlines (bool | None): Optional boolean override for `mode="APPLY"`.
+      append_appendix (bool): Whether to append the H27 SOAR Playbook Actuation Safety & Blast-Radius Pre-Flight Matrix appendix.
+      validate_live (bool): Whether to validate remediated YARA-L 2.0 rules via `ChronicleRuleValidationGate` (`secops-mcp:validate_rule`).
+
+  Returns:
+      dict: Audit findings, remediated rules, rule validations, and staged comment/edit counts.
+  """
+  return _audit_soar_playbook_actuation_safety_in_doc(
+      document_id=document_id,
+      mode=mode,
+      apply_redlines=apply_redlines,
+      append_appendix=append_appendix,
+      validate_live=validate_live,
+      tool_context=tool_context,
+  )
+
+
 def get_agent_tools():
   """Initializes and returns MCP toolsets and progressive discovery tools.
 
@@ -1595,6 +1656,12 @@ def get_agent_tools():
   wrapped_audit_yaral2_entity_graph_and_criticality_in_doc = instrument_tool(
       audit_yaral2_entity_graph_and_criticality_in_doc
   )
+  wrapped_inspect_soar_playbook_actuation_safety_in_text = instrument_tool(
+      inspect_soar_playbook_actuation_safety_in_text
+  )
+  wrapped_audit_soar_playbook_actuation_safety_in_doc = instrument_tool(
+      audit_soar_playbook_actuation_safety_in_doc
+  )
   wrapped_sanitize_and_redline_telemetry_in_doc = instrument_tool(
       sanitize_and_redline_telemetry_in_doc
   )
@@ -1652,6 +1719,8 @@ def get_agent_tools():
       wrapped_distill_and_redline_skillrl_failure_trajectories_in_doc,
       wrapped_inspect_yaral2_entity_graph_and_criticality_in_text,
       wrapped_audit_yaral2_entity_graph_and_criticality_in_doc,
+      wrapped_inspect_soar_playbook_actuation_safety_in_text,
+      wrapped_audit_soar_playbook_actuation_safety_in_doc,
       wrapped_sanitize_and_redline_telemetry_in_doc,
       wrapped_triage_and_redline_leaked_credentials_in_doc,
       wrapped_audit_and_redline_claim_evidence_and_campaign_in_doc,

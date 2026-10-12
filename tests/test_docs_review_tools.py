@@ -12007,13 +12007,16 @@ class TestCycle25Yaral2EntityGraphAndCriticality:
         include_hda_ablation=True,
     )
     assert res_all["status"] == "success"
-    assert res_all["scenario_count"] == 12
-    assert res_all["total_expected_defects"] == 63
-    assert res_all["true_positive_edits"] == 63
+    assert res_all["scenario_count"] >= 12
+    assert res_all["total_expected_defects"] >= 63
+    assert res_all["true_positive_edits"] == res_all["total_expected_defects"]
     assert res_all["false_positive_edits"] == 0
     assert res_all["false_negative_defects"] == 0
-    assert res_all["total_negative_controls"] == 25
-    assert res_all["negative_controls_preserved"] == 25
+    assert res_all["total_negative_controls"] >= 25
+    assert (
+        res_all["negative_controls_preserved"]
+        == res_all["total_negative_controls"]
+    )
     assert res_all["overall_precision"] == 1.0
     assert res_all["overall_recall"] == 1.0
     assert res_all["overall_f1"] == 1.0
@@ -12042,6 +12045,432 @@ class TestCycle25Yaral2EntityGraphAndCriticality:
       decl = ft._get_declaration()
       assert decl is not None
       assert decl.name == expected_name
+
+
+# ---------------------------------------------------------------------------
+# Cycle 26 (Horizon H27): SOAR Playbook Actuation Safety & Blast-Radius
+# Pre-Flight Verifier in Google Docs
+# ---------------------------------------------------------------------------
+
+
+class TestCycle26SoarPlaybookActuationSafetyAndPreFlight:
+  """Cycle 26 (H27) unit tests for SOAR Playbook Actuation Safety & Blast-Radius Pre-Flight Verifier."""
+
+  def test_detects_unguarded_host_isolation_action_on_critical_asset(self):
+    from manager.tools.docs_review_tools import (
+        H27_CANONICAL_SOAR_ACTUATION_SAFETY_CATALOG,
+        inspect_soar_playbook_actuation_safety_in_text,
+    )
+
+    assert H27_CANONICAL_SOAR_ACTUATION_SAFETY_CATALOG["horizon"] == "H27"
+    doc_text = (
+        "# Host Isolation Playbook\n"
+        'Execute SOAR action: `soar.isolate_host(hostname="wins-d19", target_db="prod-customers", auto_execute=True, approval_gate="none")` immediately.\n'
+    )
+    res = inspect_soar_playbook_actuation_safety_in_text(doc_text)
+    assert res["status"] == "success"
+    assert res["defect_count"] == 1
+    assert res["defect_counts_by_type"]["unguarded_host_isolation_action"] == 1
+    finding = res["findings"][0]
+    assert finding["defect_type"] == "unguarded_host_isolation_action"
+    assert 'soar.isolate_host(hostname="wins-d19"' in finding["quote"]
+    assert "SOC Manager (Approval)" in finding["replacement"]
+    assert "unisolate_host" in finding["replacement"]
+    assert finding["start_index"] >= 1
+    assert finding["end_index"] > finding["start_index"]
+
+  def test_detects_unguarded_indicator_block_action_without_rfc_and_empty_sha256_guards(
+      self,
+  ):
+    from manager.tools.docs_review_tools import (
+        inspect_soar_playbook_actuation_safety_in_text,
+    )
+
+    doc_text = (
+        "# Indicator Block Step\n"
+        'Execute SOAR action: `soar.block_indicator(indicators=["10.128.0.5", "203.0.113.45", "8.8.8.8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"], allowlist_check=False)`.\n'
+    )
+    res = inspect_soar_playbook_actuation_safety_in_text(doc_text)
+    assert res["status"] == "success"
+    assert res["defect_count"] == 1
+    assert (
+        res["defect_counts_by_type"]["unguarded_indicator_block_action"] == 1
+    )
+    finding = res["findings"][0]
+    assert finding["defect_type"] == "unguarded_indicator_block_action"
+    assert "RFC-1918" in finding["replacement"]
+    assert "RFC-5737" in finding["replacement"]
+    assert "8.8.8.8" in finding["replacement"]
+    assert (
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        in finding["replacement"]
+    )
+    assert "unblock_indicator" in finding["replacement"]
+
+  def test_detects_unguarded_identity_disable_or_destructive_action_on_superadmin_and_sa(
+      self,
+  ):
+    from manager.tools.docs_review_tools import (
+        inspect_soar_playbook_actuation_safety_in_text,
+    )
+
+    doc_text = (
+        "# Identity Containment Step\n"
+        'Execute SOAR action: `soar.delete_service_account(account="serviceAccount:hello@base-production.iam.gserviceaccount.com", target_user="admin@mydomain.com", secondary_user="bruce.wayne@the.org", approval_gate="none")`.\n'
+    )
+    res = inspect_soar_playbook_actuation_safety_in_text(doc_text)
+    assert res["status"] == "success"
+    assert res["defect_count"] == 1
+    assert (
+        res["defect_counts_by_type"][
+            "unguarded_identity_disable_or_destructive_action"
+        ]
+        == 1
+    )
+    finding = res["findings"][0]
+    assert (
+        finding["defect_type"]
+        == "unguarded_identity_disable_or_destructive_action"
+    )
+    assert "suspend_user/disable_service_account" in finding["replacement"]
+    assert "SOC Manager (Approval)" in finding["replacement"]
+
+  def test_detects_missing_soar_rollback_and_dry_run_contract(self):
+    from manager.tools.docs_review_tools import (
+        inspect_soar_playbook_actuation_safety_in_text,
+    )
+
+    doc_text = (
+        "# SOAR Playbook Rollback Contract\n"
+        "SOAR Playbook Contract: `soar_containment_policy: {dry_run: false, rollback_plan: none, approval_gate: none, blast_radius_preflight: skipped}`.\n"
+    )
+    res = inspect_soar_playbook_actuation_safety_in_text(doc_text)
+    assert res["status"] == "success"
+    assert res["defect_count"] == 1
+    assert (
+        res["defect_counts_by_type"][
+            "missing_soar_rollback_and_dry_run_contract"
+        ]
+        == 1
+    )
+    finding = res["findings"][0]
+    assert (
+        finding["defect_type"] == "missing_soar_rollback_and_dry_run_contract"
+    )
+    assert "pre_flight_dry_run: true" in finding["replacement"]
+    assert "unisolate_host" in finding["replacement"]
+
+  def test_detects_yaral2_unsafe_auto_containment_meta_and_preserves_standard_yara(
+      self,
+  ):
+    from manager.tools.docs_review_tools import (
+        inspect_soar_playbook_actuation_safety_in_text,
+    )
+
+    doc_text = (
+        "rule yaral2_unsafe_soar_auto_isolation_wins_d19 {\n"
+        "  meta:\n"
+        '    author = "SecOps Detection Engineering"\n'
+        '    description = "Triggers SOAR containment on wins-d19 process launch"\n'
+        '    severity = "HIGH"\n'
+        '    soar_auto_action = "isolate_host_immediate"\n'
+        '    soar_approval_gate = "none"\n'
+        "  events:\n"
+        '    $e.metadata.event_type = "PROCESS_LAUNCH"\n'
+        '    $e.principal.hostname = "wins-d19"\n'
+        "  condition:\n"
+        "    $e\n"
+        "}\n\n"
+        "rule standard_yara_elf_binary_control {\n"
+        "  meta:\n"
+        '    description = "Standard file/payload YARA rule matching ELF header bytes"\n'
+        "  strings:\n"
+        "    $elf_magic = { 7F 45 4C 46 }\n"
+        "  condition:\n"
+        "    uint16(0) == 0x5A4D or $elf_magic\n"
+        "}\n"
+    )
+    res = inspect_soar_playbook_actuation_safety_in_text(doc_text)
+    assert res["status"] == "success"
+    assert res["yaral2_rules_inspected_count"] == 1
+    assert res["standard_yara_rules_skipped_count"] == 1
+    assert "standard_yara_elf_binary_control" in res["standard_yara_rule_names"]
+    assert res["defect_count"] == 1
+    assert (
+        res["defect_counts_by_type"]["yaral2_unsafe_auto_containment_meta"] == 1
+    )
+    finding = res["findings"][0]
+    assert (
+        'soar_auto_action = "stage_pre_flight_containment_with_approval"'
+        in finding["remediated_rule"]
+    )
+    assert (
+        'soar_approval_gate = "soc_manager_required"'
+        in finding["remediated_rule"]
+    )
+
+  def test_preserves_properly_guarded_soar_containment_and_standard_file_yara_negative_controls(
+      self,
+  ):
+    from manager.tools.docs_review_tools import (
+        inspect_soar_playbook_actuation_safety_in_text,
+    )
+
+    doc_text = (
+        "# Valid Guarded SOAR Containment Controls\n"
+        'Guarded SOAR Action Control: `soar.stage_containment_plan(hostname="wins-d19", pre_flight_entity_graph_criticality_check=True, allowlist_guard="RFC-1918,RFC-5737,8.8.8.8,1.1.1.1,e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", break_glass_superadmin_check=True, non_destructive_action="suspend_user/disable_service_account", pre_flight_dry_run=True, rollback_action="unisolate_host/unblock_indicator/enable_service_account", approval_gate="SOC Manager (Approval)")`.\n\n'
+        'Guarded Host Isolation: `soar.isolate_host(hostname="workstation-04", pre_flight_entity_graph_criticality_check=True, auto_execute=False, rollback_action="unisolate_host", approval_gate="SOC Manager (Approval)")`.\n\n'
+        'Guarded Indicator Block: `soar.block_indicator(indicators=["185.220.101.34"], allowlist_check=True, allowlist_guard="RFC-1918,RFC-5737,8.8.8.8,1.1.1.1,e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", rollback_action="unblock_indicator", approval_gate="SOC Manager (Approval)")`.\n\n'
+        "rule valid_yaral2_soar_meta_control {\n"
+        "  meta:\n"
+        '    author = "SecOps Detection Engineering"\n'
+        '    description = "Guarded YARA-L 2.0 SOAR meta rule"\n'
+        '    severity = "HIGH"\n'
+        '    soar_auto_action = "stage_pre_flight_containment_with_approval"\n'
+        '    soar_approval_gate = "soc_manager_required"\n'
+        "  events:\n"
+        '    $e.metadata.event_type = "PROCESS_LAUNCH"\n'
+        "  condition:\n"
+        "    $e\n"
+        "}\n\n"
+        "rule standard_yara_elf_binary_control {\n"
+        "  strings:\n"
+        "    $mz = { 4D 5A }\n"
+        "  condition:\n"
+        "    uint16(0) == 0x5A4D and $mz\n"
+        "}\n"
+    )
+    res = inspect_soar_playbook_actuation_safety_in_text(doc_text)
+    assert res["status"] == "success"
+    assert res["defect_count"] == 0
+    assert res["yaral2_rules_inspected_count"] == 1
+    assert res["standard_yara_rules_skipped_count"] == 1
+
+  def test_audit_soar_playbook_actuation_safety_in_doc_dry_run_and_apply_idempotency(
+      self,
+  ):
+    from manager.tools.docs_review_tools import (
+        EXTENDED_NIGHT2_BENCHMARK_SCENARIOS,
+        LocalGoogleDocsSimulator,
+        audit_soar_playbook_actuation_safety_in_doc,
+        inspect_google_doc_revision_and_Formatting,
+    )
+
+    bench13 = next(
+        s
+        for s in EXTENDED_NIGHT2_BENCHMARK_SCENARIOS
+        if s["scenario_id"] == "BENCH-13-SOAR-ACTUATION-SAFETY-AND-PREFLIGHT"
+    )
+    sim = LocalGoogleDocsSimulator(
+        doc_id="SIM-BENCH-13",
+        title=bench13["title"],
+        initial_text=bench13["markdown_content"],
+    )
+
+    res_dry = audit_soar_playbook_actuation_safety_in_doc(
+        document_id="SIM-BENCH-13",
+        mode="DRY_RUN",
+        docs_client_override=sim,
+    )
+    assert res_dry["status"] == "success"
+    assert res_dry["defect_count"] == 5
+    assert res_dry["applied_redlines"] == 0
+
+    res_pass1 = audit_soar_playbook_actuation_safety_in_doc(
+        document_id="SIM-BENCH-13",
+        mode="APPLY",
+        append_appendix=True,
+        docs_client_override=sim,
+    )
+    assert res_pass1["status"] == "success"
+    assert res_pass1["defect_count"] == 5
+    assert res_pass1["applied_redlines"] == 5
+    assert res_pass1["appended_appendix"] is True
+    assert res_pass1["false_positive_redlines"] == 0
+
+    rev = inspect_google_doc_revision_and_Formatting(
+        "SIM-BENCH-13",
+        docs_client_override=sim,
+    )
+    assert rev["applied_redlines"] == 5
+    assert rev["false_positive_redlines"] == 0
+    assert rev["has_h27_soar_actuation_matrix"] is True
+
+    res_pass2 = audit_soar_playbook_actuation_safety_in_doc(
+        document_id="SIM-BENCH-13",
+        mode="APPLY",
+        append_appendix=True,
+        docs_client_override=sim,
+    )
+    assert res_pass2["status"] == "success"
+    assert res_pass2["defect_count"] == 0
+    assert res_pass2["applied_redlines"] == 0
+    assert res_pass2["skipped_existing_suggestion_count"] == 5
+    assert res_pass2["appended_appendix"] is False
+
+  def test_live_chronicle_rule_validation_gate_for_yaral2_soar_meta_remediation(
+      self,
+  ):
+    from manager.tools.docs_review_tools import (
+        ChronicleRuleValidationGate,
+        EXTENDED_NIGHT2_BENCHMARK_SCENARIOS,
+        audit_soar_playbook_actuation_safety_in_doc,
+    )
+
+    bench13 = next(
+        s
+        for s in EXTENDED_NIGHT2_BENCHMARK_SCENARIOS
+        if s["scenario_id"] == "BENCH-13-SOAR-ACTUATION-SAFETY-AND-PREFLIGHT"
+    )
+    captured_rules: list[str] = []
+
+    def _mock_validate_rule(rule_text: str):
+      captured_rules.append(rule_text)
+      return {"valid": True, "success": True}
+
+    gate = ChronicleRuleValidationGate(
+        validate_rule_fn=_mock_validate_rule,
+        prefer_live=True,
+    )
+    res = audit_soar_playbook_actuation_safety_in_doc(
+        doc_text=bench13["markdown_content"],
+        mode="DRY_RUN",
+        validate_live=True,
+        validation_gate=gate,
+    )
+    assert res["status"] == "success"
+    assert res["compiler_verified"] is True
+    assert len(res["rule_validations"]) == 1
+    assert res["rule_validations"][0]["valid"] is True
+    assert len(captured_rules) == 1
+    assert (
+        'soar_auto_action = "stage_pre_flight_containment_with_approval"'
+        in captured_rules[0]
+    )
+
+  def test_verify_and_annotate_google_doc_and_review_stage_a_include_h27_soar_actuation_safety(
+      self,
+  ):
+    from manager.tools.docs_review_tools import (
+        EXTENDED_NIGHT2_BENCHMARK_SCENARIOS,
+        LocalGoogleDocsSimulator,
+        review_google_doc_with_stage_a,
+        verify_and_annotate_google_doc,
+    )
+
+    bench13 = next(
+        s
+        for s in EXTENDED_NIGHT2_BENCHMARK_SCENARIOS
+        if s["scenario_id"] == "BENCH-13-SOAR-ACTUATION-SAFETY-AND-PREFLIGHT"
+    )
+    res_verify = verify_and_annotate_google_doc(
+        doc_text=bench13["markdown_content"],
+        mode="DRY_RUN",
+        check_yaral2_entity_graph_and_criticality=False,
+        check_soar_playbook_actuation_safety=True,
+    )
+    assert res_verify["status"] == "success"
+    assert "H27" in res_verify["horizons_executed"]
+    assert res_verify["total_defect_count"] == 5
+
+    sim = LocalGoogleDocsSimulator(
+        doc_id="SIM-STAGE-A-B13",
+        title=bench13["title"],
+        initial_text=bench13["markdown_content"],
+    )
+    res_stage_a = review_google_doc_with_stage_a(
+        "SIM-STAGE-A-B13",
+        include_telemetry_hazard_stage_a=False,
+        include_credential_containment_stage_a=False,
+        include_udm_stage_a=False,
+        include_yaral2_stage_a=False,
+        include_mitre_cve_stage_a=False,
+        include_waved_ontology_stage_a=False,
+        include_ioc_reputation_stage_a=False,
+        include_skillorchestra_routing_stage_a=False,
+        include_skillrl_failure_trajectory_stage_a=False,
+        include_yaral2_entity_graph_stage_a=False,
+        include_soar_actuation_safety_stage_a=True,
+        token_source=lambda: "sim-tok",
+        transport=sim.as_httpx_transport(),
+    )
+    assert res_stage_a["status"] == "success"
+    assert res_stage_a["stage_a_soar_actuation_safety_count"] == 5
+    assert res_stage_a["edits"]["applied_count"] == 5
+
+  def test_benchmark_suite_bench_13_and_skillrl_h27_distillation_and_adk_tool_declarations(
+      self,
+  ):
+    from google.adk.tools.function_tool import FunctionTool
+    from manager.tools.docs_review_tools import (
+        evaluate_grounding_benchmark_suite,
+        generate_skillrl_failure_distillation_matrix,
+    )
+    from manager.tools.tools import (
+        audit_soar_playbook_actuation_safety_in_doc as audit_tool_fn,
+        inspect_soar_playbook_actuation_safety_in_text as inspect_tool_fn,
+    )
+
+    res_b13 = evaluate_grounding_benchmark_suite(
+        scenario_ids="BENCH-13-SOAR-ACTUATION-SAFETY-AND-PREFLIGHT",
+        include_hda_ablation=True,
+    )
+    assert res_b13["status"] == "success"
+    assert res_b13["scenario_count"] == 1
+    assert res_b13["total_expected_defects"] == 5
+    assert res_b13["true_positive_edits"] == 5
+    assert res_b13["false_positive_edits"] == 0
+    assert res_b13["false_negative_defects"] == 0
+    assert res_b13["total_negative_controls"] == 2
+    assert res_b13["negative_controls_preserved"] == 2
+    assert res_b13["overall_precision"] == 1.0
+    assert res_b13["overall_recall"] == 1.0
+    assert res_b13["overall_f1"] == 1.0
+    assert res_b13["overall_negative_control_pass_rate"] == 1.0
+    assert res_b13["pass2_idempotency_rate"] == 1.0
+    assert res_b13["google_drive_write_calls"] == 0
+
+    res_all = evaluate_grounding_benchmark_suite(
+        scenario_ids="all_with_night2",
+        include_hda_ablation=True,
+    )
+    assert res_all["status"] == "success"
+    assert res_all["scenario_count"] == 13
+    assert res_all["total_expected_defects"] == 68
+    assert res_all["true_positive_edits"] == 68
+    assert res_all["false_positive_edits"] == 0
+    assert res_all["false_negative_defects"] == 0
+    assert res_all["total_negative_controls"] == 27
+    assert res_all["negative_controls_preserved"] == 27
+    assert res_all["overall_precision"] == 1.0
+    assert res_all["overall_recall"] == 1.0
+    assert res_all["overall_f1"] == 1.0
+    assert res_all["overall_negative_control_pass_rate"] == 1.0
+    assert res_all["pass2_idempotency_rate"] == 1.0
+    assert res_all["overall_hda_error"] == 0.0
+    assert res_all["google_drive_write_calls"] == 0
+
+    matrix = generate_skillrl_failure_distillation_matrix(include_h27=True)
+    assert matrix["status"] == "success"
+    assert "H27" in matrix["horizons_covered"]
+    h27_family = next(
+        f for f in matrix["failure_families"] if f["horizon_id"] == "H27"
+    )
+    assert h27_family["rule_id"] == "SKILLRL-07-SOAR-ACTUATION-PREFLIGHT-SAFETY"
+    assert len(h27_family["defect_classes_covered"]) == 5
+
+    for fn, expected_name in [
+        (
+            inspect_tool_fn,
+            "inspect_soar_playbook_actuation_safety_in_text",
+        ),
+        (audit_tool_fn, "audit_soar_playbook_actuation_safety_in_doc"),
+    ]:
+      ft = FunctionTool(fn)
+      decl = ft._get_declaration()
+      assert decl is not None
+      assert decl.name == expected_name
+
 
 
 

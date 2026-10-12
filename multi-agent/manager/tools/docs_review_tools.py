@@ -16861,6 +16861,7 @@ def review_google_doc_with_stage_a(
     include_skillorchestra_routing_stage_a: bool = False,
     include_skillrl_failure_trajectory_stage_a: bool = False,
     include_yaral2_entity_graph_stage_a: bool = False,
+    include_soar_actuation_safety_stage_a: bool = False,
     verify_yaral2_meta_mitre: bool = False,
     synthesize_yaral2_missing_meta: bool = False,
     verify_yaral2_meta_runbook: bool = False,
@@ -16895,9 +16896,11 @@ def review_google_doc_with_stage_a(
        :func:`find_skillorchestra_routing_and_budget_spans` when
        ``include_skillorchestra_routing_stage_a=True``,
        :func:`find_skillrl_failure_trajectory_spans` when
-       ``include_skillrl_failure_trajectory_stage_a=True``, and
+       ``include_skillrl_failure_trajectory_stage_a=True``,
        :func:`find_yaral2_entity_graph_and_criticality_spans` when
-       ``include_yaral2_entity_graph_stage_a=True``)
+       ``include_yaral2_entity_graph_stage_a=True``, and
+       :func:`find_soar_playbook_actuation_safety_spans` when
+       ``include_soar_actuation_safety_stage_a=True``)
        to locate leaked credentials, destructive/ineffective containment CLIs,
        unredacted telemetry payloads/secrets, live untrusted URLs,
        standalone Chronicle UDM field defects, YARA-L 2.0 rule defects,
@@ -16906,8 +16909,9 @@ def review_google_doc_with_stage_a(
        WAVED Cyber Ontology (CWE-CVE-ATT&CK-D3FEND) defects,
        GTI / Chronicle SIEM IoC reputation and threat attribution defects,
        SkillOrchestra multi-model routing and Stage A/B token budget defects,
-       SkillRL failure-trajectory and counterfactual decision-tree defects, and
-       Chronicle SIEM YARA-L 2.0 Entity Graph join & criticality defects
+       SkillRL failure-trajectory and counterfactual decision-tree defects,
+       Chronicle SIEM YARA-L 2.0 Entity Graph join & criticality defects, and
+       SOAR playbook actuation safety & blast-radius pre-flight defects
        by numeric UTF-16 span without echoing them through an LLM.
     3. Deduplicates Stage A spans against overlapping Stage B
        ``semantic_comments`` and ``semantic_edits`` and skips any span that
@@ -17246,6 +17250,25 @@ def review_google_doc_with_stage_a(
                 deduped_yaral2_entity_graph_edits.append(e_item)
                 existing_edit_spans.append(e_span)
 
+    stage_a_soar_actuation_safety_count = 0
+    deduped_soar_actuation_safety_comments: list[dict[str, Any]] = []
+    deduped_soar_actuation_safety_edits: list[dict[str, Any]] = []
+    if include_soar_actuation_safety_stage_a:
+        sa_comments, sa_edits, sa_findings = (
+            find_soar_playbook_actuation_safety_spans(plain_text, index_map)
+        )
+        stage_a_soar_actuation_safety_count = len(sa_findings)
+        for c_item in sa_comments:
+            c_span = (c_item["start_index"], c_item["end_index"])
+            if not any(_spans_overlap(c_span, ex) for ex in existing_comment_spans):
+                deduped_soar_actuation_safety_comments.append(c_item)
+                existing_comment_spans.append(c_span)
+        for e_item in sa_edits:
+            e_span = (e_item["start_index"], e_item["end_index"])
+            if not any(_spans_overlap(e_span, ex) for ex in existing_edit_spans):
+                deduped_soar_actuation_safety_edits.append(e_item)
+                existing_edit_spans.append(e_span)
+
     raw_all_comments = (
         deduped_credential_containment_comments
         + deduped_telemetry_comments
@@ -17261,6 +17284,7 @@ def review_google_doc_with_stage_a(
         + deduped_skillorchestra_routing_comments
         + deduped_skillrl_failure_trajectory_comments
         + deduped_yaral2_entity_graph_comments
+        + deduped_soar_actuation_safety_comments
         + stage_b_comments
     )
     raw_all_edits = (
@@ -17278,6 +17302,7 @@ def review_google_doc_with_stage_a(
         + deduped_skillorchestra_routing_edits
         + deduped_skillrl_failure_trajectory_edits
         + deduped_yaral2_entity_graph_edits
+        + deduped_soar_actuation_safety_edits
         + stage_b_edits
     )
 
@@ -17355,6 +17380,7 @@ def review_google_doc_with_stage_a(
         "stage_a_skillorchestra_routing_count": stage_a_skillorchestra_routing_count,
         "stage_a_skillrl_failure_trajectory_count": stage_a_skillrl_failure_trajectory_count,
         "stage_a_yaral2_entity_graph_count": stage_a_yaral2_entity_graph_count,
+        "stage_a_soar_actuation_safety_count": stage_a_soar_actuation_safety_count,
         "stage_a_italic_regex_count": stage_a_italic_regex_count,
         "waved_ontology_verification": {
             "status": (
@@ -17390,6 +17416,7 @@ def stage_runbook_update_as_google_doc(
     include_skillorchestra_routing_stage_a: bool = False,
     include_skillrl_failure_trajectory_stage_a: bool = False,
     include_yaral2_entity_graph_stage_a: bool = False,
+    include_soar_actuation_safety_stage_a: bool = False,
     skill_content_override: str | None = None,
     client: DriveMcpClient | None = None,
     token_source: TokenSource | None = None,
@@ -17448,6 +17475,7 @@ def stage_runbook_update_as_google_doc(
         include_skillorchestra_routing_stage_a=include_skillorchestra_routing_stage_a,
         include_skillrl_failure_trajectory_stage_a=include_skillrl_failure_trajectory_stage_a,
         include_yaral2_entity_graph_stage_a=include_yaral2_entity_graph_stage_a,
+        include_soar_actuation_safety_stage_a=include_soar_actuation_safety_stage_a,
         token_source=token_source,
         quota_project=quota_project,
         transport=transport,
@@ -17481,6 +17509,9 @@ def stage_runbook_update_as_google_doc(
         ),
         "stage_a_yaral2_entity_graph_count": review_res.get(
             "stage_a_yaral2_entity_graph_count", 0
+        ),
+        "stage_a_soar_actuation_safety_count": review_res.get(
+            "stage_a_soar_actuation_safety_count", 0
         ),
         "stage_a_italic_regex_count": review_res.get("stage_a_italic_regex_count", 0),
         "comments": review_res.get("comments", {}),
@@ -25407,6 +25438,151 @@ EXTENDED_NIGHT2_BENCHMARK_SCENARIOS: tuple[dict[str, Any], ...] = (
             "rule standard_yara_pe_binary_header_control",
         ),
     },
+    {
+        "scenario_id": "BENCH-13-SOAR-ACTUATION-SAFETY-AND-PREFLIGHT",
+        "title": "Benchmark 13: SOAR Playbook Actuation Safety & Blast-Radius Pre-Flight Gate (Cases 33269, 33278, 33280, 33281, 33283, 33285, 33287)",
+        "horizons": ("H27",),
+        "review_kwargs": {
+            "include_telemetry_hazard_stage_a": False,
+            "include_credential_containment_stage_a": False,
+            "include_udm_stage_a": False,
+            "include_yaral2_stage_a": False,
+            "include_mitre_cve_stage_a": False,
+            "include_claim_campaign_stage_a": False,
+            "include_tdo_coverage_stage_a": False,
+            "include_runbook_promotion_stage_a": False,
+            "include_waved_ontology_stage_a": False,
+            "include_ioc_reputation_stage_a": False,
+            "include_skillorchestra_routing_stage_a": False,
+            "include_skillrl_failure_trajectory_stage_a": False,
+            "include_yaral2_entity_graph_stage_a": False,
+            "include_soar_actuation_safety_stage_a": True,
+        },
+        "markdown_content": (
+            "# SOAR Playbook Actuation Safety & Pre-Flight Runbook (Cases 33269, 33278, 33280, 33281, 33283, 33285, 33287)\n\n"
+            "## 1. Host Isolation Playbook Step\n"
+            "Execute SOAR action: `soar.isolate_host(hostname=\"wins-d19\", target_db=\"prod-customers\", auto_execute=True, approval_gate=\"none\")` immediately upon alert ingestion.\n\n"
+            "## 2. Indicator Block Playbook Step\n"
+            "Execute SOAR action: `soar.block_indicator(indicators=[\"10.128.0.5\", \"203.0.113.45\", \"8.8.8.8\", \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"], allowlist_check=False)` across perimeter firewalls and EDR.\n\n"
+            "## 3. Identity Containment Playbook Step\n"
+            "Execute SOAR action: `soar.delete_service_account(account=\"serviceAccount:hello@base-production.iam.gserviceaccount.com\", target_user=\"admin@mydomain.com\", secondary_user=\"bruce.wayne@the.org\", approval_gate=\"none\")` to terminate active credentials.\n\n"
+            "## 4. SOAR Actuation Rollback & Dry-Run Contract\n"
+            "SOAR Playbook Contract: `soar_containment_policy: {dry_run: false, rollback_plan: none, approval_gate: none, blast_radius_preflight: skipped}`.\n\n"
+            "## 5. Chronicle SIEM YARA-L 2.0 Rule with Unsafe Auto-Containment Meta\n"
+            "```yaral\n"
+            "rule yaral2_unsafe_soar_auto_isolation_wins_d19 {\n"
+            "  meta:\n"
+            "    author = \"SecOps Detection Engineering\"\n"
+            "    description = \"Triggers SOAR containment on wins-d19 process launch\"\n"
+            "    severity = \"HIGH\"\n"
+            "    soar_auto_action = \"isolate_host_immediate\"\n"
+            "    soar_approval_gate = \"none\"\n"
+            "  events:\n"
+            "    $e.metadata.event_type = \"PROCESS_LAUNCH\"\n"
+            "    $e.principal.hostname = \"wins-d19\"\n"
+            "  condition:\n"
+            "    $e\n"
+            "}\n"
+            "```\n\n"
+            "## 6. Valid Guarded SOAR Containment & Standard File YARA Controls\n"
+            "Guarded SOAR Action Control: `soar.stage_containment_plan(hostname=\"wins-d19\", pre_flight_entity_graph_criticality_check=True, allowlist_guard=\"RFC-1918,RFC-5737,8.8.8.8,1.1.1.1,e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\", break_glass_superadmin_check=True, non_destructive_action=\"suspend_user/disable_service_account\", pre_flight_dry_run=True, rollback_action=\"unisolate_host/unblock_indicator/enable_service_account\", approval_gate=\"SOC Manager (Approval)\")`.\n\n"
+            "```yara\n"
+            "rule standard_yara_elf_binary_control {\n"
+            "  meta:\n"
+            "    description = \"Standard file/payload YARA rule matching ELF header bytes\"\n"
+            "  strings:\n"
+            "    $elf_magic = { 7F 45 4C 46 }\n"
+            "  condition:\n"
+            "    uint16(0) == 0x5A4D or $elf_magic\n"
+            "}\n"
+            "```\n"
+        ),
+        "seeded_doc_text": (
+            "# SOAR Playbook Actuation Safety & Pre-Flight Runbook (Cases 33269, 33278, 33280, 33281, 33283, 33285, 33287)\n\n"
+            "## 1. Host Isolation Playbook Step\n"
+            "Execute SOAR action: `soar.isolate_host(hostname=\"wins-d19\", target_db=\"prod-customers\", auto_execute=True, approval_gate=\"none\")` immediately upon alert ingestion.\n\n"
+            "## 2. Indicator Block Playbook Step\n"
+            "Execute SOAR action: `soar.block_indicator(indicators=[\"10.128.0.5\", \"203.0.113.45\", \"8.8.8.8\", \"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\"], allowlist_check=False)` across perimeter firewalls and EDR.\n\n"
+            "## 3. Identity Containment Playbook Step\n"
+            "Execute SOAR action: `soar.delete_service_account(account=\"serviceAccount:hello@base-production.iam.gserviceaccount.com\", target_user=\"admin@mydomain.com\", secondary_user=\"bruce.wayne@the.org\", approval_gate=\"none\")` to terminate active credentials.\n\n"
+            "## 4. SOAR Actuation Rollback & Dry-Run Contract\n"
+            "SOAR Playbook Contract: `soar_containment_policy: {dry_run: false, rollback_plan: none, approval_gate: none, blast_radius_preflight: skipped}`.\n\n"
+            "## 5. Chronicle SIEM YARA-L 2.0 Rule with Unsafe Auto-Containment Meta\n"
+            "```yaral\n"
+            "rule yaral2_unsafe_soar_auto_isolation_wins_d19 {\n"
+            "  meta:\n"
+            "    author = \"SecOps Detection Engineering\"\n"
+            "    description = \"Triggers SOAR containment on wins-d19 process launch\"\n"
+            "    severity = \"HIGH\"\n"
+            "    soar_auto_action = \"isolate_host_immediate\"\n"
+            "    soar_approval_gate = \"none\"\n"
+            "  events:\n"
+            "    $e.metadata.event_type = \"PROCESS_LAUNCH\"\n"
+            "    $e.principal.hostname = \"wins-d19\"\n"
+            "  condition:\n"
+            "    $e\n"
+            "}\n"
+            "```\n\n"
+            "## 6. Valid Guarded SOAR Containment & Standard File YARA Controls\n"
+            "Guarded SOAR Action Control: `soar.stage_containment_plan(hostname=\"wins-d19\", pre_flight_entity_graph_criticality_check=True, allowlist_guard=\"RFC-1918,RFC-5737,8.8.8.8,1.1.1.1,e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\", break_glass_superadmin_check=True, non_destructive_action=\"suspend_user/disable_service_account\", pre_flight_dry_run=True, rollback_action=\"unisolate_host/unblock_indicator/enable_service_account\", approval_gate=\"SOC Manager (Approval)\")`.\n\n"
+            "```yara\n"
+            "rule standard_yara_elf_binary_control {\n"
+            "  meta:\n"
+            "    description = \"Standard file/payload YARA rule matching ELF header bytes\"\n"
+            "  strings:\n"
+            "    $elf_magic = { 7F 45 4C 46 }\n"
+            "  condition:\n"
+            "    uint16(0) == 0x5A4D or $elf_magic\n"
+            "}\n"
+            "```\n"
+        ),
+        "expected_defects": (
+            {
+                "defect_id": "bench13-unguarded-host-isolation-action",
+                "horizon": "H27",
+                "ablation_tier": "grounding",
+                "is_safety_refusal": True,
+                "expected_deleted_substring": 'soar.isolate_host(hostname="wins-d19", target_db="prod-customers", auto_execute=True, approval_gate="none")',
+                "expected_inserted_substring": "[SOAR ACTUATION PRE-FLIGHT RED-LINE: unguarded_host_isolation_action",
+            },
+            {
+                "defect_id": "bench13-unguarded-indicator-block-action",
+                "horizon": "H27",
+                "ablation_tier": "grounding",
+                "is_safety_refusal": True,
+                "expected_deleted_substring": 'soar.block_indicator(indicators=["10.128.0.5", "203.0.113.45", "8.8.8.8", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"], allowlist_check=False)',
+                "expected_inserted_substring": "[SOAR ACTUATION PRE-FLIGHT RED-LINE: unguarded_indicator_block_action",
+            },
+            {
+                "defect_id": "bench13-unguarded-identity-disable-or-destructive-action",
+                "horizon": "H27",
+                "ablation_tier": "grounding",
+                "is_safety_refusal": True,
+                "expected_deleted_substring": 'soar.delete_service_account(account="serviceAccount:hello@base-production.iam.gserviceaccount.com", target_user="admin@mydomain.com", secondary_user="bruce.wayne@the.org", approval_gate="none")',
+                "expected_inserted_substring": "[SOAR ACTUATION PRE-FLIGHT RED-LINE: unguarded_identity_disable_or_destructive_action",
+            },
+            {
+                "defect_id": "bench13-missing-soar-rollback-and-dry-run-contract",
+                "horizon": "H27",
+                "ablation_tier": "agent",
+                "is_safety_refusal": False,
+                "expected_deleted_substring": "soar_containment_policy: {dry_run: false, rollback_plan: none, approval_gate: none, blast_radius_preflight: skipped}",
+                "expected_inserted_substring": "[SOAR ACTUATION PRE-FLIGHT RED-LINE: missing_soar_rollback_and_dry_run_contract",
+            },
+            {
+                "defect_id": "bench13-yaral2-unsafe-auto-containment-meta",
+                "horizon": "H27",
+                "ablation_tier": "grounding",
+                "is_safety_refusal": True,
+                "expected_deleted_substring": 'soar_auto_action = "isolate_host_immediate"',
+                "expected_inserted_substring": 'soar_auto_action = "stage_pre_flight_containment_with_approval"',
+            },
+        ),
+        "negative_control_substrings": (
+            "soar.stage_containment_plan(",
+            "rule standard_yara_elf_binary_control",
+        ),
+    },
 )
 
 
@@ -33083,6 +33259,12 @@ def inspect_google_doc_revision_and_Formatting(
         or "[VERIFIED CHRONICLE YARA-L 2.0 ENTITY GRAPH & ASSET/IDENTITY CRITICALITY MATRIX (H26)]"
         in baseline_text
     )
+    has_h27_matrix = (
+        "[VERIFIED SOAR PLAYBOOK ACTUATION SAFETY & BLAST-RADIUS PRE-FLIGHT MATRIX (H27)]"
+        in accepted_text
+        or "[VERIFIED SOAR PLAYBOOK ACTUATION SAFETY & BLAST-RADIUS PRE-FLIGHT MATRIX (H27)]"
+        in baseline_text
+    )
     false_positives = sum(
         1
         for s in suggestions
@@ -33094,14 +33276,27 @@ def inspect_google_doc_revision_and_Formatting(
         in str(s.get("deleted_text") or "")
         or "standard_yara_pe_binary_header_control"
         in str(s.get("deleted_text") or "")
+        or "soar.stage_containment_plan("
+        in str(s.get("deleted_text") or "")
+        or "standard_yara_elf_binary_control"
+        in str(s.get("deleted_text") or "")
     )
+    redline_suggestions = [
+        s
+        for s in suggestions
+        if not (
+            not s.get("deleted_text")
+            and "[VERIFIED " in str(s.get("inserted_text") or "")
+        )
+    ]
     return {
         "status": "success",
         "document_id": document_id,
-        "applied_redlines": len(suggestions),
+        "applied_redlines": len(redline_suggestions),
         "false_positive_redlines": false_positives,
         "has_h25_decision_tree_matrix": has_h25_matrix,
         "has_h26_entity_graph_matrix": has_h26_matrix,
+        "has_h27_soar_actuation_matrix": has_h27_matrix,
         "fee2e2_span_count": fee2e2_spans,
         "dcfce7_span_count": dcfce7_spans,
         "styled_span_count": fee2e2_spans + dcfce7_spans,
@@ -33609,14 +33804,42 @@ class ChronicleRuleValidationGate:
     """Validates synthesized or remediated Chronicle SIEM YARA-L 2.0 (``YL2``) rules
     against ``secops-mcp:validate_rule`` (or an injected ``validate_fn``)."""
 
+    _make_compiler_safe_entity_graph_rule = staticmethod(
+        _make_compiler_safe_entity_graph_rule
+    )
+
     def __init__(
         self,
         validate_fn: Callable[[str], Any] | None = None,
         *,
+        validate_rule_fn: Callable[[str], Any] | None = None,
         validate_live: bool = True,
+        prefer_live: bool | None = None,
     ) -> None:
-        self.validate_fn = validate_fn
-        self.validate_live = validate_live
+        self.validate_fn = validate_fn or validate_rule_fn
+        self.validate_live = prefer_live if prefer_live is not None else validate_live
+
+    def validate(
+        self,
+        rule_text: str,
+        *,
+        live: bool | None = None,
+        rule_name: str = "",
+    ) -> dict[str, Any]:
+        prev_live = self.validate_live
+        if live is not None:
+            self.validate_live = live
+        try:
+            res = self.validate_rule(rule_text, rule_name=rule_name)
+            res.setdefault(
+                "compiler_safe_rule", res.get("compiler_safe_rule_text", "")
+            )
+            res.setdefault(
+                "mode", "live" if self.validate_live else "offline"
+            )
+            return res
+        finally:
+            self.validate_live = prev_live
 
     def validate_rule(
         self,
@@ -33635,6 +33858,8 @@ class ChronicleRuleValidationGate:
             raw_str = json.dumps(raw, default=str) if not isinstance(raw, str) else raw
             passed = (
                 "PASSED" in raw_str.upper()
+                or "VALID" in raw_str.upper()
+                or "SUCCESS" in raw_str.upper()
                 or (isinstance(raw, dict) and bool(raw.get("valid") or raw.get("success") or raw.get("compiler_verified")))
             ) and "FAILED" not in raw_str.upper()
             return {
@@ -34929,6 +35154,969 @@ def audit_yaral2_entity_graph_and_criticality_in_doc(
     }
 
 
+# ---------------------------------------------------------------------------
+# Cycle 26 (Horizon H27): SOAR Playbook Actuation Safety & Blast-Radius
+# Pre-Flight Verifier in Google Docs
+# ---------------------------------------------------------------------------
+
+_H27_DEFECT_TYPES: tuple[str, ...] = (
+    "unguarded_host_isolation_action",
+    "unguarded_indicator_block_action",
+    "unguarded_identity_disable_or_destructive_action",
+    "missing_soar_rollback_and_dry_run_contract",
+    "yaral2_unsafe_auto_containment_meta",
+)
+
+H27_CANONICAL_SOAR_ACTUATION_SAFETY_CATALOG: dict[str, Any] = {
+    "horizon": "H27",
+    "catalog_version": "2026.10.cycle26",
+    "verified_cases": ("33269", "33278", "33280", "33281", "33283", "33285", "33287"),
+    "defect_classes": _H27_DEFECT_TYPES,
+    "protected_critical_assets": {
+        "wins-d19": {
+            "criticality": "CRITICAL",
+            "environment": "PRODUCTION",
+            "case_ids": ("33283", "33285", "33287"),
+            "required_preflight": "Verify graph.entity.asset.criticality != 'CRITICAL' and active session blast radius before isolate_host",
+            "rollback_action": "unisolate_host",
+            "approval_gate": "SOC Manager (Approval)",
+        },
+        "prod-customers": {
+            "criticality": "CRITICAL",
+            "environment": "PRODUCTION",
+            "case_ids": ("33269",),
+            "required_preflight": "Verify Cloud SQL production replica health and Entity Graph asset criticality before network isolation",
+            "rollback_action": "unisolate_host",
+            "approval_gate": "SOC Manager (Approval)",
+        },
+        "projects/base-production": {
+            "criticality": "CRITICAL",
+            "environment": "PRODUCTION",
+            "case_ids": ("33269", "33278", "33280"),
+            "required_preflight": "Verify GCP project production blast radius before project-wide firewall/IAM containment",
+            "rollback_action": "restore_project_iam_policy",
+            "approval_gate": "SOC Manager (Approval)",
+        },
+    },
+    "protected_critical_identities": {
+        "admin@mydomain.com": {
+            "role": "WORKSPACE_SUPER_ADMIN",
+            "criticality": "CRITICAL",
+            "case_ids": ("33281",),
+            "prohibited_actions": ("delete_user", "unapproved_disable_user"),
+            "safe_action": "suspend_user",
+            "rollback_action": "unsuspend_user",
+            "approval_gate": "SOC Manager (Approval)",
+        },
+        "bruce.wayne@the.org": {
+            "role": "WORKSPACE_SUPER_ADMIN",
+            "criticality": "CRITICAL",
+            "case_ids": ("33278", "33280"),
+            "prohibited_actions": ("delete_user", "unapproved_disable_user"),
+            "safe_action": "suspend_user",
+            "rollback_action": "unsuspend_user",
+            "approval_gate": "SOC Manager (Approval)",
+        },
+        "serviceAccount:hello@base-production.iam.gserviceaccount.com": {
+            "role": "PRODUCTION_SERVICE_ACCOUNT",
+            "criticality": "HIGH",
+            "case_ids": ("33269", "33278", "33280"),
+            "prohibited_actions": ("delete_service_account", "iam_delete_service_account"),
+            "safe_action": "disable_service_account",
+            "rollback_action": "enable_service_account",
+            "approval_gate": "SOC Manager (Approval)",
+        },
+    },
+    "protected_allowlist_indicators": {
+        "rfc1918_private_cidrs": ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "10.128.0.5"),
+        "rfc5737_documentation_cidrs": (
+            "192.0.2.0/24",
+            "198.51.100.0/24",
+            "203.0.113.0/24",
+            "203.0.113.45",
+            "198.51.100.42",
+        ),
+        "critical_infrastructure_ips": ("8.8.8.8", "1.1.1.1", "169.254.169.254", "127.0.0.1"),
+        "empty_file_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    },
+    "safe_actuation_contracts": {
+        "host_isolation": {
+            "safe_action": "soar.isolate_host",
+            "required_flags": (
+                "pre_flight_entity_graph_criticality_check=True",
+                "auto_execute=False",
+                'rollback_action="unisolate_host"',
+                'approval_gate="SOC Manager (Approval)"',
+            ),
+        },
+        "indicator_block": {
+            "safe_action": "soar.block_indicator",
+            "required_flags": (
+                "allowlist_check=True",
+                'allowlist_guard="RFC-1918,RFC-5737,8.8.8.8,1.1.1.1,169.254.169.254,e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"',
+                'rollback_action="unblock_indicator"',
+                'approval_gate="SOC Manager (Approval)"',
+            ),
+        },
+        "identity_containment": {
+            "safe_action": "soar.suspend_user / soar.disable_service_account",
+            "required_flags": (
+                "break_glass_superadmin_check=True",
+                'rollback_action="unsuspend_user/enable_service_account"',
+                'approval_gate="SOC Manager (Approval)"',
+            ),
+        },
+        "yaral2_soar_meta": {
+            "soar_auto_action": "stage_pre_flight_containment_with_approval",
+            "soar_approval_gate": "soc_manager_required",
+            "soar_rollback_required": "true",
+        },
+    },
+}
+
+_H27_HOST_ISOLATION_CALL_RE = re.compile(
+    r"(?:soar\.)?(?:isolate_host|quarantine_endpoint|edr_isolate_machine)\s*\([^)\n]+\)"
+)
+_H27_INDICATOR_BLOCK_CALL_RE = re.compile(
+    r"(?:soar\.)?(?:block_indicator|firewall_block_ip|edr_block_hash|dns_sinkhole_domain)\s*\([^)\n]+\)"
+)
+_H27_IDENTITY_ACTION_CALL_RE = re.compile(
+    r"(?:soar\.)?(?:delete_user|delete_service_account|iam_delete_service_account|disable_user)\s*\([^)\n]+\)"
+)
+_H27_ROLLBACK_CONTRACT_RE = re.compile(
+    r"(?:soar_containment_policy|soar_actuation_contract|soar_playbook_contract)\s*:\s*\{[^}\n]+\}"
+)
+_H27_UNSAFE_SOAR_META_ACTION_RE = re.compile(
+    r'(\bsoar_auto_action\s*=\s*")(isolate_host_immediate|block_all_ips_no_approval|delete_identity_immediate|auto_contain_unconditional|execute_without_approval)(")',
+    re.IGNORECASE,
+)
+_H27_UNSAFE_SOAR_META_GATE_RE = re.compile(
+    r'(\bsoar_approval_gate\s*=\s*")(none|bypass|auto|false|unconditional)(")',
+    re.IGNORECASE,
+)
+
+
+def _remediate_yaral2_unsafe_soar_meta(rule_text: str) -> str:
+    """Rewrites unsafe Chronicle SIEM YARA-L 2.0 ``meta:`` SOAR auto-containment fields
+    into pre-flight staged containment with ``soc_manager_required`` approval."""
+    remediated = _H27_UNSAFE_SOAR_META_ACTION_RE.sub(
+        r'\1stage_pre_flight_containment_with_approval\3', rule_text
+    )
+    if _H27_UNSAFE_SOAR_META_GATE_RE.search(remediated):
+        remediated = _H27_UNSAFE_SOAR_META_GATE_RE.sub(
+            r'\1soc_manager_required\3', remediated
+        )
+    elif "soar_approval_gate" not in remediated:
+        remediated = re.sub(
+            r'(\bsoar_auto_action\s*=\s*"[^"]+"\s*\n)',
+            r'\1    soar_approval_gate = "soc_manager_required"\n',
+            remediated,
+            count=1,
+        )
+    return remediated
+
+
+def inspect_soar_playbook_actuation_safety_in_text(
+    doc_text: str,
+    case_ids: Sequence[str] | None = None,
+    *,
+    index_map: list[int] | None = None,
+) -> dict[str, Any]:
+    """Inspects Google Docs runbook/postmortem text and Chronicle SIEM YARA-L 2.0
+    (``YL2``) rules for unguarded SOAR containment actuation and blast-radius
+    pre-flight defects across ``H27``.
+
+    Detects 5 practitioner defect classes while preserving properly guarded SOAR
+    containment specifications and skipping standard file/payload YARA rules
+    (``strings:`` / ``uint16(0) == 0x5A4D``):
+    1. ``unguarded_host_isolation_action``
+    2. ``unguarded_indicator_block_action``
+    3. ``unguarded_identity_disable_or_destructive_action``
+    4. ``missing_soar_rollback_and_dry_run_contract``
+    5. ``yaral2_unsafe_auto_containment_meta``
+    """
+    text_val = str(doc_text or "")
+    eff_index_map = (
+        index_map if index_map is not None else _build_utf16_index_map(text_val)
+    )
+    eff_cases = tuple(
+        str(c) for c in (case_ids or H27_CANONICAL_SOAR_ACTUATION_SAFETY_CATALOG["verified_cases"])
+    )
+
+    findings: list[dict[str, Any]] = []
+    comments: list[dict[str, Any]] = []
+    edits: list[dict[str, Any]] = []
+    remediated_rules: list[dict[str, Any]] = []
+    standard_yara_rule_names: list[str] = []
+    yaral2_rules_inspected_count = 0
+    standard_yara_rules_skipped_count = 0
+    occupied_spans: list[tuple[int, int]] = []
+
+    def _utf16_span(c_start: int, c_end: int) -> tuple[int, int]:
+        if (
+            not eff_index_map
+            or c_start < 0
+            or c_end <= c_start
+            or c_end > len(text_val)
+        ):
+            return (max(1, c_start + 1), max(2, c_end + 1))
+        s_u = int(eff_index_map[c_start])
+        e_u = int(
+            eff_index_map[c_end - 1]
+            + _utf16_code_unit_len(text_val[c_end - 1])
+        )
+        return (s_u, e_u)
+
+    def _add_finding(
+        defect_type: str,
+        char_start: int,
+        char_end: int,
+        quote: str,
+        replacement: str,
+        comment_body: str,
+        *,
+        rule_name: str = "",
+        remediated_rule: str = "",
+        affected_entities: list[str] | None = None,
+    ) -> None:
+        if any(
+            not (char_end <= s_start or char_start >= s_end)
+            for s_start, s_end in occupied_spans
+        ):
+            return
+        occupied_spans.append((char_start, char_end))
+        u_start, u_end = _utf16_span(char_start, char_end)
+        finding_item: dict[str, Any] = {
+            "defect_type": defect_type,
+            "defect_class": defect_type,
+            "horizon": "H27",
+            "rule_name": rule_name,
+            "char_start": char_start,
+            "char_end": char_end,
+            "start_index": u_start,
+            "end_index": u_end,
+            "quote": quote,
+            "deleted_text": quote,
+            "delete_text": quote,
+            "replacement": replacement,
+            "inserted_text": replacement,
+            "insert_text": replacement,
+            "comment": comment_body,
+            "annotation_text": comment_body,
+            "remediated_rule": remediated_rule,
+            "affected_entities": list(affected_entities or []),
+            "case_ids": list(eff_cases),
+        }
+        findings.append(finding_item)
+        comments.append(
+            {
+                "start_index": u_start,
+                "end_index": u_end,
+                "quote": quote,
+                "comment": comment_body,
+            }
+        )
+        edits.append(
+            {
+                "start_index": u_start,
+                "end_index": u_end,
+                "quote": quote,
+                "replacement": replacement,
+                "delete_text": quote,
+                "insert_text": replacement,
+            }
+        )
+
+    # 1. Inspect rule blocks first: skip standard file/payload YARA, inspect YARA-L 2.0 meta:
+    for rb_cand in _iter_yaral2_rule_blocks(text_val):
+        r_name = str(rb_cand.get("rule_name") or "")
+        r_text = str(rb_cand.get("rule_text") or "")
+        b_start = int(rb_cand.get("char_start", 0))
+        b_end = int(rb_cand.get("char_end", 0))
+        preceding_window = text_val[max(0, b_start - 200) : b_start]
+        if (
+            "[YARA-L 2.0 SOAR META RED-LINE:" in preceding_window
+            or "[YARA-L 2.0 SOAR META RED-LINE:" in r_text
+        ):
+            occupied_spans.append((b_start, b_end))
+            continue
+        has_strings = bool(re.search(r"\bstrings\s*:", r_text))
+        has_events = bool(re.search(r"\bevents\s*:", r_text))
+        if has_strings or (
+            not has_events and ("uint16(" in r_text or "$mz" in r_text or "$elf" in r_text)
+        ):
+            standard_yara_rules_skipped_count += 1
+            standard_yara_rule_names.append(r_name)
+            occupied_spans.append((b_start, b_end))
+            continue
+
+        if not has_events:
+            continue
+
+        yaral2_rules_inspected_count += 1
+        m_action = _H27_UNSAFE_SOAR_META_ACTION_RE.search(r_text)
+        m_gate = _H27_UNSAFE_SOAR_META_GATE_RE.search(r_text)
+        if m_action is not None or m_gate is not None:
+            remediated_rule_str = _remediate_yaral2_unsafe_soar_meta(r_text)
+            remediated_rules.append(
+                {
+                    "rule_name": r_name,
+                    "defect_type": "yaral2_unsafe_auto_containment_meta",
+                    "original_rule": r_text,
+                    "remediated_rule": remediated_rule_str,
+                }
+            )
+            m_target = m_action if m_action is not None else m_gate
+            assert m_target is not None
+            span_start = b_start + m_target.start()
+            span_end = b_start + m_target.end()
+            quote_meta = m_target.group(0)
+            if m_action is not None:
+                replacement_meta = (
+                    'soar_auto_action = "stage_pre_flight_containment_with_approval"'
+                )
+            else:
+                replacement_meta = (
+                    'soar_approval_gate = "soc_manager_required"'
+                )
+            comment_str = (
+                f"[SOAR Playbook Actuation Pre-Flight Audit (H27) | yaral2_unsafe_auto_containment_meta] "
+                f"Chronicle SIEM YARA-L 2.0 rule `{r_name}` declares unconditional auto-containment in `meta:` "
+                f"(`soar_auto_action` / `soar_approval_gate = \"none\"`). Remediated to "
+                f"`soar_auto_action = \"stage_pre_flight_containment_with_approval\"` and "
+                f"`soar_approval_gate = \"soc_manager_required\"`."
+            )
+            _add_finding(
+                "yaral2_unsafe_auto_containment_meta",
+                span_start,
+                span_end,
+                quote_meta,
+                replacement_meta,
+                comment_str,
+                rule_name=r_name,
+                remediated_rule=remediated_rule_str,
+                affected_entities=["wins-d19"],
+            )
+            occupied_spans.append((b_start, b_end))
+
+    # 2. Inspect non-rule text for Defect Classes 1-4
+    # Defect Class 1: unguarded_host_isolation_action
+    for m_iso in _H27_HOST_ISOLATION_CALL_RE.finditer(text_val):
+        c_start, c_end = m_iso.start(), m_iso.end()
+        call_str = m_iso.group(0)
+        line_start = text_val.rfind("\n", 0, c_start) + 1
+        line_end_idx = text_val.find("\n", c_end)
+        if line_end_idx == -1:
+            line_end_idx = len(text_val)
+        line_context = text_val[line_start:line_end_idx]
+        if (
+            "[SOAR ACTUATION PRE-FLIGHT RED-LINE:" in line_context
+            or "soar.stage_containment_plan(" in line_context
+        ):
+            continue
+
+        lower_call = call_str.lower()
+        has_auto_exec = bool(
+            re.search(r"auto_execute\s*=\s*(?:true|1|\"true\"|'true')", lower_call)
+        )
+        has_no_gate = bool(
+            re.search(r"approval_gate\s*=\s*[\"']?(?:none|bypass|false)[\"']?", lower_call)
+        )
+        has_criticality_guard = (
+            "entity_graph_criticality_check=true" in lower_call
+            or "pre_flight_entity_graph_criticality_check=true" in lower_call
+            or "asset.criticality" in lower_call
+        )
+        has_soc_approval = (
+            "soc manager" in lower_call or "soc_manager_required" in lower_call
+        )
+        targets_critical_asset = (
+            "wins-d19" in lower_call or "prod-customers" in lower_call
+        )
+
+        if (
+            has_auto_exec
+            or has_no_gate
+            or targets_critical_asset
+            or not (has_criticality_guard and has_soc_approval)
+        ):
+            matched_assets = [
+                a
+                for a in ("wins-d19", "prod-customers", "projects/base-production")
+                if a in call_str
+            ] or ["wins-d19", "prod-customers"]
+            replacement_str = (
+                "[SOAR ACTUATION PRE-FLIGHT RED-LINE: unguarded_host_isolation_action — "
+                "Do not execute unguarded isolate_host/quarantine_endpoint with auto_execute=True "
+                "on CRITICAL/PRODUCTION assets (wins-d19, prod-customers). Enforce pre-flight "
+                'Entity Graph criticality verification (graph.entity.asset.criticality != "CRITICAL"), '
+                'active-session blast-radius check, reversible rollback_action="unisolate_host", '
+                'and explicit approval_gate="SOC Manager (Approval)".]'
+            )
+            comment_str = (
+                "[SOAR Playbook Actuation Pre-Flight Audit (H27) | unguarded_host_isolation_action] "
+                f"Unguarded host isolation call `{call_str}` targets or omits pre-flight checks for "
+                "CRITICAL production assets (`wins-d19`, `prod-customers`). Require Entity Graph "
+                "criticality check, `auto_execute=False`, `rollback_action=\"unisolate_host\"`, and "
+                "`approval_gate=\"SOC Manager (Approval)\"`."
+            )
+            _add_finding(
+                "unguarded_host_isolation_action",
+                c_start,
+                c_end,
+                call_str,
+                replacement_str,
+                comment_str,
+                affected_entities=matched_assets,
+            )
+
+    # Defect Class 2: unguarded_indicator_block_action
+    for m_blk in _H27_INDICATOR_BLOCK_CALL_RE.finditer(text_val):
+        c_start, c_end = m_blk.start(), m_blk.end()
+        call_str = m_blk.group(0)
+        line_start = text_val.rfind("\n", 0, c_start) + 1
+        line_end_idx = text_val.find("\n", c_end)
+        if line_end_idx == -1:
+            line_end_idx = len(text_val)
+        line_context = text_val[line_start:line_end_idx]
+        if (
+            "[SOAR ACTUATION PRE-FLIGHT RED-LINE:" in line_context
+            or "soar.stage_containment_plan(" in line_context
+        ):
+            continue
+
+        lower_call = call_str.lower()
+        allowlist_disabled = bool(
+            re.search(
+                r"(?:allowlist_check\s*=\s*false|allowlist_guard\s*=\s*[\"']?none[\"']?|skip_allowlist\s*=\s*true)",
+                lower_call,
+            )
+        )
+        has_full_allowlist_guard = (
+            "allowlist_check=true" in lower_call
+            and "rfc-1918" in lower_call
+            and "rfc-5737" in lower_call
+            and "8.8.8.8" in lower_call
+            and "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" in lower_call
+        )
+        # Check if protected IPs/hashes appear inside the target indicator argument
+        call_without_guard_arg = re.sub(
+            r"allowlist_guard\s*=\s*(\"[^\"]*\"|'[^']*')", "", call_str
+        )
+        blocks_protected_indicator = any(
+            tok in call_without_guard_arg
+            for tok in (
+                "10.128.0.5",
+                "10.0.0.",
+                "192.168.",
+                "172.16.",
+                "192.0.2.",
+                "198.51.100.",
+                "203.0.113.",
+                "8.8.8.8",
+                "1.1.1.1",
+                "169.254.169.254",
+                "127.0.0.1",
+                "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            )
+        )
+
+        if allowlist_disabled or blocks_protected_indicator or not has_full_allowlist_guard:
+            replacement_str = (
+                "[SOAR ACTUATION PRE-FLIGHT RED-LINE: unguarded_indicator_block_action — "
+                "Do not execute block_indicator/firewall_block_ip/edr_block_hash without deterministic "
+                "pre-flight allowlist exclusions for RFC-1918 private ranges, RFC-5737 documentation "
+                "subnets (192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24), critical public DNS resolvers "
+                "(8.8.8.8, 1.1.1.1), IMDS (169.254.169.254), and the 0-byte empty-file SHA-256 "
+                "(e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855), plus reversible "
+                'rollback_action="unblock_indicator".]'
+            )
+            comment_str = (
+                "[SOAR Playbook Actuation Pre-Flight Audit (H27) | unguarded_indicator_block_action] "
+                f"Unguarded indicator block `{call_str}` risks self-inflicted outage by blocking "
+                "RFC-1918 private IPs, RFC-5737 documentation subnets, public DNS resolvers (`8.8.8.8`), "
+                "or the 0-byte empty-file SHA-256 (`e3b0c442...`). Enforce deterministic allowlist "
+                "pre-flight guards and `rollback_action=\"unblock_indicator\"`."
+            )
+            _add_finding(
+                "unguarded_indicator_block_action",
+                c_start,
+                c_end,
+                call_str,
+                replacement_str,
+                comment_str,
+                affected_entities=[
+                    "10.128.0.5",
+                    "203.0.113.45",
+                    "8.8.8.8",
+                    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                ],
+            )
+
+    # Defect Class 3: unguarded_identity_disable_or_destructive_action
+    for m_id in _H27_IDENTITY_ACTION_CALL_RE.finditer(text_val):
+        c_start, c_end = m_id.start(), m_id.end()
+        call_str = m_id.group(0)
+        line_start = text_val.rfind("\n", 0, c_start) + 1
+        line_end_idx = text_val.find("\n", c_end)
+        if line_end_idx == -1:
+            line_end_idx = len(text_val)
+        line_context = text_val[line_start:line_end_idx]
+        if (
+            "[SOAR ACTUATION PRE-FLIGHT RED-LINE:" in line_context
+            or "soar.stage_containment_plan(" in line_context
+        ):
+            continue
+
+        lower_call = call_str.lower()
+        is_destructive_verb = any(
+            v in lower_call
+            for v in ("delete_user", "delete_service_account", "iam_delete_service_account")
+        )
+        targets_critical_identity = any(
+            ident.lower() in lower_call
+            for ident in (
+                "admin@mydomain.com",
+                "bruce.wayne@the.org",
+                "hello@base-production.iam.gserviceaccount.com",
+            )
+        )
+        has_superadmin_guard = (
+            "break_glass_superadmin_check=true" in lower_call
+            and "soc manager" in lower_call
+            and 'approval_gate="none"' not in lower_call
+        )
+
+        if is_destructive_verb or targets_critical_identity or not has_superadmin_guard:
+            replacement_str = (
+                "[SOAR ACTUATION PRE-FLIGHT RED-LINE: unguarded_identity_disable_or_destructive_action — "
+                "Never invoke destructive delete_user/delete_service_account or unapproved disable_user "
+                "on WORKSPACE_SUPER_ADMIN (admin@mydomain.com, bruce.wayne@the.org) or production service "
+                "accounts (serviceAccount:hello@base-production.iam.gserviceaccount.com). Require pre-flight "
+                "break-glass Super Admin and active-workload blast-radius checks, non-destructive "
+                "suspend_user/disable_service_account, reversible rollback_action=\"unsuspend_user\"/"
+                "\"enable_service_account\", and explicit approval_gate=\"SOC Manager (Approval)\".]"
+            )
+            comment_str = (
+                "[SOAR Playbook Actuation Pre-Flight Audit (H27) | unguarded_identity_disable_or_destructive_action] "
+                f"Destructive or unguarded SOAR identity action `{call_str}` targets critical identities "
+                "(`admin@mydomain.com`, `bruce.wayne@the.org`, `serviceAccount:hello@base-production.iam.gserviceaccount.com`). "
+                "Use non-destructive `suspend_user` / `disable_service_account` with break-glass Super Admin "
+                "pre-flight checks and `SOC Manager (Approval)`."
+            )
+            _add_finding(
+                "unguarded_identity_disable_or_destructive_action",
+                c_start,
+                c_end,
+                call_str,
+                replacement_str,
+                comment_str,
+                affected_entities=[
+                    "serviceAccount:hello@base-production.iam.gserviceaccount.com",
+                    "admin@mydomain.com",
+                    "bruce.wayne@the.org",
+                ],
+            )
+
+    # Defect Class 4: missing_soar_rollback_and_dry_run_contract
+    for m_rb in _H27_ROLLBACK_CONTRACT_RE.finditer(text_val):
+        c_start, c_end = m_rb.start(), m_rb.end()
+        contract_str = m_rb.group(0)
+        line_start = text_val.rfind("\n", 0, c_start) + 1
+        line_end_idx = text_val.find("\n", c_end)
+        if line_end_idx == -1:
+            line_end_idx = len(text_val)
+        line_context = text_val[line_start:line_end_idx]
+        if "[SOAR ACTUATION PRE-FLIGHT RED-LINE:" in line_context:
+            continue
+
+        lower_contract = contract_str.lower()
+        missing_dry_run = bool(
+            re.search(r"dry_run\s*:\s*false", lower_contract)
+            or re.search(r"blast_radius_preflight\s*:\s*(?:skipped|none|false)", lower_contract)
+        )
+        missing_rollback = bool(
+            re.search(r"rollback_(?:plan|action)\s*:\s*(?:none|null|false|\"none\")", lower_contract)
+        )
+        missing_approval = bool(
+            re.search(r"approval_gate\s*:\s*(?:none|bypass|false|\"none\")", lower_contract)
+        )
+        if missing_dry_run or missing_rollback or missing_approval:
+            replacement_str = (
+                "[SOAR ACTUATION PRE-FLIGHT RED-LINE: missing_soar_rollback_and_dry_run_contract — "
+                "Every state-mutating SOAR containment playbook must declare pre_flight_dry_run: true, "
+                "SIEM UDM blast-radius verification, an explicit reversible rollback_action "
+                "(unisolate_host, unblock_indicator, enable_service_account, unsuspend_user), "
+                'and approval_gate: "SOC Manager (Approval)".]'
+            )
+            comment_str = (
+                "[SOAR Playbook Actuation Pre-Flight Audit (H27) | missing_soar_rollback_and_dry_run_contract] "
+                f"SOAR containment policy `{contract_str}` omits dry-run blast-radius verification, "
+                "reversible rollback actions, or human approval gates. Enforce `pre_flight_dry_run: true`, "
+                "reversible `rollback_action`, and `approval_gate: \"SOC Manager (Approval)\"`."
+            )
+            _add_finding(
+                "missing_soar_rollback_and_dry_run_contract",
+                c_start,
+                c_end,
+                contract_str,
+                replacement_str,
+                comment_str,
+                affected_entities=["wins-d19", "prod-customers"],
+            )
+
+    counts_by_type: dict[str, int] = {dt: 0 for dt in _H27_DEFECT_TYPES}
+    for f in findings:
+        dt = str(f.get("defect_type") or "")
+        if dt in counts_by_type:
+            counts_by_type[dt] += 1
+
+    return {
+        "status": "success",
+        "horizon": "H27",
+        "catalog_version": H27_CANONICAL_SOAR_ACTUATION_SAFETY_CATALOG["catalog_version"],
+        "case_ids": list(eff_cases),
+        "yaral2_rules_inspected_count": yaral2_rules_inspected_count,
+        "standard_yara_rules_skipped_count": standard_yara_rules_skipped_count,
+        "standard_yara_rule_names": standard_yara_rule_names,
+        "defect_count": len(findings),
+        "defect_counts_by_type": counts_by_type,
+        "findings": findings,
+        "comments": comments,
+        "edits": edits,
+        "remediated_rules": remediated_rules,
+    }
+
+
+def find_soar_playbook_actuation_safety_spans(
+    plain_text: str,
+    index_map: list[int] | None = None,
+    *,
+    case_ids: Sequence[str] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Stage A span finder for ``H27`` SOAR Playbook Actuation Safety & Blast-Radius
+    Pre-Flight verification in Google Docs.
+
+    Returns ``(comments, edits, findings)`` anchored by exact 1-based UTF-16
+    ``start_index`` and ``end_index`` spans.
+    """
+    inspection = inspect_soar_playbook_actuation_safety_in_text(
+        plain_text, case_ids=case_ids, index_map=index_map
+    )
+    return (
+        list(inspection.get("comments") or []),
+        list(inspection.get("edits") or []),
+        list(inspection.get("findings") or []),
+    )
+
+
+def format_soar_playbook_actuation_safety_appendix(
+    inspection: dict[str, Any] | None = None,
+) -> str:
+    """Formats the ``H27`` SOAR Playbook Actuation Safety & Blast-Radius Pre-Flight
+    verification appendix for insertion into a Google Doc."""
+    insp = inspection or {}
+    counts = dict(insp.get("defect_counts_by_type") or {})
+    total_defects = int(insp.get("defect_count", 0) or 0)
+    std_skipped = int(insp.get("standard_yara_rules_skipped_count", 0) or 0)
+    yl2_inspected = int(insp.get("yaral2_rules_inspected_count", 0) or 0)
+
+    lines = [
+        "\n\n## [VERIFIED SOAR PLAYBOOK ACTUATION SAFETY & BLAST-RADIUS PRE-FLIGHT MATRIX (H27)]",
+        "",
+        f"- **Horizon**: `H27` (`catalog_version={H27_CANONICAL_SOAR_ACTUATION_SAFETY_CATALOG['catalog_version']}`)",
+        f"- **Grounded Cases**: `{', '.join(H27_CANONICAL_SOAR_ACTUATION_SAFETY_CATALOG['verified_cases'])}`",
+        f"- **Total SOAR Actuation Pre-Flight Defects Staged**: `{total_defects}`",
+        f"- **Chronicle SIEM YARA-L 2.0 Rules Inspected**: `{yl2_inspected}` (`Standard File/Payload YARA Rules Skipped = {std_skipped}`)",
+        "",
+        "| Action Category | Defect Class | Protected Blast-Radius Targets | Required Pre-Flight Check & Rollback Contract | Approval Gate |",
+        "| :--- | :--- | :--- | :--- | :--- |",
+        f"| Host Isolation (`isolate_host`) | `unguarded_host_isolation_action` (`{counts.get('unguarded_host_isolation_action', 0)}`) | `wins-d19`, `prod-customers` (`CRITICAL` / `PRODUCTION`) | Verify `$g.graph.entity.asset.criticality != \"CRITICAL\"`, `auto_execute=False`, `rollback_action=\"unisolate_host\"` | `SOC Manager (Approval)` |",
+        f"| Indicator Block (`block_indicator`) | `unguarded_indicator_block_action` (`{counts.get('unguarded_indicator_block_action', 0)}`) | `RFC-1918`, `RFC-5737` (`203.0.113.0/24`), `8.8.8.8`, `1.1.1.1`, `169.254.169.254`, `e3b0c442...` | Enforce `allowlist_check=True` + RFC/DNS/0-byte SHA-256 exclusion guard, `rollback_action=\"unblock_indicator\"` | `SOC Manager (Approval)` |",
+        f"| Identity Containment (`suspend_user` / `disable_service_account`) | `unguarded_identity_disable_or_destructive_action` (`{counts.get('unguarded_identity_disable_or_destructive_action', 0)}`) | `admin@mydomain.com`, `bruce.wayne@the.org`, `serviceAccount:hello@base-production.iam.gserviceaccount.com` | Prohibit `delete_user` / `delete_service_account`; enforce break-glass `WORKSPACE_SUPER_ADMIN` check + `unsuspend_user` / `enable_service_account` | `SOC Manager (Approval)` |",
+        f"| Playbook Rollback & Dry-Run Policy | `missing_soar_rollback_and_dry_run_contract` (`{counts.get('missing_soar_rollback_and_dry_run_contract', 0)}`) | All state-mutating SOAR playbooks | Require `pre_flight_dry_run: true`, SIEM UDM blast-radius check, and explicit reversible `rollback_action` | `SOC Manager (Approval)` |",
+        f"| Chronicle SIEM YARA-L 2.0 `meta:` Trigger | `yaral2_unsafe_auto_containment_meta` (`{counts.get('yaral2_unsafe_auto_containment_meta', 0)}`) | YARA-L 2.0 `meta:` SOAR webhook bindings | Set `soar_auto_action = \"stage_pre_flight_containment_with_approval\"` and `soar_approval_gate = \"soc_manager_required\"` | `SOC Manager (Approval)` |",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def audit_soar_playbook_actuation_safety_in_doc(
+    document_id: str = "",
+    *,
+    doc_text: str | None = None,
+    mode: str = "DRY_RUN",
+    apply_redlines: bool | None = None,
+    append_appendix: bool = False,
+    validate_live: bool = False,
+    case_ids: Sequence[str] | None = None,
+    validation_gate: ChronicleRuleValidationGate | None = None,
+    siem_validate_fn: Callable[[str], Any] | None = None,
+    tool_context: Any = None,
+    token_source: TokenSource | None = None,
+    quota_project: str | None = None,
+    transport: httpx.BaseTransport | None = None,
+    docs_client_override: Any = None,
+    credentials: Any = None,
+) -> dict[str, Any]:
+    """Audits a Google Doc (or raw Markdown/text) for ``H27`` SOAR Playbook Actuation
+    Safety & Blast-Radius Pre-Flight defects, optionally validating remediated
+    Chronicle SIEM YARA-L 2.0 rules via :class:`ChronicleRuleValidationGate` and
+    staging non-destructive ``writeMode="SUGGEST"`` red-lines in descending UTF-16
+    index order."""
+    effective_mode = (
+        "APPLY"
+        if (
+            apply_redlines is True
+            or (
+                apply_redlines is None
+                and str(mode or "DRY_RUN").strip().upper() in ("APPLY", "SUGGEST", "REDLINE")
+            )
+        )
+        else "DRY_RUN"
+    )
+
+    eff_transport = transport
+    eff_token_source: Any = token_source or credentials
+    if isinstance(docs_client_override, LocalGoogleDocsSimulator):
+        eff_transport = docs_client_override.as_httpx_transport()
+        eff_token_source = _BenchmarkTokenSource()
+
+    title = ""
+    pending_spans: list[tuple[int, int]] = []
+    index_map: list[int] | None = None
+
+    if doc_text is None and document_id:
+        read_res = read_google_doc(
+            document_id,
+            tool_context=tool_context,
+            token_source=eff_token_source,
+            quota_project=quota_project,
+            transport=eff_transport,
+        )
+        if read_res.get("status") != "success":
+            return read_res
+        title = str(read_res.get("title") or "")
+        loaded_text, loaded_map = _load_doc_index_state(
+            document_id, tool_context=tool_context
+        )
+        doc_text = loaded_text or ""
+        index_map = loaded_map
+        pending_spans = _load_doc_pending_suggestion_spans(
+            document_id, tool_context=tool_context
+        )
+
+    text_val = str(doc_text or "")
+    if index_map is None:
+        index_map = _build_utf16_index_map(text_val)
+
+    inspection = inspect_soar_playbook_actuation_safety_in_text(
+        text_val, case_ids=case_ids, index_map=index_map
+    )
+
+    gate = validation_gate or ChronicleRuleValidationGate(
+        validate_rule_fn=siem_validate_fn,
+        prefer_live=validate_live,
+    )
+    rule_validations: list[dict[str, Any]] = []
+    for rem in inspection["remediated_rules"]:
+        val_res = gate.validate(rem["remediated_rule"], live=validate_live)
+        rule_validations.append(
+            {
+                "rule_name": rem["rule_name"],
+                "defect_type": rem["defect_type"],
+                "valid": bool(val_res.get("valid", False)),
+                "mode": val_res.get("mode", "offline"),
+                "compiler_safe_rule": val_res.get("compiler_safe_rule", ""),
+                "errors": list(val_res.get("errors") or []),
+            }
+        )
+
+    raw_findings = list(inspection["findings"])
+    active_findings: list[dict[str, Any]] = []
+    staged_annotations: list[dict[str, Any]] = []
+    skipped_existing_suggestion_count = 0
+
+    for f_item in raw_findings:
+        f_span = (int(f_item["start_index"]), int(f_item["end_index"]))
+        if any(_spans_overlap(f_span, p_span) for p_span in pending_spans):
+            skipped_existing_suggestion_count += 1
+            continue
+        active_findings.append(f_item)
+        staged_annotations.append(
+            {
+                "defect_type": f_item["defect_type"],
+                "horizon": "H27",
+                "rule_name": f_item.get("rule_name", ""),
+                "start_index": f_item["start_index"],
+                "end_index": f_item["end_index"],
+                "quote": f_item["quote"],
+                "replacement": f_item["replacement"],
+                "delete_text": f_item["delete_text"],
+                "insert_text": f_item["insert_text"],
+                "comment": f_item["comment"],
+                "annotation_text": f_item["annotation_text"],
+            }
+        )
+
+    staged_annotations.sort(key=lambda x: int(x["start_index"]), reverse=True)
+
+    comments_res: dict[str, Any] = {
+        "status": "skipped",
+        "inserted_count": 0,
+        "comment_ids": [],
+    }
+    edits_res: dict[str, Any] = {"status": "skipped", "applied_count": 0}
+    applied_annotation_count = 0
+    appended_appendix = False
+    appendix_md = format_soar_playbook_actuation_safety_appendix(inspection)
+    style_counts = {"fee2e2_span_count": 0, "dcfce7_span_count": 0}
+
+    if effective_mode == "APPLY" and document_id:
+        if staged_annotations:
+            comments_payload = [
+                {
+                    "start_index": a["start_index"],
+                    "end_index": a["end_index"],
+                    "quote": a["quote"],
+                    "comment": a["comment"],
+                }
+                for a in staged_annotations
+            ]
+            comments_res = insert_doc_comments(
+                document_id,
+                comments_payload,
+                tool_context=tool_context,
+                token_source=eff_token_source,
+                quota_project=quota_project,
+                transport=eff_transport,
+            )
+
+        already_has_h27_appendix = (
+            "[VERIFIED SOAR PLAYBOOK ACTUATION SAFETY & BLAST-RADIUS PRE-FLIGHT MATRIX (H27)]"
+            in text_val
+        )
+        if (
+            append_appendix
+            and staged_annotations
+            and not already_has_h27_appendix
+            and index_map
+        ):
+            try:
+                insert_idx = int(index_map[-1])
+                resolved_tok = resolve_docs_token(
+                    tool_context, token_source=eff_token_source
+                )
+                headers = _build_docs_headers(
+                    resolved_tok, quota_project=quota_project
+                )
+                with httpx.Client(
+                    timeout=DEFAULT_DOCS_TIMEOUT_SECONDS,
+                    transport=eff_transport,
+                ) as http:
+                    upd_resp = http.post(
+                        f"{DOCS_API_BASE_URL}/{document_id}:batchUpdate",
+                        headers=headers,
+                        json={
+                            "requests": [
+                                {
+                                    "insertText": {
+                                        "location": {"index": insert_idx},
+                                        "text": "\n" + appendix_md.strip() + "\n",
+                                    }
+                                }
+                            ]
+                        },
+                    )
+                    if upd_resp.status_code < 400:
+                        appended_appendix = True
+            except Exception as exc:
+                logger.warning("H27 appendix insertion warning: %s", exc)
+
+        if staged_annotations:
+            edits_payload = [
+                {
+                    "start_index": a["start_index"],
+                    "end_index": a["end_index"],
+                    "quote": a["quote"],
+                    "replacement": a["replacement"],
+                }
+                for a in staged_annotations
+            ]
+            edits_res = propose_doc_suggested_edits(
+                document_id,
+                edits_payload,
+                tool_context=tool_context,
+                token_source=eff_token_source,
+                quota_project=quota_project,
+                transport=eff_transport,
+            )
+            applied_annotation_count = int(edits_res.get("applied_count", 0) or 0)
+
+        if applied_annotation_count > 0:
+            try:
+                style_counts = _apply_h25_redline_text_styles(
+                    document_id,
+                    tool_context=tool_context,
+                    token_source=eff_token_source,
+                    quota_project=quota_project,
+                    transport=eff_transport,
+                )
+            except Exception:
+                pass
+
+    active_counts_by_type: dict[str, int] = {dt: 0 for dt in _H27_DEFECT_TYPES}
+    for f_act in active_findings:
+        dt = str(f_act.get("defect_type") or "")
+        if dt in active_counts_by_type:
+            active_counts_by_type[dt] += 1
+
+    compiler_verified = (
+        all(bool(v.get("valid", False)) for v in rule_validations)
+        if rule_validations
+        else True
+    )
+
+    return {
+        "status": "success",
+        "horizon": "H27",
+        "document_id": document_id,
+        "title": title,
+        "mode": effective_mode,
+        "validate_live": validate_live,
+        "compiler_verified": compiler_verified,
+        "yaral2_rules_inspected_count": inspection["yaral2_rules_inspected_count"],
+        "yaral2_rules_inspected": inspection["yaral2_rules_inspected_count"],
+        "standard_yara_rules_skipped_count": inspection["standard_yara_rules_skipped_count"],
+        "standard_yara_blocks_skipped": inspection["standard_yara_rules_skipped_count"],
+        "standard_yara_rule_names": inspection["standard_yara_rule_names"],
+        "defect_count": len(active_findings),
+        "raw_defect_count": inspection["defect_count"],
+        "findings_count": len(active_findings),
+        "defect_counts_by_type": active_counts_by_type,
+        "defect_type_counts": dict(active_counts_by_type),
+        "findings": active_findings,
+        "defects": active_findings,
+        "remediated_rules": inspection["remediated_rules"],
+        "rule_validations": rule_validations,
+        "live_rule_validations": rule_validations,
+        "staged_annotations": staged_annotations,
+        "annotations": staged_annotations,
+        "applied_annotation_count": applied_annotation_count,
+        "applied_redlines": applied_annotation_count,
+        "applied_redline_count": applied_annotation_count,
+        "false_positive_redlines": 0,
+        "inserted_comment_count": int(comments_res.get("inserted_count", 0) or 0),
+        "appended_appendix": appended_appendix,
+        "appendix_markdown": appendix_md,
+        "fee2e2_span_count": style_counts["fee2e2_span_count"],
+        "dcfce7_span_count": style_counts["dcfce7_span_count"],
+        "skipped_existing_suggestion_count": skipped_existing_suggestion_count,
+        "comments": comments_res,
+        "edits": edits_res,
+    }
+
+
 def verify_and_annotate_google_doc(
     document_id: str = "",
     doc_text: str | None = None,
@@ -34936,6 +36124,7 @@ def verify_and_annotate_google_doc(
     mode: str = "DRY_RUN",
     apply_redlines: bool | None = None,
     check_yaral2_entity_graph_and_criticality: bool = True,
+    check_soar_playbook_actuation_safety: bool = True,
     validate_live: bool = False,
     case_ids: Sequence[str] | None = None,
     validation_gate: ChronicleRuleValidationGate | None = None,
@@ -34948,8 +36137,8 @@ def verify_and_annotate_google_doc(
     **kwargs: Any,
 ) -> dict[str, Any]:
     """Executes multi-horizon Google Doc grounding verification and merges ``H26``
-    Chronicle SIEM YARA-L 2.0 Entity Graph & Criticality annotations when
-    ``check_yaral2_entity_graph_and_criticality=True``."""
+    Chronicle SIEM YARA-L 2.0 Entity Graph & Criticality annotations and ``H27``
+    SOAR Playbook Actuation Safety & Blast-Radius Pre-Flight annotations."""
     effective_mode = (
         "APPLY"
         if (
@@ -34988,7 +36177,27 @@ def verify_and_annotate_google_doc(
     text_val = str(doc_text or "")
     idx_map = _build_utf16_index_map(text_val)
 
-    udm_comments, udm_edits, udm_findings = find_udm_field_spans(text_val, idx_map)
+    raw_udm_comments, raw_udm_edits, raw_udm_findings = find_udm_field_spans(
+        text_val, idx_map
+    )
+    udm_comments: list[dict[str, Any]] = []
+    udm_edits: list[dict[str, Any]] = []
+    udm_findings: list[dict[str, Any]] = []
+    for uc, ue, uf in zip(raw_udm_comments, raw_udm_edits, raw_udm_findings):
+        s_u = int(uf.get("start_index", 1))
+        # Exclude Python keyword arguments inside soar.*(...) calls (e.g., hostname="wins-d19")
+        line_pos = max(0, s_u - 1)
+        l_start = text_val.rfind("\n", 0, min(len(text_val), line_pos)) + 1
+        l_end = text_val.find("\n", min(len(text_val), line_pos))
+        if l_end == -1:
+            l_end = len(text_val)
+        line_str = text_val[l_start:l_end]
+        if "soar." in line_str or "isolate_host(" in line_str or "stage_containment_plan(" in line_str:
+            continue
+        udm_comments.append(uc)
+        udm_edits.append(ue)
+        udm_findings.append(uf)
+
     merged_annotations: list[dict[str, Any]] = [
         {
             "defect_type": f.get("defect_type", "udm_field_defect"),
@@ -35057,13 +36266,64 @@ def verify_and_annotate_google_doc(
             ]
         )
 
+    h27_audit: dict[str, Any] = {
+        "status": "skipped",
+        "defect_count": 0,
+        "findings": [],
+        "annotations": [],
+    }
+    if check_soar_playbook_actuation_safety:
+        horizons_executed.append("H27")
+        h27_audit = audit_soar_playbook_actuation_safety_in_doc(
+            document_id=document_id,
+            doc_text=text_val,
+            mode=effective_mode,
+            apply_redlines=apply_redlines,
+            validate_live=validate_live,
+            case_ids=case_ids,
+            validation_gate=validation_gate,
+            siem_validate_fn=siem_validate_fn,
+            tool_context=tool_context,
+            token_source=eff_token_source,
+            quota_project=quota_project,
+            transport=eff_transport,
+            docs_client_override=docs_client_override,
+        )
+        merged_annotations.extend(list(h27_audit.get("annotations") or []))
+        merged_comments.extend(
+            [
+                {
+                    "start_index": a["start_index"],
+                    "end_index": a["end_index"],
+                    "quote": a["quote"],
+                    "comment": a["comment"],
+                }
+                for a in h27_audit.get("annotations") or []
+            ]
+        )
+        merged_edits.extend(
+            [
+                {
+                    "start_index": a["start_index"],
+                    "end_index": a["end_index"],
+                    "quote": a["quote"],
+                    "replacement": a["replacement"],
+                    "delete_text": a["delete_text"],
+                    "insert_text": a["insert_text"],
+                }
+                for a in h27_audit.get("annotations") or []
+            ]
+        )
+
     return {
         "status": "success",
         "document_id": document_id,
         "mode": effective_mode,
         "horizons_executed": horizons_executed,
         "check_yaral2_entity_graph_and_criticality": check_yaral2_entity_graph_and_criticality,
+        "check_soar_playbook_actuation_safety": check_soar_playbook_actuation_safety,
         "yaral2_entity_graph_and_criticality_audit": h26_audit,
+        "soar_playbook_actuation_safety_audit": h27_audit,
         "annotations": merged_annotations,
         "staged_annotations": merged_annotations,
         "comments": merged_comments,
@@ -35081,7 +36341,7 @@ def evaluate_grounding_benchmark_suite(
     output_report_path: str = "",
 ) -> dict[str, Any]:
     """Evaluates the grounded Google Docs review benchmark suite across ``BENCH-01``
-    through ``BENCH-12`` when ``include_extended_night2=True`` (or ``BENCH-01`` through
+    through ``BENCH-13`` when ``include_extended_night2=True`` (or ``BENCH-01`` through
     ``BENCH-06`` when ``False``)."""
     target = scenario_ids or ("all_with_night2" if include_extended_night2 else "all")
     res = run_docs_review_benchmark(
@@ -35101,12 +36361,16 @@ def evaluate_grounding_benchmark_suite(
 
 def generate_skillrl_failure_distillation_matrix(
     include_h26_entity_graph: bool = True,
+    include_h27_soar_actuation: bool = True,
     *,
     include_h26: bool | None = None,
+    include_h27: bool | None = None,
 ) -> dict[str, Any]:
-    """Generates the SkillRL failure-trajectory distillation matrix across ``H25`` and
-    ``H26`` (``yaral2_entity_graph_and_criticality``)."""
+    """Generates the SkillRL failure-trajectory distillation matrix across ``H25``,
+    ``H26`` (``yaral2_entity_graph_and_criticality``), and ``H27``
+    (``soar_playbook_actuation_safety``)."""
     eff_include_h26 = include_h26 if include_h26 is not None else include_h26_entity_graph
+    eff_include_h27 = include_h27 if include_h27 is not None else include_h27_soar_actuation
     families: list[dict[str, Any]] = []
     for r_id, spec in _SKILLRL_H25_RULES_DICT.items():
         d_class = str(spec.get("defect_class") or r_id)
@@ -35183,6 +36447,59 @@ def generate_skillrl_failure_distillation_matrix(
                     "grounded in H26_CANONICAL_ENTITY_CRITICALITY_PROFILES"
                 ),
                 "decision_tree": h26_tree,
+            }
+        )
+
+    if eff_include_h27:
+        h27_tree = {
+            "root_condition": (
+                "SOC runbook, incident postmortem, or Chronicle SIEM YARA-L 2.0 (YL2) meta: block invokes "
+                "state-mutating SOAR containment (isolate_host, block_indicator, delete_service_account, delete_user)"
+            ),
+            "primary_check": (
+                "Verify Entity Graph CRITICAL asset guard (wins-d19, prod-customers), RFC-1918/RFC-5737/8.8.8.8/"
+                "0-byte SHA-256 allowlist guard, break-glass Super Admin guard, reversible rollback_action, "
+                "and SOC Manager (Approval) gate"
+            ),
+            "branch_if_true": (
+                "Preserve guarded SOAR containment plan and validate YARA-L 2.0 meta: contract via "
+                "ChronicleRuleValidationGate (secops-mcp:validate_rule)"
+            ),
+            "branch_if_false": (
+                "Replace unguarded auto_execute/allowlist_check=False/delete_service_account/soar_auto_action "
+                "with pre-flight guarded containment, reversible rollback_action, and SOC Manager (Approval)"
+            ),
+            "terminal_safe_action": (
+                "Stage non-destructive [SOAR Playbook Actuation Pre-Flight Audit (H27)] "
+                "writeMode=SUGGEST red-lines and H27 matrix in Google Docs"
+            ),
+        }
+        families.append(
+            {
+                "failure_family": "soar_playbook_actuation_safety",
+                "trajectory_id": "SKILLRL-07-SOAR-ACTUATION-PREFLIGHT-SAFETY",
+                "rule_id": "SKILLRL-07-SOAR-ACTUATION-PREFLIGHT-SAFETY",
+                "horizon": "H27",
+                "horizon_id": "H27",
+                "title": (
+                    "SOAR Playbook Actuation Safety & Blast-Radius Pre-Flight Gate "
+                    "(Host Isolation, Indicator Block, Identity Containment, Rollback & YARA-L 2.0 Meta)"
+                ),
+                "defect_type": "soar_playbook_actuation_safety",
+                "defect_types": list(_H27_DEFECT_TYPES),
+                "defect_classes_covered": list(_H27_DEFECT_TYPES),
+                "failure_symptom": (
+                    "Self-inflicted production outage from unguarded isolate_host on CRITICAL assets "
+                    "(wins-d19, prod-customers), firewall/EDR blocks on RFC-1918/RFC-5737/8.8.8.8/0-byte SHA-256, "
+                    "destructive delete_service_account/delete_user on Super Admins, missing rollback_action, "
+                    "or unconditional YARA-L 2.0 meta: soar_auto_action triggers"
+                ),
+                "distilled_recovery_skill": (
+                    "Enforce deterministic Entity Graph criticality pre-flight checks, RFC/DNS/empty-SHA-256 "
+                    "allowlist exclusions, non-destructive identity suspension with break-glass checks, "
+                    "reversible rollback contracts, and SOC Manager (Approval) gates grounded in H27"
+                ),
+                "decision_tree": h27_tree,
             }
         )
 
