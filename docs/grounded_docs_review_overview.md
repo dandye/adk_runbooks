@@ -4,11 +4,14 @@ title: "Grounded Google Docs Runbook & Report Review (Developer Knowledge MCP + 
 description: "How the SOC multi-agent verifies technical claims against Google Developer Knowledge MCP and Google Search Grounding (via AgentTool) and proposes non-destructive comments and Suggested Edits in Google Docs."
 generated:
   by: agent:jetski
-  at: 2026-10-10T22:00:00-04:00
+  at: 2026-10-13T14:00:00Z
 related:
   - ./drive_runbooks_overview.md
   - ./skills_progressive_disclosure_overview.md
   - ./progressive_mcp_discovery_overview.md
+  - ./blog_grounded_google_docs_runbooks.md
+  - ./evolution_ledger.md
+  - ./overnight_handoff_argolis_soar_grounded_docs.md
 ---
 
 # Grounded Google Docs Runbook & Report Review
@@ -81,7 +84,7 @@ flowchart TD
 
 ## 3. Master 6-pillar cross-horizon architecture (`H1` through `H30`, Cycles 1 to 29)
 
-Across 29 autonomous evolution cycles (`H1` through `H30`), the Grounded Google Docs SecOps reviewer unifies 35+ specialized verification, attribution, readiness, routing, and remediation tools into six capability pillars (`H28_CAPABILITY_PILLAR_CATALOG`) orchestrated by `synthesize_master_secops_doc_readiness`, `audit_master_secops_doc_readiness_in_doc`, `audit_capstone_production_governance_and_kev_exposure_in_doc`, and `verify_post_accept_secops_doc_readiness`:
+Across 29 autonomous evolution cycles (`H1` through `H30`), the Grounded Google Docs SecOps reviewer unifies 35+ specialized verification, attribution, readiness, routing, and remediation tools. The `H28_CAPABILITY_PILLAR_CATALOG` defines the 5 weighted readiness scoring pillars (`pillar_count = 5`, weights summing to 100.0). The `H30_CAPSTONE_PRODUCTION_GOVERNANCE_AND_KEV_EXPOSURE_CATALOG` defines the 6th capstone production governance pillar (`CAPSTONE_PRODUCTION_GOVERNANCE_AND_EXPOSURE`), whose 5 defect classes map into those 5 scored pillars during `synthesize_master_secops_doc_readiness` and `verify_post_accept_secops_doc_readiness`. Orchestration runs through `synthesize_master_secops_doc_readiness`, `audit_master_secops_doc_readiness_in_doc`, `audit_capstone_production_governance_and_kev_exposure_in_doc`, and `verify_post_accept_secops_doc_readiness`:
 
 | Pillar ID | Capability Pillar | Horizons Covered | Primary Verifiers & Guardrails |
 | :--- | :--- | :--- | :--- |
@@ -107,8 +110,13 @@ Running `evaluate_verification_benchmark_suite(include_extended_night2=True)` (o
 
 ## 4. Verification
 
-Run the hermetic unit test suite (275 passing tests across Drive MCP, Developer Knowledge MCP, `AgentTool(web_search_verifier)`, and Google Docs API v1 review, Data Table export, counterfactual post-accept readiness, and capstone production governance tools):
+Run the hermetic unit test suite (275 passed tests across `tests/`, including 174 in `tests/test_docs_review_tools.py`, 8 in `tests/test_grounding_tools.py`, 26 in `tests/test_drive_registry.py`, 17 in `tests/test_drive_publish.py`, and 6 in `tests/test_seed_drive_runbooks.py`):
 
 ```bash
-direnv exec . uv run pytest tests/ -q
+direnv exec . env RUNBOOK_SOURCE=local .venv/bin/python -m pytest tests/ -q
 ```
+
+The following reports record the detailed verification outputs and machine-readable execution metrics:
+- [Cycle 28 YARA-L 2.0 Export and Post-Accept Verification Report](./cycle28_yaral2_export_and_post_accept_verification_report.json)
+- [Cycle 29 H30 Capstone Governance Verification Report](./cycle29_h30_capstone_governance_verification_report.json)
+

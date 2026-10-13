@@ -9,6 +9,8 @@ related:
   - ./skills_progressive_disclosure_overview.md
   - ./adk_graph_workflows_overview.md
   - ./superpowers/specs/2026-08-20-progressive-discovery-mcp-design.md
+  - ./drive_runbooks_overview.md
+  - ./grounded_docs_review_overview.md
 ---
 
 # Progressive MCP Tool Discovery & Dynamic Schema Expansion
@@ -127,3 +129,6 @@ Version E (Dual Progressive: S+MCP):  █ 112k tokens (Grade: A | -97.7% vs A, -
 2. **Total Efficiency Impact**:
    - Reduces per-turn schema and prompt overhead from **~28,000 tokens down to ~3,500 tokens**.
    - Enables the system to scale to hundreds of enterprise MCP security tools without hitting LLM context limits or causing attention dilution.
+3. **Subsequent milestones.**
+   - **Google Drive Remote MCP Runbooks (`drive-mcp-runbooks`).** Serves Markdown runbooks directly from a Google Drive folder through the Drive remote MCP server and `DriveSkillRegistry` (`docs/drive_runbooks_overview.md`).
+   - **Grounded Google Docs Review and Markdown Sync (`drive-mcp-runbooks__grounded-docs`).** Extends Drive runbooks with collaborative review in Google Docs, dual-source grounding, the `multi-agent/manager/workflows/grounded_soar_review_workflow.py` workflow, 29 autonomous evolution cycles (`H1` to `H30`), and 275 passing unit tests (`docs/grounded_docs_review_overview.md`, `docs/blog_grounded_google_docs_runbooks.md`).

@@ -8,6 +8,8 @@ generated:
 related:
   - ./skills_progressive_disclosure_overview.md
   - ./adk_graph_workflows_overview.md
+  - ./drive_runbooks_overview.md
+  - ./grounded_docs_review_overview.md
 ---
 
 # Skills Progressive Disclosure Architecture: Comparative Analysis & Benchmark Report

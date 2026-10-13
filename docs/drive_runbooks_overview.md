@@ -8,6 +8,9 @@ generated:
 related:
   - ./skills_progressive_disclosure_overview.md
   - ./progressive_mcp_discovery_overview.md
+  - ./grounded_docs_review_overview.md
+  - ./blog_grounded_google_docs_runbooks.md
+  - ./evolution_ledger.md
 ---
 
 # Google Drive Runbooks via the Drive Remote MCP Server
@@ -127,7 +130,9 @@ the REST API (below) is not gated.
 server) to create `SOC Runbooks` and `SOC Reports` in My Drive and upload every
 local `skills/**/SKILL.md` as `<skill-name>.md` with the `text/markdown` MIME
 type. The layout is flat because the registry lists direct children only; the
-category lives in each file's frontmatter.
+category lives in each file's frontmatter. The script seeds the 62 local
+`skills/**/SKILL.md` packages into `SOC Runbooks`, which holds 63 `.md` runbooks
+in the live Argolis tenant (the 62 seeded skills plus 1 staged runbook artifact).
 
 ```bash
 python scripts/seed_drive_runbooks.py --dry-run      # show what would change
@@ -162,3 +167,18 @@ python -m pytest tests/test_drive_registry.py tests/test_drive_publish.py tests/
 | `tests/test_drive_registry.py` | JSON-RPC parsing (JSON, batch, SSE), header injection, exact Markdown round-trip, grammar guard, permission-denied surfacing, pagination, TTL refresh that re-downloads only changed files, cached catalog on refresh failure. |
 | `tests/test_drive_publish.py` | `RUNBOOK_SOURCE` selection and fallbacks, `httpx.Auth` token rotation, ADK `McpToolset` listing and calling tools through the fake, `write_report` dual-write and failure semantics. |
 | `tests/test_seed_drive_runbooks.py` | Multipart `text/markdown` upload shape, idempotent folder creation, md5-based create/skip/update, `.env` writing. |
+
+---
+
+## 5. Grounded Google Docs review and Markdown sync
+
+The stacked branch `drive-mcp-runbooks__grounded-docs` extends Drive runbooks with collaborative review in Google Docs. It introduces Google Docs API v1 non-destructive review via `multi-agent/manager/tools/docs_review_tools.py`, dual-source external grounding via `multi-agent/manager/tools/grounding_tools.py`, and the automated graph workflow in `multi-agent/manager/workflows/grounded_soar_review_workflow.py`.
+
+The system reads Google Docs AST nodes, anchors non-destructive comments, and stages suggested edits back-to-front by UTF-16 start offset under `writeMode="SUGGEST"`. Lossless AST-to-Markdown export via `export_accepted_doc_to_markdown` reconstructs headings, tables, frontmatter, and code blocks. Before changes sync back to Markdown runbooks or close active SOAR cases, `verify_post_accept_secops_doc_readiness` gates promotion.
+
+Run the full 275-test test suite across all subsystems:
+
+```bash
+direnv exec . env RUNBOOK_SOURCE=local .venv/bin/python -m pytest tests/ -q
+```
+
