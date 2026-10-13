@@ -545,3 +545,95 @@ def test_phase5_six_way_paradigm_benchmark_version_f():
         assert "version_f_adk_skill_toolset" in paradigms
         assert paradigms["version_f_adk_skill_toolset"]["rubric_score"] >= 90.0
 
+
+def test_phase5_multi_turn_user_simulator_scenarios(tmp_path: Path):
+    """Verify multi-turn ADK UserSimulator scenario definitions and session loop."""
+    import asyncio
+    from google.adk.agents.base_agent import BaseAgent
+    from google.adk.events.event import Event
+    from google.adk.evaluation.simulation.user_simulator import (
+        BaseUserSimulatorConfig,
+        NextUserMessage,
+        Status as UserSimulatorStatus,
+        UserSimulator,
+    )
+    from google.genai import types as genai_types
+    from evals.simulate_sessions import (
+        DEFAULT_SOC_SCENARIOS,
+        run_simulated_session,
+    )
+
+    assert "novice_incremental_login_triage" in DEFAULT_SOC_SCENARIOS
+    assert "expert_multi_agent_incident_pivot" in DEFAULT_SOC_SCENARIOS
+    assert "adversarial_premature_containment_probe" in DEFAULT_SOC_SCENARIOS
+    assert "evaluator_threat_hunt_and_detection_gap" in DEFAULT_SOC_SCENARIOS
+
+    novice_sc = DEFAULT_SOC_SCENARIOS["novice_incremental_login_triage"]
+    assert novice_sc.user_persona is not None
+    assert novice_sc.user_persona.id == "NOVICE"
+
+    class _StubUserSimulator(UserSimulator):
+        config_type = BaseUserSimulatorConfig
+
+        def __init__(self):
+            super().__init__(BaseUserSimulatorConfig(), config_type=BaseUserSimulatorConfig)
+            self.calls = 0
+
+        async def get_next_user_message(self, events):
+            self.calls += 1
+            if self.calls == 1:
+                return NextUserMessage(
+                    status=UserSimulatorStatus.SUCCESS,
+                    user_message=genai_types.Content(
+                        role="user",
+                        parts=[genai_types.Part(text="Hi, I got an alert on corp-laptop-alice.")],
+                    ),
+                )
+            if self.calls == 2:
+                assert len(events) >= 2
+                return NextUserMessage(
+                    status=UserSimulatorStatus.SUCCESS,
+                    user_message=genai_types.Content(
+                        role="user",
+                        parts=[genai_types.Part(text="The case ID is CASE-1001 and IP is 198.51.100.77.")],
+                    ),
+                )
+            return NextUserMessage(status=UserSimulatorStatus.STOP_SIGNAL_DETECTED)
+
+        def get_simulation_evaluator(self):
+            return None
+
+    class _StubRootAgent(BaseAgent):
+        async def _run_async_impl(self, ctx):
+            yield Event(
+                author=self.name,
+                invocation_id=ctx.invocation_id,
+                content=genai_types.Content(
+                    role="model",
+                    parts=[
+                        genai_types.Part(
+                            text="I loaded suspicious-login-triage and checked SIEM/GTI for CASE-1001."
+                        )
+                    ],
+                ),
+            )
+
+    db_path = tmp_path / "sim_session.db"
+    trace_path = tmp_path / "sim_otel.jsonl"
+    result = asyncio.run(
+        run_simulated_session(
+            scenario_id="novice_incremental_login_triage",
+            scenario=novice_sc,
+            root_agent=_StubRootAgent(name="manager"),
+            user_simulator=_StubUserSimulator(),
+            session_db_path=db_path,
+            trace_log_path=trace_path,
+        )
+    )
+    assert result["turn_count"] == 2
+    assert result["stop_reason"] == "stop_signal_detected"
+    assert result["persona"] == "NOVICE"
+    assert len(result["turns"]) == 2
+    assert db_path.exists()
+
+
