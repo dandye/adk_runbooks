@@ -9,6 +9,10 @@ title: 'Skill: Report Writing Guidelines & Template'
 generated:
   by: process:google-labs-jules
   at: '2026-08-20T02:00:00Z'
+metadata:
+  adk_additional_tools:
+  - run_post_incident_review_workflow
+  - run_ueba_report_workflow
 ---
 
 # Runbook: Report Writing Guidelines & Template

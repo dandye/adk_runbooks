@@ -9,6 +9,16 @@ title: 'Skill: Detection Rule Validation & Tuning Runbook'
 generated:
   by: process:google-labs-jules
   at: 2025-12-20 22:04:42-05:00
+metadata:
+  adk_additional_tools:
+  - run_detection_rule_validation_workflow
+  - secops-mcp_get_security_alerts
+  - secops-mcp_list_security_rules
+  - secops-mcp_lookup_entity
+  - secops-mcp_search_security_events
+  - soar-mcp_google_chronicle_get_rule_details
+  - soar-mcp_list_events_by_alert
+  - soar-mcp_post_case_comment
 ---
 
 # Detection Rule Validation & Tuning Runbook

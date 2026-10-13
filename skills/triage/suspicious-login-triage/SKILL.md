@@ -9,6 +9,14 @@ title: 'Skill: Suspicious Login Alert Triage Runbook'
 generated:
   by: process:google-labs-jules
   at: 2025-12-20 22:04:42-05:00
+metadata:
+  adk_additional_tools:
+  - run_suspicious_login_workflow
+  - run_suspicious_login_triage_workflow
+  - secops-mcp_lookup_entity
+  - secops-mcp_search_security_events
+  - soar-mcp_get_case_full_details
+  - soar-mcp_list_events_by_alert
 ---
 
 # Suspicious Login Alert Triage Runbook

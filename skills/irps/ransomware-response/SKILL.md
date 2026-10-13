@@ -9,6 +9,13 @@ title: 'Skill: Ransomware Incident Response Plan (IRP) / Runbook'
 generated:
   by: process:google-labs-jules
   at: 2025-12-20 22:04:42-05:00
+metadata:
+  adk_additional_tools:
+  - run_ransomware_irp_workflow
+  - gti-mcp_get_file_report
+  - gti-mcp_search_threats
+  - secops-mcp_search_security_events
+  - soar-mcp_get_case_full_details
 ---
 
 # Ransomware Incident Response Plan (IRP) / Runbook

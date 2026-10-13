@@ -9,6 +9,15 @@ title: 'Skill: Compare GTI Collection to IoCs, Events in SecOps'
 generated:
   by: process:google-labs-jules
   at: '2026-08-20T02:00:00Z'
+metadata:
+  adk_additional_tools:
+  - run_compare_gti_collection_workflow
+  - gti-mcp_get_collection_report
+  - secops-mcp_get_ioc_matches
+  - secops-mcp_get_security_alerts
+  - secops-mcp_search_security_events
+  - soar-mcp_list_cases
+  - soar-mcp_post_case_comment
 ---
 
 # Compare GTI Collection to IoCs, Events in SecOps

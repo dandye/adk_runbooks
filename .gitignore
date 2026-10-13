@@ -1,8 +1,12 @@
 .env
 **/.env
 **/__pycache__
+# Isolated Python environment, direnv, and gcloud state
 venv
 .venv
+.venv/
+.gcloud/
+.envrc
 multi-agent/venv/
 
 # Sphinx documentation
@@ -23,6 +27,8 @@ multi-agent/manager/sub_agents/*/*.log
 
 # Test output artifacts
 .superpowers/
+evals/results/*.db
+multi-agent/reports/otel_traces.jsonl
 multi-agent/reports/Alert_Report_*.md
 multi-agent/reports/Case_Report_*.md
 multi-agent/reports/Detection_Rule_Validation_*.md

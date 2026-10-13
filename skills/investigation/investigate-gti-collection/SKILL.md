@@ -9,6 +9,9 @@ title: 'Skill: Investigate Google Threat Intelligence Collection ID (Enhanced)'
 generated:
   by: process:google-labs-jules
   at: '2026-08-20T02:00:00Z'
+metadata:
+  adk_additional_tools:
+  - run_investigate_gti_collection_workflow
 ---
 
 # Investigate Google Threat Intelligence Collection ID (Enhanced)

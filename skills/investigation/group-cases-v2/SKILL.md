@@ -9,6 +9,14 @@ title: 'Skill: Group Cases v2'
 generated:
   by: process:google-labs-jules
   at: 2025-12-20 22:04:42-05:00
+metadata:
+  adk_additional_tools:
+  - run_group_cases_v2_workflow
+  - secops-mcp_lookup_entity
+  - soar-mcp_get_case_full_details
+  - soar-mcp_get_entities_by_alert_group_identifiers
+  - soar-mcp_list_alerts_by_case
+  - soar-mcp_list_cases
 ---
 
 # Runbook: Group Cases v2

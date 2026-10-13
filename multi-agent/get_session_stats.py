@@ -38,7 +38,7 @@ def get_session_stats(session_id: str = "latest"):
         session_id = row[0]
 
     cursor.execute(
-        "SELECT id, timestamp, event_data FROM events WHERE session_id = ? ORDER BY id ASC",
+        "SELECT id, timestamp, event_data FROM events WHERE session_id = ? ORDER BY timestamp ASC, id ASC",
         (session_id,)
     )
     rows = cursor.fetchall()

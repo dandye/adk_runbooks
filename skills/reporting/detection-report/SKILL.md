@@ -9,6 +9,12 @@ title: 'Skill: Generate Detection Report'
 generated:
   by: process:google-labs-jules
   at: 2025-12-20 22:04:42-05:00
+metadata:
+  adk_additional_tools:
+  - run_detection_report_workflow
+  - secops-mcp_get_security_alerts
+  - secops-mcp_list_security_rules
+  - soar-mcp_get_case_full_details
 ---
 
 # Runbook: Generate Detection Report

@@ -11,13 +11,16 @@ DATASETS_DIR = Path(__file__).resolve().parent
 
 def get_dataset_path(dataset_name: str) -> Path:
     """Retrieve absolute file path for a dataset JSON file."""
+    candidate = Path(dataset_name)
+    if candidate.exists() and candidate.is_file():
+        return candidate.resolve()
     if not dataset_name.endswith(".json"):
         dataset_name = f"{dataset_name}.json"
     return DATASETS_DIR / dataset_name
 
 
 def load_dataset(dataset_name: str) -> List[Dict[str, Any]]:
-    """Load and parse a JSON test dataset by name."""
+    """Load and parse a JSON test dataset by name or path."""
     path = get_dataset_path(dataset_name)
     if not path.exists():
         raise FileNotFoundError(f"Dataset file not found at '{path}'.")

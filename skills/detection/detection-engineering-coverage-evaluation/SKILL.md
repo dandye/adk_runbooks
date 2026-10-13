@@ -1,13 +1,15 @@
 ---
 name: detection-engineering-coverage-evaluation
-description: Use when evaluating threat detection opportunities (TDOs), generating synthetic UDM events, evaluating Chronicle rule coverage, and drafting YARA-L 2.0 rules.
+description: Use when evaluating threat detection opportunities (TDOs), generating
+  synthetic UDM events, evaluating Chronicle rule coverage, and drafting YARA-L 2.0
+  rules.
 category: detection
 version: 1.0.0
 type: Skill
-title: 'Skill: SecOps Detection Engineering Coverage Evaluation'
+title: 'Skill: SecOps Detection Engineering Coverage Evaluation Skill'
 generated:
   by: process:google-labs-jules
-  at: 2026-08-20 20:19:00-00:00
+  at: 2026-08-20 20:19:00+00:00
 ---
 
 # SecOps Detection Engineering Coverage Evaluation Skill

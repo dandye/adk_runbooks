@@ -9,6 +9,9 @@ title: 'Skill: Atomic Runbook: Lookup User Entity Activity in Chronicle'
 generated:
   by: process:google-labs-jules
   at: '2026-08-20T02:00:00Z'
+metadata:
+  adk_additional_tools:
+  - secops-mcp_lookup_entity
 ---
 
 # Atomic Runbook: Lookup User Entity Activity in Chronicle

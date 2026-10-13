@@ -1,9 +1,10 @@
 """Centralized Skill Registry and Parsing Engine."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import logging
 from pathlib import Path
 import re
+from typing import Any
 import yaml
 
 logger = logging.getLogger(__name__)
@@ -18,6 +19,7 @@ class SkillMetadata:
     category: str
     path: Path
     version: str = "1.0.0"
+    adk_additional_tools: list[str] = field(default_factory=list)
 
 
 class SkillRegistry:
@@ -86,12 +88,20 @@ class SkillRegistry:
         category = fm_data.get("category", path.parent.parent.name if path.parent.parent != path.parent else "")
         version = str(fm_data.get("version", "1.0.0"))
 
+        raw_meta = fm_data.get("metadata")
+        additional_tools: list[str] = []
+        if isinstance(raw_meta, dict) and isinstance(raw_meta.get("adk_additional_tools"), list):
+            additional_tools = [str(t) for t in raw_meta["adk_additional_tools"] if t]
+        elif isinstance(fm_data.get("adk_additional_tools"), list):
+            additional_tools = [str(t) for t in fm_data["adk_additional_tools"] if t]
+
         return SkillMetadata(
             name=name,
             description=description,
             category=category,
             path=path,
             version=version,
+            adk_additional_tools=additional_tools,
         )
 
     def get_skill(self, name: str) -> SkillMetadata | None:
@@ -152,3 +162,75 @@ class SkillRegistry:
                 matched.append(meta)
                 seen.add(meta.name)
         return sorted(matched, key=lambda x: x.name)
+
+    def load_adk_skills(self, skill_names: list[str] | None = None) -> list[Any]:
+        """Load native google.adk.skills.models.Skill instances from the skills directory."""
+        from google.adk.skills import load_skills_from_dir
+        from google.adk.skills.models import Frontmatter, Skill
+
+        allowed: set[str] | None = None
+        if skill_names is not None:
+            allowed = set()
+            for s in skill_names:
+                meta = self.get_skill(s)
+                if meta:
+                    allowed.add(meta.name)
+                else:
+                    allowed.add(s)
+
+        loaded_skills: list[Skill] = []
+        seen_names: set[str] = set()
+
+        if self.skills_dir.exists():
+            for cat_dir in sorted(self.skills_dir.iterdir()):
+                if cat_dir.is_dir() and not cat_dir.name.startswith((".", "_")) and cat_dir.name != "scripts":
+                    try:
+                        skills_in_cat = load_skills_from_dir(cat_dir)
+                        for sk in skills_in_cat:
+                            if allowed is not None and sk.name not in allowed:
+                                continue
+                            if sk.name not in seen_names:
+                                loaded_skills.append(sk)
+                                seen_names.add(sk.name)
+                    except Exception as e:
+                        logger.debug("Fallback to SkillMetadata for %s: %s", cat_dir, e)
+
+        # Fallback for any skills not loaded via load_skills_from_dir
+        for meta in sorted(self.skills.values(), key=lambda x: x.name):
+            if meta.name in seen_names:
+                continue
+            if allowed is not None and meta.name not in allowed:
+                continue
+            raw_content = meta.path.read_text(encoding="utf-8") if meta.path.exists() else ""
+            m = re.match(r"^---\s*\n(.*?)\n---\s*\n(.*)$", raw_content, re.DOTALL)
+            instructions = m.group(2).strip() if m else raw_content
+            sk = Skill(
+                name=meta.name,
+                description=meta.description,
+                instructions=instructions,
+                frontmatter=Frontmatter(
+                    name=meta.name,
+                    description=meta.description,
+                    metadata={"adk_additional_tools": list(meta.adk_additional_tools)}
+                    if meta.adk_additional_tools
+                    else {},
+                ),
+            )
+            loaded_skills.append(sk)
+            seen_names.add(meta.name)
+
+        return loaded_skills
+
+    def build_skill_toolset(
+        self,
+        additional_tools: list[Any] | None = None,
+        skill_names: list[str] | None = None,
+    ) -> Any:
+        """Construct a native ADK SkillToolset with dynamic tool binding."""
+        from google.adk.tools.skill_toolset import SkillToolset
+
+        skills = self.load_adk_skills(skill_names=skill_names)
+        return SkillToolset(
+            skills=skills,
+            additional_tools=additional_tools or [],
+        )

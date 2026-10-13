@@ -9,6 +9,9 @@ title: 'Skill: Detection-as-Code Workflow (Placeholder)'
 generated:
   by: process:google-labs-jules
   at: 2025-12-20 22:04:42-05:00
+metadata:
+  adk_additional_tools:
+  - run_detection_as_code_tuning_workflow
 ---
 
 # Runbook: Detection-as-Code Workflow (Placeholder)

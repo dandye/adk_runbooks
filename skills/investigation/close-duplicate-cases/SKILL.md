@@ -9,6 +9,9 @@ title: 'Skill: Close Duplicate Cases'
 generated:
   by: process:google-labs-jules
   at: '2026-08-20T02:00:00Z'
+metadata:
+  adk_additional_tools:
+  - run_close_duplicate_cases_workflow
 ---
 
 ### ADK Graph-Based Workflow Diagram

@@ -9,6 +9,11 @@ title: 'Skill: IOC Containment Runbook'
 generated:
   by: process:google-labs-jules
   at: 2025-12-20 22:04:42-05:00
+metadata:
+  adk_additional_tools:
+  - run_ioc_containment_workflow
+  - secops-mcp_search_security_events
+  - soar-mcp_google_chronicle_add_values_to_reference_list
 ---
 
 # IOC Containment Runbook

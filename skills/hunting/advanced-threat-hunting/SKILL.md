@@ -9,6 +9,14 @@ title: 'Skill: Advanced Threat Hunting (Hypothesis-Driven) Runbook'
 generated:
   by: process:google-labs-jules
   at: 2025-12-20 22:04:42-05:00
+metadata:
+  adk_additional_tools:
+  - run_advanced_threat_hunting_workflow
+  - run_metaanalysis_workflow
+  - secops-mcp_get_ioc_matches
+  - secops-mcp_lookup_entity
+  - secops-mcp_search_security_events
+  - soar-mcp_post_case_comment
 ---
 
 # Advanced Threat Hunting (Hypothesis-Driven) Runbook
