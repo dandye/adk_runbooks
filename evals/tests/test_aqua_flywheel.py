@@ -637,3 +637,172 @@ def test_phase5_multi_turn_user_simulator_scenarios(tmp_path: Path):
     assert db_path.exists()
 
 
+def test_review_fixes_non_destructive_promotion_and_longitudinal_clustering(tmp_path: Path):
+    """Verify PR review fixes: non-destructive regression merging, corrupt JSON guard, and longitudinal AQuA clustering."""
+    from evals.aqua_outer_loop import AquaDatabase, cluster_trace_reports
+    from evals.promote_trace_to_dataset import promote_from_aqua_db
+    from evals.simulate_sessions import save_generated_scenarios, DEFAULT_SOC_SCENARIOS
+
+    db_path = tmp_path / "aqua_longitudinal.db"
+    reg_path = tmp_path / "production_regressions.json"
+
+    batch1 = [
+        {
+            "trace_id": "trace-b1",
+            "session_id": "sess-b1",
+            "workflow_name": "suspicious_login_workflow",
+            "source": "session-db",
+            "summary": "Batch 1 bypass",
+            "detected_issues": [
+                {
+                    "category": "PROGRESSIVE_DISCLOSURE_BYPASS",
+                    "severity": "HIGH",
+                    "summary": "Batch 1 bypass summary",
+                    "root_cause_hypothesis": "Hypothesis 1",
+                    "remediation_proposal": "Remediation 1",
+                    "affected_tools": ["run_suspicious_login_workflow"],
+                    "occurrence_count": 1,
+                    "occurrences": [
+                        {
+                            "trace_id": "trace-b1",
+                            "session_id": "sess-b1",
+                            "workflow_name": "suspicious_login_workflow",
+                            "tool_name": "run_suspicious_login_workflow",
+                            "evidence": {"turn_index": 1},
+                        }
+                    ],
+                }
+            ],
+        }
+    ]
+    batch2 = [
+        {
+            "trace_id": "trace-b2",
+            "session_id": "sess-b2",
+            "workflow_name": "malware_triage_workflow",
+            "source": "session-db",
+            "summary": "Batch 2 bypass",
+            "detected_issues": [
+                {
+                    "category": "PROGRESSIVE_DISCLOSURE_BYPASS",
+                    "severity": "HIGH",
+                    "summary": "Batch 2 bypass summary",
+                    "root_cause_hypothesis": "Hypothesis 1",
+                    "remediation_proposal": "Remediation 1",
+                    "affected_tools": ["run_malware_triage_workflow"],
+                    "occurrence_count": 1,
+                    "occurrences": [
+                        {
+                            "trace_id": "trace-b2",
+                            "session_id": "sess-b2",
+                            "workflow_name": "malware_triage_workflow",
+                            "tool_name": "run_malware_triage_workflow",
+                            "evidence": {"turn_index": 1},
+                        }
+                    ],
+                }
+            ],
+        }
+    ]
+
+    # Run batch 1, then re-run batch 1 (idempotent), then run batch 2 (longitudinal accumulation)
+    cluster_trace_reports(batch1, db_path=db_path)
+    cluster_trace_reports(batch1, db_path=db_path)
+    cluster_trace_reports(batch2, db_path=db_path)
+
+    db = AquaDatabase(db_path)
+    insights = db.list_insights()
+    assert len(insights) == 1
+    ins = insights[0]
+    assert ins["occurrence_count"] == 2
+    assert set(ins["affected_workflows"]) == {
+        "suspicious_login_workflow",
+        "malware_triage_workflow",
+    }
+    occs = db.get_insight_traces(ins["insight_id"])
+    assert len(occs) == 2
+
+    # Pre-seed production_regressions.json with an existing custom case
+    reg_path.write_text(
+        json.dumps([{"test_id": "REG-EXISTING-001", "workflow_name": "case_report_workflow"}]),
+        encoding="utf-8",
+    )
+    promote_from_aqua_db(db_path=db_path, output_path=reg_path)
+    merged = json.loads(reg_path.read_text(encoding="utf-8"))
+    merged_ids = {c["test_id"] for c in merged}
+    assert "REG-EXISTING-001" in merged_ids
+    assert len(merged_ids) == 3
+
+    # Corrupt JSON must raise ValueError instead of silently wiping
+    corrupt_path = tmp_path / "corrupt.json"
+    corrupt_path.write_text("{not valid json", encoding="utf-8")
+    with pytest.raises(ValueError, match="invalid JSON"):
+        promote_from_aqua_db(db_path=db_path, output_path=corrupt_path)
+    with pytest.raises(ValueError, match="invalid JSON"):
+        save_generated_scenarios(DEFAULT_SOC_SCENARIOS, corrupt_path)
+
+
+def test_review_fixes_chronological_rubrics_and_unverified_containment():
+    """Verify Turn 1 blind execution is not retroactively excused by Turn 3 skill loads."""
+    from evals.evaluators.base import ToolCallRecord, WorkflowTrace
+    from evals.rubrics.categorical_rubrics import (
+        McpSchemaHygieneRubric,
+        ProgressiveDisclosureComplianceRubric,
+        SoarTriagingIntegrityRubric,
+    )
+    from evals.telemetry_bridge import _is_tool_schema_inspected
+
+    # Unrelated schema inspection must not validate isolate_endpoint
+    assert _is_tool_schema_inspected("soar-mcp_isolate_endpoint", ["get_ip_address_report"]) is False
+    assert _is_tool_schema_inspected("soar-mcp_isolate_endpoint", ["isolate_endpoint"]) is True
+
+    late_disclosure_trace = WorkflowTrace(
+        workflow_name="adk_session",
+        disclosure_mode="dual_progressive",
+        executed_nodes=["transfer_to_agent", "execute_mcp_tool"],
+        activated_skills=["compromised-user-account-response"],
+        inspected_schemas=["soar-mcp_isolate_endpoint"],
+        tool_calls=[
+            ToolCallRecord(
+                turn_index=1,
+                agent_name="manager",
+                tool_name="transfer_to_agent",
+                args={"agent_name": "incident_responder"},
+            ),
+            ToolCallRecord(
+                turn_index=1,
+                agent_name="incident_responder",
+                tool_name="execute_mcp_tool",
+                args={"tool_name": "soar-mcp_isolate_endpoint"},
+                disclosure_skill_loaded=False,
+                mcp_schema_inspected=False,
+            ),
+            ToolCallRecord(
+                turn_index=2,
+                agent_name="incident_responder",
+                tool_name="load_skill",
+                args={"skill_name": "compromised-user-account-response"},
+            ),
+            ToolCallRecord(
+                turn_index=2,
+                agent_name="incident_responder",
+                tool_name="get_mcp_tool_schema",
+                args={"tool_name": "soar-mcp_isolate_endpoint"},
+            ),
+        ],
+    )
+
+    pd_verdict = ProgressiveDisclosureComplianceRubric.evaluate(late_disclosure_trace)
+    assert pd_verdict.passed is False
+    assert pd_verdict.category in ("FULL_BYPASS", "PARTIAL_BYPASS")
+
+    mcp_verdict = McpSchemaHygieneRubric.evaluate(late_disclosure_trace)
+    assert mcp_verdict.passed is False
+    assert mcp_verdict.category == "BLIND_EXECUTION"
+
+    soar_verdict = SoarTriagingIntegrityRubric.evaluate(late_disclosure_trace, {})
+    assert soar_verdict.passed is False
+    assert soar_verdict.category == "UNVERIFIED_CONTAINMENT"
+
+
+

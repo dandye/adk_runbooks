@@ -664,6 +664,25 @@ def _execute_workflow_dag(
 
     current_val = inp_obj
     current_node = None
+    accumulated_structured_fields: Dict[str, Any] = {}
+
+    def _collect_structured(val: Any) -> None:
+        if val is inp_obj or isinstance(val, (str, bytes, int, float, bool)) or val is None:
+            return
+        if isinstance(val, dict):
+            accumulated_structured_fields.update(val)
+        elif hasattr(val, "__dict__"):
+            for k, v in val.__dict__.items():
+                if not k.startswith("_"):
+                    if hasattr(v, "__dict__"):
+                        for sub_k, sub_v in v.__dict__.items():
+                            if not sub_k.startswith("_"):
+                                if hasattr(sub_v, "__dict__"):
+                                    for leaf_k, leaf_v in sub_v.__dict__.items():
+                                        if not leaf_k.startswith("_"):
+                                            accumulated_structured_fields[leaf_k] = leaf_v
+                                accumulated_structured_fields[sub_k] = sub_v
+                    accumulated_structured_fields[k] = v
 
     # Start with first linear chain
     if linear_chains:
@@ -677,9 +696,11 @@ def _execute_workflow_dag(
                 route_val = getattr(getattr(res, "actions", None), "route", getattr(res, "route", None))
                 trace.route = str(route_val)
                 current_val = getattr(res, "output", current_val)
+                _collect_structured(current_val)
                 break
             else:
                 current_val = res
+                _collect_structured(current_val)
 
     # Walk through subsequent transitions (routers, fan-ins, branch nodes)
     step = 0
@@ -699,6 +720,7 @@ def _execute_workflow_dag(
                 current_val = getattr(res, "output", current_val)
             else:
                 current_val = res
+            _collect_structured(current_val)
             continue
 
         # Check if current_node has a direct fanin/outbound edge
@@ -714,6 +736,7 @@ def _execute_workflow_dag(
                 current_val = getattr(res, "output", current_val)
             else:
                 current_val = res
+            _collect_structured(current_val)
             continue
 
         # No more explicit edges
@@ -721,5 +744,12 @@ def _execute_workflow_dag(
     else:
         if current_node in router_map or current_node in fanin_map:
             raise RuntimeError(f"Workflow '{workflow_name}' exceeded maximum DAG step limit of {max_steps} steps.")
+
+    if isinstance(current_val, str) and accumulated_structured_fields:
+        merged = dict(accumulated_structured_fields)
+        merged["report_markdown"] = current_val
+        merged["soar_comment"] = current_val
+        merged["raw"] = current_val
+        return merged
 
     return current_val

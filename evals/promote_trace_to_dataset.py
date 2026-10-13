@@ -50,6 +50,45 @@ def _get_template_by_workflow() -> Dict[str, Dict[str, Any]]:
         return {}
 
 
+def _merge_and_write_regressions(
+    target_out: Path,
+    new_cases: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Merge new regression cases into target_out by test_id without clobbering prior cases."""
+    existing: List[Dict[str, Any]] = []
+    if target_out.exists():
+        raw_text = target_out.read_text(encoding="utf-8").strip()
+        if raw_text:
+            try:
+                parsed = json.loads(raw_text)
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    f"Existing regression dataset '{target_out}' contains invalid JSON: {exc}"
+                ) from exc
+            if not isinstance(parsed, list):
+                raise ValueError(
+                    f"Existing regression dataset '{target_out}' must be a JSON list."
+                )
+            existing = parsed
+
+    index_by_id = {
+        c.get("test_id"): idx
+        for idx, c in enumerate(existing)
+        if isinstance(c, dict) and c.get("test_id")
+    }
+    for case in new_cases:
+        tid = case.get("test_id")
+        if tid in index_by_id:
+            existing[index_by_id[tid]] = case
+        else:
+            index_by_id[tid] = len(existing)
+            existing.append(case)
+
+    target_out.parent.mkdir(parents=True, exist_ok=True)
+    target_out.write_text(json.dumps(existing, indent=2) + "\n", encoding="utf-8")
+    return existing
+
+
 def promote_from_aqua_db(
     db_path: Optional[Path] = None,
     output_path: Optional[Path] = None,
@@ -57,6 +96,7 @@ def promote_from_aqua_db(
 ) -> List[Dict[str, Any]]:
     """
     Promote systemic AQuA insights from SQLite into declarative regression test cases.
+    Merges with existing entries in output_path by test_id.
     """
     db = AquaDatabase(db_path or DEFAULT_AQUA_DB)
     templates = _get_template_by_workflow()
@@ -123,8 +163,7 @@ def promote_from_aqua_db(
             promoted_cases.append(case_record)
 
     target_out = Path(output_path) if output_path else DEFAULT_REGRESSIONS_OUTPUT
-    target_out.parent.mkdir(parents=True, exist_ok=True)
-    target_out.write_text(json.dumps(promoted_cases, indent=2) + "\n", encoding="utf-8")
+    _merge_and_write_regressions(target_out, promoted_cases)
     return promoted_cases
 
 
@@ -169,16 +208,7 @@ def promote_session_to_dataset(
     }
 
     target_out = Path(output_path) if output_path else DEFAULT_REGRESSIONS_OUTPUT
-    existing: List[Dict[str, Any]] = []
-    if target_out.exists():
-        try:
-            existing = json.loads(target_out.read_text(encoding="utf-8"))
-        except Exception:
-            existing = []
-    existing = [c for c in existing if c.get("test_id") != case_record["test_id"]]
-    existing.append(case_record)
-    target_out.parent.mkdir(parents=True, exist_ok=True)
-    target_out.write_text(json.dumps(existing, indent=2) + "\n", encoding="utf-8")
+    _merge_and_write_regressions(target_out, [case_record])
     return case_record
 
 

@@ -210,10 +210,19 @@ def save_generated_scenarios(
   output_path.parent.mkdir(parents=True, exist_ok=True)
   payload: dict[str, Any] = {}
   if output_path.exists():
-    try:
-      payload = json.loads(output_path.read_text(encoding="utf-8"))
-    except Exception:
-      payload = {}
+    raw_text = output_path.read_text(encoding="utf-8").strip()
+    if raw_text:
+      try:
+        parsed = json.loads(raw_text)
+      except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"Existing scenarios file '{output_path}' contains invalid JSON: {exc}"
+        ) from exc
+      if not isinstance(parsed, dict):
+        raise ValueError(
+            f"Existing scenarios file '{output_path}' must contain a JSON object."
+        )
+      payload = parsed
   for sid, sc in scenarios.items():
     payload[sid] = {
         "starting_prompt": sc.starting_prompt,

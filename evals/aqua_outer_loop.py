@@ -121,13 +121,93 @@ class AquaDatabase:
         self,
         insight: Dict[str, Any],
         occurrences: List[Dict[str, Any]],
-    ) -> None:
+    ) -> Dict[str, Any]:
         conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
         try:
-            conn.execute(
-                "DELETE FROM occurrences WHERE insight_id = ?",
+            existing_row = conn.execute(
+                "SELECT * FROM insights WHERE insight_id = ?",
                 (insight["insight_id"],),
+            ).fetchone()
+
+            existing_workflows: set[str] = set()
+            existing_description = ""
+            created_at = insight.get("created_at") or datetime.now(timezone.utc).isoformat()
+            if existing_row is not None:
+                existing_workflows.update(
+                    json.loads(existing_row["affected_workflows"] or "[]")
+                )
+                existing_description = existing_row["description"] or ""
+                created_at = existing_row["created_at"] or created_at
+
+            existing_occ_rows = conn.execute(
+                "SELECT trace_id, session_id, workflow_name, tool_name, evidence_json "
+                "FROM occurrences WHERE insight_id = ? ORDER BY occurrence_id ASC",
+                (insight["insight_id"],),
+            ).fetchall()
+
+            seen_keys: set[tuple[str, str, str, str, str]] = set()
+            merged_occs: List[tuple[str, str, str, str, str]] = []
+            for r in existing_occ_rows:
+                key = (
+                    str(r["trace_id"]),
+                    str(r["session_id"]),
+                    str(r["workflow_name"]),
+                    str(r["tool_name"]),
+                    str(r["evidence_json"]),
+                )
+                if key not in seen_keys:
+                    seen_keys.add(key)
+                    merged_occs.append(key)
+
+            new_occ_added = 0
+            for occ in occurrences:
+                ev_str = json.dumps(occ.get("evidence", {}), sort_keys=True, default=str)
+                key = (
+                    str(occ.get("trace_id", "")),
+                    str(occ.get("session_id", "")),
+                    str(occ.get("workflow_name", "")),
+                    str(occ.get("tool_name", "")),
+                    ev_str,
+                )
+                if key not in seen_keys:
+                    seen_keys.add(key)
+                    merged_occs.append(key)
+                    new_occ_added += 1
+                    conn.execute(
+                        """
+                        INSERT INTO occurrences
+                        (insight_id, trace_id, session_id, workflow_name, tool_name, evidence_json)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            insight["insight_id"],
+                            key[0],
+                            key[1],
+                            key[2],
+                            key[3],
+                            key[4],
+                        ),
+                    )
+
+            merged_workflows = sorted(
+                existing_workflows | set(insight.get("affected_workflows", []))
             )
+            description = existing_description or insight["description"]
+            for part in str(insight["description"]).split(" | "):
+                part_clean = part.strip()
+                if part_clean and part_clean not in description:
+                    description = f"{description} | {part_clean}" if description else part_clean
+
+            if existing_row is not None:
+                prior_count = int(existing_row["occurrence_count"] or 0)
+                total_count = max(
+                    len(merged_occs),
+                    prior_count + new_occ_added if occurrences else prior_count,
+                )
+            else:
+                total_count = max(len(merged_occs), int(insight.get("occurrence_count", 1)))
+
             conn.execute(
                 """
                 INSERT OR REPLACE INTO insights
@@ -141,31 +221,21 @@ class AquaDatabase:
                     insight["category"],
                     insight["severity"],
                     insight["title"],
-                    insight["description"],
+                    description,
                     insight["root_cause_hypothesis"],
                     insight["remediation_proposal"],
-                    insight["occurrence_count"],
-                    json.dumps(insight.get("affected_workflows", [])),
-                    insight.get("created_at") or datetime.now(timezone.utc).isoformat(),
+                    total_count,
+                    json.dumps(merged_workflows),
+                    created_at,
                 ),
             )
-            for occ in occurrences:
-                conn.execute(
-                    """
-                    INSERT INTO occurrences
-                    (insight_id, trace_id, session_id, workflow_name, tool_name, evidence_json)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        insight["insight_id"],
-                        occ.get("trace_id", ""),
-                        occ.get("session_id", ""),
-                        occ.get("workflow_name", ""),
-                        occ.get("tool_name", ""),
-                        json.dumps(occ.get("evidence", {}), default=str),
-                    ),
-                )
             conn.commit()
+            result = dict(insight)
+            result["description"] = description
+            result["affected_workflows"] = merged_workflows
+            result["occurrence_count"] = total_count
+            result["created_at"] = created_at
+            return result
         finally:
             conn.close()
 
@@ -440,8 +510,8 @@ def cluster_trace_reports(
         ins_dict = dict(ins)
         ins_dict["affected_workflows"] = sorted(ins["affected_workflows"])
         occs = cluster_occurrences.get(cat, [])
-        db.upsert_insight(ins_dict, occs)
-        persisted_insights.append(ins_dict)
+        merged_ins = db.upsert_insight(ins_dict, occs)
+        persisted_insights.append(merged_ins)
 
     if bq_dataset:
         _export_insights_to_bigquery(persisted_insights, bq_dataset)

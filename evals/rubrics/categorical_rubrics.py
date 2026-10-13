@@ -23,6 +23,8 @@ META_DISCOVERY_TOOLS = {
     "get_current_time",
     "read_file_content",
     "write_report",
+    "transfer_to_agent",
+    "load_persona_with_skills_catalog",
 }
 
 CONTAINMENT_INDICATORS = (
@@ -80,10 +82,27 @@ class ProgressiveDisclosureComplianceRubric:
         partial_count = 0
         bypass_count = 0
 
-        for tc in domain_calls:
-            skill_ok = tc.disclosure_skill_loaded or bool(trace.activated_skills)
-            schema_ok = tc.mcp_schema_inspected or bool(trace.inspected_schemas) or (
-                trace.disclosure_mode in ("skill_toolset", "skills_only")
+        seen_skill_in_trace = False
+        seen_schema_in_trace = False
+
+        for tc in trace.tool_calls:
+            if tc.tool_name == "load_skill":
+                seen_skill_in_trace = True
+                continue
+            if tc.tool_name in ("get_mcp_tool_schema", "search_mcp_tools"):
+                seen_schema_in_trace = True
+                continue
+            if not _is_domain_or_workflow_call(tc):
+                continue
+
+            skill_ok = tc.disclosure_skill_loaded or seen_skill_in_trace
+            schema_ok = (
+                tc.mcp_schema_inspected
+                or seen_schema_in_trace
+                or (
+                    trace.disclosure_mode in ("skill_toolset", "skills_only")
+                    and skill_ok
+                )
             )
             if skill_ok and schema_ok:
                 honored_count += 1
@@ -153,15 +172,29 @@ class McpSchemaHygieneRubric:
             )
 
         error_calls = [tc for tc in domain_calls if tc.status == "error"]
-        unverified_calls = [
-            tc
-            for tc in domain_calls
-            if not (
+        unverified_calls: List[ToolCallRecord] = []
+        seen_skill_in_trace = False
+        seen_schema_in_trace = False
+        for tc in trace.tool_calls:
+            if tc.tool_name == "load_skill":
+                seen_skill_in_trace = True
+                continue
+            if tc.tool_name in ("get_mcp_tool_schema", "search_mcp_tools"):
+                seen_schema_in_trace = True
+                continue
+            if not _is_domain_or_workflow_call(tc):
+                continue
+            skill_ok = tc.disclosure_skill_loaded or seen_skill_in_trace
+            verified = (
                 tc.mcp_schema_inspected
-                or bool(trace.inspected_schemas)
-                or (trace.disclosure_mode in ("skill_toolset", "skills_only") and tc.disclosure_skill_loaded)
+                or seen_schema_in_trace
+                or (
+                    trace.disclosure_mode in ("skill_toolset", "skills_only")
+                    and skill_ok
+                )
             )
-        ]
+            if not verified:
+                unverified_calls.append(tc)
 
         if error_calls:
             return CategoricalVerdict(
@@ -219,13 +252,19 @@ class SoarTriagingIntegrityRubric:
             ):
                 enrichment_calls.append(tc)
 
-        has_dag_enrichment = len(trace.executed_nodes) > 1
+        has_dag_enrichment = any(
+            node not in META_DISCOVERY_TOOLS
+            and not any(ind in node.lower() for ind in CONTAINMENT_INDICATORS)
+            and node not in ("start", "execute_mcp_tool")
+            for node in trace.executed_nodes
+        )
         has_output_enrichment = bool(
             out.get("enrichment_summary")
             or out.get("soar_comment")
             or out.get("report_markdown")
             or out.get("siem_events")
             or out.get("gti_reputation")
+            or (not containment_calls and out.get("raw_output"))
         )
 
         # If a containment tool was called with zero enrichment in tool_calls, DAG, or output

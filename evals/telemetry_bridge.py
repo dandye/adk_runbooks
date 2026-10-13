@@ -17,6 +17,40 @@ DEFAULT_METRICS_JSONL = REPO_ROOT / "multi-agent" / "reports" / "execution_metri
 DEFAULT_OTEL_JSONL = REPO_ROOT / "multi-agent" / "reports" / "otel_traces.jsonl"
 
 
+def _is_tool_schema_inspected(tool_name: str, inspected_schemas: List[str]) -> bool:
+    """Return True if tool_name (or a matching discovery query/token) was inspected prior to execution."""
+    if not tool_name or not inspected_schemas:
+        return False
+    norm_tool = tool_name.lower().strip()
+    unprefixed = (
+        norm_tool.split("_", 1)[-1]
+        if "-" in norm_tool.split("_", 1)[0]
+        else norm_tool
+    )
+    stop_words = {"run", "mcp", "get", "list", "the", "for", "by", "tool", "workflow"}
+    tool_tokens = {
+        tok
+        for tok in unprefixed.replace("-", "_").split("_")
+        if len(tok) >= 3 and tok not in stop_words
+    }
+    for item in inspected_schemas:
+        norm_item = str(item).lower().strip()
+        if not norm_item:
+            continue
+        if norm_item == norm_tool or norm_item == unprefixed:
+            return True
+        if norm_item in norm_tool or unprefixed in norm_item:
+            return True
+        item_tokens = {
+            tok
+            for tok in norm_item.replace("-", "_").replace(" ", "_").split("_")
+            if len(tok) >= 3 and tok not in stop_words
+        }
+        if tool_tokens and item_tokens and (tool_tokens & item_tokens):
+            return True
+    return False
+
+
 def load_session_trace(
     session_id: str = "latest",
     db_path: Optional[Path] = None,
@@ -120,12 +154,16 @@ def load_session_trace(
                 elif t_name == "execute_mcp_tool":
                     inner_tool = str(t_args.get("tool_name", ""))
                     disclosure_loaded = len(activated_skills) > 0
-                    schema_inspected = (inner_tool in inspected_schemas) or (len(inspected_schemas) > 0)
+                    schema_inspected = _is_tool_schema_inspected(
+                        inner_tool, inspected_schemas
+                    )
                     if inner_tool.startswith("run_") and inner_tool.endswith("_workflow"):
                         workflow_name = inner_tool.removeprefix("run_")
                 else:
                     disclosure_loaded = len(activated_skills) > 0
-                    schema_inspected = t_name in inspected_schemas
+                    schema_inspected = _is_tool_schema_inspected(
+                        t_name, inspected_schemas
+                    )
                     if t_name.startswith("run_") and t_name.endswith("_workflow"):
                         workflow_name = t_name.removeprefix("run_")
 

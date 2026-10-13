@@ -282,16 +282,21 @@ class MCPToolRegistry:
         elif callable(executor):
             try:
                 return executor(**arguments)
-            except TypeError:
-                try:
-                    # Filter to accepted kwargs if callable does not accept **kwargs
-                    sig = inspect.signature(executor)
+            except TypeError as exc:
+                sig = inspect.signature(executor)
+                params = list(sig.parameters.values())
+                has_var_kw = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params)
+                if not has_var_kw:
                     accepted = {
                         k: v for k, v in arguments.items() if k in sig.parameters
                     }
-                    return executor(**accepted)
-                except TypeError:
+                    if len(accepted) != len(arguments):
+                        return executor(**accepted)
+                if len(params) == 1 and params[0].name in ("args", "arguments", "payload", "input_data"):
                     return executor(arguments)
+                raise ValueError(
+                    f"Invalid arguments for tool '{meta.name}': {exc}"
+                ) from exc
         elif hasattr(executor, "run_async") and callable(getattr(executor, "run_async")):
             return executor.run_async(arguments)
         else:
