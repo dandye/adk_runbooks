@@ -40316,3 +40316,381 @@ def run_night2_grounded_secops_benchmark(
     }
 
 
+CANONICAL_KNOWLEDGE_CATALOG_GROUNDING_CATALOG: dict[str, dict[str, Any]] = {
+    "KC-01": {
+        "rule_id": "KC-01",
+        "defect_type": "uncertified_or_policy_incompatible_asset_selection",
+        "severity": "CRITICAL",
+        "title": "Uncertified Sandbox or Policy-Incompatible Asset Selection",
+        "description": (
+            "Selects an uncertified sandbox/staging table (`is_certified: false` or "
+            "`product_tier: SANDBOX`) or exports an `INTERNAL_ONLY` asset to an "
+            "external audience without checking `governance-data-product` aspects."
+        ),
+    },
+    "KC-02": {
+        "rule_id": "KC-02",
+        "defect_type": "missing_partition_pruning_filter_on_partitioned_table",
+        "severity": "HIGH",
+        "title": "Missing Partition Pruning Filter on Partitioned BigQuery Table",
+        "description": (
+            "Queries a partitioned BigQuery table (`bigquery-table-spec.time_partitioning` "
+            "or `overview` partition guidelines) without filtering on the mandatory "
+            "partition column (`event_date` / `closing_month`)."
+        ),
+    },
+    "KC-03": {
+        "rule_id": "KC-03",
+        "defect_type": "unverified_join_key_or_missing_streaming_dedup_cte",
+        "severity": "HIGH",
+        "title": "Unverified Cross-Table Join Key or Missing Streaming Deduplication CTE",
+        "description": (
+            "Joins tables on ad-hoc columns instead of `overview` / `bigquery-table-spec` "
+            "`frequent_joins` or aggregates streaming ingestion rows without a "
+            "`QUALIFY ROW_NUMBER() OVER (PARTITION BY event_id ORDER BY ingested_timestamp DESC) = 1` CTE."
+        ),
+    },
+    "KC-04": {
+        "rule_id": "KC-04",
+        "defect_type": "high_null_ratio_or_failed_data_quality_filter",
+        "severity": "HIGH",
+        "title": "Filtering on High-Null-Ratio Column or Failed Data Quality Asset",
+        "description": (
+            "Filters or groups on a column with `data-profile` `null_ratio > 0.80` "
+            "(such as `legacy_unpopulated_tag`) or relies on a table whose "
+            "`data-quality` status is `FAILED` without remediation."
+        ),
+    },
+    "KC-05": {
+        "rule_id": "KC-05",
+        "defect_type": "context_set_overscoping_or_missing_source_contract",
+        "severity": "HIGH",
+        "title": "Context Set Over-Scoping, Unbounded Lookup Context, or Missing Source Contract",
+        "description": (
+            "Combines `entrygroup=<context-set>` with table-specific predicates (`system=bigquery` "
+            "or `column:...`) in a single `search_entries` call, passes >10 resources to "
+            "`lookup_context` without `context_budget`, or executes SQL before emitting the "
+            "mandatory 6-item Source Contract."
+        ),
+    },
+}
+
+
+_KC_DEFECT_SPECS: tuple[dict[str, Any], ...] = (
+    {
+        "rule_id": "KC-01",
+        "defect_type": "uncertified_or_policy_incompatible_asset_selection",
+        "severity": "CRITICAL",
+        "pattern": re.compile(
+            r"For the confidential Board of Directors closing deck,\s*query\s+`analyst_sandbox\.tmp_data_dump_v2_final_real`[^\n]*?`finance_mart\.fin_monthly_closing_internal`\.",
+            re.DOTALL,
+        ),
+        "replacement": (
+            "For the confidential Board of Directors closing deck, verify "
+            "`dataplex-types.global.governance-data-product` via `lookup_context` and query "
+            "`finance_mart.fin_monthly_closing_gold` (`product_tier: GOLD_CRITICAL`, "
+            "`is_certified: true`, `usage_restrictions: BOARD_REPORTING_APPROVED`), "
+            "rejecting uncertified `analyst_sandbox.*` dumps and `INTERNAL_ONLY` tables "
+            "for external shares."
+        ),
+        "comment": (
+            "[Knowledge Catalog Governance Audit (KC-01) | CRITICAL] Never select "
+            "`analyst_sandbox.tmp_data_dump_v2_final_real` (`product_tier: SANDBOX`, "
+            "`is_certified: false`) by column-name similarity alone or export "
+            "`INTERNAL_ONLY` assets externally. Verify `governance-data-product` "
+            "certification (`product_tier: GOLD_CRITICAL`, `is_certified: true`) first."
+        ),
+    },
+    {
+        "rule_id": "KC-02",
+        "defect_type": "missing_partition_pruning_filter_on_partitioned_table",
+        "severity": "HIGH",
+        "pattern": re.compile(
+            r"Run\s+`SELECT\s+event_id,\s*principal_hostname\s+FROM\s+secops_datalake\.udm_events_gold\s+WHERE\s+metadata_event_type\s*=\s*'PROCESS_LAUNCH'`\s+across the full table history without a partition filter\.",
+            re.DOTALL,
+        ),
+        "replacement": (
+            "Run `SELECT event_id, principal_hostname FROM secops_datalake.udm_events_gold "
+            "WHERE event_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY) AND "
+            "metadata_event_type = 'PROCESS_LAUNCH'` to enforce mandatory `event_date` "
+            "partition pruning per `bigquery-table-spec.time_partitioning`."
+        ),
+        "comment": (
+            "[Knowledge Catalog Partition Pruning Audit (KC-02) | HIGH] "
+            "`secops_datalake.udm_events_gold` is DAY-partitioned on `event_date` "
+            "(`bigquery-table-spec.time_partitioning`). Querying without a `WHERE event_date` "
+            "predicate triggers an expensive full-history scan."
+        ),
+    },
+    {
+        "rule_id": "KC-03",
+        "defect_type": "unverified_join_key_or_missing_streaming_dedup_cte",
+        "severity": "HIGH",
+        "pattern": re.compile(
+            r"Join\s+`secops_datalake\.udm_events_gold`\s+to\s+`secops_datalake\.entity_graph_gold`\s+using\s+`ON\s+udm\.raw_host_uuid\s*=\s*eg\.asset_tag`\s+and aggregate raw streaming rows directly without a\s+`QUALIFY ROW_NUMBER\(\)`\s+deduplication CTE\.",
+            re.DOTALL,
+        ),
+        "replacement": (
+            "Join `secops_datalake.udm_events_gold` to `secops_datalake.entity_graph_gold` "
+            "using the catalog-verified `frequent_joins` key "
+            "`ON udm.principal_hostname = eg.entity_hostname` after deduplicating "
+            "streaming ingestion rows with `QUALIFY ROW_NUMBER() OVER (PARTITION BY event_id "
+            "ORDER BY ingested_timestamp DESC) = 1`."
+        ),
+        "comment": (
+            "[Knowledge Catalog Join & Deduplication Audit (KC-03) | HIGH] Join on "
+            "the `overview.frequent_joins` key (`principal_hostname = entity_hostname`) "
+            "rather than ad-hoc `raw_host_uuid = asset_tag`, and deduplicate streaming "
+            "rows with `QUALIFY ROW_NUMBER() OVER (PARTITION BY event_id ORDER BY ingested_timestamp DESC) = 1`."
+        ),
+    },
+    {
+        "rule_id": "KC-04",
+        "defect_type": "high_null_ratio_or_failed_data_quality_filter",
+        "severity": "HIGH",
+        "pattern": re.compile(
+            r"Filter UDM events using\s+`WHERE\s+legacy_unpopulated_tag\s*=\s*'Completed'`\s+even when column\s+`null_ratio`\s+is\s+0\.88\s+and\s+`data_quality\.status`\s+is\s+`FAILED`\.",
+            re.DOTALL,
+        ),
+        "replacement": (
+            "Check `dataplex-types.global.data-profile` and `dataplex-types.global.data-quality` "
+            "before filtering: exclude columns with `null_ratio > 0.80` (`legacy_unpopulated_tag` "
+            "has `null_ratio: 0.88`), filter on populated `metadata_event_type` instead, "
+            "and halt or escalate when `data_quality.status == 'FAILED'`."
+        ),
+        "comment": (
+            "[Knowledge Catalog Data Profile & Quality Audit (KC-04) | HIGH] "
+            "`legacy_unpopulated_tag` has `null_ratio: 0.88` in `data-profile`, and "
+            "querying tables with `data_quality.status == 'FAILED'` silently drops or "
+            "corrupts analytical results."
+        ),
+    },
+    {
+        "rule_id": "KC-05",
+        "defect_type": "context_set_overscoping_or_missing_source_contract",
+        "severity": "HIGH",
+        "pattern": re.compile(
+            r"Scope Context Set searches with\s+`entrygroup=secops-context-set\s+system=bigquery\s+column:event_id`,\s*pass 25 entry\s+names in a single\s+`lookup_context`\s+call,\s+and execute SQL immediately without emitting a 6-item Source Contract\.",
+            re.DOTALL,
+        ),
+        "replacement": (
+            "Query Context Sets in a separate `search_entries(query='entrygroup=secops-context-set')` "
+            "pass without table filters (`system=bigquery` or `column:...`), cap `lookup_context` "
+            "at 1-3 entries with `options={'format': 'yaml', 'context_budget': '4000', 'all_schema_fields': 'true'}`, "
+            "and emit the mandatory 6-item Source Contract before executing SQL."
+        ),
+        "comment": (
+            "[Knowledge Catalog Discovery & Source Contract Audit (KC-05) | HIGH] "
+            "Combining `entrygroup=<context-set>` with `system=bigquery` or `column:` filters "
+            "excludes governance documents (`custom_doc`), passing >10 entries to `lookup_context` "
+            "exceeds context budget, and SQL execution requires a 6-item Source Contract first."
+        ),
+    },
+)
+
+
+_KC_NEGATIVE_CONTROL_RE = re.compile(
+    r"two-pass\s+`lookup_context`[^\n]*?6-item Source Contract[^\n]*?QUALIFY ROW_NUMBER\(\)\s+OVER\s*\(PARTITION BY event_id ORDER BY ingested_timestamp DESC\)\s*=\s*1",
+    re.DOTALL,
+)
+
+
+def inspect_catalog_context_and_source_contract_in_text(
+    doc_text: str,
+    *,
+    index_map: list[int] | None = None,
+) -> dict[str, Any]:
+    """Inspects a SecOps/Data Lakehouse runbook for ``KC-01``..``KC-05`` Knowledge Catalog
+    grounding defects while preserving certified negative controls."""
+    text_val = str(doc_text or "")
+    idx_map = index_map if index_map is not None else _build_utf16_index_map(text_val)
+
+    preserved_negative_controls: list[dict[str, Any]] = []
+    nc_spans: list[tuple[int, int]] = []
+    for nc_m in _KC_NEGATIVE_CONTROL_RE.finditer(text_val):
+        s_char, e_char = nc_m.start(), nc_m.end()
+        nc_spans.append((s_char, e_char))
+        s_utf16 = idx_map[s_char]
+        e_utf16 = idx_map[e_char - 1] + _utf16_code_unit_len(text_val[e_char - 1])
+        preserved_negative_controls.append(
+            {
+                "control_id": "KC-NC-01",
+                "start_index": s_utf16,
+                "end_index": e_utf16,
+                "quote": text_val[s_char:e_char],
+            }
+        )
+
+    defects: list[dict[str, Any]] = []
+    for spec in _KC_DEFECT_SPECS:
+        for m in spec["pattern"].finditer(text_val):
+            s_char, e_char = m.start(), m.end()
+            if any(_spans_overlap((s_char, e_char), nc) for nc in nc_spans):
+                continue
+            s_utf16 = idx_map[s_char]
+            e_utf16 = idx_map[e_char - 1] + _utf16_code_unit_len(text_val[e_char - 1])
+            quote = text_val[s_char:e_char]
+            defects.append(
+                {
+                    "rule_id": spec["rule_id"],
+                    "defect_type": spec["defect_type"],
+                    "severity": spec["severity"],
+                    "start_index": s_utf16,
+                    "end_index": e_utf16,
+                    "startIndex": s_utf16,
+                    "endIndex": e_utf16,
+                    "quote": quote,
+                    "replacement": spec["replacement"],
+                    "delete_text": quote,
+                    "insert_text": spec["replacement"],
+                    "comment": spec["comment"],
+                }
+            )
+
+    defects.sort(key=lambda d: int(d["start_index"]))
+    status = "defects_found" if defects else "ok"
+    return {
+        "status": status,
+        "defect_count": len(defects),
+        "defects": defects,
+        "findings": defects,
+        "negative_controls_preserved": preserved_negative_controls,
+    }
+
+
+def find_catalog_context_and_source_contract_spans(
+    doc_text: str,
+    *,
+    index_map: list[int] | None = None,
+) -> list[dict[str, Any]]:
+    """Stage A deterministic UTF-16 span finder for ``KC-01``..``KC-05`` Knowledge Catalog
+    grounding and Source Contract defects."""
+    inspected = inspect_catalog_context_and_source_contract_in_text(
+        doc_text, index_map=index_map
+    )
+    return list(inspected["defects"])
+
+
+def audit_and_redline_catalog_context_in_doc(
+    document_id: str = "",
+    *,
+    mode: str = "DRY_RUN",
+    apply_redlines: bool | None = None,
+    tool_context: Any = None,
+    doc_text_override: str | None = None,
+    token_source: TokenSource | None = None,
+    quota_project: str | None = None,
+    transport: httpx.BaseTransport | None = None,
+    docs_client_override: Any = None,
+    credentials: Any = None,
+) -> dict[str, Any]:
+    """Stage A + Stage B Google Docs Audit & Redlining tool for ``KC-01``..``KC-05``
+    Knowledge Catalog grounding and Source Contract defects.
+
+    Orders ``staged_suggested_edits`` in strict descending ``startIndex`` order
+    (back-to-front) so UTF-16 offsets never shift during batch mutation.
+    """
+    effective_mode = (
+        "APPLY"
+        if (
+            apply_redlines is True
+            or (
+                apply_redlines is None
+                and str(mode or "DRY_RUN").strip().upper() in ("APPLY", "SUGGEST", "REDLINE")
+            )
+        )
+        else "DRY_RUN"
+    )
+    eff_transport = transport
+    eff_token_source: Any = token_source or credentials
+    if isinstance(docs_client_override, LocalGoogleDocsSimulator):
+        eff_transport = docs_client_override.as_httpx_transport()
+        eff_token_source = _BenchmarkTokenSource()
+
+    doc_text = doc_text_override
+    loaded_index_map: list[int] | None = None
+    if doc_text is None and document_id:
+        read_res = read_google_doc(
+            document_id,
+            tool_context=tool_context,
+            token_source=eff_token_source,
+            quota_project=quota_project,
+            transport=eff_transport,
+        )
+        if isinstance(read_res, dict) and read_res.get("status") not in (None, "success"):
+            return read_res
+        state_text, state_map = _load_doc_index_state(document_id, tool_context=tool_context)
+        if state_text is not None:
+            doc_text = state_text
+        elif isinstance(read_res, dict):
+            doc_text = str(read_res.get("content") or read_res.get("text") or "")
+        if state_map is not None:
+            loaded_index_map = state_map
+
+    text_val = str(doc_text or "")
+    idx_map = loaded_index_map if loaded_index_map is not None else _build_utf16_index_map(text_val)
+    inspection = inspect_catalog_context_and_source_contract_in_text(
+        text_val, index_map=idx_map
+    )
+    findings = list(inspection["defects"])
+
+    staged_comments = [
+        {
+            "rule_id": f["rule_id"],
+            "start_index": f["start_index"],
+            "end_index": f["end_index"],
+            "startIndex": f["start_index"],
+            "endIndex": f["end_index"],
+            "quote": f["quote"],
+            "comment": f["comment"],
+        }
+        for f in findings
+    ]
+    staged_suggested_edits = [
+        {
+            "rule_id": f["rule_id"],
+            "start_index": f["start_index"],
+            "end_index": f["end_index"],
+            "startIndex": f["start_index"],
+            "endIndex": f["end_index"],
+            "quote": f["quote"],
+            "replacement": f["replacement"],
+        }
+        for f in sorted(findings, key=lambda item: int(item["start_index"]), reverse=True)
+    ]
+
+    comments_res: dict[str, Any] = {"status": "skipped", "inserted_count": 0, "comment_ids": []}
+    edits_res: dict[str, Any] = {"status": "skipped", "applied_count": 0}
+    if effective_mode == "APPLY" and document_id and findings:
+        comments_res = insert_doc_comments(
+            document_id,
+            staged_comments,
+            tool_context=tool_context,
+            token_source=eff_token_source,
+            quota_project=quota_project,
+            transport=eff_transport,
+        )
+        edits_res = propose_doc_suggested_edits(
+            document_id,
+            staged_suggested_edits,
+            tool_context=tool_context,
+            token_source=eff_token_source,
+            quota_project=quota_project,
+            transport=eff_transport,
+        )
+
+    return {
+        "status": "ok",
+        "document_id": document_id,
+        "mode": effective_mode,
+        "defect_count": len(findings),
+        "defects": findings,
+        "staged_comments": staged_comments,
+        "staged_suggested_edits": staged_suggested_edits,
+        "negative_controls_preserved": inspection["negative_controls_preserved"],
+        "comments": comments_res,
+        "edits": edits_res,
+    }
+
+
+

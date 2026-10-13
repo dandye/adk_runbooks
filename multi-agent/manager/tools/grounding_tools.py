@@ -61,6 +61,25 @@ DEVELOPER_KNOWLEDGE_TOOL_FILTER = [
 ]
 DEFAULT_WEB_SEARCH_VERIFIER_MODEL = "gemini-2.5-flash"
 
+DEFAULT_KNOWLEDGE_CATALOG_MCP_URL = "https://dataplex.googleapis.com/mcp"
+DEFAULT_KNOWLEDGE_CATALOG_DATA_PRODUCTS_MCP_URL = (
+    "https://dataplex.googleapis.com/mcp/data-products"
+)
+KNOWLEDGE_CATALOG_TOOL_NAME_PREFIX = "kcatalog"
+KNOWLEDGE_CATALOG_TOOL_FILTER = [
+    "search_entries",
+    "lookup_context",
+    "lookup_entry",
+]
+KNOWLEDGE_CATALOG_DATA_PRODUCTS_TOOL_FILTER = [
+    "search_data_products",
+    "lookup_data_product",
+    "get_data_asset",
+    "list_data_assets",
+    "lookup_context",
+]
+DEFAULT_KNOWLEDGE_CATALOG_DISCOVERY_MODEL = "gemini-2.5-flash"
+
 
 def developer_knowledge_mcp_url() -> str:
     """Returns the Developer Knowledge MCP endpoint URL."""
@@ -264,3 +283,241 @@ def web_search_verifier_agent(model: str | None = None) -> Agent:
 def init_web_search_agent_tool(model: str | None = None) -> AgentTool:
     """Wraps :func:`web_search_verifier_agent` in an ADK :class:`AgentTool`."""
     return AgentTool(agent=web_search_verifier_agent(model=model))
+
+
+# ---------------------------------------------------------------------------
+# Google Cloud Knowledge Catalog Remote MCP & AgentTool Discovery Sub-Agent
+# ---------------------------------------------------------------------------
+
+
+def knowledge_catalog_mcp_url() -> str:
+    """Returns the Knowledge Catalog Remote MCP discovery endpoint URL."""
+    return (
+        os.environ.get("KNOWLEDGE_CATALOG_MCP_URL", "").strip()
+        or DEFAULT_KNOWLEDGE_CATALOG_MCP_URL
+    )
+
+
+def knowledge_catalog_quota_project() -> str:
+    """Returns the consumer GCP project ID for ``X-Goog-User-Project``."""
+    return (
+        os.environ.get("KNOWLEDGE_CATALOG_QUOTA_PROJECT", "").strip()
+        or os.environ.get("DATAPLEX_PROJECT", "").strip()
+        or drive_quota_project()
+    )
+
+
+def knowledge_catalog_toolset_configured() -> bool:
+    """True when the Knowledge Catalog MCP toolset is explicitly enabled."""
+    flag = os.environ.get("KNOWLEDGE_CATALOG_MCP_TOOLSET", "").strip().lower()
+    if flag in {"0", "false", "no", "off"}:
+        return False
+    if flag in {"1", "true", "yes", "on"}:
+        return True
+    return bool(
+        os.environ.get("KNOWLEDGE_CATALOG_MCP_URL", "").strip()
+        or os.environ.get("DATAPLEX_PROJECT", "").strip()
+    )
+
+
+def knowledge_catalog_headers(
+    readonly_context: Any = None,
+    *,
+    quota_project: str | None = None,
+    token_source: TokenSource | None = None,
+) -> dict[str, str]:
+    """Builds authentication headers for the Knowledge Catalog Remote MCP server.
+
+    Injects ``X-Goog-User-Project`` and ``Authorization: Bearer <token>`` from
+    the isolated worktree Application Default Credentials (or injected
+    ``token_source``). Works both at A2A Agent Card startup discovery
+    (``readonly_context=None``) and during active agent turns.
+    """
+    _ = readonly_context
+    resolved_project = (
+        quota_project if quota_project is not None else knowledge_catalog_quota_project()
+    )
+    headers: dict[str, str] = {}
+    if resolved_project:
+        headers["X-Goog-User-Project"] = resolved_project
+
+    source = token_source or AdcTokenSource()
+    try:
+        token = source()
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+    except (DriveRegistryConfigError, DriveMcpError) as err:
+        logger.debug("Knowledge Catalog ADC token unavailable during header build: %s", err)
+    return headers
+
+
+def build_lookup_context_request_payload(
+    project_id: str,
+    location: str,
+    resources: list[str],
+    *,
+    fmt: str = "yaml",
+    context_budget: int = 4000,
+    all_schema_fields: bool = True,
+) -> dict[str, Any]:
+    """Builds and validates a ``LookupContextRequest`` payload.
+
+    Enforces the Dataplex ``CatalogService.LookupContext`` contract:
+    - ``1 <= len(resources) <= 10``
+    - ``format`` in ``{"yaml", "xml", "json"}``
+    - ``context_budget`` and ``all_schema_fields`` serialized as strings in ``options``
+    """
+    if not resources:
+        raise ValueError(
+            "LookupContextRequest requires at least 1 entry resource name in 'resources'."
+        )
+    if len(resources) > 10:
+        raise ValueError(
+            f"LookupContextRequest supports at most 10 entry resource names; got {len(resources)}."
+        )
+    norm_fmt = fmt.strip().lower()
+    if norm_fmt not in {"yaml", "xml", "json"}:
+        raise ValueError(
+            f"Unsupported lookup_context format {fmt!r}; expected 'yaml', 'xml', or 'json'."
+        )
+    return {
+        "name": f"projects/{project_id}/locations/{location}",
+        "resources": list(resources),
+        "options": {
+            "format": norm_fmt,
+            "context_budget": str(int(context_budget)),
+            "all_schema_fields": "true" if all_schema_fields else "false",
+        },
+    }
+
+
+def init_knowledge_catalog_toolset(
+    *,
+    url: str | None = None,
+    token_source: TokenSource | None = None,
+    quota_project: str | None = None,
+    tool_filter: list[str] | None = None,
+    tool_name_prefix: str = KNOWLEDGE_CATALOG_TOOL_NAME_PREFIX,
+    use_header_provider: bool = False,
+):
+    """Builds the ADK ``McpToolset`` for the Google Cloud Knowledge Catalog MCP server.
+
+    Uses ``StreamableHTTPConnectionParams`` with ``make_drive_httpx_client_factory``
+    (``BearerTokenAuth``) so rotating OAuth tokens are injected per HTTP request
+    without invalidating ADK's header-hashed MCP session pool, and A2A startup
+    discovery (``get_tools(readonly_context=None)``) succeeds seamlessly.
+    """
+    from google.adk.tools.mcp_tool.mcp_session_manager import (  # pylint: disable=import-outside-toplevel
+        StreamableHTTPConnectionParams,
+    )
+    from google.adk.tools.mcp_tool.mcp_toolset import McpToolset  # pylint: disable=import-outside-toplevel
+
+    resolved_project = (
+        quota_project if quota_project is not None else knowledge_catalog_quota_project()
+    )
+    resolved_token_source = token_source or AdcTokenSource()
+
+    static_headers: dict[str, str] = {}
+    if resolved_project:
+        static_headers["X-Goog-User-Project"] = resolved_project
+
+    def _header_provider(readonly_context: Any = None) -> dict[str, str]:
+        return knowledge_catalog_headers(
+            readonly_context,
+            quota_project=resolved_project,
+            token_source=resolved_token_source,
+        )
+
+    conn_kwargs: dict[str, Any] = {
+        "url": url or knowledge_catalog_mcp_url(),
+        "headers": static_headers or None,
+        "timeout": TOOLSET_CONNECT_TIMEOUT_SECONDS,
+        "sse_read_timeout": TOOLSET_SSE_READ_TIMEOUT_SECONDS,
+        "httpx_client_factory": make_drive_httpx_client_factory(resolved_token_source),
+    }
+
+    return McpToolset(
+        connection_params=StreamableHTTPConnectionParams(**conn_kwargs),
+        tool_filter=list(tool_filter or KNOWLEDGE_CATALOG_TOOL_FILTER),
+        tool_name_prefix=tool_name_prefix,
+        header_provider=_header_provider if use_header_provider else None,
+    )
+
+
+def init_knowledge_catalog_mcp_tools(
+    mcp_registry: Any = None,
+    *,
+    token_source: TokenSource | None = None,
+):
+    """Builds and registers the Knowledge Catalog MCP toolset when configured."""
+    if not knowledge_catalog_toolset_configured():
+        return None
+    try:
+        kc_toolset = init_knowledge_catalog_toolset(token_source=token_source)
+    except (DriveRegistryConfigError, DriveMcpError, ImportError) as err:
+        logger.warning("Knowledge Catalog MCP toolset unavailable: %s", err)
+        return None
+
+    if mcp_registry is None:
+        from .tools import global_mcp_registry  # pylint: disable=import-outside-toplevel
+
+        mcp_registry = global_mcp_registry
+    mcp_registry.register_mcp_toolset(kc_toolset, server_name="kcatalog")
+    return kc_toolset
+
+
+def knowledge_catalog_discovery_agent(
+    model: str | None = None,
+    toolset: Any = None,
+) -> Agent:
+    """Builds the isolated ADK child ``Agent`` for Knowledge Catalog discovery.
+
+    Isolates wide-net ``search_entries(semantic_search=True, page_size=50)``
+    fan-out and two-pass ``lookup_context`` calls inside a dedicated child
+    context window so 50-entry search payloads never bloat the parent
+    orchestrator's reasoning trajectory.
+    """
+    resolved_model = (
+        model
+        or os.environ.get("KNOWLEDGE_CATALOG_DISCOVERY_MODEL", "").strip()
+        or DEFAULT_KNOWLEDGE_CATALOG_DISCOVERY_MODEL
+    )
+    tools_list = [toolset] if toolset is not None else []
+    return Agent(
+        name="knowledge_catalog_discovery_agent",
+        model=resolved_model,
+        description=(
+            "Discovers enterprise BigQuery and Chronicle datalake tables, Context Sets, "
+            "and governance aspects in Google Cloud Knowledge Catalog using semantic "
+            "search_entries and two-pass lookup_context, returning a verified 6-item "
+            "Pre-SQL Source Contract."
+        ),
+        instruction=(
+            "You are the Knowledge Catalog Discovery & Governance Specialist.\n"
+            "Execute the 5-step Two-Pass Discovery Protocol before any SQL or YARA-L query is written:\n"
+            "1. Semantic Decomposition: Decompose the request into 3 variations (Core Entities, Metrics & Grain, Domain Synonyms).\n"
+            "2. Parallel Discovery Search: Call `search_entries` (`semantic_search=True`, `page_size=50`) across the 3 variations plus `entrygroup.type=context-set`.\n"
+            "3. Scoped Context Set Search: When a Context Set is found, query `entrygroup=<context_set> (<variation>)` WITHOUT `system=`, `type=`, or `column:` filters.\n"
+            "4. Two-Pass `lookup_context` (Hard Cap <= 3 entries, `options={'format': 'yaml', 'context_budget': '4000', 'all_schema_fields': 'true'}`):\n"
+            "   - Pass 4A (Rules Pass): Inspect up to 2 Context Set child rule entries.\n"
+            "   - Pass 4B (Candidate Pass): Inspect the top candidate table entry across all 6 metadata dimensions (technical schema/partitionBy/clusterBy, frequent_joins, business terms/overview/guidelines/governance_aspect, column null_ratio/sample_values, data_quality status, and relatedResources).\n"
+            "5. Emit a mandatory 6-item Pre-SQL Source Contract:\n"
+            "   - Selected Table & Governance Tier (`GOLD_CRITICAL` vs `BRONZE_ADHOC`, `usage_scope`, `update_frequency`, `is_certified`)\n"
+            "   - Grain & Primary Key\n"
+            "   - Join Path & Origin (`Query history` vs `Data insights`)\n"
+            "   - Partitioning & Deduplication Rules (`QUALIFY ROW_NUMBER() OVER (PARTITION BY <pk> ORDER BY <updated_at> DESC) = 1`)\n"
+            "   - Metric / Detection Formula\n"
+            "   - Data Quality & Null-Ratio Caveats"
+        ),
+        tools=tools_list,
+    )
+
+
+def init_knowledge_catalog_discovery_agent_tool(
+    model: str | None = None,
+    toolset: Any = None,
+) -> AgentTool:
+    """Wraps :func:`knowledge_catalog_discovery_agent` in an ADK :class:`AgentTool`."""
+    return AgentTool(
+        agent=knowledge_catalog_discovery_agent(model=model, toolset=toolset)
+    )

@@ -30,11 +30,24 @@ from .drive_tools import (
     reports_folder_id,
 )
 from .grounding_tools import (
+    build_lookup_context_request_payload,
     init_developer_knowledge_mcp_tools,
+    init_knowledge_catalog_discovery_agent_tool,
+    init_knowledge_catalog_mcp_tools,
     init_web_search_agent_tool,
 )
+from .catalog_enrichment_tools import (
+    diff_and_audit_catalog_enrichment,
+    download_catalog_entry_to_markdown,
+    enrich_catalog_entry_markdown,
+    publish_enriched_markdown_to_catalog,
+)
 from .docs_review_tools import (
+    CANONICAL_KNOWLEDGE_CATALOG_GROUNDING_CATALOG,
     KILL_CHAIN_STAGE_ORDER,
+    audit_and_redline_catalog_context_in_doc,
+    find_catalog_context_and_source_contract_spans,
+    inspect_catalog_context_and_source_contract_in_text,
     analyze_and_redline_detection_coverage_gaps_in_doc as _analyze_and_redline_detection_coverage_gaps_in_doc,
     analyze_waved_ontology_graph,
     audit_and_redline_claim_evidence_and_campaign_in_doc as _audit_and_redline_claim_evidence_and_campaign_in_doc,
@@ -1850,6 +1863,12 @@ def get_agent_tools():
       (devknowledge_toolset,) if devknowledge_toolset is not None else ()
   )
   web_search_tool = init_web_search_agent_tool()
+  knowledge_catalog_toolset = init_knowledge_catalog_mcp_tools(
+      global_mcp_registry
+  )
+  knowledge_catalog_discovery_tool = init_knowledge_catalog_discovery_agent_tool(
+      toolset=knowledge_catalog_toolset
+  )
 
   # Wrap built-in tools
   wrapped_write_report = instrument_tool(write_report)
@@ -1949,6 +1968,21 @@ def get_agent_tools():
   wrapped_export_accepted_doc_to_markdown = instrument_tool(
       export_accepted_doc_to_markdown
   )
+  wrapped_audit_and_redline_catalog_context_in_doc = instrument_tool(
+      audit_and_redline_catalog_context_in_doc
+  )
+  wrapped_download_catalog_entry_to_markdown = instrument_tool(
+      download_catalog_entry_to_markdown
+  )
+  wrapped_enrich_catalog_entry_markdown = instrument_tool(
+      enrich_catalog_entry_markdown
+  )
+  wrapped_diff_and_audit_catalog_enrichment = instrument_tool(
+      diff_and_audit_catalog_enrichment
+  )
+  wrapped_publish_enriched_markdown_to_catalog = instrument_tool(
+      publish_enriched_markdown_to_catalog
+  )
 
   # Wrap progressive MCP discovery meta-tools
   wrapped_search_mcp_tools = instrument_tool(search_mcp_tools)
@@ -1966,6 +2000,7 @@ def get_agent_tools():
       *drive_toolsets,
       *devknowledge_toolsets,
       web_search_tool,
+      knowledge_catalog_discovery_tool,
       wrapped_write_report,
       wrapped_create_google_doc,
       wrapped_read_google_doc,
@@ -2003,6 +2038,11 @@ def get_agent_tools():
       wrapped_inspect_doc_suggestions,
       wrapped_list_doc_comments,
       wrapped_export_accepted_doc_to_markdown,
+      wrapped_audit_and_redline_catalog_context_in_doc,
+      wrapped_download_catalog_entry_to_markdown,
+      wrapped_enrich_catalog_entry_markdown,
+      wrapped_diff_and_audit_catalog_enrichment,
+      wrapped_publish_enriched_markdown_to_catalog,
       wrapped_get_current_time,
       wrapped_read_file_content,
       wrapped_load_skill,
@@ -2016,6 +2056,7 @@ def get_agent_tools():
 
 
 __all__ = [
+    "CANONICAL_KNOWLEDGE_CATALOG_GROUNDING_CATALOG",
     "H26_CANONICAL_ENTITY_CRITICALITY_PROFILES",
     "H27_CANONICAL_SOAR_ACTUATION_SAFETY_CATALOG",
     "H28_CAPABILITY_PILLAR_CATALOG",
@@ -2023,13 +2064,23 @@ __all__ = [
     "H29_CANONICAL_DATA_TABLE_EXPORT_AND_ALERT_STREAM_CATALOG",
     "H30_CAPSTONE_PRODUCTION_GOVERNANCE_AND_KEV_EXPOSURE_CATALOG",
     "ChronicleRuleValidationGate",
+    "audit_and_redline_catalog_context_in_doc",
     "audit_yaral2_entity_graph_and_criticality_in_doc",
+    "build_lookup_context_request_payload",
+    "diff_and_audit_catalog_enrichment",
+    "download_catalog_entry_to_markdown",
+    "enrich_catalog_entry_markdown",
+    "find_catalog_context_and_source_contract_spans",
+    "init_knowledge_catalog_discovery_agent_tool",
+    "init_knowledge_catalog_mcp_tools",
+    "inspect_catalog_context_and_source_contract_in_text",
     "inspect_yaral2_entity_graph_and_criticality_in_text",
     "find_yaral2_entity_graph_and_criticality_spans",
     "inspect_soar_playbook_actuation_safety_in_text",
     "find_soar_playbook_actuation_safety_spans",
     "format_soar_playbook_actuation_safety_appendix",
     "audit_soar_playbook_actuation_safety_in_doc",
+    "publish_enriched_markdown_to_catalog",
     "synthesize_master_secops_doc_readiness",
     "audit_master_secops_doc_readiness_in_doc",
     "generate_master_evolution_synthesis_report",

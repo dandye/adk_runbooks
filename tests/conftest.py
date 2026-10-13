@@ -6,6 +6,10 @@ import pytest
 
 from tests.fake_devknowledge_mcp import FakeDevKnowledgeMcpServer, FakeDevKnowledgeStore
 from tests.fake_drive_mcp import FakeDriveMcpServer, FakeDriveStore
+from tests.fake_knowledge_catalog_mcp import (
+    FakeKnowledgeCatalogMcpServer,
+    FakeKnowledgeCatalogStore,
+)
 
 
 @pytest.fixture
@@ -38,4 +42,19 @@ def devknowledge_store() -> FakeDevKnowledgeStore:
 def fake_devknowledge(devknowledge_store: FakeDevKnowledgeStore):
     """A running fake Developer Knowledge MCP server."""
     with FakeDevKnowledgeMcpServer(devknowledge_store, json_response=True) as server:
+        yield server
+
+
+@pytest.fixture
+def knowledge_catalog_store() -> FakeKnowledgeCatalogStore:
+    """An in-memory fake Knowledge Catalog corpus with default seeded entries."""
+    return FakeKnowledgeCatalogStore(seed_defaults=True)
+
+
+@pytest.fixture
+def fake_knowledge_catalog(knowledge_catalog_store: FakeKnowledgeCatalogStore):
+    """A running fake Knowledge Catalog MCP server."""
+    with FakeKnowledgeCatalogMcpServer(
+        knowledge_catalog_store, json_response=True
+    ) as server:
         yield server

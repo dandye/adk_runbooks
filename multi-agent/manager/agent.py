@@ -70,6 +70,14 @@ from .tools.tools import (
     inspect_doc_suggestions,
     list_doc_comments,
     export_accepted_doc_to_markdown,
+    CANONICAL_KNOWLEDGE_CATALOG_GROUNDING_CATALOG,
+    inspect_catalog_context_and_source_contract_in_text,
+    find_catalog_context_and_source_contract_spans,
+    audit_and_redline_catalog_context_in_doc,
+    download_catalog_entry_to_markdown,
+    enrich_catalog_entry_markdown,
+    diff_and_audit_catalog_enrichment,
+    publish_enriched_markdown_to_catalog,
 )
 
 # Set the root logger to output debug messages
