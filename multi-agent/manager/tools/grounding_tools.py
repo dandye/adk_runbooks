@@ -487,26 +487,27 @@ def knowledge_catalog_discovery_agent(
         name="knowledge_catalog_discovery_agent",
         model=resolved_model,
         description=(
-            "Discovers enterprise BigQuery and Chronicle datalake tables, Context Sets, "
-            "and governance aspects in Google Cloud Knowledge Catalog using semantic "
+            "Discovers enterprise BigQuery, AlloyDB (pgvector), Neo4j (property graph), "
+            "Elasticsearch (BM25), and Chronicle datalake assets, Context Sets, and "
+            "governance aspects in Google Cloud Knowledge Catalog using semantic "
             "search_entries and two-pass lookup_context, returning a verified 6-item "
             "Pre-SQL Source Contract."
         ),
         instruction=(
             "You are the Knowledge Catalog Discovery & Governance Specialist.\n"
-            "Execute the 5-step Two-Pass Discovery Protocol before any SQL or YARA-L query is written:\n"
+            "Execute the 5-step Two-Pass Discovery Protocol before any SQL, Cypher, Elasticsearch DSL, or YARA-L query is written:\n"
             "1. Semantic Decomposition: Decompose the request into 3 variations (Core Entities, Metrics & Grain, Domain Synonyms).\n"
-            "2. Parallel Discovery Search: Call `search_entries` (`semantic_search=True`, `page_size=50`) across the 3 variations plus `entrygroup.type=context-set`.\n"
-            "3. Scoped Context Set Search: When a Context Set is found, query `entrygroup=<context_set> (<variation>)` WITHOUT `system=`, `type=`, or `column:` filters.\n"
-            "4. Two-Pass `lookup_context` (Hard Cap <= 3 entries, `options={'format': 'yaml', 'context_budget': '4000', 'all_schema_fields': 'true'}`):\n"
-            "   - Pass 4A (Rules Pass): Inspect up to 2 Context Set child rule entries.\n"
-            "   - Pass 4B (Candidate Pass): Inspect the top candidate table entry across all 6 metadata dimensions (technical schema/partitionBy/clusterBy, frequent_joins, business terms/overview/guidelines/governance_aspect, column null_ratio/sample_values, data_quality status, and relatedResources).\n"
+            "2. Parallel Discovery Search: Call `kcatalog_search_entries` (passing `projectId` e.g. `'dandye-0324-chronicle'`, `query`, `pageSize=50`, `semanticSearch=True`) across your variations plus `entrygroup.type=context-set` or `entrygroup=secops-investigation-stores`.\n"
+            "3. Scoped Context Set Search: When a Context Set or custom EntryGroup is found, query `entrygroup=<entry_group> (<variation>)` WITHOUT `system=`, `type=`, or `column:` filters.\n"
+            "4. Two-Pass `kcatalog_lookup_context` (Hard Cap <= 10 entries, recommended <= 5 entries per call; pass `projectId` e.g. `'dandye-0324-chronicle'`, `location` e.g. `'us-central1'`, and `resources=[...]` containing full `projects/.../locations/.../entryGroups/.../entries/...` resource names):\n"
+            "   - Pass 4A (Rules Pass): Inspect Context Set child rule entries.\n"
+            "   - Pass 4B (Candidate Pass): Inspect the top candidate table/graph/index entries across all 6 metadata dimensions (technical schema/partitionBy/clusterBy, frequent_joins, business terms/overview/guidelines/governance_aspect, column null_ratio/sample_values, data_quality status, and relatedResources).\n"
             "5. Emit a mandatory 6-item Pre-SQL Source Contract:\n"
-            "   - Selected Table & Governance Tier (`GOLD_CRITICAL` vs `BRONZE_ADHOC`, `usage_scope`, `update_frequency`, `is_certified`)\n"
+            "   - Selected Asset(s) & Governance Tier (`GOLD_CRITICAL` vs `BRONZE_ADHOC`, `usage_scope`, `update_frequency`, `is_certified`)\n"
             "   - Grain & Primary Key\n"
-            "   - Join Path & Origin (`Query history` vs `Data insights`)\n"
+            "   - Cross-Table / Cross-Engine Join Path & Origin (`Query history` vs `Data insights`)\n"
             "   - Partitioning & Deduplication Rules (`QUALIFY ROW_NUMBER() OVER (PARTITION BY <pk> ORDER BY <updated_at> DESC) = 1`)\n"
-            "   - Metric / Detection Formula\n"
+            "   - Metric / Similarity / Detection Formula\n"
             "   - Data Quality & Null-Ratio Caveats"
         ),
         tools=tools_list,

@@ -43,21 +43,46 @@ _LEAKED_TOKEN_RE = re.compile(
 def _derive_short_table_name(
     entry_name: str, entry_payload: dict[str, Any] | None = None
 ) -> str:
-    """Extracts ``<dataset>.<table>`` from ``fully_qualified_name`` or ``entry_name``."""
+    """Extracts ``<dataset>.<table>`` from ``fully_qualified_name``, ``displayName``, or ``entry_name``."""
     fqn = ""
+    display_name = ""
     if isinstance(entry_payload, dict):
-        fqn = str(entry_payload.get("fully_qualified_name") or "").strip()
+        fqn = str(
+            entry_payload.get("fully_qualified_name")
+            or entry_payload.get("fullyQualifiedName")
+            or ""
+        ).strip()
+        es = dict(
+            entry_payload.get("entry_source")
+            or entry_payload.get("entrySource")
+            or {}
+        )
+        display_name = str(
+            es.get("display_name") or es.get("displayName") or ""
+        ).strip()
     if fqn.startswith("bigquery:"):
         raw = fqn.split("bigquery:", 1)[1]
         parts = [p for p in raw.split(".") if p]
         if len(parts) >= 2:
             return f"{parts[-2]}.{parts[-1]}"
         return raw
+    if "." in display_name and " " not in display_name:
+        return display_name
     m = re.search(r"/datasets/([^/]+)/tables/([^/]+)$", str(entry_name or ""))
     if m:
         return f"{m.group(1)}.{m.group(2)}"
     tail = str(entry_name or "catalog_entry").rstrip("/").split("/")[-1]
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", tail) or "catalog_entry"
+
+
+def _find_aspect_data(aspects: dict[str, Any], suffix: str) -> dict[str, Any]:
+    """Finds aspect ``data`` by exact key or suffix (handling both ``dataplex-types.global.*``
+    and live project-number ``655216118709.global.*`` aspect keys)."""
+    for key, val in aspects.items():
+        if key == suffix or key.endswith(f".{suffix}"):
+            if isinstance(val, dict):
+                return dict(val.get("data") or {})
+    return {}
 
 
 def download_catalog_entry_to_markdown(
@@ -66,17 +91,34 @@ def download_catalog_entry_to_markdown(
     entry_payload: dict[str, Any] | None = None,
     output_dir: str | Path | None = None,
     catalog_store: Any = None,
+    live_dataplex: bool = False,
+    quota_project: str | None = None,
 ) -> dict[str, Any]:
-    """Stage 1: Exports a Knowledge Catalog entry (``view='FULL'``) to a structured
-    baseline Markdown file ``<dataset>.<table>.md``.
+    """Stage 1: Exports a Knowledge Catalog entry (``view='FULL'`` / ``view='ALL'``)
+    to a structured baseline Markdown file ``<dataset>.<table>.md``.
     """
     payload = entry_payload
     if payload is None and catalog_store is not None and hasattr(catalog_store, "lookup_entry"):
         payload = catalog_store.lookup_entry(entry_name, view="FULL")
+    elif payload is None and live_dataplex:
+        import httpx  # pylint: disable=import-outside-toplevel
+        from .grounding_tools import knowledge_catalog_headers  # pylint: disable=import-outside-toplevel
+
+        headers = knowledge_catalog_headers(quota_project=quota_project)
+        resp = httpx.get(
+            f"https://dataplex.googleapis.com/v1/{entry_name}",
+            params={"view": "ALL"},
+            headers=headers,
+            timeout=30.0,
+        )
+        resp.raise_for_status()
+        payload = resp.json()
     payload = dict(payload or {})
 
     short_name = _derive_short_table_name(entry_name, payload)
-    entry_source = dict(payload.get("entry_source") or {})
+    entry_source = dict(
+        payload.get("entry_source") or payload.get("entrySource") or {}
+    )
     description = str(
         entry_source.get("description")
         or payload.get("description")
@@ -84,18 +126,12 @@ def download_catalog_entry_to_markdown(
     )
     aspects = dict(payload.get("aspects") or {})
 
-    overview_content = (
-        aspects.get("dataplex-types.global.overview", {})
-        .get("data", {})
-        .get("content", "")
-    )
-    schema_fields = (
-        aspects.get("dataplex-types.global.schema", {})
-        .get("data", {})
-        .get("fields", [])
-    )
-    bq_table_spec = (
-        aspects.get("dataplex-types.global.bigquery-table-spec", {}).get("data", {})
+    overview_content = _find_aspect_data(aspects, "global.overview").get("content", "")
+    schema_fields = _find_aspect_data(aspects, "global.schema").get("fields", [])
+    bq_table_spec = _find_aspect_data(aspects, "global.bigquery-table-spec")
+    gov_data = (
+        _find_aspect_data(aspects, "secops-store-governance")
+        or _find_aspect_data(aspects, "official-data-product-spec")
     )
 
     lines: list[str] = [
@@ -112,12 +148,17 @@ def download_catalog_entry_to_markdown(
     if schema_fields:
         for field in schema_fields:
             f_name = field.get("name", "unknown")
-            f_type = field.get("dataType", "STRING")
+            f_type = field.get("dataType") or field.get("type") or "STRING"
             f_mode = field.get("mode", "NULLABLE")
             f_desc = field.get("description", "")
             lines.append(f"- `{f_name}` ({f_type}, {f_mode}): {f_desc}")
     else:
         lines.append("- *(No schema fields recorded)*")
+
+    if gov_data:
+        lines.extend(["", "## Governance & Store Aspect"])
+        for k, v in sorted(gov_data.items()):
+            lines.append(f"- **{k}**: `{v}`")
 
     if bq_table_spec:
         lines.extend(
@@ -288,11 +329,13 @@ def publish_enriched_markdown_to_catalog(
     *,
     human_approved: bool = False,
     catalog_store: Any = None,
+    live_dataplex: bool = False,
+    quota_project: str | None = None,
 ) -> dict[str, Any]:
     """Stage 4: Publishes the enriched Markdown into the Knowledge Catalog entry's
-    ``dataplex-types.global.overview`` aspect using ``update_mask=['aspects']`` only
-    after passing the Pre-Promotion Semantic Leakage Critic and verifying
-    ``human_approved=True``.
+    ``dataplex-types.global.overview`` / ``655216118709.global.overview`` aspect
+    using ``update_mask=['aspects']`` only after passing the Pre-Promotion
+    Semantic Leakage Critic and verifying ``human_approved=True``.
     """
     audit = diff_and_audit_catalog_enrichment(baseline_markdown, enriched_markdown)
     if audit["leakage_violations"]:
@@ -342,6 +385,43 @@ def publish_enriched_markdown_to_catalog(
                 aspects=aspect_patch,
                 update_mask=update_mask,
             )
+    elif live_dataplex:
+        import httpx  # pylint: disable=import-outside-toplevel
+        from .grounding_tools import knowledge_catalog_headers  # pylint: disable=import-outside-toplevel
+
+        live_aspect_key = "655216118709.global.overview"
+        headers = knowledge_catalog_headers(quota_project=quota_project)
+        headers["Content-Type"] = "application/json"
+        resp = httpx.patch(
+            f"https://dataplex.googleapis.com/v1/{entry_name}",
+            params={
+                "updateMask": "aspects",
+                "aspectKeys": live_aspect_key,
+            },
+            headers=headers,
+            json={
+                "name": entry_name,
+                "aspects": {
+                    live_aspect_key: {
+                        "aspectType": "projects/655216118709/locations/global/aspectTypes/overview",
+                        "data": {
+                            "content": str(enriched_markdown),
+                        },
+                    }
+                },
+            },
+            timeout=30.0,
+        )
+        resp.raise_for_status()
+        updated_entry = resp.json()
+        return {
+            "status": "published",
+            "entry_name": entry_name,
+            "update_mask": update_mask,
+            "updated_aspect_keys": [aspect_key, live_aspect_key],
+            "unified_diff": audit["unified_diff"],
+            "entry": updated_entry,
+        }
 
     return {
         "status": "published",

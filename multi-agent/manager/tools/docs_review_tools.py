@@ -40382,7 +40382,7 @@ _KC_DEFECT_SPECS: tuple[dict[str, Any], ...] = (
         "defect_type": "uncertified_or_policy_incompatible_asset_selection",
         "severity": "CRITICAL",
         "pattern": re.compile(
-            r"For the confidential Board of Directors closing deck,\s*query\s+`analyst_sandbox\.tmp_data_dump_v2_final_real`[^\n]*?`finance_mart\.fin_monthly_closing_internal`\.",
+            r"For the (?:confidential|quarterly) Board of Directors[^\n]*?query\s+`analyst_sandbox\.tmp_data_dump_v2_final_real`[^\n]*?`finance_mart\.fin_monthly_closing_internal`[^\n.]*\.",
             re.DOTALL,
         ),
         "replacement": (
@@ -40406,7 +40406,7 @@ _KC_DEFECT_SPECS: tuple[dict[str, Any], ...] = (
         "defect_type": "missing_partition_pruning_filter_on_partitioned_table",
         "severity": "HIGH",
         "pattern": re.compile(
-            r"Run\s+`SELECT\s+event_id,\s*principal_hostname\s+FROM\s+secops_datalake\.udm_events_gold\s+WHERE\s+metadata_event_type\s*=\s*'PROCESS_LAUNCH'`\s+across the full table history without a partition filter\.",
+            r"(?:Run|Execute)\s+`SELECT\s+event_id,\s*principal_hostname\s+FROM\s+secops_datalake\.udm_events_gold\s+WHERE\s+metadata_event_type\s*=\s*'PROCESS_LAUNCH'`[^\n.]*without a partition filter\.",
             re.DOTALL,
         ),
         "replacement": (
@@ -40427,7 +40427,7 @@ _KC_DEFECT_SPECS: tuple[dict[str, Any], ...] = (
         "defect_type": "unverified_join_key_or_missing_streaming_dedup_cte",
         "severity": "HIGH",
         "pattern": re.compile(
-            r"Join\s+`secops_datalake\.udm_events_gold`\s+to\s+`secops_datalake\.entity_graph_gold`\s+using\s+`ON\s+udm\.raw_host_uuid\s*=\s*eg\.asset_tag`\s+and aggregate raw streaming rows directly without a\s+`QUALIFY ROW_NUMBER\(\)`\s+deduplication CTE\.",
+            r"Join\s+`secops_datalake\.udm_events_gold`\s+to\s+`secops_datalake\.entity_graph_gold`\s+using\s+`ON\s+udm\.raw_host_uuid\s*=\s*eg\.asset_tag`\s+and\s+(?:aggregate|count)[^\n.]*without a\s+`QUALIFY ROW_NUMBER\(\)`\s+deduplication CTE\.",
             re.DOTALL,
         ),
         "replacement": (
@@ -40449,7 +40449,7 @@ _KC_DEFECT_SPECS: tuple[dict[str, Any], ...] = (
         "defect_type": "high_null_ratio_or_failed_data_quality_filter",
         "severity": "HIGH",
         "pattern": re.compile(
-            r"Filter UDM events using\s+`WHERE\s+legacy_unpopulated_tag\s*=\s*'Completed'`\s+even when column\s+`null_ratio`\s+is\s+0\.88\s+and\s+`data_quality\.status`\s+is\s+`FAILED`\.",
+            r"Filter UDM (?:events|telemetry) (?:using|with)\s+`WHERE\s+legacy_unpopulated_tag\s*=\s*'Completed'`[^\n.]*`null_ratio`[^\n.]*0\.88[^\n.]*`data_quality\.status`[^\n.]*`FAILED`\.",
             re.DOTALL,
         ),
         "replacement": (
@@ -40470,7 +40470,7 @@ _KC_DEFECT_SPECS: tuple[dict[str, Any], ...] = (
         "defect_type": "context_set_overscoping_or_missing_source_contract",
         "severity": "HIGH",
         "pattern": re.compile(
-            r"Scope Context Set searches with\s+`entrygroup=secops-context-set\s+system=bigquery\s+column:event_id`,\s*pass 25 entry\s+names in a single\s+`lookup_context`\s+call,\s+and execute SQL immediately without emitting a 6-item Source Contract\.",
+            r"(?:Scope|Run scoped) Context Set search(?:es)? with\s+`entrygroup=secops-context-set\s+system=bigquery\s+column:event_id`,\s*pass 25 entry\s+names[^\n.]*without emitting a 6-item Source Contract\.",
             re.DOTALL,
         ),
         "replacement": (
