@@ -333,7 +333,7 @@ async def run_simulated_session(
     *,
     root_agent: Optional[Any] = None,
     user_simulator: Optional[UserSimulator] = None,
-    simulator_model: str = "gemini-2.5-flash",
+    simulator_model: str = "gemini-3-flash-preview",
     max_turns: int = 4,
     include_function_calls: bool = False,
     session_service: Optional[BaseSessionService] = None,
@@ -572,7 +572,7 @@ async def run_simulated_session(
 async def run_simulation_suite(
     scenarios: dict[str, ConversationScenario],
     *,
-    simulator_model: str = "gemini-2.5-flash",
+    simulator_model: str = "gemini-3-flash-preview",
     max_turns: int = 4,
     session_db_path: Optional[Path] = DEFAULT_SESSION_DB_PATH,
     trace_log_path: Path = DEFAULT_OTEL_JSONL,
@@ -706,8 +706,8 @@ def main(argv: Optional[list[str]] = None) -> int:
   parser.add_argument(
       "--simulator-model",
       type=str,
-      default="gemini-2.5-flash",
-      help="Gemini model used for the UserSimulator (default: gemini-2.5-flash).",
+      default="gemini-3-flash-preview",
+      help="Gemini model used for the UserSimulator (default: gemini-3-flash-preview).",
   )
   parser.add_argument(
       "--session-db",

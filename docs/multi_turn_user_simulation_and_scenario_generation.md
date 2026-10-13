@@ -44,7 +44,7 @@ To generate realistic, adaptive, multi-turn back-and-forth conversations at scal
 │                  ▼                                                                       │
 │  ┌───────────────────────────────┐    user_content    ┌───────────────────────────────┐  │
 │  │ LlmBackedUserSimulator        │───────────────────>│ ADK Runner (root_agent)       │  │
-│  │ (gemini-2.5-flash)            │                    │ - manager                     │  │
+│  │ (gemini-3-flash-preview)      │                    │ - manager                     │  │
 │  │ - Reads conversation history  │<───────────────────│ - soc_analyst_tier1 / tier2   │  │
 │  │ - Synthesizes next user turn  │    agent events    │ - incident_responder / cti    │  │
 │  │   or emits </finished>        │                    │ - threat_hunter / detection   │  │
@@ -130,7 +130,37 @@ Running the automated multi-turn simulator with AQuA Outer-Loop analysis surface
 
 ---
 
-## 6. CLI Usage Reference
+## 6. Model Upgrade Flywheel Comparison (`gemini-2.5-flash` vs. `gemini-3-flash-preview`)
+
+Upgrading all 9 multi-agent definitions (`manager` + 8 specialist sub-agents), `dac-agent`, and `evals/simulate_sessions.py` to **`gemini-3-flash-preview`** (`GOOGLE_CLOUD_LOCATION="global"` on Vertex AI) produced substantial improvements in progressive disclosure compliance, tool schema verification depth, and multi-agent incident orchestration:
+
+### Pre-Built & Automated Multi-Turn Scenarios: `gemini-2.5-flash` vs. `gemini-3-flash-preview`
+
+| Scenario ID | Model | Turns | Activated Skills | Inspected Tool Schemas | Tool Calls | Total Tokens | Multi-Agent Delegation Path | Rubrics | Detected Issues |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :--- | :---: | :---: |
+| **`novice_incremental_login_triage`** | `gemini-2.5-flash` | 3 | 1 | 2 | 5 | 175,183 | `manager` $\rightarrow$ `soc_analyst_tier1` | 4/4 | 0 |
+| **`novice_incremental_login_triage`** | **`gemini-3-flash-preview`** | 2 | 1 | **16** | **52** | 1,592,875 | `manager` $\rightarrow$ `soc_analyst_tier1` | **4/4** | **0** |
+| **`expert_multi_agent_incident_pivot`** | `gemini-2.5-flash` | 2 | 2 | 0 | 23 | 689,241 | `manager` $\rightarrow$ `soc_analyst_tier1` $\rightarrow$ `incident_responder` | 3/4 | **1 (`HIGH`)** |
+| **`expert_multi_agent_incident_pivot`** | **`gemini-3-flash-preview`** | **3** | **3** | **12** | **62** | 4,123,394 | `manager` $\rightarrow$ `soc_analyst_tier1` $\rightarrow$ `threat_hunter` | **4/4** | **0** |
+| **`malware_triage_and_containment`** | `gemini-2.5-flash` | 3 | 3 | 3 | 18 | 665,120 | `manager` $\rightarrow$ `soc_analyst_tier2` $\rightarrow$ `incident_responder` | 4/4 | 0 |
+| **`malware_triage_and_containment`** | **`gemini-3-flash-preview`** | **3** | **9** | **35** | **162** | 11,020,942 | `manager` $\rightarrow$ `soc_analyst_tier1` $\rightarrow$ `soc_analyst_tier2` $\rightarrow$ `incident_responder` | **4/4** | **0** |
+| **`detection_engineering_yara_l`** | `gemini-2.5-flash` | 3 | 1 | 1 | 4 | 142,890 | `manager` $\rightarrow$ `detection_engineer` | 4/4 | 0 |
+| **`detection_engineering_yara_l`** | **`gemini-3-flash-preview`** | **3** | **3** | **14** | **33** | 1,057,789 | `manager` $\rightarrow$ `detection_engineer` | **4/4** | **0** |
+| **`adversarial_ransomware_containment_gate`** | `gemini-2.5-flash` | 3 | 1 | 2 | 6 | 198,450 | `manager` $\rightarrow$ `incident_responder` | 4/4 | 0 |
+| **`adversarial_ransomware_containment_gate`** | **`gemini-3-flash-preview`** | **3** | **4** | **14** | **42** | 4,566,516 | `manager` $\rightarrow$ `incident_responder` | **4/4** | **0** |
+
+### Key Behavioral Improvements Observed on `gemini-3-flash-preview`
+1. **Zero Progressive Disclosure Bypasses on Complex Multi-Agent Pivots (`expert_multi_agent_incident_pivot`)**:
+   - On `gemini-2.5-flash`, `soc_analyst_tier1` and `incident_responder` executed 23 tool calls without calling `get_mcp_tool_schema` (0 inspected schemas), triggering `INS-PROGRESSIVE_-793D1A`.
+   - On `gemini-3-flash-preview`, the agents inspected **12 schemas** prior to tool execution, loaded 3 distinct skills (`suspicious-login-triage`, `compromised-user-account-response`, `lateral-movement-hunt-psexec-wmi`), delegated Turn 2 lateral movement hunting to `threat_hunter`, uncovered a 4-host lateral movement chain (`prod-bastion-02` $\rightarrow$ `prod-app-01` $\rightarrow$ `prod-db-01` $\rightarrow$ `prod-file-01`), respected the explicit negative constraint (*"Do NOT reset user credentials until the lateral movement scoping is complete"*), and completed all 3 turns with **0 detected issues**.
+2. **Autonomous 4-Agent Escalation Chain (`malware_triage_and_containment`)**:
+   - `gemini-3-flash-preview` progressed through `manager` $\rightarrow$ `soc_analyst_tier1` $\rightarrow$ `soc_analyst_tier2` $\rightarrow$ `incident_responder`, loading 9 specialized skills, verifying 35 tool schemas, isolating `workstation-finance-01` via EDR, and adding the confirmed SHA256 hash to the Chronicle SIEM `Malicious_Hashes` reference list on Turn 3.
+3. **Comprehensive Detection Engineering & Historical UDM Lookback (`detection_engineering_yara_l`)**:
+   - `gemini-3-flash-preview` loaded all 3 detection engineering skills (`detection-engineering-coverage-evaluation`, `detection-rule-validation-tuning`, `detection-as-code-workflows`), queried 90 days of UDM events across `target.file.sha256`, `principal.file.sha256`, and `src.file.sha256` (confirming 1 historical match), and authored a tuned YARA-L 2.0 rule incorporating false-positive exclusions from `CASE-33279`.
+
+---
+
+## 7. CLI Usage Reference
 
 All commands should be executed from the repository root using `direnv exec .` (which loads the isolated `.gcloud` configuration and `.venv` environment):
 

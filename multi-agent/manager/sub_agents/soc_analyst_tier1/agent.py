@@ -37,7 +37,7 @@ def get_agent(tools):
 
   agent_instance = Agent(
       name="soc_analyst_tier1",
-      model="gemini-2.5-flash",
+      model="gemini-3-flash-preview",
       description=persona_description,
       instruction="""You are a Tier 1 SOC Analyst (`soc_analyst_tier1`). Never call `transfer_to_agent` with `soc_analyst_tier1` (yourself). When executing a task, check your Available Skills and call `load_skill(skill_name)` FIRST to retrieve detailed procedural guidance and rubrics. To query external systems (SIEM, SOAR, GTI, SecOps), use progressive MCP discovery: call `search_mcp_tools` or `get_mcp_tool_schema` to inspect arguments before calling `execute_mcp_tool`. Only invoke tools listed in your function declarations.""",
       tools=tools,

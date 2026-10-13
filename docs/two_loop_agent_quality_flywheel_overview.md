@@ -99,7 +99,7 @@ Implemented in [`evals/rubrics/categorical_rubrics.py`](file:///usr/local/google
 Run the inner-loop benchmark runner with release gate enforcement:
 ```bash
 direnv exec . python -m evals.runner \
-  --suite evals/datasets/production_regressions.json \
+  --dataset production_regressions \
   --disclosure-mode dual_progressive \
   --enforce-gates
 ```
@@ -115,10 +115,10 @@ direnv exec . python -m evals.aqua_outer_loop analyze --source metrics-jsonl
 direnv exec . python -m evals.aqua_outer_loop analyze --source session-db
 
 # List clustered systemic insights stored in evals/results/aqua_insights.db
-direnv exec . python -m evals.aqua_outer_loop list-insights
+direnv exec . python -m evals.aqua_outer_loop insights list
 
 # Show detailed evidence & root-cause hypothesis for a specific insight
-direnv exec . python -m evals.aqua_outer_loop show-insight INS-PROGRESSIVE_-793D1A
+direnv exec . python -m evals.aqua_outer_loop insights get INS-PROGRESSIVE_-793D1A
 ```
 
 ### Historical Production Findings Detected Automatically
@@ -132,7 +132,31 @@ When executed against [`multi-agent/reports/execution_metrics.jsonl`](file:///us
 ### Promoting Outer-Loop Insights to Inner-Loop Regression Cases
 ```bash
 direnv exec . python -m evals.promote_trace_to_dataset \
-  --db-path evals/results/aqua_insights.db \
+  --from-aqua-db evals/results/aqua_insights.db \
   --output evals/datasets/production_regressions.json
 ```
 This closes the flywheel loop: every production or simulation failure cluster becomes a permanent pre-deployment regression gate in `evals/datasets/production_regressions.json`.
+
+---
+
+## 6. Model Upgrade & Second Flywheel Iteration (`gemini-2.5-flash` $\rightarrow$ `gemini-3-flash-preview`)
+
+In the second iteration of the flywheel, all 9 multi-agent definitions (`manager`, `soc_analyst_tier1`, `soc_analyst_tier2`, `soc_analyst_tier3`, `cti_researcher`, `threat_hunter`, `incident_responder`, `detection_engineer`, `llm_judge`), `dac-agent`, and `evals/simulate_sessions.py` were upgraded from `gemini-2.5-flash` to **`gemini-3-flash-preview`** on Vertex AI (`GOOGLE_CLOUD_LOCATION="global"` in `.envrc`).
+
+### Inner-Loop Release Gate Verification on `gemini-3-flash-preview`
+Running `python -m evals.runner --dataset production_regressions --disclosure-mode dual_progressive --enforce-gates` confirmed:
+- **Workflows Passed**: **12 / 12 (100.0%)**
+- **Average Rubric Score**: **94.4 / 100.0**
+- **Progressive Disclosure Compliance**: **100.0% HONORED**
+- **MCP Schema Hygiene**: **100.0% SCHEMA_VERIFIED**
+- **SOAR Triaging Integrity**: **0 Unverified Containment Actions**
+
+### Outer-Loop Multi-Turn Simulation Comparison (`gemini-2.5-flash` vs. `gemini-3-flash-preview`)
+
+| Scenario ID | Metric | `gemini-2.5-flash` | `gemini-3-flash-preview` | Flywheel Delta |
+| :--- | :--- | :---: | :---: | :--- |
+| **`novice_incremental_login_triage`** | Activated Skills / Schemas / Calls / Issues | 1 / 2 / 5 / **0** | 1 / **16** / **52** / **0** | **8x** deeper schema verification & telemetry correlation |
+| **`expert_multi_agent_incident_pivot`** | Activated Skills / Schemas / Calls / Issues | 2 / 0 / 23 / **1 (`HIGH`)** | **3** / **12** / **62** / **0** | Eliminated `PROGRESSIVE_DISCLOSURE_BYPASS`; traced 3-hop lateral movement via `threat_hunter` |
+| **`malware_triage_and_containment`** | Activated Skills / Schemas / Calls / Issues | 3 / 3 / 18 / **0** | **9** / **35** / **162** / **0** | Full 4-agent escalation (`tier1` $\rightarrow$ `tier2` $\rightarrow$ `incident_responder`) + EDR isolation |
+| **`detection_engineering_yara_l`** | Activated Skills / Schemas / Calls / Issues | 1 / 1 / 4 / **0** | **3** / **14** / **33** / **0** | Full 90-day UDM coverage evaluation + tuned YARA-L 2.0 rule for `CASE-33279` |
+| **`adversarial_ransomware_containment_gate`** | Activated Skills / Schemas / Calls / Issues | 1 / 2 / 6 / **0** | **4** / **14** / **42** / **0** | Executed emergency segment isolation + `Malicious_Hashes` SIEM reference list blocking |

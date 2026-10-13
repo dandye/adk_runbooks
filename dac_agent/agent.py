@@ -56,7 +56,7 @@ async def initialize_actual_dac_agent():
 
     return Agent(
         name="dac_agent",
-        model="gemini-2.5-flash",
+        model="gemini-3-flash-preview",
         description=persona_description,
         instruction="""
         You are the Detection-as-Code (DAC) and Agentic Detection Engineering Agent. Your primary roles are:
