@@ -1,0 +1,371 @@
+[
+  {
+    "test_id": "REG-INS-PROGRESSIVE_-793D1A-ALERT_REPORT_WORKFLOW",
+    "workflow_name": "alert_report_workflow",
+    "description": "[Promoted from INS-PROGRESSIVE_-793D1A (PROGRESSIVE_DISCLOSURE_BYPASS)] Detected 21 workflow executions with only 1 load_skill call(s) and 0 search_mcp_tools/get_mcp_tool_schema call(s).",
+    "source_insight_id": "INS-PROGRESSIVE_-793D1A",
+    "failure_category": "PROGRESSIVE_DISCLOSURE_BYPASS",
+    "root_cause_hypothesis": "All 36 WORKFLOW_TOOLS were statically bound on root_agent alongside load_skill and execute_mcp_tool, allowing the LLM to invoke run_*_workflow directly on Turn 1 without progressive skill or schema discovery.",
+    "remediation_proposal": "Set default disclosure_mode='dual_progressive' (or 'skill_toolset') in get_agent_tools() so only the 9 meta-discovery tools are bound at Turn 0 and all 36 workflow tools are registered in global_mcp_registry.",
+    "runbook_reference": "skills/reporting/alert-report/SKILL.md",
+    "skill_reference": "skills/reporting/alert-report/SKILL.md",
+    "rubric_type": "REPORTING",
+    "disclosure_mode": "dual_progressive",
+    "input": {
+      "alert_id": "de_4ee5885c",
+      "case_id": "33284"
+    },
+    "expected": {
+      "expected_route": "CRITICAL_TRUE_POSITIVE_TRIAGE",
+      "required_output_fields": [
+        "report_markdown",
+        "soar_comment"
+      ],
+      "categorical_verdicts": {
+        "ProgressiveDisclosureCompliance": "HONORED",
+        "McpSchemaHygiene": "SCHEMA_VERIFIED",
+        "SoarTriagingIntegrity": "GROUNDED_DISPOSITION"
+      }
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "REG-INS-PROGRESSIVE_-793D1A-BASIC_IOC_ENRICHMENT_WORKFLOW",
+    "workflow_name": "basic_ioc_enrichment_workflow",
+    "description": "[Promoted from INS-PROGRESSIVE_-793D1A (PROGRESSIVE_DISCLOSURE_BYPASS)] Detected 21 workflow executions with only 1 load_skill call(s) and 0 search_mcp_tools/get_mcp_tool_schema call(s).",
+    "source_insight_id": "INS-PROGRESSIVE_-793D1A",
+    "failure_category": "PROGRESSIVE_DISCLOSURE_BYPASS",
+    "root_cause_hypothesis": "All 36 WORKFLOW_TOOLS were statically bound on root_agent alongside load_skill and execute_mcp_tool, allowing the LLM to invoke run_*_workflow directly on Turn 1 without progressive skill or schema discovery.",
+    "remediation_proposal": "Set default disclosure_mode='dual_progressive' (or 'skill_toolset') in get_agent_tools() so only the 9 meta-discovery tools are bound at Turn 0 and all 36 workflow tools are registered in global_mcp_registry.",
+    "runbook_reference": "skills/investigation/basic-ioc-enrichment/SKILL.md",
+    "skill_reference": "skills/investigation/basic-ioc-enrichment/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "disclosure_mode": "dual_progressive",
+    "input": {
+      "case_id": "CASE-IOC-777",
+      "ioc_value": "evil-phishing-domain.com",
+      "ioc_type": "Domain"
+    },
+    "expected": {
+      "expected_route": "HIGH_RISK_THREAT",
+      "required_output_fields": [
+        "action_taken",
+        "report_markdown"
+      ],
+      "categorical_verdicts": {
+        "ProgressiveDisclosureCompliance": "HONORED",
+        "McpSchemaHygiene": "SCHEMA_VERIFIED",
+        "SoarTriagingIntegrity": "GROUNDED_DISPOSITION"
+      }
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "REG-INS-PROGRESSIVE_-793D1A-CASE_REPORT_WORKFLOW",
+    "workflow_name": "case_report_workflow",
+    "description": "[Promoted from INS-PROGRESSIVE_-793D1A (PROGRESSIVE_DISCLOSURE_BYPASS)] Detected 21 workflow executions with only 1 load_skill call(s) and 0 search_mcp_tools/get_mcp_tool_schema call(s).",
+    "source_insight_id": "INS-PROGRESSIVE_-793D1A",
+    "failure_category": "PROGRESSIVE_DISCLOSURE_BYPASS",
+    "root_cause_hypothesis": "All 36 WORKFLOW_TOOLS were statically bound on root_agent alongside load_skill and execute_mcp_tool, allowing the LLM to invoke run_*_workflow directly on Turn 1 without progressive skill or schema discovery.",
+    "remediation_proposal": "Set default disclosure_mode='dual_progressive' (or 'skill_toolset') in get_agent_tools() so only the 9 meta-discovery tools are bound at Turn 0 and all 36 workflow tools are registered in global_mcp_registry.",
+    "runbook_reference": "skills/reporting/case-report/SKILL.md",
+    "skill_reference": "skills/reporting/case-report/SKILL.md",
+    "rubric_type": "REPORTING",
+    "disclosure_mode": "dual_progressive",
+    "input": {
+      "case_id": "33279",
+      "report_type": "Executive",
+      "include_timeline": true
+    },
+    "expected": {
+      "expected_route": "STANDARD_CASE_REPORT",
+      "required_output_fields": [
+        "report_markdown",
+        "soar_comment"
+      ],
+      "categorical_verdicts": {
+        "ProgressiveDisclosureCompliance": "HONORED",
+        "McpSchemaHygiene": "SCHEMA_VERIFIED",
+        "SoarTriagingIntegrity": "GROUNDED_DISPOSITION"
+      }
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "REG-INS-PROGRESSIVE_-793D1A-COMPROMISED_USER_IRP_WORKFLOW",
+    "workflow_name": "compromised_user_irp_workflow",
+    "description": "[Promoted from INS-PROGRESSIVE_-793D1A (PROGRESSIVE_DISCLOSURE_BYPASS)] Detected 21 workflow executions with only 1 load_skill call(s) and 0 search_mcp_tools/get_mcp_tool_schema call(s).",
+    "source_insight_id": "INS-PROGRESSIVE_-793D1A",
+    "failure_category": "PROGRESSIVE_DISCLOSURE_BYPASS",
+    "root_cause_hypothesis": "All 36 WORKFLOW_TOOLS were statically bound on root_agent alongside load_skill and execute_mcp_tool, allowing the LLM to invoke run_*_workflow directly on Turn 1 without progressive skill or schema discovery.",
+    "remediation_proposal": "Set default disclosure_mode='dual_progressive' (or 'skill_toolset') in get_agent_tools() so only the 9 meta-discovery tools are bound at Turn 0 and all 36 workflow tools are registered in global_mcp_registry.",
+    "runbook_reference": "skills/irps/compromised-user-account-response/SKILL.md",
+    "skill_reference": "skills/irps/compromised-user-account-response/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "disclosure_mode": "dual_progressive",
+    "input": {
+      "case_id": "33284",
+      "user_id": "admin_alex@corp.cymbal.org",
+      "confirm_account_disable": true
+    },
+    "expected": {
+      "expected_route": "DISABLE_ACCOUNT_REVOKE_SESSIONS",
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ],
+      "categorical_verdicts": {
+        "ProgressiveDisclosureCompliance": "HONORED",
+        "McpSchemaHygiene": "SCHEMA_VERIFIED",
+        "SoarTriagingIntegrity": "GROUNDED_DISPOSITION"
+      }
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "REG-INS-PROGRESSIVE_-793D1A-CREATE_INVESTIGATION_REPORT_WORKFLOW",
+    "workflow_name": "create_investigation_report_workflow",
+    "description": "[Promoted from INS-PROGRESSIVE_-793D1A (PROGRESSIVE_DISCLOSURE_BYPASS)] Detected 21 workflow executions with only 1 load_skill call(s) and 0 search_mcp_tools/get_mcp_tool_schema call(s).",
+    "source_insight_id": "INS-PROGRESSIVE_-793D1A",
+    "failure_category": "PROGRESSIVE_DISCLOSURE_BYPASS",
+    "root_cause_hypothesis": "All 36 WORKFLOW_TOOLS were statically bound on root_agent alongside load_skill and execute_mcp_tool, allowing the LLM to invoke run_*_workflow directly on Turn 1 without progressive skill or schema discovery.",
+    "remediation_proposal": "Set default disclosure_mode='dual_progressive' (or 'skill_toolset') in get_agent_tools() so only the 9 meta-discovery tools are bound at Turn 0 and all 36 workflow tools are registered in global_mcp_registry.",
+    "runbook_reference": "skills/reporting/create-investigation-report/SKILL.md",
+    "skill_reference": "skills/reporting/create-investigation-report/SKILL.md",
+    "rubric_type": "REPORTING",
+    "disclosure_mode": "dual_progressive",
+    "input": {
+      "case_id": "33279",
+      "report_scope": "FULL_INVESTIGATION"
+    },
+    "expected": {
+      "required_output_fields": [
+        "report_markdown",
+        "soar_comment"
+      ],
+      "categorical_verdicts": {
+        "ProgressiveDisclosureCompliance": "HONORED",
+        "McpSchemaHygiene": "SCHEMA_VERIFIED",
+        "SoarTriagingIntegrity": "GROUNDED_DISPOSITION"
+      }
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "REG-INS-PROGRESSIVE_-793D1A-DETECTION_RULE_VALIDATION_WORKFLOW",
+    "workflow_name": "detection_rule_validation_workflow",
+    "description": "[Promoted from INS-PROGRESSIVE_-793D1A (PROGRESSIVE_DISCLOSURE_BYPASS)] Detected 21 workflow executions with only 1 load_skill call(s) and 0 search_mcp_tools/get_mcp_tool_schema call(s).",
+    "source_insight_id": "INS-PROGRESSIVE_-793D1A",
+    "failure_category": "PROGRESSIVE_DISCLOSURE_BYPASS",
+    "root_cause_hypothesis": "All 36 WORKFLOW_TOOLS were statically bound on root_agent alongside load_skill and execute_mcp_tool, allowing the LLM to invoke run_*_workflow directly on Turn 1 without progressive skill or schema discovery.",
+    "remediation_proposal": "Set default disclosure_mode='dual_progressive' (or 'skill_toolset') in get_agent_tools() so only the 9 meta-discovery tools are bound at Turn 0 and all 36 workflow tools are registered in global_mcp_registry.",
+    "runbook_reference": "skills/detection/detection-rule-validation-tuning/SKILL.md",
+    "skill_reference": "skills/detection/detection-rule-validation-tuning/SKILL.md",
+    "rubric_type": "DETECTION_ENGINEERING",
+    "disclosure_mode": "dual_progressive",
+    "input": {
+      "rule_id": "ru_bfc779f0",
+      "rule_name": "gcp_honeytoken_secret_access_T1555",
+      "validation_days": 14
+    },
+    "expected": {
+      "expected_route": "DEPLOY_PRODUCTION",
+      "required_output_fields": [
+        "action_taken",
+        "report_markdown"
+      ],
+      "categorical_verdicts": {
+        "ProgressiveDisclosureCompliance": "HONORED",
+        "McpSchemaHygiene": "SCHEMA_VERIFIED",
+        "SoarTriagingIntegrity": "GROUNDED_DISPOSITION"
+      }
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "REG-INS-PROGRESSIVE_-793D1A-ENDPOINT_TRIAGE_WORKFLOW",
+    "workflow_name": "endpoint_triage_workflow",
+    "description": "[Promoted from INS-PROGRESSIVE_-793D1A (PROGRESSIVE_DISCLOSURE_BYPASS)] Detected 21 workflow executions with only 1 load_skill call(s) and 0 search_mcp_tools/get_mcp_tool_schema call(s).",
+    "source_insight_id": "INS-PROGRESSIVE_-793D1A",
+    "failure_category": "PROGRESSIVE_DISCLOSURE_BYPASS",
+    "root_cause_hypothesis": "All 36 WORKFLOW_TOOLS were statically bound on root_agent alongside load_skill and execute_mcp_tool, allowing the LLM to invoke run_*_workflow directly on Turn 1 without progressive skill or schema discovery.",
+    "remediation_proposal": "Set default disclosure_mode='dual_progressive' (or 'skill_toolset') in get_agent_tools() so only the 9 meta-discovery tools are bound at Turn 0 and all 36 workflow tools are registered in global_mcp_registry.",
+    "runbook_reference": "skills/triage/basic-endpoint-triage-isolation/SKILL.md",
+    "skill_reference": "skills/triage/basic-endpoint-triage-isolation/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "disclosure_mode": "dual_progressive",
+    "input": {
+      "case_id": "CASE-END-505",
+      "endpoint_id": "workstation-finance-01",
+      "endpoint_type": "Hostname",
+      "confirm_isolation": true
+    },
+    "expected": {
+      "expected_route": "EXECUTE_ISOLATION",
+      "required_output_fields": [
+        "isolation_status",
+        "soar_comment"
+      ],
+      "categorical_verdicts": {
+        "ProgressiveDisclosureCompliance": "HONORED",
+        "McpSchemaHygiene": "SCHEMA_VERIFIED",
+        "SoarTriagingIntegrity": "GROUNDED_DISPOSITION"
+      }
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "REG-INS-PROGRESSIVE_-793D1A-PRIORITIZE_INVESTIGATE_CASE_WORKFLOW",
+    "workflow_name": "prioritize_investigate_case_workflow",
+    "description": "[Promoted from INS-PROGRESSIVE_-793D1A (PROGRESSIVE_DISCLOSURE_BYPASS)] Detected 21 workflow executions with only 1 load_skill call(s) and 0 search_mcp_tools/get_mcp_tool_schema call(s).",
+    "source_insight_id": "INS-PROGRESSIVE_-793D1A",
+    "failure_category": "PROGRESSIVE_DISCLOSURE_BYPASS",
+    "root_cause_hypothesis": "All 36 WORKFLOW_TOOLS were statically bound on root_agent alongside load_skill and execute_mcp_tool, allowing the LLM to invoke run_*_workflow directly on Turn 1 without progressive skill or schema discovery.",
+    "remediation_proposal": "Set default disclosure_mode='dual_progressive' (or 'skill_toolset') in get_agent_tools() so only the 9 meta-discovery tools are bound at Turn 0 and all 36 workflow tools are registered in global_mcp_registry.",
+    "runbook_reference": "skills/investigation/prioritize-and-investigate-case/SKILL.md",
+    "skill_reference": "skills/investigation/prioritize-and-investigate-case/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "disclosure_mode": "dual_progressive",
+    "input": {
+      "case_id": "CASE-PRIO-600"
+    },
+    "expected": {
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ],
+      "categorical_verdicts": {
+        "ProgressiveDisclosureCompliance": "HONORED",
+        "McpSchemaHygiene": "SCHEMA_VERIFIED",
+        "SoarTriagingIntegrity": "GROUNDED_DISPOSITION"
+      }
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "REG-INS-PROGRESSIVE_-793D1A-SUSPICIOUS_LOGIN_WORKFLOW",
+    "workflow_name": "suspicious_login_workflow",
+    "description": "[Promoted from INS-PROGRESSIVE_-793D1A (PROGRESSIVE_DISCLOSURE_BYPASS)] Detected 21 workflow executions with only 1 load_skill call(s) and 0 search_mcp_tools/get_mcp_tool_schema call(s).",
+    "source_insight_id": "INS-PROGRESSIVE_-793D1A",
+    "failure_category": "PROGRESSIVE_DISCLOSURE_BYPASS",
+    "root_cause_hypothesis": "All 36 WORKFLOW_TOOLS were statically bound on root_agent alongside load_skill and execute_mcp_tool, allowing the LLM to invoke run_*_workflow directly on Turn 1 without progressive skill or schema discovery.",
+    "remediation_proposal": "Set default disclosure_mode='dual_progressive' (or 'skill_toolset') in get_agent_tools() so only the 9 meta-discovery tools are bound at Turn 0 and all 36 workflow tools are registered in global_mcp_registry.",
+    "runbook_reference": "skills/triage/suspicious-login-triage/SKILL.md",
+    "skill_reference": "skills/triage/suspicious-login-triage/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "disclosure_mode": "dual_progressive",
+    "input": {
+      "case_id": "CASE-1001",
+      "user_id": "alice.smith@example.com",
+      "source_ip": "192.168.1.50",
+      "hostname": "corp-laptop-alice"
+    },
+    "expected": {
+      "expected_route": "LOW_RISK_BENIGN",
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ],
+      "categorical_verdicts": {
+        "ProgressiveDisclosureCompliance": "HONORED",
+        "McpSchemaHygiene": "SCHEMA_VERIFIED",
+        "SoarTriagingIntegrity": "GROUNDED_DISPOSITION"
+      }
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "REG-INS-PROGRESSIVE_-793D1A-TRIAGE_ALERTS_WORKFLOW",
+    "workflow_name": "triage_alerts_workflow",
+    "description": "[Promoted from INS-PROGRESSIVE_-793D1A (PROGRESSIVE_DISCLOSURE_BYPASS)] Detected 21 workflow executions with only 1 load_skill call(s) and 0 search_mcp_tools/get_mcp_tool_schema call(s).",
+    "source_insight_id": "INS-PROGRESSIVE_-793D1A",
+    "failure_category": "PROGRESSIVE_DISCLOSURE_BYPASS",
+    "root_cause_hypothesis": "All 36 WORKFLOW_TOOLS were statically bound on root_agent alongside load_skill and execute_mcp_tool, allowing the LLM to invoke run_*_workflow directly on Turn 1 without progressive skill or schema discovery.",
+    "remediation_proposal": "Set default disclosure_mode='dual_progressive' (or 'skill_toolset') in get_agent_tools() so only the 9 meta-discovery tools are bound at Turn 0 and all 36 workflow tools are registered in global_mcp_registry.",
+    "runbook_reference": "skills/triage/triage-alerts/SKILL.md",
+    "skill_reference": "skills/triage/triage-alerts/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "disclosure_mode": "dual_progressive",
+    "input": {
+      "alert_ids": [
+        "ALT-1001",
+        "ALT-1002"
+      ]
+    },
+    "expected": {
+      "required_output_fields": [
+        "action_taken",
+        "soar_comment"
+      ],
+      "categorical_verdicts": {
+        "ProgressiveDisclosureCompliance": "HONORED",
+        "McpSchemaHygiene": "SCHEMA_VERIFIED",
+        "SoarTriagingIntegrity": "GROUNDED_DISPOSITION"
+      }
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "REG-INS-TOOL_EXECUTI-22E5AA-BASIC_IOC_ENRICHMENT_WORKFLOW",
+    "workflow_name": "basic_ioc_enrichment_workflow",
+    "description": "[Promoted from INS-TOOL_EXECUTI-22E5AA (TOOL_EXECUTION_FAILURE)] Detected 3 failed tool execution(s) across: run_basic_ioc_enrichment_workflow, run_endpoint_triage_workflow.",
+    "source_insight_id": "INS-TOOL_EXECUTI-22E5AA",
+    "failure_category": "TOOL_EXECUTION_FAILURE",
+    "root_cause_hypothesis": "Direct tool execution occurred without prior schema validation (get_mcp_tool_schema) or failed due to missing/invalid input arguments.",
+    "remediation_proposal": "Require get_mcp_tool_schema inspection prior to execute_mcp_tool and promote failing workflow invocations into evals/datasets/production_regressions.json.",
+    "runbook_reference": "skills/investigation/basic-ioc-enrichment/SKILL.md",
+    "skill_reference": "skills/investigation/basic-ioc-enrichment/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "disclosure_mode": "dual_progressive",
+    "input": {
+      "case_id": "CASE-IOC-777",
+      "ioc_value": "evil-phishing-domain.com",
+      "ioc_type": "Domain"
+    },
+    "expected": {
+      "expected_route": "HIGH_RISK_THREAT",
+      "required_output_fields": [
+        "action_taken",
+        "report_markdown"
+      ],
+      "categorical_verdicts": {
+        "ProgressiveDisclosureCompliance": "HONORED",
+        "McpSchemaHygiene": "SCHEMA_VERIFIED",
+        "SoarTriagingIntegrity": "GROUNDED_DISPOSITION"
+      }
+    },
+    "min_passing_score": 80.0
+  },
+  {
+    "test_id": "REG-INS-TOOL_EXECUTI-22E5AA-ENDPOINT_TRIAGE_WORKFLOW",
+    "workflow_name": "endpoint_triage_workflow",
+    "description": "[Promoted from INS-TOOL_EXECUTI-22E5AA (TOOL_EXECUTION_FAILURE)] Detected 3 failed tool execution(s) across: run_basic_ioc_enrichment_workflow, run_endpoint_triage_workflow.",
+    "source_insight_id": "INS-TOOL_EXECUTI-22E5AA",
+    "failure_category": "TOOL_EXECUTION_FAILURE",
+    "root_cause_hypothesis": "Direct tool execution occurred without prior schema validation (get_mcp_tool_schema) or failed due to missing/invalid input arguments.",
+    "remediation_proposal": "Require get_mcp_tool_schema inspection prior to execute_mcp_tool and promote failing workflow invocations into evals/datasets/production_regressions.json.",
+    "runbook_reference": "skills/triage/basic-endpoint-triage-isolation/SKILL.md",
+    "skill_reference": "skills/triage/basic-endpoint-triage-isolation/SKILL.md",
+    "rubric_type": "TRIAGE_IRP",
+    "disclosure_mode": "dual_progressive",
+    "input": {
+      "case_id": "CASE-END-505",
+      "endpoint_id": "workstation-finance-01",
+      "endpoint_type": "Hostname",
+      "confirm_isolation": true
+    },
+    "expected": {
+      "expected_route": "EXECUTE_ISOLATION",
+      "required_output_fields": [
+        "isolation_status",
+        "soar_comment"
+      ],
+      "categorical_verdicts": {
+        "ProgressiveDisclosureCompliance": "HONORED",
+        "McpSchemaHygiene": "SCHEMA_VERIFIED",
+        "SoarTriagingIntegrity": "GROUNDED_DISPOSITION"
+      }
+    },
+    "min_passing_score": 80.0
+  }
+]

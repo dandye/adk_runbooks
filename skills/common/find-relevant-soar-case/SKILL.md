@@ -9,6 +9,9 @@ title: 'Skill: Common Step: Find Relevant SOAR Case'
 generated:
   by: human:dandye
   at: 2025-11-10 17:21:35-05:00
+metadata:
+  adk_additional_tools:
+  - soar-mcp_list_cases
 ---
 
 # Common Step: Find Relevant SOAR Case

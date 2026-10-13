@@ -9,6 +9,9 @@ title: 'Skill: Atomic Runbook: Get Domain Threat Intel via SecOps MCP'
 generated:
   by: process:google-labs-jules
   at: '2026-08-20T02:00:00Z'
+metadata:
+  adk_additional_tools:
+  - secops-mcp_get_threat_intel
 ---
 
 # Atomic Runbook: Get Domain Threat Intel via SecOps MCP

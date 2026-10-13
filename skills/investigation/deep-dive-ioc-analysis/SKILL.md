@@ -9,6 +9,13 @@ title: 'Skill: Deep Dive IOC Analysis Runbook'
 generated:
   by: process:google-labs-jules
   at: 2025-12-20 22:04:42-05:00
+metadata:
+  adk_additional_tools:
+  - run_deep_dive_ioc_analysis_workflow
+  - gti-mcp_get_collection_report
+  - gti-mcp_get_file_behavior_summary
+  - secops-mcp_search_security_events
+  - soar-mcp_get_case_full_details
 ---
 
 # Deep Dive IOC Analysis Runbook

@@ -9,6 +9,10 @@ title: 'Skill: Basic IOC Enrichment Runbook'
 generated:
   by: process:google-labs-jules
   at: 2025-12-20 22:04:42-05:00
+metadata:
+  adk_additional_tools:
+  - run_basic_ioc_enrichment_workflow
+  - secops-mcp_search_security_events
 ---
 
 # Basic IOC Enrichment Runbook

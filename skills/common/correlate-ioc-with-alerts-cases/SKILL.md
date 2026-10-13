@@ -9,6 +9,10 @@ title: 'Skill: Common Step: Correlate IOC with SIEM Alerts & SOAR Cases'
 generated:
   by: human:dandye
   at: 2025-11-10 17:21:35-05:00
+metadata:
+  adk_additional_tools:
+  - secops-mcp_get_security_alerts
+  - soar-mcp_list_cases
 ---
 
 # Common Step: Correlate IOC with SIEM Alerts & SOAR Cases

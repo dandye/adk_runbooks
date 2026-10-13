@@ -9,6 +9,9 @@ title: 'Skill: Generate Case Investigation Report'
 generated:
   by: process:google-labs-jules
   at: 2025-12-20 22:04:42-05:00
+metadata:
+  adk_additional_tools:
+  - run_case_report_workflow
 ---
 
 # Runbook: Generate Case Investigation Report

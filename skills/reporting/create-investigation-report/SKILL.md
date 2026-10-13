@@ -9,6 +9,10 @@ title: 'Skill: Create Investigation Report'
 generated:
   by: process:google-labs-jules
   at: '2026-08-20T02:00:00Z'
+metadata:
+  adk_additional_tools:
+  - run_create_investigation_report_workflow
+  - soar-mcp_get_case_full_details
 ---
 
 # Runbook: Create Investigation Report

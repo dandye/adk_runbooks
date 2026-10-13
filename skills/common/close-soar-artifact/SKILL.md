@@ -9,6 +9,11 @@ title: 'Skill: Common Step: Close SOAR Case or Alert'
 generated:
   by: human:dandye
   at: 2025-11-10 17:21:35-05:00
+metadata:
+  adk_additional_tools:
+  - soar-mcp_get_case_settings_root_causes
+  - soar-mcp_siemplify_close_alert
+  - soar-mcp_siemplify_close_case
 ---
 
 # Common Step: Close SOAR Case or Alert

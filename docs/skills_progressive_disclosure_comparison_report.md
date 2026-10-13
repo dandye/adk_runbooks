@@ -8,6 +8,8 @@ generated:
 related:
   - ./skills_progressive_disclosure_overview.md
   - ./adk_graph_workflows_overview.md
+  - ./two_loop_agent_quality_flywheel_overview.md
+  - ./multi_turn_user_simulation_and_scenario_generation.md
 ---
 
 # Skills Progressive Disclosure Architecture: Comparative Analysis & Benchmark Report
@@ -133,3 +135,23 @@ The following prior evaluation reports and cross-experiment comparative benchmar
 - [`presentation/adk_graph_workflows_slide_deck.md`](file://presentation/adk_graph_workflows_slide_deck.md): Slide deck covering graph workflows vs autonomous loop paradigms.
 - [`multi-agent/reports/`](file://multi-agent/reports/): 3-way benchmarks, graph vs non-graph case studies, and telemetry stats files.
 - [`evals/results/`](file://evals/results/): JSON and Markdown evaluation results across prior runs.
+
+---
+
+## 6. 6-Way Paradigm Comparison & Two-Loop Flywheel Evaluation (Issue #79)
+
+In GitHub Issue [#79](https://github.com/dandye/adk_runbooks/issues/79), the evaluation harness was extended to a **6-Way Paradigm Comparison** ([`evals/run_cross_experiment_benchmarks.py`](file:///usr/local/google/home/dandye/Projects/adk_runbooks__worktrees/aqua_flywheel_compliance_gates/evals/run_cross_experiment_benchmarks.py)) and paired with the **Two-Loop Agent Quality Flywheel** and **Multi-Turn ADK User Simulator** ([`evals/simulate_sessions.py`](file:///usr/local/google/home/dandye/Projects/adk_runbooks__worktrees/aqua_flywheel_compliance_gates/evals/simulate_sessions.py)):
+
+| Paradigm | Turn-0 Tool Schema Bytes | Turn-1 Tool Schema Bytes | Discovery Steps | Avg Rubric Score (Exp 1, 2, 5, 6) | Progressive Disclosure Compliance |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **Version A: Prompt-Only (Unguided Loop)** | ~9,345 B | ~9,345 B | 0 | 64.5 / 100 | N/A |
+| **Version B: Monolithic Runbooks** | ~9,345 B | ~9,345 B | 0 | 79.8 / 100 | N/A |
+| **Version C: ADK Graph Workflows (Static DAGs)** | >25,000 B | >25,000 B | 0 | 95.3 / 100 | Bypassed (`FULL_BYPASS` when static) |
+| **Version D: Skills Progressive Disclosure (`skills_only`)** | ~9,345 B | ~9,345 B | 1 (`load_skill`) | 91.5 / 100 | Partial (`load_skill` only) |
+| **Version E: Dual Progressive Disclosure (`dual_progressive`)** | **2,520 B (-73.0%)** | **2,758 B** | 3 (`load_skill` $\rightarrow$ `get_mcp_tool_schema` $\rightarrow$ `execute_mcp_tool`) | **94.8 / 100** | **100% (`FULL_COMPLIANCE`)** |
+| **Version F: Native ADK 2.7.1 `SkillToolset` (`skill_toolset`)** | **520 B (-94.4%)** | **1,341 B** | 2 (`load_skill` auto-binds `adk_additional_tools`) | **95.5 / 100** | **100% (`FULL_COMPLIANCE`)** |
+
+For detailed documentation on the Two-Loop Flywheel and Multi-Turn User Simulation, see:
+- [`docs/two_loop_agent_quality_flywheel_overview.md`](./two_loop_agent_quality_flywheel_overview.md)
+- [`docs/multi_turn_user_simulation_and_scenario_generation.md`](./multi_turn_user_simulation_and_scenario_generation.md)
+

@@ -9,6 +9,13 @@ title: 'Skill: Group Cases Workflow'
 generated:
   by: process:google-labs-jules
   at: 2025-12-20 22:04:42-05:00
+metadata:
+  adk_additional_tools:
+  - run_group_cases_workflow
+  - soar-mcp_get_case_full_details
+  - soar-mcp_get_entities_by_alert_group_identifiers
+  - soar-mcp_list_cases
+  - soar-mcp_list_events_by_alert
 ---
 
 # Group Cases Workflow

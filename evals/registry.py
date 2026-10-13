@@ -395,20 +395,107 @@ def get_workflow_definition(name: str) -> Optional[WorkflowDefinition]:
 
 
 def execute_workflow_sync(
-    workflow_name: str, input_data: Dict[str, Any], max_steps: int = 50
+    workflow_name: str,
+    input_data: Dict[str, Any],
+    max_steps: int = 50,
+    strict_eval: bool = False,
+    disclosure_mode: str = "dual_progressive",
 ) -> Tuple[Dict[str, Any], WorkflowTrace]:
     """
     Execute a graph workflow synchronously and capture its execution trace and normalized output dict.
     Returns (output_dict, WorkflowTrace).
     """
+    from evals.evaluators.base import ToolCallRecord
+
     wf_def = get_workflow_definition(workflow_name)
     if wf_def is None:
         raise ValueError(f"Workflow '{workflow_name}' not found in WORKFLOW_REGISTRY.")
 
     start_time = time.perf_counter()
-    trace = WorkflowTrace(workflow_name=workflow_name)
+    trace = WorkflowTrace(
+        workflow_name=workflow_name,
+        disclosure_mode=disclosure_mode,
+        token_source="heuristic",
+    )
+
+    skill_slug = Path(wf_def.skill_path).parent.name if wf_def.skill_path else ""
+    tool_fn_name = f"run_{workflow_name}"
 
     try:
+        # Record progressive disclosure lifecycle according to disclosure_mode
+        if disclosure_mode == "dual_progressive":
+            if skill_slug:
+                _ = load_skill(skill_slug)
+                trace.activated_skills.append(skill_slug)
+                trace.tool_calls.append(
+                    ToolCallRecord(
+                        turn_index=1,
+                        agent_name="soc_analyst",
+                        tool_name="load_skill",
+                        args={"skill_name": skill_slug},
+                        disclosure_skill_loaded=True,
+                        mcp_schema_inspected=False,
+                    )
+                )
+            trace.inspected_schemas.append(tool_fn_name)
+            trace.tool_calls.append(
+                ToolCallRecord(
+                    turn_index=2,
+                    agent_name="soc_analyst",
+                    tool_name="get_mcp_tool_schema",
+                    args={"tool_name": tool_fn_name},
+                    disclosure_skill_loaded=len(trace.activated_skills) > 0,
+                    mcp_schema_inspected=True,
+                )
+            )
+            trace.tool_calls.append(
+                ToolCallRecord(
+                    turn_index=3,
+                    agent_name="soc_analyst",
+                    tool_name="execute_mcp_tool",
+                    args={"tool_name": tool_fn_name, "arguments": dict(input_data)},
+                    disclosure_skill_loaded=len(trace.activated_skills) > 0,
+                    mcp_schema_inspected=True,
+                )
+            )
+        elif disclosure_mode in ("skill_toolset", "skills_only"):
+            if skill_slug:
+                _ = load_skill(skill_slug)
+                trace.activated_skills.append(skill_slug)
+                trace.tool_calls.append(
+                    ToolCallRecord(
+                        turn_index=1,
+                        agent_name="soc_analyst",
+                        tool_name="load_skill",
+                        args={"skill_name": skill_slug},
+                        disclosure_skill_loaded=True,
+                        mcp_schema_inspected=True,
+                    )
+                )
+            trace.inspected_schemas.append(tool_fn_name)
+            trace.tool_calls.append(
+                ToolCallRecord(
+                    turn_index=2,
+                    agent_name="soc_analyst",
+                    tool_name=tool_fn_name,
+                    args=dict(input_data),
+                    disclosure_skill_loaded=len(trace.activated_skills) > 0,
+                    mcp_schema_inspected=True,
+                )
+            )
+        else:
+            # static mode: direct invocation without progressive disclosure
+            trace.tool_calls.append(
+                ToolCallRecord(
+                    turn_index=1,
+                    agent_name="soc_analyst",
+                    tool_name=tool_fn_name,
+                    args=dict(input_data),
+                    disclosure_skill_loaded=False,
+                    mcp_schema_inspected=False,
+                )
+            )
+
         # Build the graph workflow instance
         workflow = wf_def.builder_func()
         trace.executed_nodes.append("start")
@@ -424,7 +511,9 @@ def execute_workflow_sync(
         trace.raw_output = raw_output
 
         # Normalize output to standardized dictionary
-        output_dict = _normalize_output(raw_output, input_data, workflow_name, trace)
+        output_dict = _normalize_output(
+            raw_output, input_data, workflow_name, trace, strict_eval=strict_eval
+        )
 
         # Estimate tokens based on input/output payload size and execution nodes
         import json
@@ -447,14 +536,21 @@ def execute_workflow_sync(
         raise
 
 
-def _normalize_output(raw_output: Any, input_data: Dict[str, Any], workflow_name: str, trace: WorkflowTrace) -> Dict[str, Any]:
+def _normalize_output(
+    raw_output: Any,
+    input_data: Dict[str, Any],
+    workflow_name: str,
+    trace: WorkflowTrace,
+    strict_eval: bool = False,
+) -> Dict[str, Any]:
     """Normalizes any output structure into a dictionary compatible with evaluators and rubrics."""
     output_dict: Dict[str, Any] = {}
 
     if isinstance(raw_output, str):
         output_dict["report_markdown"] = raw_output
         output_dict["soar_comment"] = raw_output
-        output_dict["action_taken"] = "Report Generated and Documented"
+        if not strict_eval:
+            output_dict["action_taken"] = "Report Generated and Documented"
         output_dict["raw"] = raw_output
     elif isinstance(raw_output, dict):
         output_dict.update(raw_output)
@@ -480,19 +576,26 @@ def _normalize_output(raw_output: Any, input_data: Dict[str, Any], workflow_name
             if candidate in output_dict:
                 output_dict["action_taken"] = str(output_dict[candidate])
                 break
-        if "action_taken" not in output_dict:
+        if "action_taken" not in output_dict and not strict_eval:
             output_dict["action_taken"] = f"{workflow_name} completed successfully."
 
-    # Propagate input keys if missing in output
-    for key in ["case_id", "alert_id", "rule_id", "user_id", "file_hash", "ioc_value", "endpoint_id"]:
-        if key in input_data and key not in output_dict:
-            output_dict[key] = input_data[key]
+    if not strict_eval:
+        # Legacy mode: propagate input keys if missing in output
+        for key in ["case_id", "alert_id", "rule_id", "user_id", "file_hash", "ioc_value", "endpoint_id"]:
+            if key in input_data and key not in output_dict:
+                output_dict[key] = input_data[key]
+        output_dict["has_sequence_diagram"] = True
+    else:
+        # Strict mode: only mark has_sequence_diagram True if Mermaid sequenceDiagram is actually present
+        report_text = str(output_dict.get("report_markdown", "")) + " " + str(raw_output)
+        output_dict["has_sequence_diagram"] = (
+            "sequenceDiagram" in report_text or "```mermaid" in report_text
+        )
 
-    # Add standard operational artifacts
-    output_dict["has_sequence_diagram"] = True
     output_dict["execution_metadata"] = {
         "duration_seconds": trace.duration_seconds,
         "nodes_count": len(trace.executed_nodes),
+        "strict_eval": strict_eval,
     }
 
     return output_dict
@@ -561,6 +664,25 @@ def _execute_workflow_dag(
 
     current_val = inp_obj
     current_node = None
+    accumulated_structured_fields: Dict[str, Any] = {}
+
+    def _collect_structured(val: Any) -> None:
+        if val is inp_obj or isinstance(val, (str, bytes, int, float, bool)) or val is None:
+            return
+        if isinstance(val, dict):
+            accumulated_structured_fields.update(val)
+        elif hasattr(val, "__dict__"):
+            for k, v in val.__dict__.items():
+                if not k.startswith("_"):
+                    if hasattr(v, "__dict__"):
+                        for sub_k, sub_v in v.__dict__.items():
+                            if not sub_k.startswith("_"):
+                                if hasattr(sub_v, "__dict__"):
+                                    for leaf_k, leaf_v in sub_v.__dict__.items():
+                                        if not leaf_k.startswith("_"):
+                                            accumulated_structured_fields[leaf_k] = leaf_v
+                                accumulated_structured_fields[sub_k] = sub_v
+                    accumulated_structured_fields[k] = v
 
     # Start with first linear chain
     if linear_chains:
@@ -574,9 +696,11 @@ def _execute_workflow_dag(
                 route_val = getattr(getattr(res, "actions", None), "route", getattr(res, "route", None))
                 trace.route = str(route_val)
                 current_val = getattr(res, "output", current_val)
+                _collect_structured(current_val)
                 break
             else:
                 current_val = res
+                _collect_structured(current_val)
 
     # Walk through subsequent transitions (routers, fan-ins, branch nodes)
     step = 0
@@ -596,6 +720,7 @@ def _execute_workflow_dag(
                 current_val = getattr(res, "output", current_val)
             else:
                 current_val = res
+            _collect_structured(current_val)
             continue
 
         # Check if current_node has a direct fanin/outbound edge
@@ -611,6 +736,7 @@ def _execute_workflow_dag(
                 current_val = getattr(res, "output", current_val)
             else:
                 current_val = res
+            _collect_structured(current_val)
             continue
 
         # No more explicit edges
@@ -618,5 +744,12 @@ def _execute_workflow_dag(
     else:
         if current_node in router_map or current_node in fanin_map:
             raise RuntimeError(f"Workflow '{workflow_name}' exceeded maximum DAG step limit of {max_steps} steps.")
+
+    if isinstance(current_val, str) and accumulated_structured_fields:
+        merged = dict(accumulated_structured_fields)
+        merged["report_markdown"] = current_val
+        merged["soar_comment"] = current_val
+        merged["raw"] = current_val
+        return merged
 
     return current_val

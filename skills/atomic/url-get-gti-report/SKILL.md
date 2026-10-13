@@ -8,6 +8,9 @@ title: 'Skill: Atomic Runbook: Get URL Reputation from GTI'
 generated:
   by: process:google-labs-jules
   at: '2026-08-20T02:00:00Z'
+metadata:
+  adk_additional_tools:
+  - gti-mcp_get_url_report
 ---
 
 # Atomic Runbook: Get URL Reputation from GTI

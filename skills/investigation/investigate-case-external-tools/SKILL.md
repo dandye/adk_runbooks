@@ -9,6 +9,9 @@ title: 'Skill: Investigate a Case + external tools'
 generated:
   by: process:google-labs-jules
   at: '2026-08-20T02:00:00Z'
+metadata:
+  adk_additional_tools:
+  - run_investigate_case_external_tools_workflow
 ---
 
 # Investigate a Case + external tools

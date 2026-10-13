@@ -9,6 +9,9 @@ title: 'Skill: Prioritize and Investigate a Case'
 generated:
   by: process:google-labs-jules
   at: '2026-08-20T02:00:00Z'
+metadata:
+  adk_additional_tools:
+  - run_prioritize_investigate_case_workflow
 ---
 
 # Prioritize and Investigate a Case

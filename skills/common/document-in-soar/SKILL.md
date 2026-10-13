@@ -9,6 +9,9 @@ title: 'Skill: Common Step: Document Findings/Actions in SOAR Case'
 generated:
   by: human:dandye
   at: 2025-11-10 17:21:35-05:00
+metadata:
+  adk_additional_tools:
+  - soar-mcp_post_case_comment
 ---
 
 # Common Step: Document Findings/Actions in SOAR Case

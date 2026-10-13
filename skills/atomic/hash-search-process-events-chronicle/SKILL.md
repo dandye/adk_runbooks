@@ -9,6 +9,9 @@ title: 'Skill: Atomic Runbook: Search File Hash Process Events in Chronicle'
 generated:
   by: process:google-labs-jules
   at: '2026-08-20T02:00:00Z'
+metadata:
+  adk_additional_tools:
+  - secops-mcp_search_security_events
 ---
 
 # Atomic Runbook: Search File Hash Process Events in Chronicle

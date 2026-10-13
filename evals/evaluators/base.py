@@ -19,6 +19,32 @@ class MetricResult:
 
 
 @dataclass
+class ToolCallRecord:
+    """Structured record of a single tool invocation within an agent trajectory."""
+    turn_index: int
+    agent_name: str
+    tool_name: str
+    args: Dict[str, Any] = field(default_factory=dict)
+    status: str = "success"
+    duration_seconds: float = 0.0
+    error_message: Optional[str] = None
+    result_summary: Optional[str] = None
+    disclosure_skill_loaded: bool = False
+    mcp_schema_inspected: bool = False
+
+
+@dataclass
+class CategoricalVerdict:
+    """Discrete categorical rubric classification verdict."""
+    rubric_name: str
+    category: str
+    passed: bool
+    reason: str
+    evidence: Dict[str, Any] = field(default_factory=dict)
+    exclude_from_gate: bool = False
+
+
+@dataclass
 class WorkflowTrace:
     """Tracks the execution path and telemetry of an agent workflow."""
     workflow_name: str
@@ -31,6 +57,15 @@ class WorkflowTrace:
     status: str = "success"
     raw_output: Any = None
     error: Optional[str] = None
+    # Phase 2 & 3 telemetry extensions
+    session_id: Optional[str] = None
+    trace_id: Optional[str] = None
+    token_source: str = "heuristic"  # "usage_metadata" | "heuristic"
+    disclosure_mode: str = "dual_progressive"
+    tool_calls: List[ToolCallRecord] = field(default_factory=list)
+    activated_skills: List[str] = field(default_factory=list)
+    inspected_schemas: List[str] = field(default_factory=list)
+    agent_delegations: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -58,3 +93,4 @@ class EvaluationResult:
     trace: Optional[WorkflowTrace] = None
     duration_seconds: float = 0.0
     error: Optional[str] = None
+    categorical_verdicts: Dict[str, CategoricalVerdict] = field(default_factory=dict)

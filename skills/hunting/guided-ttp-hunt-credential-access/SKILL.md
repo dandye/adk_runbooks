@@ -9,6 +9,14 @@ title: 'Skill: Guided TTP Hunt Runbook (Example: Credential Access)'
 generated:
   by: process:google-labs-jules
   at: 2025-12-20 22:04:42-05:00
+metadata:
+  adk_additional_tools:
+  - run_credential_access_hunt_workflow
+  - gti-mcp_get_threat_intel
+  - gti-mcp_search_threats
+  - secops-mcp_lookup_entity
+  - secops-mcp_search_security_events
+  - soar-mcp_post_case_comment
 ---
 
 # Guided TTP Hunt Runbook (Example: Credential Access)

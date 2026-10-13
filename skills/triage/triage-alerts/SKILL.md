@@ -9,6 +9,14 @@ title: 'Skill: Alert Triage'
 generated:
   by: process:google-labs-jules
   at: 2025-12-20 22:04:42-05:00
+metadata:
+  adk_additional_tools:
+  - run_triage_alerts_workflow
+  - run_demo_soc_t2_workflow
+  - secops-mcp_search_security_events
+  - soar-mcp_change_case_priority
+  - soar-mcp_get_case_full_details
+  - soar-mcp_get_case_settings_root_causes
 ---
 
 # Runbook: Alert Triage

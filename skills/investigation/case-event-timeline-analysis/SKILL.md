@@ -9,6 +9,18 @@ title: 'Skill: Case Event Timeline & Process Analysis Workflow'
 generated:
   by: process:google-labs-jules
   at: '2026-08-20T02:00:00Z'
+metadata:
+  adk_additional_tools:
+  - run_timeline_process_analysis_workflow
+  - gti-mcp_get_file_report
+  - secops-mcp_get_threat_intel
+  - secops-mcp_search_security_events
+  - soar-mcp_get_case_full_details
+  - soar-mcp_google_chronicle_get_detection_details
+  - soar-mcp_google_chronicle_get_rule_details
+  - soar-mcp_google_chronicle_list_events
+  - soar-mcp_list_events_by_alert
+  - soar-mcp_post_case_comment
 ---
 
 # Case Event Timeline & Process Analysis Workflow

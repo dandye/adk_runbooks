@@ -9,6 +9,19 @@ title: 'Skill: Proactive Threat Hunting based on GTI Campaign/Actor'
 generated:
   by: process:google-labs-jules
   at: '2026-08-20T02:00:00Z'
+metadata:
+  adk_additional_tools:
+  - run_proactive_gti_threat_hunt_workflow
+  - gti-mcp_get_collection_report
+  - gti-mcp_get_collection_timeline_events
+  - gti-mcp_get_domain_report
+  - gti-mcp_get_entities_related_to_a_collection
+  - gti-mcp_get_entities_related_to_a_domain
+  - gti-mcp_get_file_behavior_summary
+  - secops-mcp_get_ioc_matches
+  - secops-mcp_get_security_alerts
+  - secops-mcp_lookup_entity
+  - secops-mcp_search_security_events
 ---
 
 # Proactive Threat Hunting based on GTI Campaign/Actor
