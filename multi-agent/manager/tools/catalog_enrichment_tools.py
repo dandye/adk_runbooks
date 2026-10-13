@@ -353,9 +353,181 @@ def publish_enriched_markdown_to_catalog(
     }
 
 
+MULTI_ENGINE_SECOPS_INVESTIGATION_STORE_ENTRIES: tuple[dict[str, Any], ...] = (
+    {
+        "entry_id": "alloydb_secops_detection_reports",
+        "entry_type_id": "alloydb-pgvector-table",
+        "display_name": "alloydb.secops.detection_reports",
+        "system": "ALLOYDB_POSTGRESQL",
+        "resource": "//alloydb.googleapis.com/projects/secops-demo-env/locations/us-central1/clusters/secops-alloydb-cluster/instances/secops-alloydb-primary/databases/postgres/tables/detection_reports",
+        "description": "Primary AlloyDB for PostgreSQL (pgvector) table storing harvested Markdown security investigation reports, 768-dim Vertex AI embeddings, verdicts, entities, and triage steps.",
+        "connection_uri": "projects/secops-demo-env/locations/us-central1/clusters/secops-alloydb-cluster/instances/secops-alloydb-primary (host=34.70.211.60:5432, db=postgres)",
+        "guidelines": "Use HNSW cosine distance (`embedding <=> $1::vector`) combined with GIN FTS (`to_tsvector`) and relational joins to `detection_alerts` and `detection_entities`.",
+        "overview": (
+            "# alloydb.secops.detection_reports\n\n"
+            "Primary AlloyDB for PostgreSQL (`pgvector`) table storing full **Markdown security investigation reports** (`markdown_report`), "
+            "768-dimensional Vertex AI dense embeddings (`embedding vector(768)`), structured JSONB entities/steps, and verdicts.\n\n"
+            "## Multi-Modal Similarity Profiles\n"
+            "- `balanced`: `semantic=0.35, entity=0.30, ttp=0.20, flow=0.10, time=0.05`\n"
+            "- `threat-hunt`: `ttp=0.45, semantic=0.35, flow=0.10, time=0.05, entity=0.05`\n"
+            "- `compromise-pivot`: `entity=0.45, time=0.30, semantic=0.15, flow=0.05, ttp=0.05`\n"
+            "- `false-positive`: `entity=0.40, ttp=0.25, semantic=0.20, flow=0.10, time=0.05`\n"
+            "- `semantic`: `semantic=0.60, flow=0.15, ttp=0.15, entity=0.05, time=0.05`\n\n"
+            "## Frequent Joins\n"
+            "- Join `alloydb.secops.detection_alerts` on `detection_reports.id = detection_alerts.investigation_id`\n"
+            "- Join `alloydb.secops.detection_entities` on `detection_reports.id = detection_entities.investigation_id`\n"
+        ),
+        "schema": [
+            {"name": "id", "dataType": "VARCHAR(64)", "metadataType": "STRING", "mode": "REQUIRED", "description": "Primary key investigation report ID."},
+            {"name": "display_name", "dataType": "TEXT", "metadataType": "STRING", "mode": "REQUIRED", "description": "Human-readable investigation title (indexed in GIN FTS)."},
+            {"name": "verdict", "dataType": "VARCHAR(32)", "metadataType": "STRING", "mode": "REQUIRED", "description": "Analyst/agent verdict (TRUE_POSITIVE, FALSE_POSITIVE, BENIGN, SUSPICIOUS)."},
+            {"name": "confidence", "dataType": "VARCHAR(32)", "metadataType": "STRING", "mode": "NULLABLE", "description": "Confidence level (HIGH, MEDIUM, LOW)."},
+            {"name": "summary", "dataType": "TEXT", "metadataType": "STRING", "mode": "NULLABLE", "description": "Executive summary of the investigation (indexed in GIN FTS)."},
+            {"name": "alert_ids", "dataType": "TEXT[]", "metadataType": "STRING", "mode": "REPEATED", "description": "Array of linked Chronicle/SOAR alert IDs (GIN indexed)."},
+            {"name": "investigation_steps", "dataType": "JSONB", "metadataType": "STRING", "mode": "NULLABLE", "description": "Structured JSONB array of executed investigation steps."},
+            {"name": "entities", "dataType": "JSONB", "metadataType": "STRING", "mode": "NULLABLE", "description": "GIN-indexed JSONB array of involved hosts, users, IPs, files, and domains."},
+            {"name": "markdown_report", "dataType": "TEXT", "metadataType": "STRING", "mode": "NULLABLE", "description": "Full Markdown investigation report text."},
+            {"name": "embedding", "dataType": "VECTOR(768)", "metadataType": "NUMBER", "mode": "REPEATED", "description": "768-dimensional Vertex AI text embedding indexed with HNSW (vector_cosine_ops)."},
+        ],
+    },
+    {
+        "entry_id": "alloydb_secops_detection_alerts",
+        "entry_type_id": "alloydb-pgvector-table",
+        "display_name": "alloydb.secops.detection_alerts",
+        "system": "ALLOYDB_POSTGRESQL",
+        "resource": "//alloydb.googleapis.com/projects/secops-demo-env/locations/us-central1/clusters/secops-alloydb-cluster/instances/secops-alloydb-primary/databases/postgres/tables/detection_alerts",
+        "description": "AlloyDB relational child table linking Chronicle SIEM / SOAR alerts and MITRE ATT&CK tactics/techniques to Markdown investigation reports.",
+        "connection_uri": "projects/secops-demo-env/locations/us-central1/clusters/secops-alloydb-cluster/instances/secops-alloydb-primary (host=34.70.211.60:5432, db=postgres)",
+        "guidelines": "Join to `detection_reports` on `detection_alerts.investigation_id = detection_reports.id`. Filter by `alert_id` or `mitre_techniques` overlap (`&&`).",
+        "overview": (
+            "# alloydb.secops.detection_alerts\n\n"
+            "Relational child table linking Chronicle SIEM / SOAR alerts (`alert_id`) and MITRE ATT&CK arrays (`mitre_tactics`, `mitre_techniques`) "
+            "to parent Markdown investigation reports in `detection_reports` via `investigation_id`."
+        ),
+        "schema": [
+            {"name": "id", "dataType": "SERIAL", "metadataType": "NUMBER", "mode": "REQUIRED", "description": "Surrogate primary key."},
+            {"name": "alert_id", "dataType": "VARCHAR(128)", "metadataType": "STRING", "mode": "REQUIRED", "description": "Chronicle SIEM or SOAR alert identifier (indexed)."},
+            {"name": "investigation_id", "dataType": "VARCHAR(64)", "metadataType": "STRING", "mode": "REQUIRED", "description": "Foreign key referencing detection_reports(id) ON DELETE CASCADE."},
+            {"name": "severity", "dataType": "VARCHAR(32)", "metadataType": "STRING", "mode": "NULLABLE", "description": "Alert severity (CRITICAL, HIGH, MEDIUM, LOW)."},
+            {"name": "mitre_tactics", "dataType": "TEXT[]", "metadataType": "STRING", "mode": "REPEATED", "description": "Array of MITRE ATT&CK tactic names/IDs."},
+            {"name": "mitre_techniques", "dataType": "TEXT[]", "metadataType": "STRING", "mode": "REPEATED", "description": "Array of MITRE ATT&CK technique IDs (e.g. T1059.001)."},
+        ],
+    },
+    {
+        "entry_id": "alloydb_secops_detection_entities",
+        "entry_type_id": "alloydb-pgvector-table",
+        "display_name": "alloydb.secops.detection_entities",
+        "system": "ALLOYDB_POSTGRESQL",
+        "resource": "//alloydb.googleapis.com/projects/secops-demo-env/locations/us-central1/clusters/secops-alloydb-cluster/instances/secops-alloydb-primary/databases/postgres/tables/detection_entities",
+        "description": "AlloyDB relational child table indexing extracted entities (Host, User, IP, File, Domain) and GTI threat intelligence per Markdown investigation report.",
+        "connection_uri": "projects/secops-demo-env/locations/us-central1/clusters/secops-alloydb-cluster/instances/secops-alloydb-primary (host=34.70.211.60:5432, db=postgres)",
+        "guidelines": "Use composite index `(entity_type, entity_value)` for compromise-pivot lookups and join `investigation_id = detection_reports.id`.",
+        "overview": (
+            "# alloydb.secops.detection_entities\n\n"
+            "Relational child table storing normalized indicators and entities (`entity_type`, `entity_value`) and GTI enrichment (`threat_intel`) "
+            "extracted from harvested Markdown investigation reports."
+        ),
+        "schema": [
+            {"name": "id", "dataType": "SERIAL", "metadataType": "NUMBER", "mode": "REQUIRED", "description": "Surrogate primary key."},
+            {"name": "investigation_id", "dataType": "VARCHAR(64)", "metadataType": "STRING", "mode": "REQUIRED", "description": "Foreign key referencing detection_reports(id) ON DELETE CASCADE."},
+            {"name": "entity_type", "dataType": "VARCHAR(32)", "metadataType": "STRING", "mode": "REQUIRED", "description": "Entity domain type (HOST, USER, IP, FILE, DOMAIN)."},
+            {"name": "entity_value", "dataType": "TEXT", "metadataType": "STRING", "mode": "REQUIRED", "description": "Normalized entity identifier (indexed with entity_type)."},
+            {"name": "threat_intel", "dataType": "JSONB", "metadataType": "STRING", "mode": "NULLABLE", "description": "GTI / VirusTotal enrichment JSONB object."},
+        ],
+    },
+    {
+        "entry_id": "neo4j_secops_knowledge_graph",
+        "entry_type_id": "neo4j-knowledge-graph",
+        "display_name": "neo4j.secops.knowledge_graph",
+        "system": "NEO4J",
+        "resource": "//neo4j.secops.internal/instances/34.85.131.164:7687/databases/neo4j/graphs/knowledge_graph",
+        "description": "Neo4j 5.20 Cypher property graph linking Investigation reports, Alerts, Cases, Hosts, Users, Files, Domains, and NetworkAddresses.",
+        "connection_uri": "bolt://34.85.131.164:7687 (container: neo4j_soc, image: neo4j:5.20.0-community)",
+        "guidelines": "Query `Host`, `User`, `File`, `Domain`, and `NetworkAddress` nodes by `.name` (without `user:`/`host:` prefix) and `Investigation`/`Alert`/`Case` nodes by `.id`.",
+        "overview": (
+            "# neo4j.secops.knowledge_graph\n\n"
+            "Neo4j 5.20 Cypher property graph ingested from `investigations/knowledge_graph.json` (`manage_neo4j.py`).\n\n"
+            "## Node Labels & Uniqueness Keys\n"
+            "- `(:Investigation {id})`, `(:Alert {id})`, `(:Case {id})`\n"
+            "- `(:Host {name})`, `(:User {name})`, `(:File {name})`, `(:Domain {name})`, `(:NetworkAddress {name})`\n"
+        ),
+        "schema": [
+            {"name": "Investigation", "dataType": "NODE_LABEL", "metadataType": "STRING", "mode": "REQUIRED", "description": "Investigation node constrained on unique `id` (`investigation_id_unique`)."},
+            {"name": "Alert", "dataType": "NODE_LABEL", "metadataType": "STRING", "mode": "REQUIRED", "description": "Alert node constrained on unique `id` (`alert_id_unique`)."},
+            {"name": "Case", "dataType": "NODE_LABEL", "metadataType": "STRING", "mode": "REQUIRED", "description": "SOAR Case node constrained on unique `id` (`case_id_unique`)."},
+            {"name": "Host", "dataType": "NODE_LABEL", "metadataType": "STRING", "mode": "REQUIRED", "description": "Endpoint/server node constrained on unique `name` (`host_id_unique`)."},
+            {"name": "User", "dataType": "NODE_LABEL", "metadataType": "STRING", "mode": "REQUIRED", "description": "Identity/account node constrained on unique `name` (`user_id_unique`)."},
+            {"name": "File", "dataType": "NODE_LABEL", "metadataType": "STRING", "mode": "REQUIRED", "description": "File/hash artifact node constrained on unique `name` (`file_id_unique`)."},
+            {"name": "Domain", "dataType": "NODE_LABEL", "metadataType": "STRING", "mode": "REQUIRED", "description": "DNS domain node constrained on unique `name` (`domain_id_unique`)."},
+            {"name": "NetworkAddress", "dataType": "NODE_LABEL", "metadataType": "STRING", "mode": "REQUIRED", "description": "IPv4/IPv6 address node constrained on unique `name` (`networkaddress_id_unique`)."},
+            {"name": "INVOLVES", "dataType": "RELATIONSHIP_TYPE", "metadataType": "STRING", "mode": "NULLABLE", "description": "Directed edge connecting (`Investigation` | `Alert` | `Case`) -> (`Host` | `User` | `File` | `Domain` | `NetworkAddress`)."},
+        ],
+    },
+    {
+        "entry_id": "elasticsearch_agentic_soc_runbooks",
+        "entry_type_id": "elasticsearch-bm25-index",
+        "display_name": "elasticsearch.secops.agentic_soc_runbooks",
+        "system": "ELASTICSEARCH",
+        "resource": "//elasticsearch.secops.internal/clusters/34.145.140.152:9200/indices/agentic-soc-runbooks",
+        "description": "Elasticsearch BM25 full-text index storing section-chunked Markdown investigation reports (`investigations/*.md`) and operational SOC runbooks (`rules_bank/run_books/**`).",
+        "connection_uri": "http://34.145.140.152:9200/agentic-soc-runbooks",
+        "guidelines": "Use `multi_match` on `['title^2', 'content']` for BM25 retrieval and filter or group by `doc_path` (`keyword`) to reconstruct full Markdown documents ordered by `chunk_index`.",
+        "overview": (
+            "# elasticsearch.secops.agentic_soc_runbooks\n\n"
+            "Elasticsearch BM25 index (`agentic-soc-runbooks`) managed by `manage_elasticsearch.py`, indexing section-aware chunks (`max_chunk_size=3000`, `overlap=300`) "
+            "from `investigations/*.md` and `rules_bank/run_books/`."
+        ),
+        "schema": [
+            {"name": "title", "dataType": "TEXT", "metadataType": "STRING", "mode": "REQUIRED", "description": "Markdown section heading title (`standard` analyzer)."},
+            {"name": "doc_name", "dataType": "KEYWORD", "metadataType": "STRING", "mode": "REQUIRED", "description": "Exact Markdown filename (`keyword` mapping)."},
+            {"name": "doc_path", "dataType": "KEYWORD", "metadataType": "STRING", "mode": "REQUIRED", "description": "Relative repository path to the Markdown report or runbook (`keyword` mapping)."},
+            {"name": "content", "dataType": "TEXT", "metadataType": "STRING", "mode": "REQUIRED", "description": "Section-chunked Markdown body (`max_chunk_size=3000`, `overlap=300`, `standard` analyzer)."},
+            {"name": "chunk_index", "dataType": "INTEGER", "metadataType": "NUMBER", "mode": "REQUIRED", "description": "0-based sequential chunk index within `doc_path`."},
+        ],
+    },
+)
+
+
+def register_multi_engine_investigation_stores_in_catalog(
+    *,
+    project_id: str = "dandye-0324-chronicle",
+    location: str = "us-central1",
+    entry_group_id: str = "secops-investigation-stores",
+    catalog_store: Any = None,
+) -> dict[str, Any]:
+    """Registers the 5 multi-engine SecOps investigation & runbook stores
+    (AlloyDB ``detection_reports`` / ``detection_alerts`` / ``detection_entities``,
+    Neo4j ``knowledge_graph``, and Elasticsearch ``agentic_soc_runbooks``) in a
+    Knowledge Catalog custom entry group.
+    """
+    registered_entry_names: list[str] = []
+    for spec in MULTI_ENGINE_SECOPS_INVESTIGATION_STORE_ENTRIES:
+        entry_name = (
+            f"projects/{project_id}/locations/{location}/entryGroups/"
+            f"{entry_group_id}/entries/{spec['entry_id']}"
+        )
+        registered_entry_names.append(entry_name)
+        if catalog_store is not None and hasattr(catalog_store, "upsert_custom_entry"):
+            catalog_store.upsert_custom_entry(
+                entry_name=entry_name,
+                spec=spec,
+            )
+
+    return {
+        "status": "ok",
+        "project_id": project_id,
+        "location": location,
+        "entry_group": f"projects/{project_id}/locations/{location}/entryGroups/{entry_group_id}",
+        "registered_count": len(registered_entry_names),
+        "registered_entries": registered_entry_names,
+    }
+
+
 __all__ = [
+    "MULTI_ENGINE_SECOPS_INVESTIGATION_STORE_ENTRIES",
     "diff_and_audit_catalog_enrichment",
     "download_catalog_entry_to_markdown",
     "enrich_catalog_entry_markdown",
     "publish_enriched_markdown_to_catalog",
+    "register_multi_engine_investigation_stores_in_catalog",
 ]

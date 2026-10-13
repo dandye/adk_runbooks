@@ -841,6 +841,33 @@ class FakeKnowledgeCatalogStore:
                 entry.guidelines = guidelines_content
         return self.lookup_entry(entry_name, view="FULL")
 
+    def upsert_custom_entry(self, entry_name: str, spec: dict[str, Any]) -> dict[str, Any]:
+        """Registers or updates a custom multi-engine entry (AlloyDB, Neo4j, Elasticsearch)."""
+        self._record("upsert_custom_entry", {"entry_name": entry_name, "entry_id": spec.get("entry_id")})
+        cols = [
+            FakeColumnSchema(
+                name=f["name"],
+                col_type=f.get("dataType", "STRING"),
+                mode=f.get("mode", "NULLABLE"),
+                description=f.get("description", ""),
+            )
+            for f in spec.get("schema_fields", [])
+        ]
+        entry = FakeCatalogEntry(
+            entry_name=entry_name,
+            resource=spec["resource"],
+            simple_name=spec["display_name"],
+            entry_type=spec["entry_type_id"],
+            entry_group_type="secops-investigation-stores",
+            system=spec["system"],
+            description=spec["description"],
+            overview=spec.get("overview_markdown") or spec.get("overview", ""),
+            schema=cols,
+            governance_aspect=dict(spec.get("governance", {})),
+        )
+        self.add_entry(entry)
+        return self.lookup_entry(entry_name, view="FULL")
+
     @staticmethod
     def _to_search_hit(entry: FakeCatalogEntry) -> dict[str, Any]:
         return {

@@ -10,10 +10,12 @@ from typing import Any
 import pytest
 
 from manager.tools.catalog_enrichment_tools import (
+    MULTI_ENGINE_SECOPS_INVESTIGATION_STORE_ENTRIES,
     diff_and_audit_catalog_enrichment,
     download_catalog_entry_to_markdown,
     enrich_catalog_entry_markdown,
     publish_enriched_markdown_to_catalog,
+    register_multi_engine_investigation_stores_in_catalog,
 )
 from manager.tools.docs_review_tools import (
     CANONICAL_KNOWLEDGE_CATALOG_GROUNDING_CATALOG,
@@ -197,3 +199,52 @@ def test_inspect_and_redline_catalog_context_and_source_contract():
         if "startIndex" in e
     ]
     assert starts == sorted(starts, reverse=True)
+
+
+def test_register_multi_engine_investigation_stores_in_catalog(
+    knowledge_catalog_store: FakeKnowledgeCatalogStore,
+):
+    """Verifies that ``register_multi_engine_investigation_stores_in_catalog`` registers
+    all 5 custom SecOps Markdown investigation report and runbook stores across
+    AlloyDB PostgreSQL (pgvector), Neo4j (property graph), and Elasticsearch (BM25),
+    and that ``search_entries`` and ``lookup_context`` return their schemas,
+    join keys, and Markdown overviews."""
+    assert len(MULTI_ENGINE_SECOPS_INVESTIGATION_STORE_ENTRIES) == 5
+
+    res = register_multi_engine_investigation_stores_in_catalog(
+        project_id="dandye-0324-chronicle",
+        location="us-central1",
+        entry_group_id="secops-investigation-stores",
+        catalog_store=knowledge_catalog_store,
+    )
+    assert res["status"] == "ok"
+    assert res["registered_count"] == 5
+    entry_names = res["registered_entries"]
+    assert [n.rsplit("/", 1)[-1] for n in entry_names] == [
+        "alloydb_secops_detection_reports",
+        "alloydb_secops_detection_alerts",
+        "alloydb_secops_detection_entities",
+        "neo4j_secops_knowledge_graph",
+        "elasticsearch_agentic_soc_runbooks",
+    ]
+
+    # Verify search_entries finds the custom AlloyDB, Neo4j, and Elasticsearch entries
+    hits = knowledge_catalog_store.search_entries(
+        query="detection_reports neo4j knowledge_graph elasticsearch runbooks"
+    )["results"]
+    hit_names = {h["displayName"] for h in hits}
+    assert "alloydb.secops.detection_reports" in hit_names
+    assert "neo4j.secops.knowledge_graph" in hit_names
+    assert "elasticsearch.secops.agentic_soc_runbooks" in hit_names
+
+    # Verify lookup_context returns rich YAML context across the custom entries
+    ctx = knowledge_catalog_store.lookup_context(
+        name="projects/dandye-0324-chronicle/locations/us-central1",
+        resources=entry_names,
+        options={"format": "yaml", "all_schema_fields": "true"},
+    )["context"]
+    assert "alloydb.secops.detection_reports" in ctx
+    assert "embedding" in ctx
+    assert "neo4j.secops.knowledge_graph" in ctx
+    assert "elasticsearch.secops.agentic_soc_runbooks" in ctx
+
