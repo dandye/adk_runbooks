@@ -758,7 +758,8 @@ def test_post_reviewed_doc_to_soar_case_sanitizes_and_posts_comment():
     assert "<REDACTED_DUMP_ARGS:sha256=" in posted_comment
 
 
-def test_grounded_soar_review_workflow_executes_end_to_end():
+def test_grounded_soar_review_workflow_executes_end_to_end(monkeypatch, tmp_path):
+    monkeypatch.setenv("REPORTS_DIR", str(tmp_path))
     from manager.tools.workflow_tools import run_grounded_soar_review_workflow
 
     out = run_grounded_soar_review_workflow(
@@ -12955,13 +12956,14 @@ class TestCycle28Yaral2DataTableExportAndPostAcceptWorkflow:
     assert suite["micro_f1"] == 1.0
 
   def test_grounded_soar_review_workflow_two_stage_and_semantic_branches_include_post_accept_readiness(
-      self,
+      self, monkeypatch, tmp_path
   ) -> None:
     """4. Verifies `GroundedSOARReviewInput`, `GroundedSOARReviewOutcome`, and
     `run_grounded_soar_review_workflow` populate `pre_accept_verdict`,
     `post_accept_verdict`, `pre_accept_readiness_score`,
     `post_accept_readiness_score`, `resolved_defect_count`, and readiness badge
     in `report_markdown` and `soar_comment` while preserving backward compatibility."""
+    monkeypatch.setenv("REPORTS_DIR", str(tmp_path))
     from manager.tools.docs_review_tools import EXTENDED_NIGHT2_BENCHMARK_SCENARIOS
     from manager.tools.workflow_tools import run_grounded_soar_review_workflow
     from manager.workflows.grounded_soar_review_workflow import (

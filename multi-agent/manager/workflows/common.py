@@ -74,7 +74,7 @@ from datetime import datetime
 
 def save_workflow_report_to_disk(report_name: str, report_markdown: str) -> str:
     """Writes workflow generated markdown reports to the reports directory."""
-    reports_dir = os.path.abspath(
+    reports_dir = os.environ.get("REPORTS_DIR", "").strip() or os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "..", "reports")
     )
     os.makedirs(reports_dir, exist_ok=True)
