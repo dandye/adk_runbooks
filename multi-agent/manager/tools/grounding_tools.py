@@ -59,7 +59,7 @@ DEVELOPER_KNOWLEDGE_TOOL_FILTER = [
     "search_documents",
     "get_documents",
 ]
-DEFAULT_WEB_SEARCH_VERIFIER_MODEL = "gemini-2.5-flash"
+DEFAULT_WEB_SEARCH_VERIFIER_MODEL = "gemini-3-flash-preview"
 
 DEFAULT_KNOWLEDGE_CATALOG_MCP_URL = "https://dataplex.googleapis.com/mcp"
 DEFAULT_KNOWLEDGE_CATALOG_DATA_PRODUCTS_MCP_URL = (
@@ -78,7 +78,7 @@ KNOWLEDGE_CATALOG_DATA_PRODUCTS_TOOL_FILTER = [
     "list_data_assets",
     "lookup_context",
 ]
-DEFAULT_KNOWLEDGE_CATALOG_DISCOVERY_MODEL = "gemini-2.5-flash"
+DEFAULT_KNOWLEDGE_CATALOG_DISCOVERY_MODEL = "gemini-3-flash-preview"
 
 
 def developer_knowledge_mcp_url() -> str:

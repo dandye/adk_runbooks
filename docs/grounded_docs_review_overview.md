@@ -78,7 +78,7 @@ flowchart TD
 | `DEVELOPERKNOWLEDGE_API_KEY` | unset | Optional API key sent as `X-Goog-Api-Key` (falls back to ADC bearer token when unset). |
 | `DEVELOPERKNOWLEDGE_QUOTA_PROJECT` | `$GCP_PROJECT_ID` | Sent as `X-Goog-User-Project`; requires `developerknowledge.googleapis.com` enabled. |
 | `DEVELOPERKNOWLEDGE_MCP_TOOLSET` | `1` | Set to `0` to disable the Developer Knowledge toolset. |
-| `WEB_SEARCH_VERIFIER_MODEL` | `gemini-2.5-flash` | Model used by the isolated `web_search_verifier` child agent. |
+| `WEB_SEARCH_VERIFIER_MODEL` | `gemini-3-flash-preview` | Model used by the isolated `web_search_verifier` child agent. |
 
 ---
 

@@ -115,7 +115,7 @@ from google.adk.tools.agent_tool import AgentTool
 
 web_search_verifier_agent = Agent(
     name="web_search_verifier",
-    model="gemini-2.5-flash",
+    model="gemini-3-flash-preview",
     instruction="Verify non-Google technical claims using Google Search and return URLs.",
     tools=[google_search],
 )

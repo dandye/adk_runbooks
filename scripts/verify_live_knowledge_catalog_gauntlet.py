@@ -74,13 +74,16 @@ def _extract_mcp_text(result: Any) -> str:
 
 
 async def run_gauntlet() -> dict[str, Any]:
-    os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "true")
-    os.environ.setdefault("GOOGLE_CLOUD_PROJECT", PROJECT_ID)
-    os.environ.setdefault("GOOGLE_CLOUD_LOCATION", LOCATION)
+    os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
+    os.environ["GOOGLE_CLOUD_PROJECT"] = PROJECT_ID
+    # Gemini 3 preview models require Vertex AI location="global"
+    os.environ["GOOGLE_CLOUD_LOCATION"] = "global"
 
     summary: dict[str, Any] = {
         "project_id": PROJECT_ID,
-        "location": LOCATION,
+        "dataplex_location": LOCATION,
+        "vertex_location": "global",
+        "model": "gemini-3-flash-preview",
         "stages": {},
     }
 
@@ -348,21 +351,21 @@ async def run_gauntlet() -> dict[str, Any]:
 
     # =========================================================================
     # STAGE 4: Live ADK AgentTool(knowledge_catalog_discovery_agent) Sub-Agent
-    #          Execution on Vertex AI (gemini-2.5-flash)
+    #          Execution on Vertex AI (gemini-3-flash-preview, location=global)
     # =========================================================================
     print("\n" + "=" * 78)
-    print("STAGE 4: Live ADK AgentTool(knowledge_catalog_discovery_agent) on Vertex AI")
+    print("STAGE 4: Live ADK AgentTool(knowledge_catalog_discovery_agent) on Vertex AI (gemini-3-flash-preview)")
     print("=" * 78)
     t3 = time.monotonic()
     kc_agent_toolset = init_knowledge_catalog_toolset(quota_project=PROJECT_ID)
     kc_discovery_tool = init_knowledge_catalog_discovery_agent_tool(
-        model="gemini-2.5-flash",
+        model="gemini-3-flash-preview",
         toolset=kc_agent_toolset,
     )
 
     parent_orchestrator = Agent(
         name="secops_multi_engine_orchestrator",
-        model="gemini-2.5-flash",
+        model="gemini-3-flash-preview",
         description="Parent SecOps orchestrator that delegates data/store discovery to knowledge_catalog_discovery_agent.",
         instruction=(
             "You are the Lead SecOps Architecture & Investigation Orchestrator.\n"
