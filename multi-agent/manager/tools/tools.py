@@ -556,6 +556,25 @@ def load_skill(skill_name: str) -> str:
     content = global_skill_registry.get_skill_content(skill_name)
     if not content.startswith("Error:"):
         record_skill_activation(skill_name)
+        meta = global_skill_registry.get_skill(skill_name)
+        assoc_tools = (
+            ", ".join(f"`{t}`" for t in meta.adk_additional_tools)
+            if meta and meta.adk_additional_tools
+            else "discover via `search_mcp_tools`"
+        )
+        content += (
+            "\n\n---\n"
+            "### MANDATORY PROGRESSIVE DISCLOSURE TOOL EXECUTION PROTOCOL\n"
+            "1. **NEVER** call SIEM, SOAR, GTI, or workflow tools (e.g. `get_case_full_details`, "
+            "`lookup_entity`, `run_*_workflow`) as direct top-level function calls — they are NOT "
+            "bound directly as top-level tools and calling them directly will raise a `ValueError`.\n"
+            "2. Before calling `execute_mcp_tool` for any tool, you **MUST** first call "
+            "`get_mcp_tool_schema(tool_name=...)` (or `search_mcp_tools(query=...)`) at least once "
+            "in the session to inspect its required parameter schema.\n"
+            "3. Then invoke the tool exclusively via `execute_mcp_tool(tool_name=\"<tool_name>\", "
+            "arguments={...})`.\n"
+            f"4. Candidate tools associated with `{skill_name}`: {assoc_tools}\n"
+        )
     return content
 
 
@@ -612,7 +631,12 @@ def search_mcp_tools(query: str = "", server: str = "") -> str:
             msg += " in registry."
         return msg
 
-    lines = ["### Discovered MCP Security Tools\n"]
+    lines = [
+        "### Discovered MCP Security Tools\n",
+        "**IMPORTANT**: Do NOT call the tools below as direct top-level function calls. "
+        "First inspect parameters with `get_mcp_tool_schema(tool_name=\"...\")`, then invoke via "
+        "`execute_mcp_tool(tool_name=\"...\", arguments={...})`.\n",
+    ]
     for t in tools:
         lines.append(f"- **`{t['name']}`** (`{t['server']}`): {t['description']}")
     return "\n".join(lines)
@@ -698,6 +722,11 @@ def load_persona_with_skills_catalog(
     catalog = global_skill_registry.get_skill_catalog(skill_names)
     if catalog:
         persona_description += "\n\n" + catalog
+
+    persona_description += (
+        "\n\n**Progressive Tool Protocol**: First call `load_skill`, then `get_mcp_tool_schema`, "
+        "then `execute_mcp_tool(tool_name, arguments)`. Never invoke discovered MCP tools directly."
+    )
 
     return persona_description
 

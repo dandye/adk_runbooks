@@ -182,6 +182,60 @@ class GeneratedScenarioBatch(BaseModel):
   scenarios: list[GeneratedScenarioItem]
 
 
+def _build_default_environment_context() -> str:
+  """Builds rich ground-truth environment context for scenario synthesis."""
+  lines = [
+      "Multi-Agent Topology:",
+      "- manager (Root Coordinator): delegates to specialist sub-agents.",
+      "- soc_analyst_tier1: Alert triage (suspicious login, impossible travel, malware, phishing, IDS/EDR alerts).",
+      "- incident_responder: Incident response & containment (compromised user, compromised endpoint, ransomware, credential reset/host isolation).",
+      "- threat_hunter: Proactive UDM/SIEM threat hunting, behavioral outlier & IOC prevalence sweeps.",
+      "- cti_researcher: Google Threat Intelligence (GTI) actor/campaign/IOC enrichment & threat profiles.",
+      "- detection_engineer: YARA-L 2.0 detection rule authoring, syntax validation, and coverage gap analysis.",
+      "",
+      "Representative SOAR Cases & Telemetry Entities in Environment:",
+      "- Cases: CASE-33279, CASE-1001, CASE-4012, CASE-5050, CASE-7700, CASE-8810, CASE-9002",
+      "- Hosts: corp-laptop-alice, prod-bastion-02, workstation-finance-01, dc-01.corp.internal, build-runner-04",
+      "- Users: alice.smith@example.com, bob.jones@example.com, carol.danvers@example.com, svc-ci-deploy@example.com",
+      "- External IPs & IOCs: 198.51.100.77, 203.0.113.88, 198.51.100.250, 45.33.32.156, evil-login-update.com",
+  ]
+  return "\n".join(lines)
+
+
+def save_generated_scenarios(
+    scenarios: dict[str, ConversationScenario],
+    output_path: Path,
+) -> None:
+  """Persists named ConversationScenario objects to a JSON dataset file (merging if present)."""
+  output_path.parent.mkdir(parents=True, exist_ok=True)
+  payload: dict[str, Any] = {}
+  if output_path.exists():
+    try:
+      payload = json.loads(output_path.read_text(encoding="utf-8"))
+    except Exception:
+      payload = {}
+  for sid, sc in scenarios.items():
+    payload[sid] = {
+        "starting_prompt": sc.starting_prompt,
+        "conversation_plan": sc.conversation_plan,
+        "user_persona": sc.user_persona.id if sc.user_persona else "EXPERT",
+    }
+  output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def load_scenarios_from_file(path: Path) -> dict[str, ConversationScenario]:
+  """Loads named ConversationScenario objects from a JSON dataset file."""
+  raw = json.loads(path.read_text(encoding="utf-8"))
+  out: dict[str, ConversationScenario] = {}
+  for sid, item in raw.items():
+    out[sid] = ConversationScenario(
+        starting_prompt=item["starting_prompt"],
+        conversation_plan=item["conversation_plan"],
+        user_persona=item.get("user_persona", "EXPERT"),
+    )
+  return out
+
+
 def generate_soc_scenarios(
     config: ConversationGenerationConfig,
     skills_dir: Optional[Path] = None,
@@ -189,24 +243,33 @@ def generate_soc_scenarios(
   """Dynamically synthesizes multi-turn SOC ConversationScenarios using Gemini."""
   registry = SkillRegistry(skills_dir=skills_dir)
   catalog_summary = registry.get_skill_catalog()
+  env_context = config.environment_context or _build_default_environment_context()
 
   prompt = (
       "You are designing realistic multi-turn Security Operations Center (SOC) "
       "conversation scenarios to test an autonomous multi-agent ADK runbook "
       "system.\n\n"
       f"Available Agent Skills & Runbooks:\n{catalog_summary}\n\n"
-      f"Environment Context:\n{config.environment_context or 'Chronicle SIEM, SOAR Case Management, Google Threat Intelligence (GTI), and Detection Engineering tools.'}\n\n"
-      f"Generation Goal:\n{config.generation_instruction or 'Create diverse multi-turn incident triage, threat hunting, compromised user/endpoint response, and adversarial premature-containment scenarios.'}\n\n"
+      f"Environment Context:\n{env_context}\n\n"
+      f"Generation Goal:\n{config.generation_instruction or 'Create diverse multi-turn incident triage, threat hunting, compromised user/endpoint response, YARA-L detection engineering, and adversarial premature-containment scenarios.'}\n\n"
       f"Generate exactly {config.count} distinct multi-turn scenarios. Each "
-      "scenario must have:\n"
-      "1. A realistic `starting_prompt` (for NOVICE personas, make the initial "
-      "prompt slightly incomplete so the agent has to ask clarifying questions "
-      "or guide the user; for EXPERT/EVALUATOR personas, start with a concrete "
-      "technical task).\n"
-      "2. A 3-step `conversation_plan` with specific case IDs (e.g. CASE-4012), "
-      "IPs, hostnames, usernames, or IOCs that the simulated user reveals or "
-      "pivots on across turns.\n"
-      "3. `persona_id` set to one of: NOVICE, EXPERT, EVALUATOR."
+      "scenario MUST follow these strict rules so the conversation lasts at "
+      "least 3 turns:\n"
+      "1. A unique snake_case `scenario_id`.\n"
+      "2. `starting_prompt` MUST ONLY state the initial Step 1 observation or "
+      "question. NEVER include Step 2 or Step 3 requests, hashes, or pivot "
+      "details in `starting_prompt`.\n"
+      "3. `conversation_plan` MUST be written in second person ('First, you... "
+      "Second, after the agent responds, you reveal... Third, once the agent "
+      "completes that, you ask...') with 3 sequential goals where Step 2 and "
+      "Step 3 introduce NEW information or a pivot (e.g., providing a newly "
+      "discovered SHA256 hash/IP/case ID, confirming out-of-band user compromise "
+      "to trigger incident containment, or asking for a formal case report) "
+      "that was withheld in Turn 1.\n"
+      "4. Include a line in `conversation_plan`: 'Do not end the conversation "
+      "until all 3 sequential requests have been made in separate turns, even "
+      "if the agent cannot find a specific record in the mock SIEM.'\n"
+      "5. `persona_id` set to one of: NOVICE, EXPERT, EVALUATOR."
   )
 
   client = genai.Client()
@@ -216,7 +279,7 @@ def generate_soc_scenarios(
       config=genai_types.GenerateContentConfig(
           response_mime_type="application/json",
           response_schema=GeneratedScenarioBatch,
-          temperature=0.4,
+          temperature=0.6,
       ),
   )
   batch = GeneratedScenarioBatch.model_validate_json(response.text or "{}")
@@ -272,7 +335,7 @@ async def run_simulated_session(
     user_simulator: Optional[UserSimulator] = None,
     simulator_model: str = "gemini-2.5-flash",
     max_turns: int = 4,
-    include_function_calls: bool = True,
+    include_function_calls: bool = False,
     session_service: Optional[BaseSessionService] = None,
     session_db_path: Optional[Path] = DEFAULT_SESSION_DB_PATH,
     trace_log_path: Path = DEFAULT_OTEL_JSONL,
@@ -378,34 +441,62 @@ async def run_simulated_session(
         agent_texts: list[str] = []
         turn_tools: list[str] = []
         turn_authors: list[str] = []
+        turn_error: Optional[str] = None
 
-        async for event in runner.run_async(
-            user_id=user_id,
-            session_id=session_id,
-            new_message=user_content,
-        ):
+        try:
+          async for event in runner.run_async(
+              user_id=user_id,
+              session_id=session_id,
+              new_message=user_content,
+          ):
+            if not invocation_id:
+              invocation_id = event.invocation_id
+              all_events.append(
+                  Event(
+                      content=user_content,
+                      author="user",
+                      invocation_id=invocation_id,
+                  )
+              )
+            all_events.append(event)
+            if event.author and event.author not in turn_authors:
+              turn_authors.append(event.author)
+            if event.content and event.content.parts:
+              for part in event.content.parts:
+                if getattr(part, "text", None) and not getattr(
+                    part, "thought", False
+                ):
+                  agent_texts.append(part.text)
+                if getattr(part, "function_call", None):
+                  fn_name = getattr(part.function_call, "name", "")
+                  if fn_name:
+                    turn_tools.append(fn_name)
+        except Exception as exc:
+          turn_error = f"{type(exc).__name__}: {exc}"
+          err_inv_id = invocation_id or f"err_{uuid.uuid4().hex[:8]}"
           if not invocation_id:
-            invocation_id = event.invocation_id
             all_events.append(
                 Event(
                     content=user_content,
                     author="user",
-                    invocation_id=invocation_id,
+                    invocation_id=err_inv_id,
                 )
             )
-          all_events.append(event)
-          if event.author and event.author not in turn_authors:
-            turn_authors.append(event.author)
-          if event.content and event.content.parts:
-            for part in event.content.parts:
-              if getattr(part, "text", None) and not getattr(
-                  part, "thought", False
-              ):
-                agent_texts.append(part.text)
-              if getattr(part, "function_call", None):
-                fn_name = getattr(part.function_call, "name", "")
-                if fn_name:
-                  turn_tools.append(fn_name)
+          err_text = (
+              f"I encountered a tool execution error ({turn_error}) and will "
+              "continue using progressive disclosure tools."
+          )
+          agent_texts.append(err_text)
+          all_events.append(
+              Event(
+                  content=genai_types.Content(
+                      role="model",
+                      parts=[genai_types.Part(text=err_text)],
+                  ),
+                  author="manager",
+                  invocation_id=err_inv_id,
+              )
+          )
 
         turn_latency_ms = round((time.perf_counter() - turn_start) * 1000.0, 2)
         combined_agent_text = "\n".join(agent_texts).strip()
@@ -416,6 +507,7 @@ async def run_simulated_session(
                 "agent_response": combined_agent_text,
                 "authors": turn_authors,
                 "tool_calls": turn_tools,
+                "error": turn_error,
                 "latency_ms": turn_latency_ms,
             }
         )
@@ -594,6 +686,18 @@ def main(argv: Optional[list[str]] = None) -> int:
       help="Optional natural language goal when --generate-scenarios > 0.",
   )
   parser.add_argument(
+      "--save-scenarios",
+      type=Path,
+      default=None,
+      help="Optional JSON path to persist synthesized ConversationScenarios.",
+  )
+  parser.add_argument(
+      "--scenarios-file",
+      type=Path,
+      default=None,
+      help="Optional JSON file path to load ConversationScenarios from.",
+  )
+  parser.add_argument(
       "--max-turns",
       type=int,
       default=3,
@@ -637,13 +741,43 @@ def main(argv: Optional[list[str]] = None) -> int:
     return 0
 
   selected_scenarios: dict[str, ConversationScenario] = {}
-  if args.generate_scenarios > 0:
+  if args.scenarios_file is not None:
+    loaded = load_scenarios_from_file(args.scenarios_file)
+    if (
+        args.scenarios
+        and args.scenarios.strip().lower() != "all"
+        and args.scenarios
+        != "novice_incremental_login_triage,expert_multi_agent_incident_pivot"
+    ):
+      for raw_id in args.scenarios.split(","):
+        sid = raw_id.strip()
+        if sid and sid in loaded:
+          selected_scenarios[sid] = loaded[sid]
+    else:
+      selected_scenarios.update(loaded)
+  elif args.generate_scenarios > 0:
     gen_cfg = ConversationGenerationConfig(
         count=args.generate_scenarios,
         generation_instruction=args.generation_instruction,
         model_name=args.simulator_model,
     )
-    selected_scenarios.update(generate_soc_scenarios(gen_cfg))
+    generated = generate_soc_scenarios(gen_cfg)
+    selected_scenarios.update(generated)
+    print("\n" + "=" * 78)
+    print(f"SYNTHESIZED {len(generated)} MULTI-TURN CONVERSATION SCENARIOS")
+    print("=" * 78)
+    for sid, sc in generated.items():
+      p_id = sc.user_persona.id if sc.user_persona else "EXPERT"
+      print(
+          f"\n* {sid} (persona={p_id})\n"
+          f"  Starting Prompt: {sc.starting_prompt}\n"
+          f"  Conversation Plan:\n    "
+          + "\n    ".join(sc.conversation_plan.splitlines()),
+          flush=True,
+      )
+    if args.save_scenarios is not None:
+      save_generated_scenarios(generated, args.save_scenarios)
+      print(f"\nSaved synthesized scenarios to {args.save_scenarios}", flush=True)
   else:
     if args.scenarios.strip().lower() == "all":
       selected_scenarios.update(DEFAULT_SOC_SCENARIOS)

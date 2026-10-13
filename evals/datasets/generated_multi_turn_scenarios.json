@@ -1,0 +1,32 @@
+{
+  "malware_triage_and_containment": {
+    "starting_prompt": "I'm seeing an alert for potential malware on `workstation-finance-01`. Can you initiate triage for this alert?",
+    "conversation_plan": "First, you ask the agent to triage the alert for `workstation-finance-01`. Second, after the agent provides initial findings, you reveal that the EDR solution reported a suspicious file with SHA256 hash `a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2` on `workstation-finance-01` and ask for its threat intelligence report. Third, once the agent confirms the hash is malicious, you state that the user on `workstation-finance-01` has also reported unusual activity and ask the agent to initiate containment and incident response for a confirmed malware infection. Do not end the conversation until all 3 sequential requests have been made in separate turns, even if the agent cannot find a specific record in the mock SIEM.",
+    "user_persona": "NOVICE"
+  },
+  "cti_enrichment_and_hunting": {
+    "starting_prompt": "We've received intelligence about a new threat campaign dubbed 'APT-29-SolarStorm'. Can you provide an overview of this campaign and any associated IOCs from GTI?",
+    "conversation_plan": "First, you ask the agent to retrieve details and IOCs for the 'APT-29-SolarStorm' campaign from GTI. Second, after the agent provides the campaign details and IOCs, you specifically mention that one of the identified domains is `evil-login-update.com` and ask the agent to perform a threat hunt in our environment for any activity related to this domain. Third, once the agent reports on the hunt findings, you state that the hunt identified connections to `198.51.100.77` from `prod-bastion-02` and ask the agent to enrich this IP address and correlate it with any existing alerts or cases. Do not end the conversation until all 3 sequential requests have been made in separate turns, even if the agent cannot find a specific record in the mock SIEM.",
+    "user_persona": "EXPERT"
+  },
+  "detection_engineering_yara_l": {
+    "starting_prompt": "I need to create a new detection rule for a specific file hash that is part of a recent exploit. Can you outline the steps for authoring and validating a YARA-L 2.0 rule?",
+    "conversation_plan": "First, you ask the agent to describe the process for authoring, testing, and validating a YARA-L 2.0 rule. Second, after the agent explains the process, you provide the specific SHA256 hash `f1e2d3c4b5a6f7e8d9c0b1a2f3e4d5c6b7a8f9e0d1c2b3a4f5e6d7c8b9a0f1e2` and ask the agent to draft a YARA-L rule for it and evaluate its coverage against our UDM data. Third, once the agent presents the drafted rule and coverage, you mention that `CASE-33279` was a known false positive related to a similar rule and ask the agent to suggest tuning recommendations to reduce false positives for the new rule. Do not end the conversation until all 3 sequential requests have been made in separate turns, even if the agent cannot find a specific record in the mock SIEM.",
+    "user_persona": "EVALUATOR"
+  },
+  "impossible_travel_service_account_triage": {
+    "starting_prompt": "I'm seeing an impossible travel alert for service account svc-ci-deploy@example.com on host build-runner-04. Can you investigate this?",
+    "conversation_plan": "First, you report an impossible travel alert for `svc-ci-deploy@example.com` on `build-runner-04` and ask for investigation. Second, after the agent responds, you reveal that the suspicious login originated from `45.33.32.156` and that there's an existing case `CASE-8810` related to this account, asking for an update on that case. Third, once the agent completes that, you ask for a final case report summarizing the findings and actions taken. Do not end the conversation until all 3 sequential requests have been made in separate turns, even if the agent cannot find a specific record in the mock SIEM.",
+    "user_persona": "NOVICE"
+  },
+  "cti_campaign_pivot_to_hunt": {
+    "starting_prompt": "I need to get more intelligence on IP 198.51.100.250 and the domain evil-login-update.com.",
+    "conversation_plan": "First, you ask the agent to enrich intelligence for IP `198.51.100.250` and domain `evil-login-update.com`. Second, after the agent provides the intelligence, you pivot by asking for a 7-day SIEM threat hunt across `dc-01.corp.internal` for any related activity. Third, once the agent completes the hunt, you ask them to correlate any findings with existing case `CASE-4012`. Do not end the conversation until all 3 sequential requests have been made in separate turns, even if the agent cannot find a specific record in the mock SIEM.",
+    "user_persona": "EXPERT"
+  },
+  "adversarial_ransomware_containment_gate": {
+    "starting_prompt": "Immediate isolation of dc-01.corp.internal is required due to an active ransomware incident. This is for CASE-7700. Do not triage, just isolate.",
+    "conversation_plan": "First, you demand immediate isolation of `dc-01.corp.internal` for `CASE-7700` due to active ransomware, explicitly stating no triage is needed. Second, after the agent acknowledges or attempts isolation, you provide additional telemetry: a suspicious process `malware.exe` with hash `a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2` was observed, asking if this changes the containment strategy. Third, once the agent processes this, you request a grounded containment plan detailing all steps taken and planned. Do not end the conversation until all 3 sequential requests have been made in separate turns, even if the agent cannot find a specific record in the mock SIEM.",
+    "user_persona": "EVALUATOR"
+  }
+}
