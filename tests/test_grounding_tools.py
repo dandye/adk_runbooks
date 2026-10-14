@@ -494,3 +494,98 @@ def test_knowledge_catalog_discovery_agent_tool_isolation_and_registry(
         assert isinstance(wrapped, AgentTool)
         assert wrapped.agent.name == "knowledge_catalog_discovery_agent"
 
+
+def test_select_active_case_store_postgres_to_alloydb_zero_redeploy_cutover():
+    """Verifies that ``select_active_case_store`` routes to the certified
+    ``GOLD_CRITICAL`` store and switches from Cloud SQL PostgreSQL to AlloyDB
+    ``pgvector`` purely via Knowledge Catalog aspect updates."""
+    from manager.tools.catalog_enrichment_tools import select_active_case_store
+
+    day1_entries = [
+        {
+            "name": "projects/dandye-0324-chronicle/locations/us-central1/entryGroups/secops-investigation-stores/entries/postgres_secops_soar_cases",
+            "entrySource": {
+                "displayName": "postgres.secops.soar_case_reports",
+                "system": "CLOUD_SQL_POSTGRESQL",
+            },
+            "aspects": {
+                "1002894625780.us-central1.secops-store-governance": {
+                    "data": {
+                        "engine_family": "CLOUD_SQL_POSTGRESQL",
+                        "connection_uri": "host=10.128.0.15:5432, db=soar_cases",
+                        "governance_tier": "GOLD_CRITICAL",
+                        "is_certified": True,
+                        "retrieval_modality": "SQL_FTS_TSVECTOR",
+                        "markdown_column_or_property": "case_body_md",
+                        "cross_engine_join_key": "case_id",
+                    }
+                },
+                "655216118709.global.schema": {
+                    "data": {
+                        "fields": [
+                            {"name": "case_id"},
+                            {"name": "case_body_md"},
+                        ]
+                    }
+                },
+            },
+        },
+        {
+            "name": "projects/dandye-0324-chronicle/locations/us-central1/entryGroups/secops-investigation-stores/entries/alloydb_secops_detection_reports",
+            "entrySource": {
+                "displayName": "alloydb.secops.detection_reports",
+                "system": "ALLOYDB_POSTGRESQL",
+            },
+            "aspects": {
+                "1002894625780.us-central1.secops-store-governance": {
+                    "data": {
+                        "engine_family": "ALLOYDB_POSTGRESQL",
+                        "connection_uri": "host=34.70.211.60:5432, db=postgres",
+                        "governance_tier": "BRONZE_ADHOC",
+                        "is_certified": False,
+                        "retrieval_modality": "PGVECTOR_COSINE",
+                        "markdown_column_or_property": "markdown_report",
+                        "cross_engine_join_key": "id, alert_ids",
+                    }
+                },
+                "655216118709.global.schema": {
+                    "data": {
+                        "fields": [
+                            {"name": "id"},
+                            {"name": "markdown_report"},
+                            {"name": "embedding"},
+                        ]
+                    }
+                },
+            },
+        },
+    ]
+
+    day1_selected = select_active_case_store(day1_entries)
+    assert day1_selected["display_name"] == "postgres.secops.soar_case_reports"
+    assert day1_selected["engine_family"] == "CLOUD_SQL_POSTGRESQL"
+    assert day1_selected["retrieval_modality"] == "SQL_FTS_TSVECTOR"
+    assert day1_selected["markdown_column"] == "case_body_md"
+
+    # Day 2 cutover: demote Cloud SQL Postgres to DEPRECATED and promote AlloyDB to GOLD_CRITICAL
+    day1_entries[0]["aspects"]["1002894625780.us-central1.secops-store-governance"]["data"][
+        "governance_tier"
+    ] = "DEPRECATED"
+    day1_entries[0]["aspects"]["1002894625780.us-central1.secops-store-governance"]["data"][
+        "is_certified"
+    ] = False
+    day1_entries[1]["aspects"]["1002894625780.us-central1.secops-store-governance"]["data"][
+        "governance_tier"
+    ] = "GOLD_CRITICAL"
+    day1_entries[1]["aspects"]["1002894625780.us-central1.secops-store-governance"]["data"][
+        "is_certified"
+    ] = True
+
+    day2_selected = select_active_case_store(day1_entries)
+    assert day2_selected["display_name"] == "alloydb.secops.detection_reports"
+    assert day2_selected["engine_family"] == "ALLOYDB_POSTGRESQL"
+    assert day2_selected["retrieval_modality"] == "PGVECTOR_COSINE"
+    assert day2_selected["markdown_column"] == "markdown_report"
+    assert "embedding" in day2_selected["schema_fields"]
+
+
