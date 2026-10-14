@@ -1,7 +1,7 @@
 ---
 type: BlogPost
-title: "Decoupling SecOps agents from hardcoded databases with Google Cloud Knowledge Catalog"
-description: "How we registered AlloyDB pgvector, Neo4j, and Elasticsearch investigation stores in Google Cloud Knowledge Catalog so deployed ADK agents discover SOAR case stores at runtime and survive database migrations without redeployment."
+title: "Knowledge Base Catalog Discovery for InfoSec: Decoupling SecOps agents from hardcoded databases"
+description: "How I registered AlloyDB pgvector, Neo4j, and Elasticsearch Markdown investigation stores in Google Cloud Knowledge Catalog so deployed ADK agents discover SOAR case stores at runtime and survive database migrations without redeployment."
 author: Dan Dye
 date: 2026-10-14
 branch: drive-mcp-runbooks__grounded-docs
@@ -11,35 +11,35 @@ related:
   - ./drive_runbooks_overview.md
 ---
 
-# Decoupling SecOps agents from hardcoded databases with Google Cloud Knowledge Catalog
+# Knowledge Base Catalog Discovery for InfoSec: Decoupling SecOps agents from hardcoded databases
 
 **Author:** Dan Dye  
 **Repository:** [`dandye/adk_runbooks`](https://github.com/dandye/adk_runbooks)
 
-When I first heard the name Google Cloud Knowledge Catalog, I assumed it was a document repository where you upload Markdown files, PDFs, and incident postmortems for retrieval-augmented generation.
+My first career was in Geoinformatics. In geospatial systems, you never stuff every dataset into one database. Satellite imagery lives in raster tile stores, parcel boundaries and road networks sit in PostGIS vector tables, sensor streams land in time-series tables, and hydrological networks live in graph engines. Because no single storage engine is good at every spatial query, geospatial architectures rely on a catalog service, such as an OGC Catalog Service for the Web (CSW) or a STAC registry. The catalog does not hold the pixels or the polygons. Instead, it tells client applications which data stores exist, what coordinate reference system and schema each store uses, how layers relate to one another, and which endpoint is the authoritative production layer.
 
-Then I pointed the Knowledge Catalog Remote MCP server at `https://dataplex.googleapis.com/mcp` against our `dandye-0324-chronicle` project and listed everything inside it. It returned 20 entries. Eleven were BigQuery `INFORMATION_SCHEMA` views, six were Vertex AI datasets, two were Cloud Pub/Sub topics, and one was our `chatops_warehouse.channel_events` BigQuery table. There was not a single Markdown investigation report in the results. Even more puzzling, the databases where I actually store our harvested security investigation reports, including AlloyDB with `pgvector`, Neo4j, and Elasticsearch, were completely missing.
+While building SecOps agents, I ended up recreating that exact multi-engine pattern for security knowledge bases. I have been harvesting Markdown investigation reports and SOC runbooks and jamming them into several different databases, including Cloud SQL PostgreSQL, AlloyDB with `pgvector`, Neo4j, and Elasticsearch, to test which engine handles each part of an investigation best. Relational and vector tables in AlloyDB are great for semantic similarity over Markdown narratives, Neo4j excels at multi-hop entity traversal across hosts and users, and Elasticsearch is fast at BM25 keyword matching over runbook sections.
 
-That moment cleared up a common misconception about what a data catalog does. Knowledge Catalog, formerly known as Dataplex Universal Catalog, does not store your documents or rows. It stores the map of your data estate: where each table, graph, or search index lives, what columns or node labels it exposes, which fields join across systems, and whether the asset is certified for production use.
+When I pointed the Google Cloud Knowledge Catalog Remote MCP server (`https://dataplex.googleapis.com/mcp`) at my `dandye-0324-chronicle` project to see what it knew about my environment, it returned 20 entries. Eleven were BigQuery `INFORMATION_SCHEMA` views, six were Vertex AI datasets, two were Cloud Pub/Sub topics, and one was my `chatops_warehouse.channel_events` BigQuery table. None of the databases holding my Markdown investigation reports showed up.
 
-Once you treat the catalog as a runtime service and schema registry rather than a document bucket, a major deployment headache disappears. In most agent codebases, database hostnames, table names, and SQL schemas are hardcoded directly inside Python tools or system prompts. If you migrate your historical SOAR case reports from a Cloud SQL PostgreSQL table to AlloyDB with `pgvector`, you have to rewrite the agent's tool code, update the prompt, run CI, and redeploy the Vertex AI Reasoning Engine.
+Once I registered those Markdown stores in Knowledge Catalog and attached schema and governance metadata to each entry, the catalog worked just like the spatial registries from my Geoinformatics days. In most agent codebases, database hostnames, table names, and SQL schemas are hardcoded directly inside Python tools or system prompts. If I migrate my historical SOAR case reports from a Cloud SQL PostgreSQL table to AlloyDB with `pgvector`, I normally have to rewrite the agent's tool code, update the prompt, run CI, and redeploy the Vertex AI Reasoning Engine.
 
-With Knowledge Catalog in the loop, the agent has no hardcoded database. At turn time, it queries the catalog to find the active `GOLD_CRITICAL` store for SOAR cases, reads the store's connection URI, schema, and join keys from the catalog's context payload, and runs the query. When the database moves from Postgres to AlloyDB, you update the catalog entry and leave the deployed agent untouched.
+With Knowledge Catalog in the loop, my agent has no hardcoded database. At turn time, it queries the catalog to find the active, production-certified store for SOAR cases, reads the store's connection URI, schema, and join keys from the catalog's context payload, and runs the query. When the database moves from Postgres to AlloyDB, I update the catalog entry and leave the deployed agent untouched.
 
-This post walks through how we registered our AlloyDB, Neo4j, and Elasticsearch investigation stores in Knowledge Catalog, the four Dataplex API traps we hit along the way, how an ADK agent discovers and queries related SOAR cases across all three engines at runtime, and how a database cutover works with zero agent redeployment.
+This post walks through how I registered my AlloyDB, Neo4j, and Elasticsearch Markdown stores in Knowledge Catalog, how I defined a custom governance tag (`GOLD_CRITICAL`) to mark the active production store, the four Dataplex API traps I hit along the way, and how my ADK agent discovers and queries related SOAR cases across engines at runtime with zero-redeploy database cutovers.
 
 ---
 
 ## Why AlloyDB, Neo4j, and Elasticsearch did not show up automatically
 
-When you enable Dataplex in a Google Cloud project, Knowledge Catalog automatically discovers native GCP analytics services that push metadata into Dataplex out of the box. In `dandye-0324-chronicle`, auto-discovery picked up our BigQuery datasets (`chatops_warehouse`), Pub/Sub topics (`chatops-inbound-events` and `chatops-normalized-events`), and Vertex AI datasets.
+When you enable Dataplex in a Google Cloud project, Knowledge Catalog automatically discovers native GCP analytics services that push metadata into Dataplex out of the box. In `dandye-0324-chronicle`, auto-discovery picked up my BigQuery datasets (`chatops_warehouse`), Pub/Sub topics (`chatops-inbound-events` and `chatops-normalized-events`), and Vertex AI datasets.
 
-It did not discover our three SecOps investigation stores for two reasons:
+It did not discover my SecOps Markdown stores for two reasons:
 
 1. **Databases inside a database cluster require table-level registration.** Even if an AlloyDB or Cloud SQL instance runs in the same project, Dataplex does not log into your PostgreSQL database over port `5432` to inspect schemas, `JSONB` columns, or `vector(768)` embeddings unless you run a metadata discovery job or register custom entries.
-2. **Self-managed engines on Compute Engine VMs or GKE are opaque to GCP control planes.** Our Neo4j 5.20 property graph (`bolt://34.85.131.164:7687`) and our Elasticsearch BM25 runbook index (`http://34.145.140.152:9200/agentic-soc-runbooks`) run inside containers. To Google Cloud IAM and Asset Inventory, they look like network ports on a VM.
+2. **Self-managed engines on Compute Engine VMs or GKE are opaque to GCP control planes.** My Neo4j 5.20 property graph (`bolt://34.85.131.164:7687`) and my Elasticsearch BM25 runbook index (`http://34.145.140.152:9200/agentic-soc-runbooks`) run inside containers. To Google Cloud IAM and Asset Inventory, they look like network ports on a VM.
 
-In our SecOps environment, a single investigation is split across all three engines so each engine handles the query shape it does best:
+In my SecOps environment, a single Markdown investigation is indexed across all three engines so each engine handles the query shape it does best:
 
 | Store entry in Knowledge Catalog | Engine | What it stores | Primary query pattern |
 | :--- | :--- | :--- | :--- |
@@ -49,17 +49,42 @@ In our SecOps environment, a single investigation is split across all three engi
 | `neo4j.secops.knowledge_graph` | Neo4j 5.20 | Cypher property graph connecting `:Investigation`, `:Alert`, and `:Case` nodes to `:Host`, `:User`, `:File`, `:Domain`, and `:NetworkAddress` via `[:INVOLVES]` | Multi-hop lateral movement and shared-entity blast radius traversal |
 | `elasticsearch.secops.agentic_soc_runbooks` | Elasticsearch | Section-chunked Markdown investigation reports and 63 operational SOC runbooks (`max_chunk_size=3000`, `overlap=300`) | BM25 lexical `multi_match` on `["title^2", "content"]` ordered by `chunk_index` |
 
-To make all five stores visible to our ADK agents through `https://dataplex.googleapis.com/mcp`, we created a custom entry group (`projects/dandye-0324-chronicle/locations/us-central1/entryGroups/secops-investigation-stores`), three custom entry types (`alloydb-pgvector-table`, `neo4j-knowledge-graph`, and `elasticsearch-bm25-index`), and a custom governance aspect type (`secops-store-governance`).
+To make all five stores visible to my ADK agents through `https://dataplex.googleapis.com/mcp`, I created a custom entry group (`projects/dandye-0324-chronicle/locations/us-central1/entryGroups/secops-investigation-stores`), three custom entry types (`alloydb-pgvector-table`, `neo4j-knowledge-graph`, and `elasticsearch-bm25-index`), and a custom governance aspect type (`secops-store-governance`).
 
 ---
 
-## Four Dataplex REST and MCP traps we hit in production
+## Defining custom governance tiers: What `GOLD_CRITICAL` actually means
+
+Because I was experimenting with several different databases holding the same Markdown investigation reports at the same time, simply registering all of them in Knowledge Catalog created a new problem: how does an agent know which database is the current production source of truth versus an experimental sandbox or an old database I am retiring?
+
+In Dataplex Knowledge Catalog, you attach structured metadata tags to entries using **AspectTypes**. I created a custom AspectType named `secops-store-governance` (`projects/dandye-0324-chronicle/locations/us-central1/aspectTypes/secops-store-governance`) that attaches operational routing metadata to every SecOps data store entry:
+
+- `engine_family`: Which database driver or query syntax the store uses (`"CLOUD_SQL_POSTGRESQL"`, `"ALLOYDB_POSTGRESQL"`, `"NEO4J"`, or `"ELASTICSEARCH"`).
+- `connection_uri`: The instance path, host, port, and database or index name.
+- `retrieval_modality`: How the agent should query the Markdown content (`"SQL_FTS_TSVECTOR"`, `"PGVECTOR_COSINE"`, `"CYPHER_GRAPH"`, or `"BM25_LEXICAL"`).
+- `markdown_column_or_property`: Which column or JSON field holds the Markdown body (for example, `case_body_md` in my older Postgres schema versus `markdown_report` in AlloyDB).
+- `cross_engine_join_key`: Which identifier links records across AlloyDB, Neo4j, and Elasticsearch (`"id, alert_ids"`).
+- `governance_tier` and `is_certified`: Custom lifecycle labels that tell the agent whether a store is active in production.
+
+`GOLD_CRITICAL` is **not** a built-in Google Cloud or Dataplex keyword. It is a custom enum value I defined inside `secops-store-governance`, patterned after the Medallion data-lakehouse naming convention (Bronze, Silver, Gold):
+
+| `governance_tier` value | `is_certified` | Meaning for my SecOps agents |
+| :--- | :---: | :--- |
+| **`GOLD_CRITICAL`** | `true` | **Active production store.** The store is backfilled, verified, and serves as the authoritative source of truth that agents query by default. |
+| **`BRONZE_ADHOC`** | `false` | **Experimental or staging store.** A candidate database (such as a new AlloyDB cluster being backfilled with embeddings) that agents ignore unless explicitly testing a migration. |
+| **`DEPRECATED`** | `false` | **Retired store.** A legacy database (such as an older Cloud SQL PostgreSQL table) that has been superseded and should no longer be queried. |
+
+Defining these three labels in a custom aspect gives me a clean switch for database migrations. When I finish backfilling a new database, I flip its `governance_tier` from `BRONZE_ADHOC` to `GOLD_CRITICAL` (`is_certified: true`) and mark the old database `DEPRECATED`.
+
+---
+
+## Four Dataplex REST and MCP traps I hit in production
 
 Registering custom entries for non-BigQuery stores and querying them through the hosted Dataplex MCP server exposed four concrete API constraints that are easy to miss in the documentation.
 
 ### 1. Custom `EntryType.typeAliases` must match Dataplex's internal allowlist
 
-When we first created the `alloydb-pgvector-table`, `neo4j-knowledge-graph`, and `elasticsearch-bm25-index` entry types via `POST https://dataplex.googleapis.com/v1/projects/dandye-0324-chronicle/locations/us-central1/entryTypes`, we passed descriptive aliases like `"GRAPH"` and `"SEARCH_INDEX"`. Dataplex rejected the request with `400 INVALID_ARGUMENT`.
+When I first created the `alloydb-pgvector-table`, `neo4j-knowledge-graph`, and `elasticsearch-bm25-index` entry types via `POST https://dataplex.googleapis.com/v1/projects/dandye-0324-chronicle/locations/us-central1/entryTypes`, I passed descriptive aliases like `"GRAPH"` and `"SEARCH_INDEX"`. Dataplex rejected the request with `400 INVALID_ARGUMENT`.
 
 Dataplex validates `typeAliases` against a fixed allowlist (`TABLE`, `DATASET`, `FILESET`, `CLUSTER`, `DATABASE`, `SERVICE`, `TOPIC`, `MODEL`, `VIEW`, `ROUTINE`, `ZONE`, `LAKE`). Mapping `alloydb-pgvector-table` to `["TABLE"]` and both `neo4j-knowledge-graph` and `elasticsearch-bm25-index` to `["DATASET"]` satisfied the validator while preserving the engine-specific `entryType` resource name.
 
@@ -73,7 +98,7 @@ If you populate `fields[].dataType` with `"VECTOR(768)"` or `"JSONB"` and omit `
 
 ### 3. Omit `fullyQualifiedName` on custom entries for non-GCP systems
 
-For native Google Cloud services, `fullyQualifiedName` follows a strict parser format such as `bigquery:dandye-0324-chronicle.chatops_warehouse.channel_events`. When we initially set `fullyQualifiedName` to `neo4j:secops.knowledge_graph` and `elasticsearch:secops.agentic_soc_runbooks`, Dataplex returned `400 INVALID_ARGUMENT: Invalid fully qualified name`.
+For native Google Cloud services, `fullyQualifiedName` follows a strict parser format such as `bigquery:dandye-0324-chronicle.chatops_warehouse.channel_events`. When I initially set `fullyQualifiedName` to `neo4j:secops.knowledge_graph` and `elasticsearch:secops.agentic_soc_runbooks`, Dataplex returned `400 INVALID_ARGUMENT: Invalid fully qualified name`.
 
 For custom entries representing external or self-managed engines (`system="ALLOYDB_POSTGRESQL"`, `system="NEO4J"`, or `system="ELASTICSEARCH"`), leave `fullyQualifiedName` unset and populate `entrySource.resource`, `entrySource.system`, and `entrySource.displayName` instead.
 
@@ -89,7 +114,7 @@ The REST documentation for `CatalogService.SearchEntries` and `CatalogService.Lo
 
 ## Walkthrough: Finding related SOAR cases without a hardcoded database
 
-Once our five stores were registered in `secops-investigation-stores` (defined in `MULTI_ENGINE_SECOPS_INVESTIGATION_STORE_ENTRIES` inside `multi-agent/manager/tools/catalog_enrichment_tools.py`), we wired our ADK agents to discover and query them at runtime.
+Once my five stores were registered in `secops-investigation-stores` (defined in `MULTI_ENGINE_SECOPS_INVESTIGATION_STORE_ENTRIES` inside `multi-agent/manager/tools/catalog_enrichment_tools.py`), I wired my ADK agents to discover and query them at runtime.
 
 ```mermaid
 flowchart TD
@@ -117,7 +142,7 @@ flowchart TD
     ORCH -->|"5c. BM25_LEXICAL playbook lookup"| ES
 ```
 
-To see how this works end to end, take a real investigation from our corpus: **`0a9a67ec-e42d-42e5-9c84-02305a04230a`** (*Volume Shadow Copy Creation*).
+To see how this works end to end, take a real investigation from my corpus: **`0a9a67ec-e42d-42e5-9c84-02305a04230a`** (*Volume Shadow Copy Creation*).
 
 In this case, user `frank.kolzig` executed `cmd /c vssadmin create shadow /for=C:` via `WmiPrvSE.exe` on the Active Directory domain controller `activedir.stackedpads.local` (`10.1.0.4`), mapped to MITRE ATT&CK `TA0006` and `T1003.003` (*OS Credential Dumping: NTDS.DIT*). Prior to the shadow copy command, `frank.kolzig` had multiple failed logon attempts from workstation `wrk-shasek.stackedpads.local` (`10.1.0.50`), followed by explicit credential logons initiated by `tim.smith`.
 
@@ -127,7 +152,7 @@ The analyst asks the agent to find related historical SOAR cases and determine w
 
 A wide-net semantic search (`pageSize=50`) plus a multi-entry `lookup_context` call returns several thousand tokens of raw JSON and YAML metadata. If the root orchestrator runs those calls directly in its main context window, every catalog search bloats the parent conversation history.
 
-In `multi-agent/manager/tools/grounding_tools.py`, we wrap a dedicated `knowledge_catalog_discovery_agent` inside an ADK `AgentTool` using `gemini-3-flash-preview` on the `global` Vertex AI endpoint:
+In `multi-agent/manager/tools/grounding_tools.py`, I wrap a dedicated `knowledge_catalog_discovery_agent` inside an ADK `AgentTool` using `gemini-3-flash-preview` on the `global` Vertex AI endpoint:
 
 ```python
 from google.adk.agents import Agent
@@ -195,7 +220,7 @@ That single call returns the five registered entries in `secops-investigation-st
 }
 ```
 
-Knowledge Catalog returns a unified `10,165`-byte YAML context payload containing the exact table schemas, the 5 multi-modal similarity profiles (`balanced`, `threat-hunt`, `compromise-pivot`, `false-positive`, `semantic`), and the cross-engine join keys. The sub-agent also inspects the `1002894625780.us-central1.secops-store-governance` aspect via `kcatalog_lookup_entry(view="ALL")`, which supplies:
+Knowledge Catalog returns a unified `10,165`-byte YAML context payload containing the exact table schemas, the 5 multi-modal similarity profiles (`balanced`, `threat-hunt`, `compromise-pivot`, `false-positive`, `semantic`), and the cross-engine join keys. The sub-agent also inspects my `1002894625780.us-central1.secops-store-governance` aspect via `kcatalog_lookup_entry(view="ALL")`, which supplies:
 - `engine_family`: `"ALLOYDB_POSTGRESQL"`, `"NEO4J"`, or `"ELASTICSEARCH"`
 - `connection_uri`: `"projects/secops-demo-env/locations/us-central1/clusters/secops-alloydb-cluster/instances/secops-alloydb-primary (host=34.70.211.60:5432, db=postgres)"`
 - `governance_tier`: `"GOLD_CRITICAL"`
@@ -255,7 +280,7 @@ Look at Rank 2 (`19231038-c0c7-4dad-a9b7-4a5cb5c14684`). Four of the five histor
 
 #### 2. Two-hop entity blast radius in Neo4j (`CYPHER_GRAPH`)
 
-Next, using the node labels and `[:INVOLVES]` relationship schema from the catalog's `neo4j.secops.knowledge_graph` entry (`bolt://34.85.131.164:7687`), the agent checks whether `wrk-shasek.stackedpads.local`, `activedir.stackedpads.local`, or `frank.kolzig` are linked to any other open `:Case` or `:Alert` nodes across the enterprise:
+Next, using the node labels and `[:INVOLVES]` relationship schema from the catalog's `neo4j.secops.knowledge_graph` entry (`bolt://34.85.131.164:7687`), the agent checks whether `wrk-shasek.stackedpads.local`, `activedir.stackedpads.local`, or `frank.kolzig` are linked to any other open `:Case` or `:Alert` nodes across the environment:
 
 ```cypher
 MATCH (i:Investigation {id: $investigation_id})-[:INVOLVES]->(e:Host|User|NetworkAddress)<-[:INVOLVES]-(related:Case|Investigation)
@@ -273,9 +298,9 @@ Finally, using the `elasticsearch.secops.agentic_soc_runbooks` catalog entry (`h
 
 ## Moving from Cloud SQL Postgres to AlloyDB with zero agent redeployment
 
-Now consider what happens when your infrastructure team migrates SOAR case reports from a legacy Cloud SQL PostgreSQL instance (`postgres.secops.soar_case_reports`) to AlloyDB with `pgvector` (`alloydb.secops.detection_reports`).
+Now consider what happens when I migrate my SOAR case Markdown reports from a Cloud SQL PostgreSQL instance (`postgres.secops.soar_case_reports`) to AlloyDB with `pgvector` (`alloydb.secops.detection_reports`).
 
-In `multi-agent/manager/tools/catalog_enrichment_tools.py`, `select_active_case_store()` resolves the active database connection, retrieval method, and column names directly from the Knowledge Catalog entries returned at turn time:
+In `multi-agent/manager/tools/catalog_enrichment_tools.py`, `select_active_case_store()` resolves the active database connection, retrieval method, and column names directly from the Knowledge Catalog entries returned at turn time by looking for the entry tagged `governance_tier == "GOLD_CRITICAL"` and `is_certified is True`:
 
 ```python
 def select_active_case_store(
@@ -328,7 +353,7 @@ def select_active_case_store(
     )
 ```
 
-During the database migration, the deployed Vertex AI Reasoning Engine (`projects/1002894625780/locations/us-central1/reasoningEngines/7232703485987258368`) does not change at all. Only the Knowledge Catalog governance aspects change:
+During the database migration, my deployed Vertex AI Reasoning Engine (`projects/1002894625780/locations/us-central1/reasoningEngines/7232703485987258368`) does not change at all. Only the `secops-store-governance` aspects in Knowledge Catalog change:
 
 | Catalog attribute | Day 1: Cloud SQL PostgreSQL | Day 2: AlloyDB `pgvector` cutover |
 | :--- | :--- | :--- |
@@ -340,17 +365,17 @@ During the database migration, the deployed Vertex AI Reasoning Engine (`project
 | Resolved `markdown_column` | `case_body_md` | `markdown_report` |
 | Deployed ADK agent code | Unchanged | **Unchanged (0 redeployments)** |
 
-When the data engineering pipeline finishes backfilling the 768-dimensional embeddings into AlloyDB, it patches the two catalog entries via `PATCH https://dataplex.googleapis.com/v1/{entry_name}?updateMask=aspects`.
+When my backfill script finishes loading the 768-dimensional embeddings into AlloyDB, it patches the two catalog entries via `PATCH https://dataplex.googleapis.com/v1/{entry_name}?updateMask=aspects`.
 
-In Stage 3 of our live verification suite (`scripts/verify_live_knowledge_catalog_gauntlet.py`), we measured the propagation delay between patching an entry aspect on `dataplex.googleapis.com/v1` and reading it back through `https://dataplex.googleapis.com/mcp` `lookup_context`. The update appeared immediately with zero caching lag. On the very next incident turn, the agent sees that `postgres.secops.soar_case_reports` is `DEPRECATED`, selects `alloydb.secops.detection_reports` as the active `GOLD_CRITICAL` store, and switches from `to_tsvector` lexical search to `pgvector` cosine similarity automatically.
+In Stage 3 of my live verification suite (`scripts/verify_live_knowledge_catalog_gauntlet.py`), I measured the propagation delay between patching an entry aspect on `dataplex.googleapis.com/v1` and reading it back through `https://dataplex.googleapis.com/mcp` `lookup_context`. The update appeared immediately with zero caching lag. On the very next incident turn, the agent sees that `postgres.secops.soar_case_reports` is `DEPRECATED`, selects `alloydb.secops.detection_reports` as the active `GOLD_CRITICAL` store, and switches from `to_tsvector` lexical search to `pgvector` cosine similarity automatically.
 
 ---
 
 ## Closing the loop safely: Enriching catalog metadata without leaking IoCs
 
-Agents do not only read from Knowledge Catalog. When an analyst or an agent discovers a verified cross-engine join path during an investigation, such as joining `alloydb.secops.detection_reports.alert_id` to `neo4j.secops.knowledge_graph` `:Alert` nodes, we want to save that join pattern back into the catalog's `655216118709.global.overview` aspect so future sessions do not have to rediscover it.
+Agents do not only read from Knowledge Catalog. When an analyst or an agent discovers a verified cross-engine join path during an investigation, such as joining `alloydb.secops.detection_reports.alert_id` to `neo4j.secops.knowledge_graph` `:Alert` nodes, I want to save that join pattern back into the catalog's `655216118709.global.overview` aspect so future sessions do not have to rediscover it.
 
-However, letting a security agent write directly into organization-wide catalog metadata introduces a data-leakage risk. If an agent copies a snippet from an active investigation into a catalog overview, it can easily paste a live SOAR case number (`Case 33269`), a victim workstation's private RFC 1918 IP address (`10.42.88.19`), an employee's email (`bruce.wayne@the.org`), or an OAuth bearer token (`ya29...`) into a catalog entry visible to every analyst and agent in the GCP project.
+However, letting a security agent write directly into project-wide catalog metadata introduces a data-leakage risk. If an agent copies a snippet from an active investigation into a catalog overview, it can easily paste a live SOAR case number (`Case 33269`), a victim workstation's private RFC 1918 IP address (`10.42.88.19`), an employee's email (`bruce.wayne@the.org`), or an OAuth bearer token (`ya29...`) into a catalog entry visible to every user and agent in the GCP project.
 
 To prevent that, `multi-agent/manager/tools/catalog_enrichment_tools.py` implements a 4-stage closed-loop enrichment pipeline with a deterministic **Pre-Promotion Semantic Leakage Critic**:
 
@@ -363,7 +388,7 @@ To prevent that, `multi-agent/manager/tools/catalog_enrichment_tools.py` impleme
 
 ## Putting the full stack through its paces in Argolis
 
-We verified all five stages against our live Argolis project (`dandye-0324-chronicle`) using `scripts/verify_live_knowledge_catalog_gauntlet.py`:
+I verified all five stages against my live Argolis project (`dandye-0324-chronicle`) using `scripts/verify_live_knowledge_catalog_gauntlet.py`:
 
 ```bash
 WORKTREE_DIR="/usr/local/google/home/dandye/Projects/adk_runbooks__worktrees/drive-mcp-runbooks__grounded-docs"
@@ -383,7 +408,7 @@ direnv exec "$WORKTREE_DIR" "$WORKTREE_DIR/.venv/bin/python" scripts/verify_live
 
 ## Takeaways
 
-1. **Use Knowledge Catalog as your agent's service registry, not a document folder.** Auto-discovery only sees native GCP analytics resources like BigQuery and Pub/Sub. Registering your operational databases, such as AlloyDB `pgvector` tables, Neo4j graphs, and Elasticsearch indices, as custom entries with a governance aspect gives your agents a single API to discover every store in your architecture.
-2. **Query the catalog for the active `GOLD_CRITICAL` store at runtime.** When agents resolve `connection_uri`, `retrieval_modality`, `schema`, and `cross_engine_join_key` from Knowledge Catalog at turn time, database migrations from PostgreSQL to AlloyDB become metadata updates rather than agent redeployments.
+1. **Use Knowledge Catalog as a spatial-style metadata registry for your Markdown knowledge bases.** Auto-discovery only sees native GCP analytics resources like BigQuery and Pub/Sub. When you jam Markdown investigation reports and runbooks into AlloyDB `pgvector` tables, Neo4j graphs, and Elasticsearch indices, registering those stores as custom entries gives your agents a single API to discover every knowledge base in your architecture.
+2. **Define a custom governance aspect (`GOLD_CRITICAL` vs. `BRONZE_ADHOC` vs. `DEPRECATED`) to decouple migrations from code.** `GOLD_CRITICAL` is simply a custom tag in my `secops-store-governance` AspectType. When agents resolve `connection_uri`, `retrieval_modality`, `schema`, and `cross_engine_join_key` from the active `GOLD_CRITICAL` entry at turn time, migrating from Cloud SQL PostgreSQL to AlloyDB becomes a metadata patch rather than an agent redeployment.
 3. **Isolate catalog discovery in a sub-agent on `gemini-3-flash-preview`.** Wrapping `kcatalog_search_entries` and `kcatalog_lookup_context` inside an `AgentTool` sub-agent keeps 50-entry search payloads out of the parent orchestrator's context window and returns a compact 6-item source contract in under 40 seconds.
 4. **Gate catalog write-backs with a deterministic IoC and PII critic.** Enriching catalog `overview` aspects with learned join paths makes every future session smarter, provided a pre-promotion regex critic blocks case IDs, private IPs, user emails, and tokens before `PATCH` executes.
