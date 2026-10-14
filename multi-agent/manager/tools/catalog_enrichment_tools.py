@@ -603,6 +603,79 @@ def register_multi_engine_investigation_stores_in_catalog(
     }
 
 
+def select_active_case_store(
+    catalog_entries: list[dict[str, Any]],
+    *,
+    allowed_engine_families: tuple[str, ...] = (
+        "CLOUD_SQL_POSTGRESQL",
+        "ALLOYDB_POSTGRESQL",
+    ),
+) -> dict[str, Any]:
+    """Selects the active ``GOLD_CRITICAL`` certified SOAR case/investigation
+    store from a list of Knowledge Catalog entries at runtime.
+
+    Decouples deployed ADK agents from hardcoded database hostnames, table names,
+    and retrieval modalities so migrating a backend store (e.g. from Cloud SQL
+    PostgreSQL to AlloyDB ``pgvector``) only updates Knowledge Catalog aspects
+    without requiring an agent redeployment.
+    """
+    for entry in catalog_entries:
+        aspects = entry.get("aspects") or {}
+        gov: dict[str, Any] = {}
+        for k, v in aspects.items():
+            if k.endswith(".secops-store-governance") or k == "governance_aspect":
+                gov = (v.get("data") if isinstance(v, dict) and "data" in v else v) or {}
+                break
+        if not gov and isinstance(entry.get("governance_aspect"), dict):
+            gov = entry["governance_aspect"]
+
+        engine_family = str(
+            gov.get("engine_family")
+            or entry.get("system")
+            or entry.get("entrySource", {}).get("system")
+            or ""
+        )
+        if (
+            gov.get("governance_tier") == "GOLD_CRITICAL"
+            and gov.get("is_certified") is True
+            and (not allowed_engine_families or engine_family in allowed_engine_families)
+        ):
+            schema_aspect = (
+                aspects.get("655216118709.global.schema")
+                or aspects.get("dataplex-types.global.schema")
+                or {}
+            )
+            schema_data = (
+                schema_aspect.get("data", {})
+                if isinstance(schema_aspect, dict)
+                else {}
+            )
+            raw_fields = schema_data.get("fields") or entry.get("schema") or []
+            schema_fields = [
+                f.get("name") for f in raw_fields if isinstance(f, dict) and f.get("name")
+            ]
+            display_name = (
+                entry.get("entrySource", {}).get("displayName")
+                or entry.get("display_name")
+                or entry.get("name", "").rsplit("/", 1)[-1]
+            )
+            return {
+                "entry_name": entry.get("name", ""),
+                "display_name": display_name,
+                "engine_family": engine_family,
+                "connection_uri": gov.get("connection_uri") or entry.get("connection_uri", ""),
+                "retrieval_modality": gov.get("retrieval_modality", "SQL_EXACT"),
+                "markdown_column": gov.get(
+                    "markdown_column_or_property", "markdown_report"
+                ),
+                "join_keys": gov.get("cross_engine_join_key", "id"),
+                "schema_fields": schema_fields,
+            }
+    raise LookupError(
+        "No certified GOLD_CRITICAL SOAR case store found in Knowledge Catalog entries."
+    )
+
+
 __all__ = [
     "MULTI_ENGINE_SECOPS_INVESTIGATION_STORE_ENTRIES",
     "diff_and_audit_catalog_enrichment",
@@ -610,4 +683,5 @@ __all__ = [
     "enrich_catalog_entry_markdown",
     "publish_enriched_markdown_to_catalog",
     "register_multi_engine_investigation_stores_in_catalog",
+    "select_active_case_store",
 ]
