@@ -248,3 +248,96 @@ def test_register_multi_engine_investigation_stores_in_catalog(
     assert "neo4j.secops.knowledge_graph" in ctx
     assert "elasticsearch.secops.agentic_soc_runbooks" in ctx
 
+
+def test_catalog_context_pass2_idempotency_and_adk_tool_schema():
+    """Verifies Pass 2 multi-pass idempotency on LocalGoogleDocsSimulator,
+    cross-document ToolContext state isolation in _load_doc_index_state,
+    include_catalog_context_stage_a in review_google_doc_with_stage_a, and
+    ADK FunctionTool schema declaration generation."""
+    from types import SimpleNamespace
+    from google.adk.tools.function_tool import FunctionTool
+    from manager.tools.docs_review_tools import (
+        LocalGoogleDocsSimulator,
+        _load_doc_index_state,
+        read_google_doc,
+        review_google_doc_with_stage_a,
+    )
+    from manager.tools.tools import (
+        audit_and_redline_catalog_context_in_doc as tool_audit_kc,
+        select_active_case_store as tool_select_store,
+    )
+
+    decl_kc = FunctionTool(tool_audit_kc)._get_declaration()
+    assert decl_kc is not None
+    assert decl_kc.name == "audit_and_redline_catalog_context_in_doc"
+    decl_store = FunctionTool(tool_select_store)._get_declaration()
+    assert decl_store is not None
+    assert decl_store.name == "select_active_case_store"
+
+    sim = LocalGoogleDocsSimulator()
+    flawed_doc = (
+        "# SecOps & Finance BigQuery Lakehouse Runbook\n\n"
+        "## 1. Executive Board Revenue & Telemetry Table Selection\n"
+        "For the confidential Board of Directors closing deck, query `analyst_sandbox.tmp_data_dump_v2_final_real` "
+        "because its column names match the finance schema. For external consulting shares, export directly from "
+        "`finance_mart.fin_monthly_closing_internal`.\n\n"
+        "## 2. Warehouse Query Execution\n"
+        "Run `SELECT event_id, principal_hostname FROM secops_datalake.udm_events_gold WHERE metadata_event_type = 'PROCESS_LAUNCH'` "
+        "across the full table history without a partition filter.\n\n"
+        "## 3. Cross-Table Join & Streaming Ingestion\n"
+        "Join `secops_datalake.udm_events_gold` to `secops_datalake.entity_graph_gold` using `ON udm.raw_host_uuid = eg.asset_tag` "
+        "and aggregate raw streaming rows directly without a `QUALIFY ROW_NUMBER()` deduplication CTE.\n\n"
+        "## 4. Column Profile & Quality Filtering\n"
+        "Filter UDM events using `WHERE legacy_unpopulated_tag = 'Completed'` even when column `null_ratio` is 0.88 "
+        "and `data_quality.status` is `FAILED`.\n\n"
+        "## 5. Discovery Protocol & Context Budget\n"
+        "Scope Context Set searches with `entrygroup=secops-context-set system=bigquery column:event_id`, pass 25 entry "
+        "names in a single `lookup_context` call, and execute SQL immediately without emitting a 6-item Source Contract.\n"
+    )
+    sim.create_or_reset_doc("DOC-KC-PASS2", "KC Pass 2 Idempotency Test", flawed_doc)
+    sim.create_or_reset_doc("DOC-OTHER", "Other Doc", "# Clean Document\nNo defects.\n")
+
+    ctx = SimpleNamespace(state={})
+    read_google_doc(
+        "DOC-OTHER",
+        tool_context=ctx,
+        token_source=lambda: "fake-token",
+        transport=sim.as_httpx_transport(),
+    )
+    assert ctx.state.get("doc_id") == "DOC-OTHER"
+    # Loading state for DOC-KC-PASS2 must NOT return DOC-OTHER's cached text from tool_context.state
+    leaked_text, _ = _load_doc_index_state("DOC-KC-PASS2", tool_context=ctx)
+    assert leaked_text is None
+
+    pass1 = tool_audit_kc(
+        document_id="DOC-KC-PASS2",
+        mode="APPLY",
+        docs_client_override=sim,
+        tool_context=ctx,
+    )
+    assert pass1["status"] == "ok"
+    assert pass1["defect_count"] == 5
+    assert pass1["skipped_existing_suggestion_count"] == 0
+    assert pass1["edits"]["applied_count"] == 5
+
+    pass2 = tool_audit_kc(
+        document_id="DOC-KC-PASS2",
+        mode="APPLY",
+        docs_client_override=sim,
+        tool_context=ctx,
+    )
+    assert pass2["status"] == "ok"
+    assert pass2["defect_count"] == 0
+    assert pass2["skipped_existing_suggestion_count"] == 5
+    assert pass2["edits"]["applied_count"] == 0
+
+    sim.create_or_reset_doc("DOC-KC-STAGE-A", "KC Stage A Test", flawed_doc)
+    stage_a_res = review_google_doc_with_stage_a(
+        "DOC-KC-STAGE-A",
+        include_catalog_context_stage_a=True,
+        docs_client_override=sim,
+    )
+    assert stage_a_res["status"] == "success"
+    assert stage_a_res["stage_a_catalog_context_count"] == 5
+
+

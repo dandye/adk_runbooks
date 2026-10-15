@@ -59,6 +59,25 @@ DOC_CONTRACTS: dict[str, DocContractSpec] = {
             "./evolution_ledger.md",
         ),
     ),
+    "docs/blog_knowledge_catalog_decoupled_soar_stores.md": DocContractSpec(
+        rel_path="docs/blog_knowledge_catalog_decoupled_soar_stores.md",
+        required_substrings=(
+            "Knowledge Catalog",
+            "GOLD_CRITICAL",
+            "select_active_case_store",
+            "alloydb.secops.detection_reports",
+            "neo4j.secops.knowledge_graph",
+            "elasticsearch.secops.agentic_soc_runbooks",
+            "655216118709.global.overview",
+            "655216118709.global.schema",
+        ),
+        forbidden_substrings=("tests/test_drive_runbooks.py",),
+        require_frontmatter_related=(
+            "./blog_grounded_google_docs_runbooks.md",
+            "./grounded_docs_review_overview.md",
+            "./drive_runbooks_overview.md",
+        ),
+    ),
     "docs/drive_runbooks_overview.md": DocContractSpec(
         rel_path="docs/drive_runbooks_overview.md",
         required_substrings=(
@@ -258,9 +277,9 @@ def verify_ground_truth_metrics(violations: list[str]) -> dict[str, Any]:
         violations.append(
             f"SkillRegistry categories count expected 8, got {len(categories)}"
         )
-    if len(unique_skills) not in (62, 63):
+    if len(unique_skills) not in (62, 63, 64):
         violations.append(
-            f"SkillRegistry unique skills count expected 62 or 63, got {len(unique_skills)}"
+            f"SkillRegistry unique skills count expected 62, 63, or 64, got {len(unique_skills)}"
         )
 
     if len(WORKFLOW_REGISTRY) != 36:

@@ -173,7 +173,7 @@ def probe_google_docs_review(
         return 1
     print(f"[docs]    Mapped {read_res['char_count']} UTF-16 character positions")
 
-    print("[docs] 2. Inserting 3 grounded SOC review comments (BEFORE edits)...")
+    print("[docs] 2. Inserting 4 grounded SOC review comments (BEFORE edits)...")
     comment_res = insert_doc_comments(
         target_doc_id,
         [

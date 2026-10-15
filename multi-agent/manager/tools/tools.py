@@ -37,15 +37,18 @@ from .grounding_tools import (
     init_web_search_agent_tool,
 )
 from .catalog_enrichment_tools import (
-    diff_and_audit_catalog_enrichment,
-    download_catalog_entry_to_markdown,
-    enrich_catalog_entry_markdown,
-    publish_enriched_markdown_to_catalog,
+    MULTI_ENGINE_SECOPS_INVESTIGATION_STORE_ENTRIES,
+    diff_and_audit_catalog_enrichment as _diff_and_audit_catalog_enrichment,
+    download_catalog_entry_to_markdown as _download_catalog_entry_to_markdown,
+    enrich_catalog_entry_markdown as _enrich_catalog_entry_markdown,
+    publish_enriched_markdown_to_catalog as _publish_enriched_markdown_to_catalog,
+    register_multi_engine_investigation_stores_in_catalog,
+    select_active_case_store as _select_active_case_store,
 )
 from .docs_review_tools import (
     CANONICAL_KNOWLEDGE_CATALOG_GROUNDING_CATALOG,
     KILL_CHAIN_STAGE_ORDER,
-    audit_and_redline_catalog_context_in_doc,
+    audit_and_redline_catalog_context_in_doc as _audit_and_redline_catalog_context_in_doc,
     find_catalog_context_and_source_contract_spans,
     inspect_catalog_context_and_source_contract_in_text,
     analyze_and_redline_detection_coverage_gaps_in_doc as _analyze_and_redline_detection_coverage_gaps_in_doc,
@@ -569,7 +572,7 @@ def create_google_doc(title: str, content: str, folder_id: str = "") -> dict:
   return _create_google_doc(title=title, content=content, folder_id=folder_id or None)
 
 
-def read_google_doc(document_id: str, tool_context: ToolContext = None) -> dict:
+def read_google_doc(document_id: str, tool_context: ToolContext | None = None) -> dict:
   """Reads a Google Doc via the Google Docs API v1 and caches its 1-based UTF-16 index map.
 
   Always call `read_google_doc` before calling `insert_doc_comments` or
@@ -632,7 +635,7 @@ def review_google_doc_with_stage_a(
     document_id: str,
     semantic_comments: str = "[]",
     semantic_edits: str = "[]",
-    tool_context: ToolContext = None,
+    tool_context: ToolContext | None = None,
 ) -> dict:
   """Executes the two-stage non-destructive review pipeline on a Google Doc.
 
@@ -666,7 +669,7 @@ def stage_runbook_update_as_google_doc(
     semantic_edits: str = "[]",
     lessons_learned_markdown: str = "",
     folder_id: str = "",
-    tool_context: ToolContext = None,
+    tool_context: ToolContext | None = None,
 ) -> dict:
   """Loads a Markdown runbook from SOC Runbooks, creates a Google Doc draft, and stages grounded red-lines.
 
@@ -733,7 +736,7 @@ def verify_and_redline_udm_queries_in_doc(
     diagnose_zero_hit_queries: bool = True,
     start_time: str = "2026-02-07T00:00:00Z",
     end_time: str = "2026-02-08T00:00:00Z",
-    tool_context: ToolContext = None,
+    tool_context: ToolContext | None = None,
 ) -> dict:
   """Verifies Chronicle UDM queries inside a Google Doc, optionally dry-runs and diagnoses 0-hit queries in SIEM, and stages red-lines.
 
@@ -769,7 +772,7 @@ def verify_and_redline_udm_queries_in_doc(
 def inspect_doc_suggestions(
     document_id: str,
     accept_suggestion_ids: str = "",
-    tool_context: ToolContext = None,
+    tool_context: ToolContext | None = None,
 ) -> dict:
   """Inspects pending Suggested Edits (`suggest.*`) in a Google Doc and returns a unified diff.
 
@@ -798,7 +801,7 @@ def inspect_doc_suggestions(
 def list_doc_comments(
     document_id: str,
     include_resolved: bool = True,
-    tool_context: ToolContext = None,
+    tool_context: ToolContext | None = None,
 ) -> dict:
   """Lists native review comments on a Google Doc via Google Drive API v3 `files.comments`.
 
@@ -839,7 +842,7 @@ def export_accepted_doc_to_markdown(
     publish_to_drive: bool = False,
     drive_title: str = "",
     folder_id: str = "",
-    tool_context: ToolContext = None,
+    tool_context: ToolContext | None = None,
 ) -> dict:
   """Exports a red-lined Google Doc with accepted Suggested Edits back to a canonical Markdown runbook.
 
@@ -916,7 +919,7 @@ def verify_and_redline_yaral2_rules_in_doc(
     synthesize_missing_runbook: bool = False,
     start_time: str = "2026-02-07T00:00:00Z",
     end_time: str = "2026-02-08T00:00:00Z",
-    tool_context: ToolContext = None,
+    tool_context: ToolContext | None = None,
 ) -> dict:
   """Lints single-event, multi-event, and non-existence YARA-L 2.0 (YL2) rules in a Google Doc, optionally compiles and retrohunts them in Chronicle SIEM, and stages red-lines.
 
@@ -1015,7 +1018,7 @@ def verify_and_redline_yaral2_rules_in_doc(
 def verify_and_redline_mitre_and_cve_in_doc(
     document_id: str,
     run_web_grounding_check: bool = False,
-    tool_context: ToolContext = None,
+    tool_context: ToolContext | None = None,
 ) -> dict:
   """Verifies MITRE ATT&CK technique/sub-technique IDs and CISA KEV CVE citations in a Google Doc and stages red-lines.
 
@@ -1046,7 +1049,7 @@ def verify_and_redline_mitre_and_cve_in_doc(
 
 def sanitize_and_redline_telemetry_in_doc(
     document_id: str,
-    tool_context: ToolContext = None,
+    tool_context: ToolContext | None = None,
 ) -> dict:
   """Scans a Google Doc for unredacted offensive telemetry payloads and leaked secrets and stages Suggested Edits.
 
@@ -1083,7 +1086,7 @@ def triage_and_redline_leaked_credentials_in_doc(
     synthesize_missing_revocation: bool = False,
     start_time: str = "2026-02-07T00:00:00Z",
     end_time: str = "2026-02-08T00:00:00Z",
-    tool_context: ToolContext = None,
+    tool_context: ToolContext | None = None,
 ) -> dict:
   """Triages leaked credentials in a Google Doc against Chronicle SIEM and stages non-destructive containment red-lines.
 
@@ -1131,7 +1134,7 @@ def audit_and_redline_claim_evidence_and_campaign_in_doc(
     run_live_siem_check: bool = False,
     start_time: str = "2026-02-07T00:00:00Z",
     end_time: str = "2026-02-08T00:00:00Z",
-    tool_context: ToolContext = None,
+    tool_context: ToolContext | None = None,
 ) -> dict:
   """Audits narrative analyst disposition claims, cross-case campaign correlation, and forensic evidence citations in a Google Doc.
 
@@ -1225,7 +1228,7 @@ def audit_and_redline_runbook_promotion_in_doc(
     validation_score_delta: float | None = None,
     tau_accept: float = 0.015,
     skill_impact_ledger_path: str = "",
-    tool_context: ToolContext = None,
+    tool_context: ToolContext | None = None,
 ) -> dict:
   """Audits a Google Doc runbook draft for WikiSkill + RRSI promotion readiness and stages Suggested Edits (`writeMode="SUGGEST"`).
 
@@ -1321,7 +1324,7 @@ def verify_and_redline_waved_ontology_in_doc(
     apply_redlines: bool = True,
     highlight_valid: bool = True,
     append_summary_section: bool = False,
-    tool_context: ToolContext = None,
+    tool_context: ToolContext | None = None,
 ) -> dict[str, Any]:
   """Verifies and red-lines 4-layer WAVED (Weakness -> Vulnerability -> Exploit -> Defense) cyber ontology graphs in a Google Doc.
 
@@ -1379,7 +1382,7 @@ def verify_google_doc_ioc_reputation_and_attribution(
     quota_project: str | None = None,
     transport: Any = None,
     docs_client_override: Any = None,
-    tool_context: ToolContext = None,
+    tool_context: ToolContext | None = None,
 ) -> dict[str, Any]:
   """Verifies and red-lines IoC reputation verdicts and threat attribution claims in a Google Doc against Google Threat Intelligence (GTI / VirusTotal) and Chronicle SIEM (H23).
 
@@ -1446,7 +1449,7 @@ def audit_and_redline_skillorchestra_routing_in_doc(
     runtime_metrics_json: str = "",
     apply_redlines: bool = True,
     append_appendix: bool = True,
-    tool_context: ToolContext = None,
+    tool_context: ToolContext | None = None,
 ) -> dict:
   """Audits and red-lines SkillOrchestra multi-model routing & Stage A/B token budgets in a Google Doc (H24).
 
@@ -1846,6 +1849,166 @@ def audit_capstone_production_governance_and_kev_exposure_in_doc(
   )
 
 
+def audit_and_redline_catalog_context_in_doc(
+    document_id: str = "",
+    mode: str = "DRY_RUN",
+    apply_redlines: bool | None = None,
+    doc_text_override: str | None = None,
+    docs_client_override: Any = None,
+    tool_context: ToolContext | None = None,
+) -> dict[str, Any]:
+  """Audits and red-lines Dataplex Knowledge Catalog grounding and Source Contract defects (KC-01..KC-05) in a Google Doc.
+
+  Detects and repairs ungrounded SQL/GQL/SPL queries lacking catalog lookup_context
+  citations (KC-01), deprecated legacy Dataplex search_entries calls (KC-02),
+  missing Engine/Resource/Schema/Freshness/Retention/Classification/Access-Policy
+  Source Contract headers (KC-03), schema column hallucination drift (KC-04), and
+  unredacted sensitive catalog PII/Auth columns (KC-05). Stages non-destructive
+  review comments first and back-to-front Suggested Edits (writeMode="SUGGEST")
+  second while skipping existing pending suggestion spans on Pass 2.
+
+  Args:
+      document_id (str): The Google Docs documentId.
+      mode (str): "DRY_RUN" (default) or "APPLY" / "SUGGEST" / "REDLINE".
+      apply_redlines (bool | None): Optional boolean override for mode="APPLY".
+      doc_text_override (str | None): Optional text override for offline evaluation.
+      docs_client_override (Any): Optional LocalGoogleDocsSimulator override.
+      tool_context (ToolContext | None): Optional ADK ToolContext.
+
+  Returns:
+      dict: {"status", "document_id", "mode", "defect_count", "defects",
+             "staged_comments", "staged_suggested_edits",
+             "skipped_existing_suggestion_count", "negative_controls_preserved",
+             "comments", "edits"}.
+  """
+  return _audit_and_redline_catalog_context_in_doc(
+      document_id=document_id,
+      mode=mode,
+      apply_redlines=apply_redlines,
+      doc_text_override=doc_text_override,
+      docs_client_override=docs_client_override,
+      tool_context=tool_context,
+  )
+
+
+def download_catalog_entry_to_markdown(
+    entry_name: str,
+    output_path: str = "",
+    catalog_store: Any = None,
+) -> dict[str, Any]:
+  """Downloads a Dataplex Knowledge Catalog entry and renders its Overview & Schema aspects to Markdown.
+
+  Args:
+      entry_name (str): Canonical Dataplex entry resource name or short entry_id.
+      output_path (str): Optional local file path to write the rendered Markdown.
+      catalog_store (Any): Optional custom catalog store dict for testing.
+
+  Returns:
+      dict: {"status", "entry_name", "entry_id", "markdown", "output_path", "entry"}.
+  """
+  return _download_catalog_entry_to_markdown(
+      entry_name=entry_name,
+      output_path=output_path or None,
+      catalog_store=catalog_store,
+  )
+
+
+def enrich_catalog_entry_markdown(
+    markdown_text: str,
+    telemetry_overrides: dict[str, Any] | None = None,
+) -> str:
+  """Enriches a Dataplex Knowledge Catalog Markdown document with SecOps join paths, PII tags, and sample queries.
+
+  Args:
+      markdown_text (str): Baseline catalog entry Markdown.
+      telemetry_overrides (dict[str, Any] | None): Optional custom enrichment metadata.
+
+  Returns:
+      str: Enriched Markdown document.
+  """
+  return _enrich_catalog_entry_markdown(
+      markdown_text=markdown_text,
+      telemetry_overrides=telemetry_overrides,
+  )
+
+
+def diff_and_audit_catalog_enrichment(
+    baseline_markdown: str,
+    candidate_markdown: str,
+    entry_name: str = "",
+) -> dict[str, Any]:
+  """Computes a unified diff between baseline and candidate Catalog Markdown and enforces the Catalog Enrichment Governance Gate.
+
+  Args:
+      baseline_markdown (str): Baseline catalog entry Markdown.
+      candidate_markdown (str): Candidate enriched catalog entry Markdown.
+      entry_name (str): Optional Dataplex entry name override.
+
+  Returns:
+      dict: {"status", "entry_name", "promotion_ready", "blocking_reasons", "unified_diff", ...}.
+  """
+  return _diff_and_audit_catalog_enrichment(
+      baseline_markdown=baseline_markdown,
+      candidate_markdown=candidate_markdown,
+      entry_name=entry_name,
+  )
+
+
+def publish_enriched_markdown_to_catalog(
+    entry_name: str,
+    baseline_markdown: str,
+    enriched_markdown: str,
+    mode: str = "DRY_RUN",
+    catalog_store: Any = None,
+) -> dict[str, Any]:
+  """Publishes audited enriched Markdown back to Dataplex Knowledge Catalog via entries.patch (updateMask=aspects).
+
+  Args:
+      entry_name (str): Canonical Dataplex entry resource name or short entry_id.
+      baseline_markdown (str): Baseline catalog entry Markdown.
+      enriched_markdown (str): Candidate enriched catalog entry Markdown.
+      mode (str): "DRY_RUN" (default) or "APPLY".
+      catalog_store (Any): Optional custom catalog store dict for testing.
+
+  Returns:
+      dict: {"status", "mode", "entry_name", "audit", "patch_request", "updated_entry"}.
+  """
+  return _publish_enriched_markdown_to_catalog(
+      entry_name=entry_name,
+      baseline_markdown=baseline_markdown,
+      enriched_markdown=enriched_markdown,
+      mode=mode,
+      catalog_store=catalog_store,
+  )
+
+
+def select_active_case_store(
+    logical_capability: str = "case_management_store",
+    target_engine: str | None = None,
+    catalog_entries: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+  """Resolves the active backing store for a logical SecOps capability from Dataplex Knowledge Catalog metadata.
+
+  Enables zero-redeploy cutovers across PostgreSQL, AlloyDB, Spanner, Neo4j, and
+  Elasticsearch by inspecting catalog Source Contract metadata rather than
+  hardcoding engine connection strings in agent prompts.
+
+  Args:
+      logical_capability (str): Logical capability name (default "case_management_store").
+      target_engine (str | None): Optional preferred engine override (e.g. "ALLOYDB", "SPANNER_GRAPH").
+      catalog_entries (list[dict[str, Any]] | None): Optional catalog entries list override.
+
+  Returns:
+      dict: {"status", "logical_capability", "selected_entry_id", "selected_engine",
+             "connection_uri", "query_dialect", "source_contract", ...}.
+  """
+  return _select_active_case_store(
+      logical_capability=logical_capability,
+      target_engine=target_engine,
+      catalog_entries=catalog_entries,
+  )
+
+
 def get_agent_tools():
   """Initializes and returns MCP toolsets and progressive discovery tools.
 
@@ -1983,6 +2146,7 @@ def get_agent_tools():
   wrapped_publish_enriched_markdown_to_catalog = instrument_tool(
       publish_enriched_markdown_to_catalog
   )
+  wrapped_select_active_case_store = instrument_tool(select_active_case_store)
 
   # Wrap progressive MCP discovery meta-tools
   wrapped_search_mcp_tools = instrument_tool(search_mcp_tools)
@@ -2043,6 +2207,7 @@ def get_agent_tools():
       wrapped_enrich_catalog_entry_markdown,
       wrapped_diff_and_audit_catalog_enrichment,
       wrapped_publish_enriched_markdown_to_catalog,
+      wrapped_select_active_case_store,
       wrapped_get_current_time,
       wrapped_read_file_content,
       wrapped_load_skill,
@@ -2081,6 +2246,7 @@ __all__ = [
     "format_soar_playbook_actuation_safety_appendix",
     "audit_soar_playbook_actuation_safety_in_doc",
     "publish_enriched_markdown_to_catalog",
+    "select_active_case_store",
     "synthesize_master_secops_doc_readiness",
     "audit_master_secops_doc_readiness_in_doc",
     "generate_master_evolution_synthesis_report",

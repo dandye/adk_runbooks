@@ -2354,7 +2354,7 @@ def _load_doc_index_state(
 ) -> tuple[str | None, list[int] | None]:
     if tool_context is not None:
         state = getattr(tool_context, "state", None)
-        if isinstance(state, dict):
+        if isinstance(state, dict) and state.get("doc_id") == document_id:
             plain_text = state.get("doc_plain_text")
             index_map = state.get("doc_index_map")
             if plain_text is not None and index_map is not None:
@@ -2858,7 +2858,7 @@ def validate_url_against_domain_allowlist(
 
 def find_deterministic_indicator_spans(
     plain_text: str,
-    index_map: list[int],
+    index_map: list[int] | None = None,
     *,
     trusted_domains: tuple[str, ...] = DEFAULT_TRUSTED_DOC_DOMAINS,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -2870,7 +2870,11 @@ def find_deterministic_indicator_spans(
     """
     comments: list[dict[str, Any]] = []
     edits: list[dict[str, Any]] = []
-    if not plain_text or not index_map:
+    if not plain_text:
+        return comments, edits
+    if index_map is None:
+        index_map = _build_utf16_index_map(plain_text)
+    if not index_map:
         return comments, edits
 
     for match in _LIVE_URL_RE.finditer(plain_text):
@@ -16867,6 +16871,7 @@ def review_google_doc_with_stage_a(
     include_master_synthesis_stage_a: bool = False,
     include_yaral2_data_table_export_stage_a: bool = False,
     include_capstone_production_governance_stage_a: bool = False,
+    include_catalog_context_stage_a: bool = False,
     verify_yaral2_meta_mitre: bool = False,
     synthesize_yaral2_missing_meta: bool = False,
     verify_yaral2_meta_runbook: bool = False,
@@ -17346,6 +17351,39 @@ def review_google_doc_with_stage_a(
                 deduped_capstone_production_governance_edits.append(e_item)
                 existing_edit_spans.append(e_span)
 
+    stage_a_catalog_context_count = 0
+    deduped_catalog_context_comments: list[dict[str, Any]] = []
+    deduped_catalog_context_edits: list[dict[str, Any]] = []
+    if include_catalog_context_stage_a:
+        kc_spans = find_catalog_context_and_source_contract_spans(
+            plain_text, index_map=index_map
+        )
+        stage_a_catalog_context_count = len(kc_spans)
+        for kc_item in kc_spans:
+            c_span = (int(kc_item["start_index"]), int(kc_item["end_index"]))
+            if not any(_spans_overlap(c_span, ex) for ex in existing_comment_spans):
+                deduped_catalog_context_comments.append(
+                    {
+                        "rule_id": kc_item["rule_id"],
+                        "start_index": int(kc_item["start_index"]),
+                        "end_index": int(kc_item["end_index"]),
+                        "quote": kc_item["quote"],
+                        "comment": kc_item["comment"],
+                    }
+                )
+                existing_comment_spans.append(c_span)
+            if not any(_spans_overlap(c_span, ex) for ex in existing_edit_spans):
+                deduped_catalog_context_edits.append(
+                    {
+                        "rule_id": kc_item["rule_id"],
+                        "start_index": int(kc_item["start_index"]),
+                        "end_index": int(kc_item["end_index"]),
+                        "quote": kc_item["quote"],
+                        "replacement": kc_item["replacement"],
+                    }
+                )
+                existing_edit_spans.append(c_span)
+
     raw_all_comments = (
         deduped_credential_containment_comments
         + deduped_telemetry_comments
@@ -17365,6 +17403,7 @@ def review_google_doc_with_stage_a(
         + deduped_master_synthesis_comments
         + deduped_yaral2_data_table_export_comments
         + deduped_capstone_production_governance_comments
+        + deduped_catalog_context_comments
         + stage_b_comments
     )
     raw_all_edits = (
@@ -17386,6 +17425,7 @@ def review_google_doc_with_stage_a(
         + deduped_master_synthesis_edits
         + deduped_yaral2_data_table_export_edits
         + deduped_capstone_production_governance_edits
+        + deduped_catalog_context_edits
         + stage_b_edits
     )
 
@@ -17469,6 +17509,7 @@ def review_google_doc_with_stage_a(
         "stage_a_yaral2_data_table_export_defects": stage_a_yaral2_data_table_export_count,
         "stage_a_capstone_production_governance_count": stage_a_capstone_production_governance_count,
         "stage_a_capstone_production_governance_defects": stage_a_capstone_production_governance_count,
+        "stage_a_catalog_context_count": stage_a_catalog_context_count,
         "stage_a_italic_regex_count": stage_a_italic_regex_count,
         "waved_ontology_verification": {
             "status": (
@@ -18453,7 +18494,10 @@ def export_accepted_doc_to_markdown(
 
     saved_path: str | None = None
     if output_path and output_path.strip():
-        out_file = Path(output_path.strip()).resolve()
+        raw_out = Path(output_path.strip())
+        if ".." in raw_out.parts:
+            raise ValueError(f"Path traversal ('..') is not permitted in output_path: {output_path!r}")
+        out_file = raw_out.resolve()
         out_file.parent.mkdir(parents=True, exist_ok=True)
         out_file.write_text(accepted_markdown, encoding="utf-8")
         saved_path = str(out_file)
@@ -22862,7 +22906,10 @@ def append_wikiskill_impact_log(
     """Appends a WikiSkill + RRSI promotion or rollback record to ``skill-impact.md``."""
     from datetime import datetime, timezone
 
-    target = Path(ledger_path.strip()).resolve()
+    raw_ledger = Path(ledger_path.strip())
+    if ".." in raw_ledger.parts:
+        raise ValueError(f"Path traversal ('..') is not permitted in ledger_path: {ledger_path!r}")
+    target = raw_ledger.resolve()
     target.parent.mkdir(parents=True, exist_ok=True)
     header = (
         "# WikiSkill & RRSI Runbook Promotion Impact Ledger\n\n"
@@ -40609,6 +40656,7 @@ def audit_and_redline_catalog_context_in_doc(
 
     doc_text = doc_text_override
     loaded_index_map: list[int] | None = None
+    pending_spans: list[tuple[int, int]] = []
     if doc_text is None and document_id:
         read_res = read_google_doc(
             document_id,
@@ -40626,13 +40674,26 @@ def audit_and_redline_catalog_context_in_doc(
             doc_text = str(read_res.get("content") or read_res.get("text") or "")
         if state_map is not None:
             loaded_index_map = state_map
+        pending_spans = _load_doc_pending_suggestion_spans(
+            document_id, tool_context=tool_context
+        )
 
     text_val = str(doc_text or "")
     idx_map = loaded_index_map if loaded_index_map is not None else _build_utf16_index_map(text_val)
     inspection = inspect_catalog_context_and_source_contract_in_text(
         text_val, index_map=idx_map
     )
-    findings = list(inspection["defects"])
+    raw_findings = list(inspection["defects"])
+    findings: list[dict[str, Any]] = []
+    skipped_existing_suggestion_count = 0
+    for f in raw_findings:
+        f_span = (int(f["start_index"]), int(f["end_index"]))
+        if pending_spans and any(
+            _spans_overlap(f_span, p_span) for p_span in pending_spans
+        ):
+            skipped_existing_suggestion_count += 1
+            continue
+        findings.append(f)
 
     staged_comments = [
         {
@@ -40687,6 +40748,7 @@ def audit_and_redline_catalog_context_in_doc(
         "defects": findings,
         "staged_comments": staged_comments,
         "staged_suggested_edits": staged_suggested_edits,
+        "skipped_existing_suggestion_count": skipped_existing_suggestion_count,
         "negative_controls_preserved": inspection["negative_controls_preserved"],
         "comments": comments_res,
         "edits": edits_res,

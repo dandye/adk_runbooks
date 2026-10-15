@@ -19,65 +19,8 @@ from .sub_agents.detection_engineer import agent as detection_engineer_agent_mod
 from .sub_agents.llm_judge import agent as llm_judge_agent_module
 
 from .tools.tools import (
-    KILL_CHAIN_STAGE_ORDER,
-    get_current_time,
-    write_report,
     get_agent_tools,
     load_persona_with_skills_catalog,
-    read_file_content,
-    load_skill,
-    list_available_skills,
-    search_mcp_tools,
-    get_mcp_tool_schema,
-    execute_mcp_tool,
-    create_google_doc,
-    read_google_doc,
-    insert_doc_comments,
-    propose_doc_suggested_edits,
-    review_google_doc_with_stage_a,
-    stage_runbook_update_as_google_doc,
-    post_reviewed_doc_to_soar_case,
-    verify_and_redline_udm_queries_in_doc,
-    verify_and_redline_yaral2_rules_in_doc,
-    verify_and_redline_mitre_and_cve_in_doc,
-    verify_and_redline_waved_ontology_in_doc,
-    verify_google_doc_ioc_reputation_and_attribution,
-    find_waved_ontology_spans,
-    analyze_waved_ontology_graph,
-    find_yaral2_temporal_and_sliding_window_spans,
-    infer_yaral2_event_var_kill_chain_stage,
-    evaluate_yaral2_temporal_sequence,
-    sanitize_and_redline_telemetry_in_doc,
-    triage_and_redline_leaked_credentials_in_doc,
-    audit_and_redline_claim_evidence_and_campaign_in_doc,
-    analyze_and_redline_detection_coverage_gaps_in_doc,
-    audit_and_redline_runbook_promotion_in_doc,
-    inspect_yaral2_entity_graph_and_criticality_in_text,
-    audit_yaral2_entity_graph_and_criticality_in_doc,
-    inspect_soar_playbook_actuation_safety_in_text,
-    audit_soar_playbook_actuation_safety_in_doc,
-    synthesize_master_secops_doc_readiness,
-    audit_master_secops_doc_readiness_in_doc,
-    generate_master_evolution_synthesis_report,
-    inspect_yaral2_data_table_export_and_alert_stream_in_text,
-    audit_yaral2_data_table_export_and_alert_stream_in_doc,
-    verify_post_accept_secops_doc_readiness,
-    evaluate_verification_benchmark_suite,
-    verify_and_annotate_google_doc,
-    evaluate_grounding_benchmark_suite,
-    generate_skillrl_failure_distillation_matrix,
-    evaluate_infosec_doc_reviewer,
-    inspect_doc_suggestions,
-    list_doc_comments,
-    export_accepted_doc_to_markdown,
-    CANONICAL_KNOWLEDGE_CATALOG_GROUNDING_CATALOG,
-    inspect_catalog_context_and_source_contract_in_text,
-    find_catalog_context_and_source_contract_spans,
-    audit_and_redline_catalog_context_in_doc,
-    download_catalog_entry_to_markdown,
-    enrich_catalog_entry_markdown,
-    diff_and_audit_catalog_enrichment,
-    publish_enriched_markdown_to_catalog,
 )
 
 # Set the root logger to output debug messages
@@ -172,6 +115,8 @@ root_agent = Agent(
     20. Call `evaluate_infosec_doc_reviewer(scenario_ids, include_hda_ablation, output_report_path)` (or `evaluate_grounding_benchmark_suite(scenario_ids, include_hda_ablation, output_report_path)`) to execute the quantitative InfoSec Google Docs review benchmark across `SEEDED_INFOSEC_REVIEW_BENCHMARK_SCENARIOS` (`BENCH-01` through `BENCH-06`, or `all_with_night2` including `BENCH-07` through `BENCH-15`) on the stateful in-memory `LocalGoogleDocsSimulator`, computing UTF-16 span precision, defect catch recall, F1 score, false-positive rate, safety hazard refusal rate, Pass 2 multi-pass idempotency, and 4-way Harness-Delta Attribution (`delta_G`, `delta_T`, `delta_A`, `delta_total`).
     21. Call `stage_runbook_update_as_google_doc(skill_name, case_id, semantic_comments, semantic_edits, lessons_learned_markdown)` to draft and red-line a Drive runbook from SOAR case lessons learned, and `post_reviewed_doc_to_soar_case` to post the reviewed Google Doc links back to the SOAR case timeline.
     22. Call `inspect_doc_suggestions(document_id, accept_suggestion_ids)` to inspect pending `suggest.*` changes and unified diffs, `list_doc_comments(document_id, include_resolved)` to inspect resolved vs. unresolved Kix review comments via Google Drive API v3 `files.comments`, and `export_accepted_doc_to_markdown(document_id, skill_name, accept_suggestion_ids, reconstruct_markdown_structure, require_resolved_comments, output_path, publish_to_drive)` to reconstruct `#` headings, nested lists, Markdown tables, recovered `*` regex wildcards, and canonical YAML frontmatter while enforcing the Unresolved Comment Governance Gate before promoting a runbook back to `SOC Runbooks`.
+    23. Call `audit_capstone_production_governance_and_kev_exposure_in_doc(document_id, mode, apply_redlines)` (or `audit_capstone_production_governance_and_kev_exposure(doc_text)`) (`H30`) to audit CISA KEV inventory-first triage (`check_scc_findings` + `search_cloud_asset_inventory`), Native Dashboard `RULE_DETECTIONS` `detection.collection_elements.references.entity.metadata.threat.associations` threat paths, SOAR Content Hub Python 3.11 packaging & 10 MiB Envoy limits, HillClimber prompt fixture-memorization gates (`validate_compiled_prompt`), and OpenTelemetry 32 KB span attribute truncation + Cloudtop mTLS guards while distinguishing standard file/payload YARA rules (`strings:`) from Chronicle SIEM YARA-L 2.0 (`YL2`) UDM event detection rules.
+    24. Call `audit_and_redline_catalog_context_in_doc(document_id, mode, apply_redlines)` to audit and red-line Dataplex Knowledge Catalog grounding and Source Contract defects (`KC-01`..`KC-05`) in a Google Doc, `select_active_case_store(logical_capability, target_engine)` to resolve the active case/investigation store dynamically from Knowledge Catalog metadata (enabling zero-redeploy cutovers across PostgreSQL, AlloyDB, Spanner, Neo4j, and Elasticsearch), and `download_catalog_entry_to_markdown` / `enrich_catalog_entry_markdown` / `diff_and_audit_catalog_enrichment` / `publish_enriched_markdown_to_catalog` for closed-loop HITL catalog enrichment.
 
     **Your Tools:**
     You have direct access to these tools for oversight, skill retrieval, tool discovery, grounding, and reporting:
@@ -199,6 +144,16 @@ root_agent = Agent(
     - inspect_yaral2_data_table_export_and_alert_stream_in_text
     - audit_yaral2_data_table_export_and_alert_stream_in_doc
     - verify_post_accept_secops_doc_readiness
+    - inspect_capstone_production_governance_and_kev_exposure_in_text
+    - audit_capstone_production_governance_and_kev_exposure
+    - audit_capstone_production_governance_and_kev_exposure_in_doc
+    - audit_and_redline_catalog_context_in_doc
+    - download_catalog_entry_to_markdown
+    - enrich_catalog_entry_markdown
+    - diff_and_audit_catalog_enrichment
+    - publish_enriched_markdown_to_catalog
+    - select_active_case_store
+    - knowledge_catalog_discovery_agent
     - verify_and_annotate_google_doc
     - evaluate_grounding_benchmark_suite
     - evaluate_verification_benchmark_suite

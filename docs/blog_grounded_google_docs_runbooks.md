@@ -260,7 +260,7 @@ When an ADK runner spawns `secops-mcp` or `secops-soar` via `StdioConnectionPara
 
 When we pulled raw endpoint process telemetry from Chronicle SOAR Cases `33269` and `33288`, the `principal.process.command_line` fields contained a 1.4 KB raw Base64 PowerShell Empire stager alongside a `rundll32.exe comsvcs.dll, MiniDump` command targeting `lsass.dmp`. Asking an LLM to quote or rewrite lines containing verbatim offensive stagers triggers model output safety filters and blocks the response mid-turn.
 
-We solved this in [`docs_review_tools.py`](file:///usr/local/google/home/dandye/Projects/adk_runbooks__worktrees/drive-mcp-runbooks__grounded-docs/multi-agent/manager/tools/docs_review_tools.py) with a two-part architecture that separates deterministic payload handling from semantic grounding:
+We solved this in `multi-agent/manager/tools/docs_review_tools.py` with a two-part architecture that separates deterministic payload handling from semantic grounding:
 
 1. **Tool-boundary telemetry sanitization via `sanitize_telemetry_text`.** Before raw SIEM or SOAR process strings enter the LLM context or get written to a Google Doc, `sanitize_telemetry_text()` replaces raw `-EncodedCommand` and `-Enc` Base64 blobs and `comsvcs.dll, MiniDump` arguments with deterministic forensic tokens that preserve payload length and a 12-character SHA-256 fingerprint:
    ```text
@@ -735,7 +735,7 @@ When an incident commander finishes a postmortem, the review agent invokes `audi
 
 ## Theoretical foundations and literature references
 
-This 29-cycle (`H1` through `H30`) architecture synthesizes and extends recent research in executable document engineering, bi-level self-improving rubrics, and procedural agent skill evolution (cataloged in the [`executable_secops_document_engineering`](file:///usr/local/google/home/dandye/Projects/research_arxiv_knowledge_base__worktrees/main/wiki/concepts/executable_secops_document_engineering.md) knowledge base synthesis):
+This 29-cycle (`H1` through `H30`) architecture synthesizes and extends recent research in executable document engineering, bi-level self-improving rubrics, and procedural agent skill evolution (cataloged in the `executable_secops_document_engineering` knowledge base synthesis):
 
 [^irani-2026]: **Irani et al. (2026)**, *Recursive Rubric Self-Improvement (RRSI): Bi-Level Optimization for Self-Calibrating Evaluation Rubrics* (`arXiv:2604.03128`). Formalizes fast-vs-slow bi-level rubric invariants, $L_1$ edit-budget regularization, Hierarchical Delta Attribution ($\Delta = \Delta_G + \Delta_T + \Delta_A$), and validation noise-floor gating ($\Delta S_{\text{penalized}} \ge \tau_{\text{accept}}$) enforced in Cycles 18 and 19 (`H7`, `H20`) and Cycles 23 through 29 (`H24` through `H30`).
 [^tang-2026]: **Tang et al. (2026)**, *WikiSkill: Self-Evolving Procedural Knowledge Bases with Impact Ledgers for Agentic Workflows* (`arXiv:2604.01783`). Introduces the `Purpose`-contract pattern and `skill-impact.md` promotion and rollback audit ledger adapted in Cycle 18 (`append_wikiskill_impact_log`) and Cycles 24 through 29 (`H25` through `H30`).

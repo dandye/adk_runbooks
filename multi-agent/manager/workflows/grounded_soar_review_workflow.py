@@ -19,6 +19,7 @@ from google.adk.events import Event
 from .common import save_workflow_report_to_disk
 from ..tools.docs_review_tools import (
     audit_capstone_production_governance_and_kev_exposure,
+    find_deterministic_indicator_spans,
     format_soar_doc_review_comment,
     sanitize_telemetry_text,
     verify_post_accept_secops_doc_readiness,
@@ -86,8 +87,14 @@ class GroundedSOARReviewOutcome(BaseModel):
 def sanitize_soar_telemetry_node(
     inp: GroundedSOARReviewInput,
 ) -> SanitizedSOARReviewPayload:
-    sanitized = sanitize_telemetry_text(inp.raw_telemetry_summary or "")
-    has_redacted = "<REDACTED_" in sanitized or "http://" in sanitized or "https://" in sanitized
+    raw_text = inp.raw_telemetry_summary or ""
+    sanitized = sanitize_telemetry_text(raw_text)
+    _, det_edits = find_deterministic_indicator_spans(sanitized)
+    has_redacted = (
+        "<REDACTED_" in sanitized
+        or sanitized != raw_text
+        or len(det_edits) > 0
+    )
     return SanitizedSOARReviewPayload(
         case_id=inp.case_id.strip(),
         skill_name=inp.skill_name.strip() or "compromised-user-account-response",

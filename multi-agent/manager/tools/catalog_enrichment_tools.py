@@ -21,6 +21,7 @@ Pre-Promotion Semantic Leakage Critic:
 from __future__ import annotations
 
 import difflib
+import os
 from pathlib import Path
 import re
 from typing import Any
@@ -433,6 +434,16 @@ def publish_enriched_markdown_to_catalog(
     }
 
 
+_DEFAULT_ALLOYDB_ENDPOINT = os.environ.get(
+    "SECOPS_ALLOYDB_ENDPOINT", "alloydb-primary.secops.internal:5432"
+)
+_DEFAULT_NEO4J_ENDPOINT = os.environ.get(
+    "SECOPS_NEO4J_ENDPOINT", "neo4j.secops.internal:7687"
+)
+_DEFAULT_ELASTICSEARCH_ENDPOINT = os.environ.get(
+    "SECOPS_ELASTICSEARCH_ENDPOINT", "elasticsearch.secops.internal:9200"
+)
+
 MULTI_ENGINE_SECOPS_INVESTIGATION_STORE_ENTRIES: tuple[dict[str, Any], ...] = (
     {
         "entry_id": "alloydb_secops_detection_reports",
@@ -441,7 +452,7 @@ MULTI_ENGINE_SECOPS_INVESTIGATION_STORE_ENTRIES: tuple[dict[str, Any], ...] = (
         "system": "ALLOYDB_POSTGRESQL",
         "resource": "//alloydb.googleapis.com/projects/secops-demo-env/locations/us-central1/clusters/secops-alloydb-cluster/instances/secops-alloydb-primary/databases/postgres/tables/detection_reports",
         "description": "Primary AlloyDB for PostgreSQL (pgvector) table storing harvested Markdown security investigation reports, 768-dim Vertex AI embeddings, verdicts, entities, and triage steps.",
-        "connection_uri": "projects/secops-demo-env/locations/us-central1/clusters/secops-alloydb-cluster/instances/secops-alloydb-primary (host=34.70.211.60:5432, db=postgres)",
+        "connection_uri": f"projects/secops-demo-env/locations/us-central1/clusters/secops-alloydb-cluster/instances/secops-alloydb-primary (host={_DEFAULT_ALLOYDB_ENDPOINT}, db=postgres)",
         "guidelines": "Use HNSW cosine distance (`embedding <=> $1::vector`) combined with GIN FTS (`to_tsvector`) and relational joins to `detection_alerts` and `detection_entities`.",
         "overview": (
             "# alloydb.secops.detection_reports\n\n"
@@ -477,7 +488,7 @@ MULTI_ENGINE_SECOPS_INVESTIGATION_STORE_ENTRIES: tuple[dict[str, Any], ...] = (
         "system": "ALLOYDB_POSTGRESQL",
         "resource": "//alloydb.googleapis.com/projects/secops-demo-env/locations/us-central1/clusters/secops-alloydb-cluster/instances/secops-alloydb-primary/databases/postgres/tables/detection_alerts",
         "description": "AlloyDB relational child table linking Chronicle SIEM / SOAR alerts and MITRE ATT&CK tactics/techniques to Markdown investigation reports.",
-        "connection_uri": "projects/secops-demo-env/locations/us-central1/clusters/secops-alloydb-cluster/instances/secops-alloydb-primary (host=34.70.211.60:5432, db=postgres)",
+        "connection_uri": f"projects/secops-demo-env/locations/us-central1/clusters/secops-alloydb-cluster/instances/secops-alloydb-primary (host={_DEFAULT_ALLOYDB_ENDPOINT}, db=postgres)",
         "guidelines": "Join to `detection_reports` on `detection_alerts.investigation_id = detection_reports.id`. Filter by `alert_id` or `mitre_techniques` overlap (`&&`).",
         "overview": (
             "# alloydb.secops.detection_alerts\n\n"
@@ -500,7 +511,7 @@ MULTI_ENGINE_SECOPS_INVESTIGATION_STORE_ENTRIES: tuple[dict[str, Any], ...] = (
         "system": "ALLOYDB_POSTGRESQL",
         "resource": "//alloydb.googleapis.com/projects/secops-demo-env/locations/us-central1/clusters/secops-alloydb-cluster/instances/secops-alloydb-primary/databases/postgres/tables/detection_entities",
         "description": "AlloyDB relational child table indexing extracted entities (Host, User, IP, File, Domain) and GTI threat intelligence per Markdown investigation report.",
-        "connection_uri": "projects/secops-demo-env/locations/us-central1/clusters/secops-alloydb-cluster/instances/secops-alloydb-primary (host=34.70.211.60:5432, db=postgres)",
+        "connection_uri": f"projects/secops-demo-env/locations/us-central1/clusters/secops-alloydb-cluster/instances/secops-alloydb-primary (host={_DEFAULT_ALLOYDB_ENDPOINT}, db=postgres)",
         "guidelines": "Use composite index `(entity_type, entity_value)` for compromise-pivot lookups and join `investigation_id = detection_reports.id`.",
         "overview": (
             "# alloydb.secops.detection_entities\n\n"
@@ -520,9 +531,9 @@ MULTI_ENGINE_SECOPS_INVESTIGATION_STORE_ENTRIES: tuple[dict[str, Any], ...] = (
         "entry_type_id": "neo4j-knowledge-graph",
         "display_name": "neo4j.secops.knowledge_graph",
         "system": "NEO4J",
-        "resource": "//neo4j.secops.internal/instances/34.85.131.164:7687/databases/neo4j/graphs/knowledge_graph",
+        "resource": f"//neo4j.secops.internal/instances/{_DEFAULT_NEO4J_ENDPOINT}/databases/neo4j/graphs/knowledge_graph",
         "description": "Neo4j 5.20 Cypher property graph linking Investigation reports, Alerts, Cases, Hosts, Users, Files, Domains, and NetworkAddresses.",
-        "connection_uri": "bolt://34.85.131.164:7687 (container: neo4j_soc, image: neo4j:5.20.0-community)",
+        "connection_uri": f"bolt://{_DEFAULT_NEO4J_ENDPOINT} (container: neo4j_soc, image: neo4j:5.20.0-community)",
         "guidelines": "Query `Host`, `User`, `File`, `Domain`, and `NetworkAddress` nodes by `.name` (without `user:`/`host:` prefix) and `Investigation`/`Alert`/`Case` nodes by `.id`.",
         "overview": (
             "# neo4j.secops.knowledge_graph\n\n"
@@ -548,9 +559,9 @@ MULTI_ENGINE_SECOPS_INVESTIGATION_STORE_ENTRIES: tuple[dict[str, Any], ...] = (
         "entry_type_id": "elasticsearch-bm25-index",
         "display_name": "elasticsearch.secops.agentic_soc_runbooks",
         "system": "ELASTICSEARCH",
-        "resource": "//elasticsearch.secops.internal/clusters/34.145.140.152:9200/indices/agentic-soc-runbooks",
+        "resource": f"//elasticsearch.secops.internal/clusters/{_DEFAULT_ELASTICSEARCH_ENDPOINT}/indices/agentic-soc-runbooks",
         "description": "Elasticsearch BM25 full-text index storing section-chunked Markdown investigation reports (`investigations/*.md`) and operational SOC runbooks (`rules_bank/run_books/**`).",
-        "connection_uri": "http://34.145.140.152:9200/agentic-soc-runbooks",
+        "connection_uri": f"http://{_DEFAULT_ELASTICSEARCH_ENDPOINT}/agentic-soc-runbooks",
         "guidelines": "Use `multi_match` on `['title^2', 'content']` for BM25 retrieval and filter or group by `doc_path` (`keyword`) to reconstruct full Markdown documents ordered by `chunk_index`.",
         "overview": (
             "# elasticsearch.secops.agentic_soc_runbooks\n\n"

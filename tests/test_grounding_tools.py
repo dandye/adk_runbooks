@@ -540,7 +540,7 @@ def test_select_active_case_store_postgres_to_alloydb_zero_redeploy_cutover():
                 "1002894625780.us-central1.secops-store-governance": {
                     "data": {
                         "engine_family": "ALLOYDB_POSTGRESQL",
-                        "connection_uri": "host=34.70.211.60:5432, db=postgres",
+                        "connection_uri": "host=alloydb-primary.secops.internal:5432, db=postgres",
                         "governance_tier": "BRONZE_ADHOC",
                         "is_certified": False,
                         "retrieval_modality": "PGVECTOR_COSINE",

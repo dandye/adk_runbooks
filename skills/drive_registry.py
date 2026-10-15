@@ -214,6 +214,12 @@ class DriveMcpClient:
     def close(self) -> None:
         self._http.close()
 
+    def __enter__(self) -> DriveMcpClient:
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.close()
+
     def _headers(self) -> dict[str, str]:
         headers = {
                 "Authorization": f"Bearer {self._token_source()}",
@@ -387,6 +393,17 @@ class DriveSkillRegistry(SkillRegistry):
         self.skills_dir = Path("googledrive") / self.folder_id
         self.skills: dict[str, SkillMetadata] = {}
         self.scan_skills()
+
+    def close(self) -> None:
+        """Closes the underlying DriveMcpClient HTTP connection pool."""
+        if hasattr(self.client, "close"):
+            self.client.close()
+
+    def __enter__(self) -> DriveSkillRegistry:
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.close()
 
     # -- scanning -----------------------------------------------------------
 
