@@ -34,7 +34,7 @@ Covers fleet-wide CTI collection sweeps (GTI reports, C2 domains, and MITRE ATT&
 
 ### Stage C: LOLBin Filtering, Patient-Zero Lineage, & Case Correlation
 
-5.  Query `gti-mcp.get_file_report` on every matched hash to separate malicious payloads from signed OS LOLBins (e.g., `rundll32.exe`, `wscript.exe`) or benign web files.
+5.  Query `gti-mcp.get_file_report` on matched hashes to separate malicious payloads from signed OS LOLBins (e.g., `rundll32.exe`, `wscript.exe`) or benign web files.
 6.  On matched hosts (`<matched_hostname>`), inspect parent-child lineage (`wscript.exe` spawning `rundll32.exe` DLL load), call `secops-mcp.lookup_entity`, and query `secops-soar.list_cases` for related or unalerted cases.
 
 ### Stage D: Hunt Verdict, Containment, & Detection-Gap Handoff
