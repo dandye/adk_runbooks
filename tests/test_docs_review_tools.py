@@ -13356,6 +13356,89 @@ class TestCycle29CapstoneProductionGovernanceAndKevExposure:
     assert convergence["post_accept_verdict"] == "APPROVED_FOR_SOC_EXECUTION"
 
 
+class TestHorizon31AgenticRunbookContextHygiene:
+  """Horizon 31 (H31) unit tests for Agentic SOC Runbook Context Hygiene (`RB-01`..`RB-04`):
+  detecting and redlining Mermaid sequenceDiagram bloat, interactive Cline IDE pseudo-tools,
+  unresolved `${VAR_NAME}` shell template variables, and missing 4-way Disposition &
+  Containment Matrix / Benign Admin Override."""
+
+  def test_inspect_and_redline_runbook_context_hygiene_detects_rb01_to_rb04_and_preserves_negative_control(
+      self,
+  ) -> None:
+    from manager.tools.docs_review_tools import (
+        CANONICAL_RUNBOOK_CONTEXT_HYGIENE_CATALOG,
+        LocalGoogleDocsSimulator,
+        audit_and_redline_runbook_context_hygiene_in_doc,
+        clear_doc_index_cache,
+        find_runbook_context_hygiene_spans,
+        inspect_runbook_context_hygiene_in_text,
+    )
+
+    assert set(CANONICAL_RUNBOOK_CONTEXT_HYGIENE_CATALOG.keys()) == {
+        "RB-01",
+        "RB-02",
+        "RB-03",
+        "RB-04",
+    }
+
+    sample_runbook = (
+        "# Lateral Movement Hunt Runbook\n\n"
+        "```mermaid\n"
+        "sequenceDiagram\n"
+        "    participant Analyst\n"
+        "    participant SIEM\n"
+        "    Analyst->>SIEM: Query UDM\n"
+        "```\n\n"
+        "1. Query SIEM UDM for `${ALERT_ID}` and `${SUSPICIOUS_IP}` across the last 24 hours.\n"
+        "2. If no events return, call `ask_followup_question` and `attempt_completion` to ask the user.\n"
+        "3. Classify the alert as either `escalate_incident` or `close_alert` and isolate the host immediately on any PsExec or PowerShell execution.\n\n"
+        "Certified Control: Always evaluate `escalate_incident`, `contain_and_patch`, `tune_detection`, and `benign_or_inconclusive` with the Benign Admin Override.\n"
+    )
+
+    inspected = inspect_runbook_context_hygiene_in_text(
+        sample_runbook, max_words=350
+    )
+    assert inspected["status"] == "defects_found"
+    assert inspected["horizon"] == "H31"
+    assert inspected["word_budget_exceeded"] is False
+    assert inspected["defect_count"] == 4
+    assert [d["rule_id"] for d in inspected["defects"]] == [
+        "RB-01",
+        "RB-03",
+        "RB-02",
+        "RB-04",
+    ]
+    assert len(inspected["negative_controls_preserved"]) == 1
+
+    spans = find_runbook_context_hygiene_spans(sample_runbook)
+    assert len(spans) == 4
+
+    sim = LocalGoogleDocsSimulator()
+    clear_doc_index_cache()
+    sim.create_or_reset_doc(
+        "sim-doc-h31-runbook",
+        "Lateral Movement Hunt Runbook",
+        sample_runbook,
+        simulate_drive_markdown_import=True,
+    )
+    audit_res = audit_and_redline_runbook_context_hygiene_in_doc(
+        document_id="sim-doc-h31-runbook",
+        mode="APPLY",
+        max_words=350,
+        docs_client_override=sim,
+    )
+    assert audit_res["status"] == "ok"
+    assert audit_res["horizon"] == "H31"
+    assert audit_res["defect_count"] == 4
+    start_indices = [
+        int(e["startIndex"]) for e in audit_res["staged_suggested_edits"]
+    ]
+    assert start_indices == sorted(start_indices, reverse=True)
+    assert audit_res["comments"]["inserted_count"] == 4
+    assert audit_res["edits"]["applied_count"] == 4
+
+
+
 
 
 

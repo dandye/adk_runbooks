@@ -40755,4 +40755,368 @@ def audit_and_redline_catalog_context_in_doc(
     }
 
 
+CANONICAL_RUNBOOK_CONTEXT_HYGIENE_CATALOG: dict[str, dict[str, Any]] = {
+    "RB-01": {
+        "rule_id": "RB-01",
+        "defect_type": "mermaid_diagram_bloat_in_agent_runbook",
+        "severity": "HIGH",
+        "title": "Mermaid Sequence or Flowchart Diagram Bloat in Agent-Consumed Runbook",
+        "description": (
+            "Embeds a ```mermaid sequenceDiagram or flowchart block inside an LLM-injected "
+            "SOC runbook, causing small/fast models (gemini-2.5-flash-lite, Gemma-4) to "
+            "misinterpret actor arrows as multi-agent roleplay instructions (-34.97% accuracy drop)."
+        ),
+    },
+    "RB-02": {
+        "rule_id": "RB-02",
+        "defect_type": "interactive_ide_pseudotool_in_autonomous_runbook",
+        "severity": "HIGH",
+        "title": "Interactive Cline IDE Pseudo-Tool in Autonomous SOC Runbook",
+        "description": (
+            "Instructs an autonomous headless triage agent to call interactive IDE pseudo-tools "
+            "(`ask_followup_question`, `attempt_completion`, `write_to_file`) instead of "
+            "deterministic conditional telemetry branches."
+        ),
+    },
+    "RB-03": {
+        "rule_id": "RB-03",
+        "defect_type": "unresolved_shell_template_variable_in_runbook",
+        "severity": "HIGH",
+        "title": "Unresolved ${VAR_NAME} Shell Template Variable in Agentic Runbook",
+        "description": (
+            "Uses `${ALERT_ID}`, `${CASE_ID}`, `${SUSPICIOUS_IP}`, or `${ENCODED_CMD}` shell "
+            "placeholders that smaller models copy literally into MCP tool calls or final reports "
+            "instead of binding explicit UDM schema fields (`principal.ip`, `target.user.userid`)."
+        ),
+    },
+    "RB-04": {
+        "rule_id": "RB-04",
+        "defect_type": "missing_four_way_disposition_or_benign_admin_override",
+        "severity": "CRITICAL",
+        "title": "Missing 4-Way Disposition & Containment Matrix or Benign Admin Override",
+        "description": (
+            "Omits one or more of the 4 canonical dispositions (`escalate_incident`, "
+            "`contain_and_patch`, `tune_detection`, `benign_or_inconclusive`) or fails to "
+            "forbid host isolation / account disablement on verified benign admin maintenance."
+        ),
+    },
+}
+
+
+_RB_DEFECT_SPECS: tuple[dict[str, Any], ...] = (
+    {
+        "rule_id": "RB-01",
+        "defect_type": "mermaid_diagram_bloat_in_agent_runbook",
+        "severity": "HIGH",
+        "pattern": re.compile(
+            r"```mermaid\s*\n\s*(?:sequenceDiagram|flowchart|graph)\b.*?```",
+            re.DOTALL | re.IGNORECASE,
+        ),
+        "replacement": (
+            "Follow the numbered operational workflow below (1. Alert & Entity Extraction -> "
+            "2. SIEM / EDR / TI Corroboration -> 3. Benign Admin vs. Threat Actor Verification -> "
+            "4. Disposition & Containment Matrix -> 5. Required Triage Output)."
+        ),
+        "comment": (
+            "[Agentic Runbook Context Hygiene Audit (RB-01) | HIGH] Strip ```mermaid "
+            "sequenceDiagram/flowchart blocks from LLM-consumed SOC runbooks. Empirical "
+            "evaluation (gen5_val_20) showed Mermaid preambles degraded gemini-2.5-flash-lite "
+            "composite accuracy by -34.97% and increased prompt tokens 5.0x."
+        ),
+    },
+    {
+        "rule_id": "RB-02",
+        "defect_type": "interactive_ide_pseudotool_in_autonomous_runbook",
+        "severity": "HIGH",
+        "pattern": re.compile(
+            r"[^\n.]*\b(?:ask_followup_question|attempt_completion|write_to_file)\b[^\n.]*\.",
+            re.IGNORECASE,
+        ),
+        "replacement": (
+            "If primary UDM telemetry returns zero events, pivot on `principal.hostname` and "
+            "`target.user.userid` across `USER_LOGIN` and `NETWORK_CONNECTION` events (+/- 2h); "
+            "if evidence remains inconclusive, set disposition to `benign_or_inconclusive`."
+        ),
+        "comment": (
+            "[Agentic Runbook Context Hygiene Audit (RB-02) | HIGH] Replace interactive Cline "
+            "IDE pseudo-tools (`ask_followup_question`, `attempt_completion`, `write_to_file`) "
+            "with deterministic conditional pivoting and disposition branches for headless execution."
+        ),
+    },
+    {
+        "rule_id": "RB-03",
+        "defect_type": "unresolved_shell_template_variable_in_runbook",
+        "severity": "HIGH",
+        "pattern": re.compile(
+            r"[^\n.]*\$\{\s*[A-Za-z_][A-Za-z0-9_]*\s*\}[^\n.]*\.",
+        ),
+        "replacement": (
+            "Extract `principal.ip`, `target.ip`, `principal.hostname`, `target.hostname`, "
+            "`target.user.userid`, `target.process.command_line`, and `target.process.file.sha256` "
+            "directly from the alert payload and query SIEM UDM / Threat Intelligence."
+        ),
+        "comment": (
+            "[Agentic Runbook Context Hygiene Audit (RB-03) | HIGH] Replace `${VAR_NAME}` shell "
+            "template placeholders with explicit Chronicle UDM field names (`principal.ip`, "
+            "`target.user.userid`, `target.process.command_line`) so small models do not emit "
+            "unsubstituted template literals into tool calls or JSON triage outputs."
+        ),
+    },
+    {
+        "rule_id": "RB-04",
+        "defect_type": "missing_four_way_disposition_or_benign_admin_override",
+        "severity": "CRITICAL",
+        "pattern": re.compile(
+            r"Classify the alert as either `escalate_incident` or `close_alert` and isolate the host immediately on any PsExec or PowerShell execution\.",
+            re.DOTALL,
+        ),
+        "replacement": (
+            "Select one of the 4 canonical dispositions (`escalate_incident`, `contain_and_patch`, "
+            "`tune_detection`, `benign_or_inconclusive`) after decoding any Base64 command lines and "
+            "corroborating across >=2 telemetry sources; if activity matches an approved change ticket "
+            "from an authorized admin jump host, classify as `tune_detection` or `benign_or_inconclusive` "
+            "with zero host isolation or account disablement."
+        ),
+        "comment": (
+            "[Agentic Runbook Context Hygiene Audit (RB-04) | CRITICAL] Every agentic SOC runbook "
+            "must include all 4 Disposition & Containment Matrix branches (`escalate_incident`, "
+            "`contain_and_patch`, `tune_detection`, `benign_or_inconclusive`) and the Benign Admin "
+            "Override forbidding destructive actions on verified maintenance."
+        ),
+    },
+)
+
+
+_RB_NEGATIVE_CONTROL_RE = re.compile(
+    r"escalate_incident[^\n]*?contain_and_patch[^\n]*?tune_detection[^\n]*?benign_or_inconclusive",
+    re.DOTALL,
+)
+
+
+def inspect_runbook_context_hygiene_in_text(
+    doc_text: str,
+    *,
+    index_map: list[int] | None = None,
+    max_words: int | None = None,
+) -> dict[str, Any]:
+    """Inspects an agentic SOC runbook for ``RB-01``..``RB-04`` context hygiene defects
+    (Mermaid sequenceDiagram bloat, interactive Cline pseudo-tools, ``${VAR_NAME}`` shell
+    template variables, and missing 4-way Disposition & Containment Matrix / Benign Admin
+    Override) while preserving certified negative controls."""
+    text_val = str(doc_text or "")
+    idx_map = index_map if index_map is not None else _build_utf16_index_map(text_val)
+    word_count = len(text_val.split())
+
+    preserved_negative_controls: list[dict[str, Any]] = []
+    nc_spans: list[tuple[int, int]] = []
+    for nc_m in _RB_NEGATIVE_CONTROL_RE.finditer(text_val):
+        s_char, e_char = nc_m.start(), nc_m.end()
+        nc_spans.append((s_char, e_char))
+        s_utf16 = idx_map[s_char]
+        e_utf16 = idx_map[e_char - 1] + _utf16_code_unit_len(text_val[e_char - 1])
+        preserved_negative_controls.append(
+            {
+                "control_id": "RB-NC-01",
+                "start_index": s_utf16,
+                "end_index": e_utf16,
+                "quote": text_val[s_char:e_char],
+            }
+        )
+
+    defects: list[dict[str, Any]] = []
+    for spec in _RB_DEFECT_SPECS:
+        for m in spec["pattern"].finditer(text_val):
+            s_char, e_char = m.start(), m.end()
+            if any(_spans_overlap((s_char, e_char), nc) for nc in nc_spans):
+                continue
+            s_utf16 = idx_map[s_char]
+            e_utf16 = idx_map[e_char - 1] + _utf16_code_unit_len(text_val[e_char - 1])
+            quote = text_val[s_char:e_char]
+            defects.append(
+                {
+                    "rule_id": spec["rule_id"],
+                    "defect_type": spec["defect_type"],
+                    "severity": spec["severity"],
+                    "start_index": s_utf16,
+                    "end_index": e_utf16,
+                    "startIndex": s_utf16,
+                    "endIndex": e_utf16,
+                    "quote": quote,
+                    "replacement": spec["replacement"],
+                    "delete_text": quote,
+                    "insert_text": spec["replacement"],
+                    "comment": spec["comment"],
+                }
+            )
+
+    defects.sort(key=lambda d: int(d["start_index"]))
+    word_budget_exceeded = bool(max_words is not None and word_count > max_words)
+    status = "defects_found" if (defects or word_budget_exceeded) else "ok"
+    return {
+        "status": status,
+        "horizon": "H31",
+        "word_count": word_count,
+        "max_words": max_words,
+        "word_budget_exceeded": word_budget_exceeded,
+        "defect_count": len(defects),
+        "defects": defects,
+        "findings": defects,
+        "negative_controls_preserved": preserved_negative_controls,
+    }
+
+
+def find_runbook_context_hygiene_spans(
+    doc_text: str,
+    *,
+    index_map: list[int] | None = None,
+) -> list[dict[str, Any]]:
+    """Stage A deterministic UTF-16 span finder for ``RB-01``..``RB-04`` agentic SOC
+    runbook context hygiene defects."""
+    inspected = inspect_runbook_context_hygiene_in_text(doc_text, index_map=index_map)
+    return list(inspected["defects"])
+
+
+def audit_and_redline_runbook_context_hygiene_in_doc(
+    document_id: str = "",
+    *,
+    mode: str = "DRY_RUN",
+    apply_redlines: bool | None = None,
+    max_words: int | None = 350,
+    tool_context: Any = None,
+    doc_text_override: str | None = None,
+    token_source: TokenSource | None = None,
+    quota_project: str | None = None,
+    transport: httpx.BaseTransport | None = None,
+    docs_client_override: Any = None,
+    credentials: Any = None,
+) -> dict[str, Any]:
+    """Stage A + Stage B Google Docs Audit & Redlining tool (Horizon ``H31``) for
+    ``RB-01``..``RB-04`` agentic SOC runbook context hygiene defects.
+
+    Orders ``staged_suggested_edits`` in strict descending ``startIndex`` order
+    (back-to-front) so UTF-16 offsets never shift during batch mutation.
+    """
+    effective_mode = (
+        "APPLY"
+        if (
+            apply_redlines is True
+            or (
+                apply_redlines is None
+                and str(mode or "DRY_RUN").strip().upper() in ("APPLY", "SUGGEST", "REDLINE")
+            )
+        )
+        else "DRY_RUN"
+    )
+    eff_transport = transport
+    eff_token_source: Any = token_source or credentials
+    if isinstance(docs_client_override, LocalGoogleDocsSimulator):
+        eff_transport = docs_client_override.as_httpx_transport()
+        eff_token_source = _BenchmarkTokenSource()
+
+    doc_text = doc_text_override
+    loaded_index_map: list[int] | None = None
+    pending_spans: list[tuple[int, int]] = []
+    if doc_text is None and document_id:
+        read_res = read_google_doc(
+            document_id,
+            tool_context=tool_context,
+            token_source=eff_token_source,
+            quota_project=quota_project,
+            transport=eff_transport,
+        )
+        if isinstance(read_res, dict) and read_res.get("status") not in (None, "success"):
+            return read_res
+        state_text, state_map = _load_doc_index_state(document_id, tool_context=tool_context)
+        if state_text is not None:
+            doc_text = state_text
+        elif isinstance(read_res, dict):
+            doc_text = str(read_res.get("content") or read_res.get("text") or "")
+        if state_map is not None:
+            loaded_index_map = state_map
+        pending_spans = _load_doc_pending_suggestion_spans(
+            document_id, tool_context=tool_context
+        )
+
+    text_val = str(doc_text or "")
+    idx_map = loaded_index_map if loaded_index_map is not None else _build_utf16_index_map(text_val)
+    inspection = inspect_runbook_context_hygiene_in_text(
+        text_val, index_map=idx_map, max_words=max_words
+    )
+    raw_findings = list(inspection["defects"])
+    findings: list[dict[str, Any]] = []
+    skipped_existing_suggestion_count = 0
+    for f in raw_findings:
+        f_span = (int(f["start_index"]), int(f["end_index"]))
+        if pending_spans and any(
+            _spans_overlap(f_span, p_span) for p_span in pending_spans
+        ):
+            skipped_existing_suggestion_count += 1
+            continue
+        findings.append(f)
+
+    staged_comments = [
+        {
+            "rule_id": f["rule_id"],
+            "start_index": f["start_index"],
+            "end_index": f["end_index"],
+            "startIndex": f["start_index"],
+            "endIndex": f["end_index"],
+            "quote": f["quote"],
+            "comment": f["comment"],
+        }
+        for f in findings
+    ]
+    staged_suggested_edits = [
+        {
+            "rule_id": f["rule_id"],
+            "start_index": f["start_index"],
+            "end_index": f["end_index"],
+            "startIndex": f["start_index"],
+            "endIndex": f["end_index"],
+            "quote": f["quote"],
+            "replacement": f["replacement"],
+        }
+        for f in sorted(findings, key=lambda item: int(item["start_index"]), reverse=True)
+    ]
+
+    comments_res: dict[str, Any] = {"status": "skipped", "inserted_count": 0, "comment_ids": []}
+    edits_res: dict[str, Any] = {"status": "skipped", "applied_count": 0}
+    if effective_mode == "APPLY" and document_id and findings:
+        comments_res = insert_doc_comments(
+            document_id,
+            staged_comments,
+            tool_context=tool_context,
+            token_source=eff_token_source,
+            quota_project=quota_project,
+            transport=eff_transport,
+        )
+        edits_res = propose_doc_suggested_edits(
+            document_id,
+            staged_suggested_edits,
+            tool_context=tool_context,
+            token_source=eff_token_source,
+            quota_project=quota_project,
+            transport=eff_transport,
+        )
+
+    return {
+        "status": "ok",
+        "horizon": "H31",
+        "document_id": document_id,
+        "mode": effective_mode,
+        "word_count": inspection["word_count"],
+        "max_words": max_words,
+        "word_budget_exceeded": inspection["word_budget_exceeded"],
+        "defect_count": len(findings),
+        "defects": findings,
+        "staged_comments": staged_comments,
+        "staged_suggested_edits": staged_suggested_edits,
+        "skipped_existing_suggestion_count": skipped_existing_suggestion_count,
+        "negative_controls_preserved": inspection["negative_controls_preserved"],
+        "comments": comments_res,
+        "edits": edits_res,
+    }
+
+
+
 
