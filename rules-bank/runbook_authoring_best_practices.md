@@ -224,21 +224,21 @@ print("All 4 runbooks passed validation. Total words:", sum(len(v.split()) for v
 ### Template B: Proactive Threat Hunting & CTI Collection Sweep (`<= 325` words)
 
 ```markdown
-# <Hunt Runbook Title>
+# Proactive GTI Collection & Campaign Threat Hunt
 
 ## Objective
 
-Proactively sweep enterprise telemetry for indicators and TTPs linked to a GTI collection or threat hypothesis to identify Patient Zero, lateral scope, and detection gaps.
+Sweep enterprise telemetry for indicators and execution chains linked to a GTI collection or threat hypothesis to identify Patient Zero, scope, and detection gaps.
 
 ## Scope
 
-Covers fleet-wide CTI collection sweeps (e.g., GTI collection reports, C2 domains, and MITRE ATT&CK execution chains) across SIEM, GTI, and SOAR.
+Covers fleet-wide CTI collection sweeps (GTI reports, C2 domains, and MITRE ATT&CK execution chains) across SIEM, GTI, and SOAR.
 
 ## Inputs
 
-*   `<collection_id>`: GTI Collection or Report ID (or `<hunt_seed>` domain/technique).
-*   `<time_frame_hours>`: Initial SIEM lookback window in hours (default: `72`; widen to `168` on zero hits).
-*   `<target_scope_query>`: Optional UDM filter narrowing the target host group.
+*   `<collection_id>`: Target GTI collection or report ID.
+*   `<time_frame_hours>`: SIEM lookback in hours (default `72`; widen to `168` on zero hits).
+*   `<target_scope_query>`: Optional UDM host-group filter.
 
 ## Tools
 
@@ -251,23 +251,23 @@ Covers fleet-wide CTI collection sweeps (e.g., GTI collection reports, C2 domain
 ### Stage A: CTI Collection & Second-Hop Indicator Expansion
 
 1.  Query `gti-mcp.get_collection_report` and `gti-mcp.get_entities_related_to_a_collection` on `<collection_id>` across `domains`, `files`, `ip_addresses`, and `attack_techniques`.
-2.  For high-risk C2 domains, query `gti-mcp.get_entities_related_to_a_domain` (`relationship_name="communicating_files"`) to collect second-hop payload hashes.
+2.  For C2 domains, query `gti-mcp.get_entities_related_to_a_domain` (`relationship_name="communicating_files"`) to collect second-hop payload hashes.
 
-### Stage B: Multi-Horizon SIEM Sweep (`72h` -> `168h`)
+### Stage B: Multi-Horizon SIEM Sweep (`72h` to `168h`)
 
 3.  Query `secops-mcp.get_ioc_matches` and `secops-mcp.search_security_events` for extracted domains, IPs, and hashes over `<time_frame_hours>` (`72` hours).
-4.  If `72` hours returns zero events, widen `hours_back` to `168` hours (`7` days) and pivot to `PROCESS_MODULE_LOAD` and `PROCESS_LAUNCH` events for communicating file hashes.
+4.  If `72` hours returns zero events, widen `hours_back` to `168` hours (`7` days) and search `PROCESS_MODULE_LOAD` and `PROCESS_LAUNCH` events for communicating file hashes.
 
 ### Stage C: LOLBin Filtering, Patient-Zero Lineage, & Case Correlation
 
-5.  Query `gti-mcp.get_file_report` on every matched hash to separate malicious payloads from legitimate OS LOLBins (e.g., signed `rundll32.exe`, `wscript.exe`) or benign web files.
-6.  For every matched host (`<matched_hostname>`), trace parent-child execution lineage (`wscript.exe` -> `rundll32.exe` DLL load), call `secops-mcp.lookup_entity`, and query `secops-soar.list_cases` to identify related or unalerted SOAR cases.
+5.  Query `gti-mcp.get_file_report` on every matched hash to separate malicious payloads from signed OS LOLBins (e.g., `rundll32.exe`, `wscript.exe`) or benign web files.
+6.  On matched hosts (`<matched_hostname>`), inspect parent-child lineage (`wscript.exe` spawning `rundll32.exe` DLL load), call `secops-mcp.lookup_entity`, and query `secops-soar.list_cases` for related or unalerted cases.
 
 ### Stage D: Hunt Verdict, Containment, & Detection-Gap Handoff
 
-7.  Apply a verdict and execute the matching action:
-    *   **MALICIOUS:** Verified campaign C2 or payload execution confirmed on `<matched_hostname>`. Execute `isolate_host` on `<matched_hostname>`, `block_indicator` on verified malicious C2 domains/IPs/payload hashes (never block signed OS LOLBins), and `update_case_comment` documenting Patient Zero and any unalerted detection gap.
-    *   **SUSPICIOUS:** Low-prevalence LOLBin or TTP anomaly (`<= 2` hosts) without confirmed malicious payload reputation, or activity on a critical server where unverified isolation is prohibited. Call `update_case_comment` with recommended YARA-L 2.0 (`YL2`) detection criteria. Do not call `isolate_host` or `close_case`.
-    *   **INCONCLUSIVE:** A GTI or SIEM tool returns a service outage (`503`). Pivot to available local telemetry, set verdict to `INCONCLUSIVE`, and call `update_case_comment`. Do not contain or close.
-    *   **BENIGN:** Zero malicious matches across both `72h` and `168h` windows, or all hits verified as authorized administration. Document the clean sweep in `update_case_comment`.
+7.  Apply a verdict:
+    *   **MALICIOUS:** Campaign C2 or payload execution confirmed on `<matched_hostname>`. Call `isolate_host` on `<matched_hostname>`, `block_indicator` on verified C2 domains, IPs, and payload hashes (never block signed OS LOLBins), and `update_case_comment` documenting Patient Zero and detection gaps.
+    *   **SUSPICIOUS:** Unconfirmed LOLBin/TTP outlier or critical-asset activity where isolation is prohibited. Call `update_case_comment` with YARA-L 2.0 (`YL2`) detection criteria. Never call `isolate_host` or `close_case`.
+    *   **INCONCLUSIVE:** Tool outage. Pivot to local telemetry, set `INCONCLUSIVE`, and call `update_case_comment`.
+    *   **BENIGN:** Zero malicious hits across `72h` and `168h`, or authorized activity. Call `update_case_comment` and `close_case`.
 ```
