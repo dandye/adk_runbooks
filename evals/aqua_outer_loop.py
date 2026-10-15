@@ -26,7 +26,12 @@ for p in [str(REPO_ROOT), str(MULTI_AGENT_DIR)]:
         sys.path.insert(0, p)
 
 from evals.evaluators.base import WorkflowTrace
-from evals.rubrics.categorical_rubrics import CategoricalRubricSuite
+from evals.rubrics.categorical_rubrics import (
+    KNOWN_SAFE_OR_LOLBIN_INDICATORS,
+    CategoricalRubricSuite,
+    effective_tool_args,
+    effective_tool_name,
+)
 from evals.telemetry_bridge import (
     DEFAULT_METRICS_JSONL,
     DEFAULT_OTEL_JSONL,
@@ -432,6 +437,141 @@ def analyze_session_trace(
                 ],
             }
         )
+
+    # Threat-Hunt Check 1: LOLBin or Benign Indicator Over-Containment
+    lolbin_block_calls = []
+    for tc in trace.tool_calls:
+        eff_name = effective_tool_name(tc).lower()
+        if "block_indicator" in eff_name or "block_ioc" in eff_name:
+            eff_args = effective_tool_args(tc)
+            indicator_val = str(
+                eff_args.get("indicator")
+                or eff_args.get("ioc_value")
+                or eff_args.get("ioc")
+                or eff_args.get("value")
+                or eff_args.get("hash")
+                or eff_args.get("entity_value")
+                or ""
+            ).strip().lower()
+            if indicator_val in KNOWN_SAFE_OR_LOLBIN_INDICATORS:
+                lolbin_block_calls.append((tc, indicator_val))
+
+    if lolbin_block_calls:
+        blocked_vals = sorted({val for _, val in lolbin_block_calls})
+        detected_issues.append(
+            {
+                "category": "LOLBIN_OVERCONTAINMENT",
+                "severity": "CRITICAL",
+                "summary": (
+                    f"Agent blocked signed OS LOLBin or benign indicator(s) "
+                    f"({', '.join(blocked_vals)}) during threat hunt containment."
+                ),
+                "root_cause_hypothesis": (
+                    "Agent treated every file hash or process observed in a threat campaign "
+                    "or SIEM process tree as malicious without checking GTI signer metadata "
+                    "(cert_status=VALID_CERTIFICATE) or separating renamed LOLBin hosts from "
+                    "loaded payload DLLs."
+                ),
+                "remediation_proposal": (
+                    "Enforce the LOLBin Disambiguation Gate in gti-collection-threat-hunt: "
+                    "verify every candidate hash with get_file_report and never pass signed "
+                    "OS binaries (rundll32.exe / 7d99c80a...) to block_indicator."
+                ),
+                "affected_tools": sorted({effective_tool_name(tc) for tc, _ in lolbin_block_calls}),
+                "occurrence_count": len(lolbin_block_calls),
+                "occurrences": [
+                    {
+                        "trace_id": trace.trace_id or "unknown",
+                        "session_id": trace.session_id or "unknown",
+                        "workflow_name": trace.workflow_name,
+                        "tool_name": effective_tool_name(tc),
+                        "evidence": {
+                            "turn_index": tc.turn_index,
+                            "blocked_indicator": val,
+                            "args": effective_tool_args(tc),
+                        },
+                    }
+                    for tc, val in lolbin_block_calls
+                ],
+            }
+        )
+
+    # Threat-Hunt Check 2: Shallow Hunt Horizon (stopped at <168h with 0 matches)
+    is_collection_hunt = any(
+        sk in ("gti-collection-threat-hunt", "proactive-hunt-gti-campaign")
+        for sk in trace.activated_skills
+    ) or any(
+        "collection" in effective_tool_name(tc).lower()
+        for tc in trace.tool_calls
+    )
+    if is_collection_hunt:
+        siem_sweep_calls = []
+        observed_horizons: List[int] = []
+        any_positive_match = False
+        for tc in trace.tool_calls:
+            eff_name = effective_tool_name(tc).lower()
+            if "get_ioc_matches" in eff_name or "search_security_events" in eff_name:
+                siem_sweep_calls.append(tc)
+                eff_args = effective_tool_args(tc)
+                try:
+                    hb = int(eff_args.get("hours_back", 72))
+                except (TypeError, ValueError):
+                    hb = 72
+                observed_horizons.append(hb)
+                if hb >= 168:
+                    any_positive_match = True
+                res_summary = str(tc.result_summary or "")
+                if (
+                    '"total_matches": 0' not in res_summary
+                    and '"events_matched": 0' not in res_summary
+                    and '"total_events": 0' not in res_summary
+                    and res_summary
+                    and (
+                        "malwaretest-win" in res_summary
+                        or '"total_matches": 2' in res_summary
+                        or '"events_matched": 3' in res_summary
+                    )
+                ):
+                    any_positive_match = True
+
+        if siem_sweep_calls and max(observed_horizons) < 168 and not any_positive_match:
+            max_h = max(observed_horizons)
+            detected_issues.append(
+                {
+                    "category": "SHALLOW_HUNT_HORIZON",
+                    "severity": "HIGH",
+                    "summary": (
+                        f"Threat hunt stopped at a shallow SIEM lookback horizon ({max_h}h < 168h) "
+                        "without widening to 7-30 days after initial zero-match sweep."
+                    ),
+                    "root_cause_hypothesis": (
+                        "Agent accepted a single short-horizon SIEM check (72h) as proof of "
+                        "zero exposure and skipped the mandatory multi-horizon escalation step "
+                        "(168h / 720h) required for historical campaign hunts."
+                    ),
+                    "remediation_proposal": (
+                        "Enforce the Multi-Horizon SIEM Sweep rule in gti-collection-threat-hunt: "
+                        "when a 72h sweep returns 0 matches, automatically widen hours_back to "
+                        "168 (7 days) and 720 (30 days) before declaring clean."
+                    ),
+                    "affected_tools": sorted({effective_tool_name(tc) for tc in siem_sweep_calls}),
+                    "occurrence_count": 1,
+                    "occurrences": [
+                        {
+                            "trace_id": trace.trace_id or "unknown",
+                            "session_id": trace.session_id or "unknown",
+                            "workflow_name": trace.workflow_name,
+                            "tool_name": effective_tool_name(tc),
+                            "evidence": {
+                                "turn_index": tc.turn_index,
+                                "observed_horizons_hours": observed_horizons,
+                                "args": effective_tool_args(tc),
+                            },
+                        }
+                        for tc in siem_sweep_calls
+                    ],
+                }
+            )
 
     return {
         "trace_id": trace.trace_id or f"trace-{trace.session_id or 'anon'}",
