@@ -13357,10 +13357,11 @@ class TestCycle29CapstoneProductionGovernanceAndKevExposure:
 
 
 class TestHorizon31AgenticRunbookContextHygiene:
-  """Horizon 31 (H31) unit tests for Agentic SOC Runbook Context Hygiene (`RB-01`..`RB-04`):
+  """Horizon 31 (H31) unit tests for Agentic SOC Runbook Context Hygiene (`RB-01`..`RB-05`):
   detecting and redlining Mermaid sequenceDiagram bloat, interactive Cline IDE pseudo-tools,
-  unresolved `${VAR_NAME}` shell template variables, and missing 4-way Disposition &
-  Containment Matrix / Benign Admin Override."""
+  unresolved `${VAR_NAME}` shell template variables, missing 4-way Disposition &
+  Containment Matrix / Benign Admin Override, and Threat Hunt missing multi-horizon
+  lookback widening / LOLBin disambiguation guard."""
 
   def test_inspect_and_redline_runbook_context_hygiene_detects_rb01_to_rb04_and_preserves_negative_control(
       self,
@@ -13379,10 +13380,11 @@ class TestHorizon31AgenticRunbookContextHygiene:
         "RB-02",
         "RB-03",
         "RB-04",
+        "RB-05",
     }
 
     sample_runbook = (
-        "# Lateral Movement Hunt Runbook\n\n"
+        "# Lateral Movement & GTI Collection Hunt Runbook\n\n"
         "```mermaid\n"
         "sequenceDiagram\n"
         "    participant Analyst\n"
@@ -13391,7 +13393,8 @@ class TestHorizon31AgenticRunbookContextHygiene:
         "```\n\n"
         "1. Query SIEM UDM for `${ALERT_ID}` and `${SUSPICIOUS_IP}` across the last 24 hours.\n"
         "2. If no events return, call `ask_followup_question` and `attempt_completion` to ask the user.\n"
-        "3. Classify the alert as either `escalate_incident` or `close_alert` and isolate the host immediately on any PsExec or PowerShell execution.\n\n"
+        "3. Classify the alert as either `escalate_incident` or `close_alert` and isolate the host immediately on any PsExec or PowerShell execution.\n"
+        "4. Search SIEM over a fixed 24-hour window only and immediately call `block_indicator` on every file hash returned by `get_entities_related_to_a_collection`.\n\n"
         "Certified Control: Always evaluate `escalate_incident`, `contain_and_patch`, `tune_detection`, and `benign_or_inconclusive` with the Benign Admin Override.\n"
     )
 
@@ -13401,23 +13404,24 @@ class TestHorizon31AgenticRunbookContextHygiene:
     assert inspected["status"] == "defects_found"
     assert inspected["horizon"] == "H31"
     assert inspected["word_budget_exceeded"] is False
-    assert inspected["defect_count"] == 4
+    assert inspected["defect_count"] == 5
     assert [d["rule_id"] for d in inspected["defects"]] == [
         "RB-01",
         "RB-03",
         "RB-02",
         "RB-04",
+        "RB-05",
     ]
     assert len(inspected["negative_controls_preserved"]) == 1
 
     spans = find_runbook_context_hygiene_spans(sample_runbook)
-    assert len(spans) == 4
+    assert len(spans) == 5
 
     sim = LocalGoogleDocsSimulator()
     clear_doc_index_cache()
     sim.create_or_reset_doc(
         "sim-doc-h31-runbook",
-        "Lateral Movement Hunt Runbook",
+        "Lateral Movement & GTI Collection Hunt Runbook",
         sample_runbook,
         simulate_drive_markdown_import=True,
     )
@@ -13429,13 +13433,13 @@ class TestHorizon31AgenticRunbookContextHygiene:
     )
     assert audit_res["status"] == "ok"
     assert audit_res["horizon"] == "H31"
-    assert audit_res["defect_count"] == 4
+    assert audit_res["defect_count"] == 5
     start_indices = [
         int(e["startIndex"]) for e in audit_res["staged_suggested_edits"]
     ]
     assert start_indices == sorted(start_indices, reverse=True)
-    assert audit_res["comments"]["inserted_count"] == 4
-    assert audit_res["edits"]["applied_count"] == 4
+    assert audit_res["comments"]["inserted_count"] == 5
+    assert audit_res["edits"]["applied_count"] == 5
 
 
 

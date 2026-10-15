@@ -40800,6 +40800,18 @@ CANONICAL_RUNBOOK_CONTEXT_HYGIENE_CATALOG: dict[str, dict[str, Any]] = {
             "forbid host isolation / account disablement on verified benign admin maintenance."
         ),
     },
+    "RB-05": {
+        "rule_id": "RB-05",
+        "defect_type": "threat_hunt_missing_horizon_expansion_or_lolbin_guard",
+        "severity": "HIGH",
+        "title": "Threat Hunt Missing Multi-Horizon Widening (72h -> 168h) or LOLBin Disambiguation Guard",
+        "description": (
+            "Concludes a GTI collection or TTP threat hunt after a single 24h/72h window without "
+            "widening to 168h (7 days) or pivoting to `communicating_files` / `PROCESS_MODULE_LOAD`, "
+            "or blocks all collection file hashes indiscriminately (including legitimate signed "
+            "OS LOLBins like `rundll32.exe` `7d99c80a...` or benign collateral files)."
+        ),
+    },
 }
 
 
@@ -40882,6 +40894,28 @@ _RB_DEFECT_SPECS: tuple[dict[str, Any], ...] = (
             "must include all 4 Disposition & Containment Matrix branches (`escalate_incident`, "
             "`contain_and_patch`, `tune_detection`, `benign_or_inconclusive`) and the Benign Admin "
             "Override forbidding destructive actions on verified maintenance."
+        ),
+    },
+    {
+        "rule_id": "RB-05",
+        "defect_type": "threat_hunt_missing_horizon_expansion_or_lolbin_guard",
+        "severity": "HIGH",
+        "pattern": re.compile(
+            r"Search SIEM over a fixed 24-hour window only and immediately call `block_indicator` on every file hash returned by `get_entities_related_to_a_collection`\.",
+            re.DOTALL,
+        ),
+        "replacement": (
+            "Sweep SIEM over 72 hours and widen `hours_back` to 168 hours (7 days) if zero events "
+            "return, pivot on C2 domains via `get_entities_related_to_a_domain(relationship_name='communicating_files')` "
+            "for `PROCESS_MODULE_LOAD` hits, and verify every hash via `get_file_report` before calling "
+            "`block_indicator` so legitimate signed OS LOLBins (`rundll32.exe`, `wscript.exe`) are never blocked."
+        ),
+        "comment": (
+            "[Agentic Runbook Context Hygiene Audit (RB-05) | HIGH] Proactive GTI collection threat "
+            "hunts (e.g., 'Unwrapping Ursnifs Gifts' `alienvault_63bbee81b55c8ba00724605a`) require "
+            "72h -> 168h lookback widening, `communicating_files` -> `PROCESS_MODULE_LOAD` pivoting, "
+            "and `get_file_report` LOLBin disambiguation so signed OS binaries (`rundll32.exe` `7d99c80a...`) "
+            "are not blocked alongside Ursnif payloads."
         ),
     },
 )
