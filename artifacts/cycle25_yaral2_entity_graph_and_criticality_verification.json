@@ -1,0 +1,123 @@
+{
+  "cycle": 25,
+  "horizon": "H26",
+  "status": "validated",
+  "new_docs_created": 0,
+  "live_doc_id": "1xWqRXooknTaEUVKyjjWYE1tHsRxES6B86y8cDf1csEE",
+  "benchmark_bench12": {
+    "expected_defects": 5,
+    "true_positive_edits": 5,
+    "false_positive_edits": 0,
+    "negative_controls_preserved": "2/2",
+    "f1": 1.0,
+    "pass2_idempotency_rate": 1.0
+  },
+  "benchmark_all_with_night2": {
+    "scenario_count": 12,
+    "expected_defects": 63,
+    "true_positive_edits": 63,
+    "false_positive_edits": 0,
+    "negative_controls_preserved": "25/25",
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "pass2_idempotency_rate": 1.0,
+    "hda_attribution": {
+      "delta_G": 0.6508,
+      "delta_T": 0.1905,
+      "delta_A": 0.1587,
+      "delta_total": 1.0,
+      "ablation_scores": {
+        "unassisted_baseline": 0.0,
+        "mechanics_only_stage_a": 0.1905,
+        "grounded_without_promotion_guard": 0.8413,
+        "full_grounded_reviewer": 1.0,
+        "unparameterized_ioc_overfitting_control": -0.25
+      },
+      "tier_breakdown": {
+        "mechanics_caught": 12,
+        "mechanics_total": 12,
+        "grounding_caught": 41,
+        "grounding_total": 41,
+        "agent_caught": 10,
+        "agent_total": 10
+      }
+    }
+  },
+  "skillrl_distillation_matrix": {
+    "family_count": 6,
+    "horizons_covered": [
+      "H25",
+      "H26"
+    ]
+  },
+  "live_pass1": {
+    "defect_count": 5,
+    "defect_counts_by_type": {
+      "unprefixed_entity_graph_field": 1,
+      "missing_entity_graph_metadata_type_filter": 1,
+      "entity_graph_udm_join_key_mismatch": 1,
+      "uncalibrated_entity_criticality_risk_multiplier": 1,
+      "prose_entity_criticality_contradiction": 1
+    },
+    "applied_redlines": 5,
+    "false_positive_redlines": 0,
+    "inserted_comment_count": 5,
+    "appended_appendix": true,
+    "has_h26_entity_graph_matrix": true,
+    "fee2e2_span_count": 8,
+    "dcfce7_span_count": 5,
+    "yaral2_rules_inspected_count": 5,
+    "standard_yara_rule_names": [
+      "standard_yara_pe_binary_header_control"
+    ],
+    "live_siem": {
+      "broken_unprefixed_rule_rejected": true,
+      "broken_unprefixed_rule_error": "{'content': [{'type': 'text', 'text': 'Rule Validation Results:\\n\\n Rule validation FAILED\\nError: compilation error compiling query: generating predicates: getting event field descriptors in predicate conversion: accessing field \"udm.hostname\": field \"hostname\" does not exist, valid fields are: \"metadata\", \"additional\", \"principal\", \"src\", \"target\", \"intermediary\", \"observer\", \"about\", \"security_",
+      "remediated_rules_validated_count": 4,
+      "all_remediated_rules_valid": true,
+      "remediated_rule_validations": [
+        {
+          "rule_name": "case_33269_unprefixed_entity_graph_rule",
+          "defect_types": [
+            "unprefixed_entity_graph_field"
+          ],
+          "valid": true,
+          "raw_response": "{'content': [{'type': 'text', 'text': 'Rule Validation Results:\\n\\n Rule validation PASSED\\nThe rule syntax is correct and ready for testing or deployment.\\n'}], 'structuredContent': {'result': 'Rule Validation Results:\\n\\n Rule validation PASSED\\nThe rule syntax is correct and ready for testing or deployment.\\n'}, 'isError': False}"
+        },
+        {
+          "rule_name": "case_33280_missing_entity_type_filter_rule",
+          "defect_types": [
+            "missing_entity_graph_metadata_type_filter"
+          ],
+          "valid": true,
+          "raw_response": "{'content': [{'type': 'text', 'text': 'Rule Validation Results:\\n\\n Rule validation PASSED\\nThe rule syntax is correct and ready for testing or deployment.\\n'}], 'structuredContent': {'result': 'Rule Validation Results:\\n\\n Rule validation PASSED\\nThe rule syntax is correct and ready for testing or deployment.\\n'}, 'isError': False}"
+        },
+        {
+          "rule_name": "case_33285_entity_graph_join_mismatch_rule",
+          "defect_types": [
+            "entity_graph_udm_join_key_mismatch"
+          ],
+          "valid": true,
+          "raw_response": "{'content': [{'type': 'text', 'text': 'Rule Validation Results:\\n\\n Rule validation PASSED\\nThe rule syntax is correct and ready for testing or deployment.\\n'}], 'structuredContent': {'result': 'Rule Validation Results:\\n\\n Rule validation PASSED\\nThe rule syntax is correct and ready for testing or deployment.\\n'}, 'isError': False}"
+        },
+        {
+          "rule_name": "case_33278_uncalibrated_criticality_risk_rule",
+          "defect_types": [
+            "uncalibrated_entity_criticality_risk_multiplier"
+          ],
+          "valid": true,
+          "raw_response": "{'content': [{'type': 'text', 'text': 'Rule Validation Results:\\n\\n Rule validation PASSED\\nThe rule syntax is correct and ready for testing or deployment.\\n'}], 'structuredContent': {'result': 'Rule Validation Results:\\n\\n Rule validation PASSED\\nThe rule syntax is correct and ready for testing or deployment.\\n'}, 'isError': False}"
+        }
+      ],
+      "search_udm_raw": "{'content': [{'type': 'text', 'text': '{\\n  \"events\": [\\n    {\\n      \"name\": \"projects/dandye-0324-chronicle/locations/us/instances/7e977ce4-f45d-43b2-aea0-52f8b66acd80/events/AAAAAHTJVZBByezsM2bHWe7zCl4AAAAABgAAACAAAAA%3D\",\\n      \"udm\": {\\n        \"metadata\": {\\n          \"productLogId\": \"1366207\",\\n          \"eventTimestamp\": \"2026-02-07T10:06:28Z\",\\n          \"eventType\": \"PROCESS_LAUNCH\",\\n          \"vendorName\": \"Microsoft\",\\n          \"productName\": \"Microsoft-Windows-Sysmon\",\\n          \"productEventType\": \"1\",\\n          \"ingestedTimestamp\": \"2026-02-08T07:01:37.624491Z\",\\n          ",
+      "search_udm_has_events": true
+    }
+  },
+  "live_pass2": {
+    "defect_count": 0,
+    "skipped_existing_suggestion_count": 5,
+    "applied_redlines": 0,
+    "appended_appendix": false
+  }
+}

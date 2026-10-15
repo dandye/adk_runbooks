@@ -1188,8 +1188,50 @@ def run_ueba_report_workflow(user_id: str, case_id: str = "", timeframe_days: in
     return str(final)
 
 
+def run_grounded_soar_review_workflow(
+    case_id: str,
+    skill_name: str = "compromised-user-account-response",
+    raw_telemetry_summary: str = "",
+    doc_url: str = "",
+    runbook_doc_url: str = "",
+    doc_text: str = "",
+    verify_post_accept_readiness: bool = True,
+) -> str:
+    """Executes ADK Graph Workflow: grounded_soar_review_workflow."""
+    from ..workflows.grounded_soar_review_workflow import (
+        GroundedSOARReviewInput,
+        document_grounded_soar_review_node,
+        grounded_review_mode_router,
+        handle_semantic_grounded_branch,
+        handle_two_stage_sanitized_branch,
+        sanitize_soar_telemetry_node,
+    )
+
+    inp = GroundedSOARReviewInput(
+        case_id=case_id,
+        skill_name=skill_name,
+        raw_telemetry_summary=raw_telemetry_summary,
+        doc_url=doc_url,
+        runbook_doc_url=runbook_doc_url,
+        doc_text=doc_text,
+        verify_post_accept_readiness=verify_post_accept_readiness,
+    )
+    curr = sanitize_soar_telemetry_node(inp)
+    route_ev = grounded_review_mode_router(curr)
+    route_name = (
+        getattr(getattr(route_ev, "actions", None), "route", None)
+        or getattr(route_ev, "route", "")
+    )
+    if route_name == "TWO_STAGE_SANITIZED_REVIEW":
+        out = handle_two_stage_sanitized_branch(curr)
+    else:
+        out = handle_semantic_grounded_branch(curr)
+    final = document_grounded_soar_review_node(out)
+    return str(final)
+
+
 def get_all_workflow_tools():
-    """Returns a list of all 36 executable ADK Graph Workflow tool functions."""
+    """Returns a list of all 37 executable ADK Graph Workflow tool functions."""
     return [
         run_advanced_threat_hunting_workflow,
         run_alert_report_workflow,
@@ -1208,6 +1250,7 @@ def get_all_workflow_tools():
         run_detection_report_workflow,
         run_detection_rule_validation_workflow,
         run_endpoint_triage_workflow,
+        run_grounded_soar_review_workflow,
         run_group_cases_v2_workflow,
         run_group_cases_workflow,
         run_investigate_case_external_tools_workflow,

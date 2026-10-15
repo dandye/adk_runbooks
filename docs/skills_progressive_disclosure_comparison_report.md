@@ -8,6 +8,8 @@ generated:
 related:
   - ./skills_progressive_disclosure_overview.md
   - ./adk_graph_workflows_overview.md
+  - ./drive_runbooks_overview.md
+  - ./grounded_docs_review_overview.md
 ---
 
 # Skills Progressive Disclosure Architecture: Comparative Analysis & Benchmark Report
@@ -128,8 +130,8 @@ evals/tests/test_rubrics.py (4 tests) ................................. PASSED
 ## 5. Summary of Copied Artifacts from Sibling Worktrees
 
 The following prior evaluation reports and cross-experiment comparative benchmarks were copied from sibling worktrees into this worktree for direct comparison:
-- [`report.md`](file://report.md): Master Evaluation & Grading Scorecard across multi-agent security experiments.
-- [`TEST_PLAN.md`](file://TEST_PLAN.md): Multi-Agent security evaluation test plan.
-- [`presentation/adk_graph_workflows_slide_deck.md`](file://presentation/adk_graph_workflows_slide_deck.md): Slide deck covering graph workflows vs autonomous loop paradigms.
-- [`multi-agent/reports/`](file://multi-agent/reports/): 3-way benchmarks, graph vs non-graph case studies, and telemetry stats files.
-- [`evals/results/`](file://evals/results/): JSON and Markdown evaluation results across prior runs.
+- `report.md`: Master Evaluation & Grading Scorecard across multi-agent security experiments.
+- `TEST_PLAN.md`: Multi-Agent security evaluation test plan.
+- `presentation/adk_graph_workflows_slide_deck.md`: Slide deck covering graph workflows vs autonomous loop paradigms.
+- `multi-agent/reports/`: 3-way benchmarks, graph vs non-graph case studies, and telemetry stats files.
+- `evals/results/`: JSON and Markdown evaluation results across prior runs.

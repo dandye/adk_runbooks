@@ -83,13 +83,21 @@ class AdcTokenSource:
         self._lock = threading.Lock()
 
     def __call__(self) -> str:
-        with self._lock:
-            if self._credentials is None:
-                self._credentials = self._load_credentials()
-            if not self._credentials.valid:
-                from google.auth.transport.requests import Request  # pylint: disable=g-import-not-at-top
+        import google.auth.exceptions  # pylint: disable=g-import-not-at-top
 
-                self._credentials.refresh(Request())
+        with self._lock:
+            try:
+                if self._credentials is None:
+                    self._credentials = self._load_credentials()
+                if not self._credentials.valid:
+                    from google.auth.transport.requests import Request  # pylint: disable=g-import-not-at-top
+
+                    self._credentials.refresh(Request())
+            except google.auth.exceptions.GoogleAuthError as err:
+                raise DriveRegistryConfigError(
+                        f"ADC authentication failed ({err}). Run: gcloud auth login <ACCOUNT> "
+                        "--enable-gdrive-access --update-adc inside the worktree."
+                ) from err
             token = self._credentials.token
         if not token:
             raise DriveMcpError("ADC refresh produced an empty access token.")
@@ -205,6 +213,12 @@ class DriveMcpClient:
 
     def close(self) -> None:
         self._http.close()
+
+    def __enter__(self) -> DriveMcpClient:
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.close()
 
     def _headers(self) -> dict[str, str]:
         headers = {
@@ -379,6 +393,17 @@ class DriveSkillRegistry(SkillRegistry):
         self.skills_dir = Path("googledrive") / self.folder_id
         self.skills: dict[str, SkillMetadata] = {}
         self.scan_skills()
+
+    def close(self) -> None:
+        """Closes the underlying DriveMcpClient HTTP connection pool."""
+        if hasattr(self.client, "close"):
+            self.client.close()
+
+    def __enter__(self) -> DriveSkillRegistry:
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.close()
 
     # -- scanning -----------------------------------------------------------
 

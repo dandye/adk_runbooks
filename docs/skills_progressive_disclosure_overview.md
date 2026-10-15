@@ -10,6 +10,8 @@ related:
   - ./progressive_mcp_discovery_overview.md
   - ./adk_graph_workflows_overview.md
   - ./superpowers/specs/2026-08-20-convert-runbooks-to-skills-progressive-disclosure-design.md
+  - ./drive_runbooks_overview.md
+  - ./grounded_docs_review_overview.md
 ---
 
 # Skills & Progressive Disclosure Framework
@@ -153,3 +155,9 @@ generated:
 * **`all_36_workflows` Dataset**: **36/36 Passed (100.0% | Avg Score: 89.7 / 100.0)**.
 * **`expanded_cases_alerts` Dataset**: **25/25 Passed (100.0% | Avg Score: 90.6 / 100.0)**.
 * **Security & Secrets Scan**: Clean (zero API tokens, credentials, or private certificates committed).
+
+---
+
+### 4. Subsequent architectural milestones
+* **Google Drive Remote MCP Runbooks (`drive-mcp-runbooks`).** Serves Markdown runbooks directly from a Google Drive folder through the Drive remote MCP server and `DriveSkillRegistry` (`docs/drive_runbooks_overview.md`).
+* **Grounded Google Docs Review and Markdown Sync (`drive-mcp-runbooks__grounded-docs`).** Extends Drive runbooks with collaborative review in Google Docs, dual-source grounding, the `multi-agent/manager/workflows/grounded_soar_review_workflow.py` workflow, 29 autonomous evolution cycles (`H1` to `H30`), and 275 passing unit tests (`docs/grounded_docs_review_overview.md`, `docs/blog_grounded_google_docs_runbooks.md`).

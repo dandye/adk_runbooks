@@ -1,0 +1,107 @@
+{
+  "cycle": 26,
+  "horizon": "H27",
+  "title": "SOAR Playbook Actuation Safety & Blast-Radius Pre-Flight Verifier in Google Docs",
+  "timestamp_utc": "2026-10-12T10:21:16.189126+00:00",
+  "catalog_version": "2026.10.cycle26",
+  "verified_cases": [
+    "33269",
+    "33278",
+    "33280",
+    "33281",
+    "33283",
+    "33285",
+    "33287"
+  ],
+  "benchmark_bench13": {
+    "scenario_id": "BENCH-13-SOAR-ACTUATION-SAFETY-AND-PREFLIGHT",
+    "total_expected_defects": 5,
+    "true_positive_edits": 5,
+    "false_positive_edits": 0,
+    "negative_controls_preserved": 2,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "pass2_idempotency_rate": 1.0,
+    "google_drive_write_calls": 0
+  },
+  "benchmark_all_with_night2": {
+    "scenario_count": 13,
+    "total_expected_defects": 68,
+    "true_positive_edits": 68,
+    "false_positive_edits": 0,
+    "total_negative_controls": 27,
+    "negative_controls_preserved": 27,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "pass2_idempotency_rate": 1.0,
+    "overall_hda_error": 0.0,
+    "google_drive_write_calls": 0
+  },
+  "skillrl_distillation": {
+    "family_count": 7,
+    "horizons_covered": [
+      "H25",
+      "H26",
+      "H27"
+    ],
+    "h27_rule_id": "SKILLRL-07-SOAR-ACTUATION-PREFLIGHT-SAFETY",
+    "h27_defect_classes": [
+      "unguarded_host_isolation_action",
+      "unguarded_indicator_block_action",
+      "unguarded_identity_disable_or_destructive_action",
+      "missing_soar_rollback_and_dry_run_contract",
+      "yaral2_unsafe_auto_containment_meta"
+    ]
+  },
+  "live_chronicle_siem_verification": {
+    "status": "success",
+    "live_rule_validations": [
+      {
+        "rule_name": "yaral2_unsafe_soar_auto_isolation_wins_d19",
+        "defect_type": "yaral2_unsafe_auto_containment_meta",
+        "valid": true,
+        "raw_response": "{'content': [{'type': 'text', 'text': 'Rule Validation Results:\\n\\n Rule validation PASSED\\nThe rule syntax is correct and ready for testing or deployment.\\n'}], 'structuredContent': {'result': 'Rule Validation Results:\\n\\n Rule validation PASSED\\nThe rule syntax is correct and ready for testing or deployment.\\n'}, 'isError': False}"
+      }
+    ],
+    "all_rules_valid": true,
+    "search_udm_raw": "{'content': [{'type': 'text', 'text': '{\\n  \"events\": [\\n    {\\n      \"name\": \"projects/dandye-0324-chronicle/locations/us/instances/7e977ce4-f45d-43b2-aea0-52f8b66acd80/events/AAAAAHTJVZBByezsM2bHWe7zCl4AAAAABgAAACAAAAA%3D\",\\n      \"udm\": {\\n        \"metadata\": {\\n          \"productLogId\": \"1366207\",\\n          \"eventTimestamp\": \"2026-02-07T10:06:28Z\",\\n          \"eventType\": \"PROCESS_LAUNCH\",\\n          \"vendorName\": \"Microsoft\",\\n          \"productName\": \"Microsoft-Windows-Sysmon\",\\n          \"productEventType\": \"1\",\\n          \"ingestedTimestamp\": \"2026-02-08T07:01:37.624491Z\",\\n          ",
+    "search_udm_has_events": true
+  },
+  "live_google_doc_verification": {
+    "document_id": "1xWqRXooknTaEUVKyjjWYE1tHsRxES6B86y8cDf1csEE",
+    "title": "Cycle26_H27_Live_SOAR_Playbook_Actuation_Safety_Validation_20261012",
+    "web_view_link": "https://docs.google.com/document/d/1xWqRXooknTaEUVKyjjWYE1tHsRxES6B86y8cDf1csEE/edit?usp=drivesdk",
+    "new_docs_created": 0,
+    "deleted_previous_comments": 5,
+    "pass1": {
+      "defect_count": 5,
+      "defect_counts_by_type": {
+        "unguarded_host_isolation_action": 1,
+        "unguarded_indicator_block_action": 1,
+        "unguarded_identity_disable_or_destructive_action": 1,
+        "missing_soar_rollback_and_dry_run_contract": 1,
+        "yaral2_unsafe_auto_containment_meta": 1
+      },
+      "applied_redlines": 5,
+      "inserted_comment_count": 5,
+      "false_positive_redlines": 0,
+      "yaral2_rules_inspected_count": 1,
+      "standard_yara_rules_skipped_count": 1,
+      "standard_yara_rule_names": [
+        "standard_yara_elf_binary_control"
+      ],
+      "appended_appendix": true,
+      "has_h27_soar_actuation_matrix": true,
+      "fee2e2_span_count": 5,
+      "dcfce7_span_count": 5
+    },
+    "pass2_idempotency": {
+      "defect_count": 0,
+      "applied_redlines": 0,
+      "skipped_existing_suggestion_count": 5,
+      "appended_appendix": false
+    }
+  }
+}

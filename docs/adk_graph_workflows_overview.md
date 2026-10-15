@@ -9,6 +9,8 @@ related:
   - ./skills_progressive_disclosure_overview.md
   - ./progressive_mcp_discovery_overview.md
   - ../rules-bank/multi_agent_overview.md
+  - ./drive_runbooks_overview.md
+  - ./grounded_docs_review_overview.md
 ---
 
 # ADK Graph Workflows for SecOps Runbooks & Incident Response Plans
@@ -216,3 +218,5 @@ Version E (Dual Progressive: S+MCP):  █ 112k tokens (Grade: A | -97.7% vs A, -
    ADK Graph Workflows established the high-performance execution engine for the repository. Subsequent architectural milestones build directly on this foundation:
    - **Skills Progressive Disclosure (`skills_v0001`):** Injects lightweight trigger catalogs in prompts and dynamically loads runbook procedures on demand via `load_skill()`.
    - **Progressive MCP Tool Discovery (`progressive_discovery_mcp_v0001`):** Dynamically discovers and retrieves MCP tool schemas on demand via `search_mcp_tools()` and `execute_mcp_tool()`, further reducing token consumption from 870k down to ~112k tokens per incident.
+   - **Google Drive Remote MCP Runbooks (`drive-mcp-runbooks`).** Serves Markdown runbooks directly from a Google Drive folder through the Drive remote MCP server and `DriveSkillRegistry` (`docs/drive_runbooks_overview.md`).
+   - **Grounded Google Docs Review and Markdown Sync (`drive-mcp-runbooks__grounded-docs`).** Extends Drive runbooks with collaborative review in Google Docs, dual-source grounding, the `multi-agent/manager/workflows/grounded_soar_review_workflow.py` workflow, 29 autonomous evolution cycles (`H1` to `H30`), and 275 passing unit tests (`docs/grounded_docs_review_overview.md`, `docs/blog_grounded_google_docs_runbooks.md`).
