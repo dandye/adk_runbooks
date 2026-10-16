@@ -30,6 +30,37 @@ def test_gti_collection_threat_hunt_skill_registered():
     assert expected_tools.issubset(set(meta.adk_additional_tools))
 
 
+def test_ioc_containment_skill_enforces_lolbin_signer_gate():
+    """Verify ioc-containment enforces mandatory GTI signer check and LOLBin exclusion under urgency pressure."""
+    meta = global_skill_registry.get_skill("ioc-containment")
+    assert meta is not None
+    assert meta.category == "investigation"
+    assert meta.description.startswith("Use when")
+    expected_tools = {
+        "gti-mcp_get_file_report",
+        "gti-mcp_get_domain_report",
+        "gti-mcp_get_ip_address_report",
+        "secops-mcp_search_security_events",
+        "soar-mcp_block_ioc",
+        "soar-mcp_block_indicator",
+        "soar-mcp_isolate_host",
+        "soar-mcp_post_case_comment",
+    }
+    assert expected_tools.issubset(set(meta.adk_additional_tools))
+
+    content = global_skill_registry.get_skill_content("ioc-containment")
+    assert "VALID_CERTIFICATE" in content
+    assert "LOLBin" in content
+    assert "rundll32.exe" in content
+    assert "Never skip" in content
+    assert "(Optional)" not in content
+    assert "${" not in content
+    assert "sequenceDiagram" not in content
+    assert "attempt_completion" not in content
+    body_text = content.split("---", 2)[-1].strip()
+    assert len(body_text.split()) <= 350
+
+
 def _as_dict(raw):
     return json.loads(raw) if isinstance(raw, str) else raw
 
@@ -395,3 +426,45 @@ def test_aqua_passes_compliant_multi_horizon_ursnif_hunt():
 
     report_good = analyze_session_trace(compliant_trace, source="session-db")
     assert report_good["detected_issues"] == []
+
+
+def test_aqua_session_db_escaped_json_result_summary_horizon_check():
+    """Verify session-db escaped JSON result_summary ('\\\"hours_back\\\": 168') does not false-positive SHALLOW_HUNT_HORIZON."""
+    session_db_trace = WorkflowTrace(
+        workflow_name="ursnif_session_db_escaped",
+        session_id="sess-ursnif-escaped",
+        trace_id="trace-ursnif-escaped",
+        disclosure_mode="dual_progressive",
+        activated_skills=["ioc-containment", "investigate-gti-collection"],
+        inspected_schemas=["search_security_events", "get_collection_report"],
+        tool_calls=[
+            ToolCallRecord(
+                turn_index=1,
+                agent_name="incident_responder",
+                tool_name="execute_mcp_tool",
+                args={
+                    "tool_name": "search_security_events",
+                    "arguments": {
+                        "query": 'target.file.sha256 = "7d99c80a1249a1ec9af0f3047c855778b06ea57e11943a271071985afe09e6c2"',
+                    },
+                },
+                result_summary='{"result": "{\\n  \\"status\\": \\"success\\",\\n  \\"hours_back\\": 168,\\n  \\"events_matched\\": 3\\n}"}',
+                disclosure_skill_loaded=True,
+                mcp_schema_inspected=True,
+            ),
+            ToolCallRecord(
+                turn_index=2,
+                agent_name="cti_researcher",
+                tool_name="execute_mcp_tool",
+                args={
+                    "tool_name": "get_collection_report",
+                    "arguments": {"id": "alienvault_63bbee81b55c8ba00724605a"},
+                },
+                disclosure_skill_loaded=True,
+                mcp_schema_inspected=True,
+            ),
+        ],
+    )
+    report = analyze_session_trace(session_db_trace, source="session-db")
+    assert report["detected_issues"] == []
+

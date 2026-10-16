@@ -520,7 +520,10 @@ def analyze_session_trace(
                 observed_horizons.append(hb)
                 if hb >= 168:
                     any_positive_match = True
-                res_summary = str(tc.result_summary or "")
+                res_summary = str(tc.result_summary or "").replace('\\"', '"')
+                if '"hours_back": 168' in res_summary:
+                    observed_horizons.append(168)
+                    any_positive_match = True
                 if (
                     '"total_matches": 0' not in res_summary
                     and '"events_matched": 0' not in res_summary
