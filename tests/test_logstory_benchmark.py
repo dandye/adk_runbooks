@@ -60,11 +60,14 @@ def test_build_scenario_prompt_attack_and_baseline():
     assert ref_atk["cohort"] == "cloud_deception"
     assert len(ref_atk["expected_entities"]) >= 1
 
+    assert ref_atk["seed_entity"] in prompt_atk
+    assert ref_atk["seed_entity"].lower() not in [e.lower() for e in ref_atk["expected_entities"]]
+
     uc_base = corpus.usecases["CYMBAL_BASELINE_CLOUD"]
     prompt_base, ref_base = build_scenario_prompt(uc_base, corpus, check_yaral=False)
 
-    assert "Triage routine telemetry check" in prompt_base
-    assert "Do not isolate hosts or block indicators" in prompt_base
+    assert ref_base["case_id"] in prompt_base
+    assert "routine telemetry check" not in prompt_base
     assert ref_base["expected_disposition"] == "BENIGN"
     assert ref_base["is_baseline"] is True
     assert ref_base["cohort"] == "cymbal_baselines"
@@ -263,7 +266,7 @@ def test_score_usecase_run_baseline_false_containment_fails():
         uc,
         ref,
         good_trace,
-        "Verdict: BENIGN. Routine authorized baseline activity.",
+        f"Verdict: BENIGN. Routine activity for {' '.join(ref['expected_entities'])}.",
         corpus,
     )
     assert good_score["passed"] is True

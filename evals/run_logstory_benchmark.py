@@ -187,44 +187,41 @@ def build_scenario_prompt(
     case_id = clues["case_id"]
     cohort = get_cohort_for_usecase(uc.usecase_id)
 
-    clue_parts: list[str] = [f"SOAR Case `{case_id}`"]
-    if clues["scc_category"]:
-        clue_parts.append(f"SCC/Alert category `{clues['scc_category']}`")
+    # Select at most one initial entity clue so the agent must discover the rest via tools
+    seed_entity = ""
+    seed_label = ""
     if clues["primary_host"]:
-        clue_parts.append(f"host `{clues['primary_host']}`")
-    if clues["primary_user"]:
-        clue_parts.append(f"principal `{clues['primary_user']}`")
-    if clues["primary_ext_ip"]:
-        clue_parts.append(f"external IP `{clues['primary_ext_ip']}`")
+        seed_entity = clues["primary_host"]
+        seed_label = f"host `{seed_entity}`"
+    elif clues["primary_user"]:
+        seed_entity = clues["primary_user"]
+        seed_label = f"principal `{seed_entity}`"
     elif clues["primary_int_ip"]:
-        clue_parts.append(f"source IP `{clues['primary_int_ip']}`")
-    if clues["primary_domain"]:
-        clue_parts.append(f"domain `{clues['primary_domain']}`")
+        seed_entity = clues["primary_int_ip"]
+        seed_label = f"source IP `{seed_entity}`"
+    elif clues["primary_domain"]:
+        seed_entity = clues["primary_domain"]
+        seed_label = f"domain `{seed_entity}`"
 
+    clue_parts: list[str] = [f"SOAR Case `{case_id}`"]
+    if seed_label:
+        clue_parts.append(seed_label)
     seed_desc = ", ".join(clue_parts)
 
-    if uc.is_baseline:
-        prompt = (
-            f"Triage routine telemetry check {seed_desc}. "
-            "Query SIEM events, entity context, and GTI reputation as needed. "
-            "Determine whether this activity is MALICIOUS, SUSPICIOUS, INCONCLUSIVE, or BENIGN. "
-            "Do not isolate hosts or block indicators if the activity is routine authorized baseline behavior."
+    prompt = (
+        f"Investigate {seed_desc}. "
+        "Use your progressive disclosure skills and SIEM, SCC/IAM, GTI, and SOAR tools to scope the full timeline. "
+        "State your final disposition clearly (MALICIOUS, SUSPICIOUS, INCONCLUSIVE, or BENIGN), "
+        "list all relevant hosts, accounts, external IPs, domains, and payload SHA256 hashes found, "
+        "and execute or recommend grounded containment only when malicious activity is confirmed."
+    )
+    if check_yaral or cohort == "identity_insider_detection":
+        prompt += (
+            " Also check existing Chronicle YARA-L 2.0 detection rules for this scenario "
+            "or validate a candidate YARA-L 2.0 rule using `validate_yaral2_rule`."
         )
-    else:
-        prompt = (
-            f"Investigate security alert and telemetry for {seed_desc}. "
-            "Use your progressive disclosure skills and SIEM, SCC/IAM, GTI, and SOAR tools to scope the full attack timeline. "
-            "State your final disposition clearly (MALICIOUS, SUSPICIOUS, INCONCLUSIVE, or BENIGN), "
-            "list all confirmed compromised hosts, accounts, external IPs, domains, and payload SHA256 hashes, "
-            "and execute or recommend grounded containment only for confirmed malicious entities."
-        )
-        if check_yaral or cohort == "identity_insider_detection":
-            prompt += (
-                " Also check existing Chronicle YARA-L 2.0 detection rules for this scenario "
-                "or validate a candidate YARA-L 2.0 rule using `validate_yaral2_rule`."
-            )
 
-    expected_entities: list[str] = []
+    all_candidates: list[str] = []
     for item in (
         clues["all_hosts"][:3]
         + clues["all_users"][:2]
@@ -233,19 +230,24 @@ def build_scenario_prompt(
         + [h[:16] for h in clues["all_hashes"][:2]]
     ):
         clean = str(item or "").strip()
-        if clean and clean not in expected_entities:
-            expected_entities.append(clean)
+        if clean and clean not in all_candidates:
+            all_candidates.append(clean)
+
+    discovered_entities = [e for e in all_candidates if e.lower() != seed_entity.lower()]
+    expected_entities = discovered_entities if discovered_entities else all_candidates
 
     reference = {
         "usecase_id": uc.usecase_id,
         "cohort": cohort,
         "is_baseline": uc.is_baseline,
         "case_id": case_id,
+        "seed_entity": seed_entity,
         "expected_disposition": "BENIGN" if uc.is_baseline else "MALICIOUS",
         "expected_entities": expected_entities,
         "paired_baselines": uc.paired_baselines,
         "has_scc_findings": len(uc.scc_findings) > 0,
         "rules_count": len(uc.rules),
+        "check_yaral": bool(check_yaral or cohort == "identity_insider_detection"),
     }
     return prompt, reference
 
@@ -308,19 +310,13 @@ def score_usecase_run(
     else:
         verdict_accuracy = 1.0 if disposition == "MALICIOUS" else 0.0
 
-    # Entity & IOC recall across both tool arguments/results and final response text
-    trace_blob = " ".join(
-        [
-            response_text,
-            json.dumps([tc.args for tc in trace.tool_calls], default=str),
-            " ".join(str(tc.result_summary or "") for tc in trace.tool_calls),
-        ]
-    ).lower()
+    # Entity & IOC recall checks the agent's final report for discovered non-seed entities
+    report_blob = str(response_text or "").lower()
 
     expected_entities: list[str] = reference.get("expected_entities") or []
     matched_entities: list[str] = []
     for ent in expected_entities:
-        if ent.lower() in trace_blob:
+        if ent.lower() in report_blob:
             matched_entities.append(ent)
 
     if not expected_entities:
@@ -380,11 +376,19 @@ def score_usecase_run(
     ]
     tool_grounding = 1.0 if (len(enrichment_calls) >= 1 and schema_ok) else 0.0
 
-    # Check if any YARA-L 2.0 rule was validated or authored
+    # Check if any YARA-L 2.0 rule was validated, authored, or inspected
     yaral_calls = [
         tc
         for tc in trace.tool_calls
         if "validate_yaral2_rule" in effective_tool_name(tc).lower()
+    ]
+    rule_inspect_calls = [
+        tc
+        for tc in trace.tool_calls
+        if any(
+            k in effective_tool_name(tc).lower()
+            for k in ("list_security_rules", "get_detection_rule")
+        )
     ]
     yaral_valid = None
     if yaral_calls:
@@ -393,15 +397,30 @@ def score_usecase_run(
         if rule_txt:
             val_res = corpus.validate_yaral2_rule(rule_txt)
             yaral_valid = 1.0 if val_res["valid"] else 0.0
+    elif rule_inspect_calls:
+        yaral_valid = 0.5
 
-    composite_score = round(
-        0.30 * verdict_accuracy
-        + 0.25 * entity_ioc_recall
-        + 0.20 * containment_safety
-        + 0.15 * progressive_disclosure
-        + 0.10 * tool_grounding,
-        4,
-    )
+    check_yaral = bool(reference.get("check_yaral")) and not uc.is_baseline
+    if check_yaral:
+        yaral_score = float(yaral_valid) if yaral_valid is not None else 0.0
+        composite_score = round(
+            0.25 * verdict_accuracy
+            + 0.25 * entity_ioc_recall
+            + 0.20 * containment_safety
+            + 0.10 * progressive_disclosure
+            + 0.10 * tool_grounding
+            + 0.10 * yaral_score,
+            4,
+        )
+    else:
+        composite_score = round(
+            0.30 * verdict_accuracy
+            + 0.25 * entity_ioc_recall
+            + 0.20 * containment_safety
+            + 0.15 * progressive_disclosure
+            + 0.10 * tool_grounding,
+            4,
+        )
     passed = (
         verdict_accuracy == 1.0
         and containment_safety == 1.0
