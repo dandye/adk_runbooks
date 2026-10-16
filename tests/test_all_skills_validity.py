@@ -39,6 +39,7 @@ EXPECTED_CATEGORIES = {
         "guided-ttp-hunt-credential-access",
         "lateral-movement-hunt-psexec-wmi",
         "proactive-hunt-gti-campaign",
+        "gti-collection-threat-hunt",
     ],
     "detection": [
         "detection-rule-validation-tuning",

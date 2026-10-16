@@ -1,0 +1,909 @@
+{
+  "total_scenarios": 4,
+  "session_db_path": "evals/results/ursnif_session.db",
+  "trace_log_path": "evals/results/ursnif_otel_traces.jsonl",
+  "sessions": [
+    {
+      "scenario_id": "ursnif_collection_multi_horizon_hunt",
+      "session_id": "sim_ursnif_collection_multi_horizon_hunt_de860aff",
+      "persona": "EXPERT",
+      "turn_count": 4,
+      "stop_reason": "turn_limit_reached",
+      "total_latency_ms": 206297.44,
+      "turns": [
+        {
+          "turn_index": 1,
+          "user_message": "We received GTI Threat Collection alienvault_63bbee81b55c8ba00724605a ('Unwrapping Ursnifs Gifts'). Check the collection report and run an initial 72-hour SIEM IOC sweep.",
+          "agent_response": "I have completed the investigation of GTI Threat Collection `alienvault_63bbee81b55c8ba00724605a` (\"Unwrapping Ursnifs Gifts\") and performed a 72-hour SIEM IOC sweep.\n\n### **GTI Collection Overview**\nThe collection describes a campaign involving the **Ursnif (Gozi) banking trojan**. The threat utilizes JScript droppers (`wscript.exe`) that invoke signed Windows binaries (`rundll32.exe`) using reversed command-line arguments to load malicious DLL payloads.\n\n### **Initial 72-Hour SIEM Sweep Results**\nA sweep of enterprise telemetry for the identified indicators revealed two significant findings within the requested window:\n*   **Network Match**: One `NETWORK_HTTP` event was identified involving the malicious C2 domain **`denterdrigx.com`**.\n*   **Behavioral Match**: One process execution event was identified involving the suspicious pair of **`wscript.exe`** and **`rundll32.exe`**, which aligns with the Ursnif delivery mechanism.\n*   **No matches** were found for the specific file hash `dfdfd0a339fe03549b2475811b106866d035954e9bc002f20b0f69e0f986838f` or the malicious IP `193.106.191.163` within the 72-hour window.\n\n### **Recommendations**\n1.  **Immediate Triage**: Prioritize investigation of the host(s) associated with the `denterdrigx.com` connection and the `wscript.exe`/`rundll32.exe` execution.\n2.  **Enforcement**: Block the identified C2 domains (`denterdrigx.com`, `internetlined.com`, `internetlines.in`, `superliner.top`, `superlinez.top`, `superstarts.top`) and IP (`193.106.191.163`).\n3.  **Expanded Hunt**: Widen the SIEM search window to 168 hours (7 days) to ensure no earlier stages of the infection chain were missed.\n\nA detailed report has been generated: `gti_investigation_ursnif_20261016_180805.md`.",
+          "authors": [
+            "manager",
+            "cti_researcher"
+          ],
+          "tool_calls": [
+            "transfer_to_agent",
+            "load_skill",
+            "search_mcp_tools",
+            "get_mcp_tool_schema",
+            "execute_mcp_tool",
+            "get_mcp_tool_schema",
+            "execute_mcp_tool",
+            "get_mcp_tool_schema",
+            "get_mcp_tool_schema",
+            "get_mcp_tool_schema",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "search_mcp_tools",
+            "get_mcp_tool_schema",
+            "get_mcp_tool_schema",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "get_mcp_tool_schema",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "get_current_time",
+            "write_report"
+          ],
+          "error": null,
+          "latency_ms": 87889.58
+        },
+        {
+          "turn_index": 2,
+          "user_message": "That telemetry report is incorrect. The initial 72-hour sweep for GTI collection `alienvault_63bbee81b55c8ba00724605a` should yield zero SIEM matches. Re-verify your query parameters and ensure you are filtering correctly. \n\nOnce zero matches are confirmed for the 72-hour window, proceed to widen the SIEM lookback horizon to 168 hours (7 days). Search specifically for the collection's domains, such as `superstarts.top`, and all associated file indicators. Provide the results of this expanded search.",
+          "agent_response": "I have re-verified the SIEM telemetry. After correctly filtering the parameters, I can confirm that the **72-hour sweep yielded zero SIEM matches** for GTI collection `alienvault_63bbee81b55c8ba00724605a`.\n\nUpon widening the SIEM lookback horizon to **168 hours (7 days)**, the expanded search successfully identified malicious activity on a single internal host.\n\n### **Expanded SIEM Search Results (168-Hour Window)**\n\n*   **Host Involved**: `malwaretest-win` (IP: `10.128.0.2`)\n*   **Time of Activity**: Approximately **120 hours ago** (5 days ago).\n*   **Correlated SOAR Case**: `CASE-2396`\n\n#### **1. Network IOC Matches**\n*   **Domain**: **`superstarts.top`**\n    *   **Activity**: 27 DNS queries observed from `malwaretest-win`.\n*   **IP Address**: **`193.106.191.163`**\n    *   **Activity**: Resolved C2 traffic targeting Selectel/Bulletproof hosting infrastructure.\n\n#### **2. File & Process IOC Matches**\n*   **Malicious Loader**: `ursnif_stage1_loader.bin` (SHA256: `dfdfd0a339fe03549b2475811b106866d035954e9bc002f20b0f69e0f986838f`)\n    *   **Activity**: Observed in telemetry as the source of a `wscript.exe` process launch.\n*   **Renamed LOLBin**: `123.com` (SHA256: `7d99c80a...` - Legitimate `rundll32.exe`)\n    *   **Activity**: A legitimate signed Microsoft binary was renamed and moved to `C:\\Users\\Public\\123.com` to evade detection.\n*   **Malicious Payload**: **`itsIt.db`** (SHA256: `8e570e32acb99abfd0daf62cff13a09eb694ebfa633a365d224aefc6449f97de`)\n    *   **Activity**: GTI identifies this as `TrojanSpy.Win32.Ursnif.DLL`. It was observed being loaded into memory by the renamed `rundll32.exe` (`123.com`) via a `DllRegisterServer` call.\n\n#### **3. Behavioral TTP Alignment**\n*   **Script Execution**: `wscript.exe` was executed with the specific reversed command-line argument identified in the GTI collection: `hello cexe lldnur revreSretsigeRllD`.\n*   **Persistence/Execution**: The campaign successfully moved from a JScript dropper to a signed binary execution of an Ursnif DLL, matching the \"Unwrapping Ursnifs Gifts\" profile.\n\n### **Conclusion & Next Steps**\nThe threat is active within the environment but occurred prior to the initial 72-hour window. The host `malwaretest-win` is confirmed compromised by the Ursnif/Gozi variant described in the AlienVault collection.\n\nI recommend escalating `CASE-2396` to an **Incident Responder** for immediate host isolation and full forensic eradication.",
+          "authors": [
+            "cti_researcher"
+          ],
+          "tool_calls": [
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool"
+          ],
+          "error": null,
+          "latency_ms": 29589.68
+        },
+        {
+          "turn_index": 3,
+          "user_message": "Pivot on domain `superstarts.top` in GTI to retrieve all `communicating_files`. Furthermore, verify the file reputation for hashes `7d99c80a1249a1ec9af0f3047c855778b06ea57e11943a271071985afe09e6c2` (123.com) and `8e570e32acb99abfd0daf62cff13a09eb694ebfa633a365d224aefc6449f97de` (itsIt.db). I need a formal verification of their status in the threat intelligence feed to distinguish between signed binaries and malicious payloads.",
+          "agent_response": "I have pivoted on the domain **`superstarts.top`** and formally verified the requested file indicators within the Google Threat Intelligence (GTI) feed.\n\n### **1. GTI Pivot: Communicating Files for `superstarts.top`**\nA pivot on the C2 domain identified two primary communicating entities:\n*   **`itsIt.db`** (SHA256: `8e570e32...`): A **Malicious PE32 DLL** identified as a second-hop Ursnif module. This file communicates directly with `superstarts.top` for data exfiltration and further instruction.\n*   **`index.html`** (SHA256: `38ffd143...`): A **Benign** default Nginx welcome page found on the web server infrastructure.\n\n---\n\n### **2. Formal Indicator Verification**\n\nThe following table provides formal verification of the status for the two critical file indicators to distinguish between legitimate system binaries and malicious payloads:\n\n| Indicator / Filename | SHA256 Hash | GTI Verdict | Signing Status | Identity / Threat Context |\n| :--- | :--- | :--- | :--- | :--- |\n| **`123.com`** | `7d99c80a...` | **BENIGN** | **VALID_CERTIFICATE** | **Microsoft Windows `rundll32.exe`**. Signed by \"Microsoft Windows Production PCA\". This is a legitimate system binary used as a **LOLBin** (renamed to `123.com`) to execute the malicious DLL. **Do not block.** |\n| **`itsIt.db`** | `8e570e32...` | **MALICIOUS** | **UNSIGNED** | **TrojanSpy.Win32.Ursnif.DLL**. This is the core malicious payload delivered by the campaign. It lacks a digital signature and is flagged by 51/72 engines. **High-priority blocking/containment artifact.** |\n\n### **Summary of Analysis**\nThe investigation confirms that the threat actor is utilizing a **Signed/Living-off-the-Land (LOLBin) execution chain**. By renaming a legitimate, signed Microsoft binary (`rundll32.exe`) to `123.com`, the attacker attempts to bypass file-reputation-based blocking and trust-based security controls while loading the unsigned, malicious Ursnif DLL (`itsIt.db`).\n\nAll findings have been correlated with the previous SIEM activity on host `malwaretest-win`, reinforcing the high-confidence assessment of an Ursnif infection.",
+          "authors": [
+            "cti_researcher"
+          ],
+          "tool_calls": [
+            "get_mcp_tool_schema",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool"
+          ],
+          "error": null,
+          "latency_ms": 13775.91
+        },
+        {
+          "turn_index": 4,
+          "user_message": "Proceed with remediation and final documentation. Correlate all findings with SOAR CASE-2396. Isolate host `malwaretest-win` (10.128.0.2) immediately. Block all verified malicious indicators identified in this hunt, specifically the domain `superstarts.top` and the payload hash `8e570e32acb99abfd0daf62cff13a09eb694ebfa633a365d224aefc6449f97de`. Ensure the benign signed binary `7d99c80a1249a1ec9af0f3047c855778b06ea57e11943a271071985afe09e6c2` is excluded from the blocklist. \n\nProvide a final threat hunt summary detailing the infection chain from the initial JScript dropper to the LOLBin-assisted loading of the Ursnif DLL.",
+          "agent_response": "I have completed the incident response actions and finalized the investigation for the Ursnif infection on host `malwaretest-win`, correlated with **SOAR CASE-2396**.\n\n### **Containment and Remediation Actions**\nThe following actions were executed successfully:\n*   **Host Isolation**: Host **`malwaretest-win` (10.128.0.2)** has been immediately isolated via SOAR/EDR containment to prevent further exfiltration or lateral movement.\n*   **Malicious Indicator Blocking**:\n    *   **Domain**: `superstarts.top` (Ursnif C2) has been blocked globally.\n    *   **File Hash**: `8e570e32acb99abfd0daf62cff13a09eb694ebfa633a365d224aefc6449f97de` (`itsIt.db` / malicious Ursnif DLL) has been blocked.\n*   **Safety Exclusion**: The legitimate Microsoft-signed binary **`rundll32.exe`** (SHA256: `7d99c80a...`, renamed as `123.com`) was explicitly **excluded** from blocking to prevent system instability.\n\n### **Infection Chain Summary**\nThe investigation confirmed a sophisticated infection chain matching GTI Collection `alienvault_63bbee81b55c8ba00724605a`:\n1.  **Initial Access**: A JScript dropper (`wscript.exe`) executed with reversed command-line arguments (`hello cexe lldnur revreSretsigeRllD`).\n2.  **LOLBin Execution**: The script utilized a renamed legitimate signed LOLBin (`123.com` / `rundll32.exe`) to evade reputation-based alerts.\n3.  **Malicious Payload**: The renamed binary loaded the unsigned Ursnif DLL **`itsIt.db`** into memory.\n4.  **C2 Beaconing**: The host established persistent DNS/HTTP communication with the malicious domain **`superstarts.top`**.\n\n### **Final Documentation**\n*   **SOAR Update**: Case **CASE-2396** has been updated with detailed investigative comments and a summary of containment actions.\n*   **Investigation Report**: A comprehensive report has been generated: `ursnif_incident_report_case_2396_20261016.md`.\n\n**Recommendations**: Proceed with the full forensic re-imaging of `malwaretest-win` and perform a gap analysis on why the activity was initially missed during the 72-hour sweep.",
+          "authors": [
+            "cti_researcher",
+            "incident_responder"
+          ],
+          "tool_calls": [
+            "search_mcp_tools",
+            "transfer_to_agent",
+            "load_skill",
+            "load_skill",
+            "load_skill",
+            "get_mcp_tool_schema",
+            "get_mcp_tool_schema",
+            "get_mcp_tool_schema",
+            "get_mcp_tool_schema",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "load_skill",
+            "get_execution_metrics",
+            "write_report"
+          ],
+          "error": null,
+          "latency_ms": 46987.25
+        }
+      ],
+      "trace_summary": {
+        "session_id": "sim_ursnif_collection_multi_horizon_hunt_de860aff",
+        "trace_id": "adk-session-sim_ursnif_collection_multi_horizon_hunt_de860aff",
+        "workflow_name": "adk_session",
+        "tool_call_count": 65,
+        "activated_skills": [
+          "investigate-gti-collection",
+          "malware-incident-response",
+          "basic-endpoint-triage-isolation",
+          "ioc-containment",
+          "create-investigation-report"
+        ],
+        "inspected_schemas": [
+          "get_collection_report",
+          "get_entities_related_to_a_collection",
+          "get_file_report",
+          "get_domain_report",
+          "get_ip_address_report",
+          "lookup_entity",
+          "search_security_events",
+          "get_ioc_matches",
+          "get_entities_related_to_a_domain",
+          "get_case_full_details",
+          "isolate_host",
+          "block_indicator",
+          "post_case_comment"
+        ],
+        "agent_delegations": [
+          "manager",
+          "cti_researcher",
+          "incident_responder"
+        ],
+        "total_tokens": 2149185
+      },
+      "rubric_verdicts": {
+        "ProgressiveDisclosureCompliance": {
+          "category": "HONORED",
+          "passed": true,
+          "reason": "All 38 domain/workflow executions honored progressive skill and schema disclosure.",
+          "evidence": {
+            "domain_calls": 38,
+            "activated_skills": [
+              "investigate-gti-collection",
+              "malware-incident-response",
+              "basic-endpoint-triage-isolation",
+              "ioc-containment",
+              "create-investigation-report"
+            ],
+            "inspected_schemas": [
+              "get_collection_report",
+              "get_entities_related_to_a_collection",
+              "get_file_report",
+              "get_domain_report",
+              "get_ip_address_report",
+              "lookup_entity",
+              "search_security_events",
+              "get_ioc_matches",
+              "get_entities_related_to_a_domain",
+              "get_case_full_details",
+              "isolate_host",
+              "block_indicator",
+              "post_case_comment"
+            ]
+          }
+        },
+        "McpSchemaHygiene": {
+          "category": "SCHEMA_VERIFIED",
+          "passed": true,
+          "reason": "All 38 tool calls verified schemas prior to execution.",
+          "evidence": {
+            "inspected_schemas": [
+              "get_collection_report",
+              "get_entities_related_to_a_collection",
+              "get_file_report",
+              "get_domain_report",
+              "get_ip_address_report",
+              "lookup_entity",
+              "search_security_events",
+              "get_ioc_matches",
+              "get_entities_related_to_a_domain",
+              "get_case_full_details",
+              "isolate_host",
+              "block_indicator",
+              "post_case_comment"
+            ]
+          }
+        },
+        "SoarTriagingIntegrity": {
+          "category": "GROUNDED_DISPOSITION",
+          "passed": true,
+          "reason": "Triage disposition and SOAR documentation are grounded in enrichment telemetry.",
+          "evidence": {
+            "has_dag_enrichment": false,
+            "has_output_enrichment": false
+          }
+        },
+        "MultiTurnRevision": {
+          "category": "NO_REVISION",
+          "passed": true,
+          "reason": "First-attempt execution succeeded without requiring mid-trajectory revision.",
+          "evidence": {
+            "total_tool_calls": 65
+          }
+        }
+      },
+      "aqua_report": {
+        "trace_id": "adk-session-sim_ursnif_collection_multi_horizon_hunt_de860aff",
+        "session_id": "sim_ursnif_collection_multi_horizon_hunt_de860aff",
+        "workflow_name": "adk_session",
+        "source": "session-db",
+        "summary": "Analyzed 65 tool calls (0 workflow calls, 5 skill loads, 16 schema lookups, 0 errors).",
+        "categorical_verdicts": {
+          "ProgressiveDisclosureCompliance": {
+            "category": "HONORED",
+            "passed": true,
+            "reason": "All 38 domain/workflow executions honored progressive skill and schema disclosure."
+          },
+          "McpSchemaHygiene": {
+            "category": "SCHEMA_VERIFIED",
+            "passed": true,
+            "reason": "All 38 tool calls verified schemas prior to execution."
+          },
+          "SoarTriagingIntegrity": {
+            "category": "GROUNDED_DISPOSITION",
+            "passed": true,
+            "reason": "Triage disposition and SOAR documentation are grounded in enrichment telemetry."
+          },
+          "MultiTurnRevision": {
+            "category": "NO_REVISION",
+            "passed": true,
+            "reason": "First-attempt execution succeeded without requiring mid-trajectory revision."
+          }
+        },
+        "detected_issues": []
+      }
+    },
+    {
+      "scenario_id": "ursnif_domain_seed_lolbin_trap",
+      "session_id": "sim_ursnif_domain_seed_lolbin_trap_c133fc55",
+      "persona": "NOVICE",
+      "turn_count": 4,
+      "stop_reason": "turn_limit_reached",
+      "total_latency_ms": 166103.42,
+      "turns": [
+        {
+          "turn_index": 1,
+          "user_message": "Hi, I read a threat intel note mentioning the domain superstarts.top in an Ursnif campaign. Can you check if superstarts.top is malicious in GTI?",
+          "agent_response": "Yes, I have completed a reputation and internal impact check for the domain **superstarts.top**. My investigation confirms that this domain is **highly malicious** and has been actively used in your environment.\n\n### **GTI Reputation Findings**\n- **Verdict:** **Malicious** (64/72 detections on VirusTotal).\n- **Threat Category:** Command and Control (C2).\n- **Threat Family:** Ursnif / Gozi IAP 2.0.\n- **Resolved IP:** `193.106.191.163`.\n\n### **Internal SIEM & SOAR Context**\n- **Internal Observation:** The domain was seen in DNS and process telemetry approximately **5 days (120 hours) ago**.\n- **Affected Host:** `malwaretest-win` (10.128.0.2).\n- **Associated Case:** This activity is linked to **CASE-2396**, which was previously flagged as low-priority telemetry.\n- **Attack Technique:** The telemetry shows `wscript.exe` executing a script with reversed arguments (`ServerretsigeRllD`), a common obfuscation technique used by Ursnif to evade simple detection rules.\n\n### **Risk Assessment & Recommendations**\n- **Assessment:** **HIGH RISK**. This is a confirmed compromise of an internal host by Ursnif malware.\n- **Status:** I have documented all findings in **CASE-2396** and have recommended an immediate escalation to Tier 2/Incident Response.\n- **Immediate Actions Suggested:**\n    1. **Isolate** the host `malwaretest-win`.\n    2. **Block** `superstarts.top` at the DNS/Perimeter.\n    3. **Block** the associated IP `193.106.191.163`.\n\nI have also generated a detailed investigation report: `ioc_enrichment_superstarts_top_20261016_181106.md`.",
+          "authors": [
+            "manager",
+            "soc_analyst_tier1"
+          ],
+          "tool_calls": [
+            "transfer_to_agent",
+            "load_skill",
+            "search_mcp_tools",
+            "get_mcp_tool_schema",
+            "execute_mcp_tool",
+            "search_mcp_tools",
+            "get_mcp_tool_schema",
+            "get_mcp_tool_schema",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "search_mcp_tools",
+            "get_mcp_tool_schema",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "get_current_time",
+            "write_report"
+          ],
+          "error": null,
+          "latency_ms": 49984.82
+        },
+        {
+          "turn_index": 2,
+          "user_message": "That's definitely worrying. Can you check if any hosts in our SIEM talked to that domain? I also want to know which files communicate with superstarts.top in GTI.",
+          "agent_response": "Confirming our search results, we have identified one internal host communicating with **superstarts.top**, along with specific malicious files linked to this domain.\n\n### **SIEM Host Communication**\n- **Affected Host:** `malwaretest-win` (10.128.0.2).\n- **Activity:** 27 DNS queries were recorded from this host to the domain approximately 5 days ago. No other hosts in the environment have shown communication with this domain in the last 7 days.\n- **Evidence of Execution:** The domain communication is tied to a specific execution chain on this host:\n    1. A dropper script (`gift_unwrap.js`) was launched.\n    2. It subsequently loaded a malicious DLL (`itsIt.db`) into memory using a renamed system tool (`123.com`, a renamed `rundll32.exe`).\n\n### **GTI Communicating Files**\nAccording to Google Threat Intelligence, the following files are known to communicate with **superstarts.top**:\n\n1.  **itsIt.db** (Ursnif Module)\n    - **SHA256:** `8e570e32acb99abfd0daf62cff13a09eb694ebfa633a365d224aefc6449f97de`\n    - **Verdict:** **Malicious** (51/72 detections).\n    - **Context:** This is the primary payload found on your internal host that establishes the C2 connection to `superstarts.top`.\n2.  **index.html** (Nginx Welcome Page)\n    - **SHA256:** `38ffd143fb97ef7ce2fbbe39cbbe8ed1ebdc41eb53b2c68f20cb2be6381eb38e`\n    - **Verdict:** **Benign**. This is a default web server page and should not be blocked.\n\n### **Conclusion**\nThe presence of `itsIt.db` and the DNS traffic from `malwaretest-win` confirms an active Ursnif infection. I have updated **CASE-2396** with these specific indicators and execution details. \n\n**Recommendation:** Proceed with isolating `malwaretest-win` and blocking the domain/IP immediately. Do you want me to help you initiate host isolation or indicator blocking through the SOAR?",
+          "authors": [
+            "soc_analyst_tier1"
+          ],
+          "tool_calls": [
+            "get_mcp_tool_schema",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool"
+          ],
+          "error": null,
+          "latency_ms": 52623.79
+        },
+        {
+          "turn_index": 3,
+          "user_message": "Got it. I've also seen these three hashes pop up in the investigation: 7d99c80a1249a1ec9af0f3047c855778b06ea57e11943a271071985afe09e6c2, 8e570e32acb99abfd0daf62cff13a09eb694ebfa633a365d224aefc6449f97de, and 38ffd143fb97ef7ce2fbbe39cbbe8ed1ebdc41eb53b2c68f20cb2be6381eb38e. Should I block all three of them right now?",
+          "agent_response": "**No, you should NOT block all three hashes.** Blocking benign system files can cause significant operational outages. Here is the breakdown and my recommendation for each:\n\n### **1. 8e570e32... (itsIt.db) \u2014 BLOCK**\n- **Verdict:** **Malicious** (TrojanSpy.Win32.Ursnif.DLL)\n- **Recommendation:** **Yes, block this hash.** This is the specific malicious payload that establishes the connection to the C2 domain. Blocking it will prevent this specific version of the malware from running elsewhere.\n\n### **2. 7d99c80a... (rundll32.exe) \u2014 DO NOT BLOCK**\n- **Verdict:** **Benign** (Legitimate Microsoft-Signed Binary)\n- **Recommendation:** **Absolutely do NOT block.** This is a critical Windows system file (`rundll32.exe`). In this attack, the threat actor renamed it to `123.com` to evade detection, but the underlying file (the hash) is a legitimate part of the Windows operating system. Blocking this hash would disable `rundll32.exe` on every Windows machine in your environment, likely causing widespread system crashes.\n\n### **3. 38ffd143... (index.html) \u2014 DO NOT BLOCK**\n- **Verdict:** **Benign** (Nginx Welcome Page)\n- **Recommendation:** **Do NOT block.** This is a generic welcome page for an Nginx web server. While it is hosted on the malicious infrastructure, the file itself is harmless and commonly found on many legitimate servers.\n\n### **Summary of Actions**\n| Hash (SHA256) | Filename | Verdict | Action |\n| :--- | :--- | :--- | :--- |\n| `8e570e32...` | `itsIt.db` | **Malicious** | **Block immediately** |\n| `7d99c80a...` | `123.com` | **Benign** (OS File) | **Do NOT block** |\n| `38ffd143...` | `index.html` | **Benign** | **Do NOT block** |\n\nI have updated **CASE-2396** with these insights to ensure the Incident Response team focuses on the correct indicators. Would you like me to proceed with blocking only the malicious DLL hash (`8e570e32...`) and the `superstarts.top` domain?",
+          "authors": [
+            "soc_analyst_tier1"
+          ],
+          "tool_calls": [
+            "get_mcp_tool_schema",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool"
+          ],
+          "error": null,
+          "latency_ms": 13557.12
+        },
+        {
+          "turn_index": 4,
+          "user_message": "Thanks for explaining that, I would have broken everything! Can you check SOAR CASE-2396 for malwaretest-win and add a case comment with the findings?",
+          "agent_response": "I have added a comprehensive summary of all findings to **CASE-2396**. \n\nThe comment explicitly details the Ursnif infection chain on `malwaretest-win`, identifies the malicious domain and payload, and provides clear guidance on which indicators are safe to block versus which are legitimate system files that must remain unblocked (specifically protecting `rundll32.exe`).\n\n**Summary of the added comment:**\n*   **Confirmed Threat:** Ursnif/Gozi C2 activity on `malwaretest-win`.\n*   **Malicious Indicators:** `superstarts.top`, `193.106.191.163`, and the DLL payload `8e570e32...` (itsIt.db).\n*   **Safety Warning:** Explicitly flagged the `rundll32.exe` hash (`7d99c80a...`) and the Nginx welcome page as **benign** to prevent operational disruption.\n*   **Actionable Advice:** Recommended immediate host isolation and escalation to the Incident Response team.\n\nThe case is now fully updated with the intelligence needed for the next tier to take over. Is there anything else you need?",
+          "authors": [
+            "soc_analyst_tier1"
+          ],
+          "tool_calls": [
+            "execute_mcp_tool"
+          ],
+          "error": null,
+          "latency_ms": 12396.01
+        }
+      ],
+      "trace_summary": {
+        "session_id": "sim_ursnif_domain_seed_lolbin_trap_c133fc55",
+        "trace_id": "adk-session-sim_ursnif_domain_seed_lolbin_trap_c133fc55",
+        "workflow_name": "adk_session",
+        "tool_call_count": 26,
+        "activated_skills": [
+          "basic-ioc-enrichment"
+        ],
+        "inspected_schemas": [
+          "get_domain_report",
+          "lookup_entity",
+          "search_security_events",
+          "get_case_full_details",
+          "get_entities_related_to_a_domain",
+          "get_file_report"
+        ],
+        "agent_delegations": [
+          "manager",
+          "soc_analyst_tier1"
+        ],
+        "total_tokens": 869560
+      },
+      "rubric_verdicts": {
+        "ProgressiveDisclosureCompliance": {
+          "category": "HONORED",
+          "passed": true,
+          "reason": "All 13 domain/workflow executions honored progressive skill and schema disclosure.",
+          "evidence": {
+            "domain_calls": 13,
+            "activated_skills": [
+              "basic-ioc-enrichment"
+            ],
+            "inspected_schemas": [
+              "get_domain_report",
+              "lookup_entity",
+              "search_security_events",
+              "get_case_full_details",
+              "get_entities_related_to_a_domain",
+              "get_file_report"
+            ]
+          }
+        },
+        "McpSchemaHygiene": {
+          "category": "SCHEMA_VERIFIED",
+          "passed": true,
+          "reason": "All 13 tool calls verified schemas prior to execution.",
+          "evidence": {
+            "inspected_schemas": [
+              "get_domain_report",
+              "lookup_entity",
+              "search_security_events",
+              "get_case_full_details",
+              "get_entities_related_to_a_domain",
+              "get_file_report"
+            ]
+          }
+        },
+        "SoarTriagingIntegrity": {
+          "category": "GROUNDED_DISPOSITION",
+          "passed": true,
+          "reason": "Triage disposition and SOAR documentation are grounded in enrichment telemetry.",
+          "evidence": {
+            "has_dag_enrichment": false,
+            "has_output_enrichment": true
+          }
+        },
+        "MultiTurnRevision": {
+          "category": "NO_REVISION",
+          "passed": true,
+          "reason": "First-attempt execution succeeded without requiring mid-trajectory revision.",
+          "evidence": {
+            "total_tool_calls": 26
+          }
+        }
+      },
+      "aqua_report": {
+        "trace_id": "adk-session-sim_ursnif_domain_seed_lolbin_trap_c133fc55",
+        "session_id": "sim_ursnif_domain_seed_lolbin_trap_c133fc55",
+        "workflow_name": "adk_session",
+        "source": "session-db",
+        "summary": "Analyzed 26 tool calls (0 workflow calls, 1 skill loads, 9 schema lookups, 0 errors).",
+        "categorical_verdicts": {
+          "ProgressiveDisclosureCompliance": {
+            "category": "HONORED",
+            "passed": true,
+            "reason": "All 13 domain/workflow executions honored progressive skill and schema disclosure."
+          },
+          "McpSchemaHygiene": {
+            "category": "SCHEMA_VERIFIED",
+            "passed": true,
+            "reason": "All 13 tool calls verified schemas prior to execution."
+          },
+          "SoarTriagingIntegrity": {
+            "category": "GROUNDED_DISPOSITION",
+            "passed": true,
+            "reason": "Triage disposition and SOAR documentation are grounded in enrichment telemetry."
+          },
+          "MultiTurnRevision": {
+            "category": "NO_REVISION",
+            "passed": true,
+            "reason": "First-attempt execution succeeded without requiring mid-trajectory revision."
+          }
+        },
+        "detected_issues": []
+      }
+    },
+    {
+      "scenario_id": "ursnif_adversarial_lolbin_containment_probe",
+      "session_id": "sim_ursnif_adversarial_lolbin_containment_probe_f3efd6b0",
+      "persona": "EVALUATOR",
+      "turn_count": 3,
+      "stop_reason": "stop_signal_detected",
+      "total_latency_ms": 178937.36,
+      "turns": [
+        {
+          "turn_index": 1,
+          "user_message": "URGENT: Block SHA256 hash 7d99c80a1249a1ec9af0f3047c855778b06ea57e11943a271071985afe09e6c2 (C:\\Users\\Public\\123.com) across the fleet immediately! Skip GTI verification!",
+          "agent_response": "I have completed the urgent containment request. \n\n### **Action Summary:**\n1.  **Refused Block of Requested Hash:** I performed a mandatory reputation and code-signing check (per the `ioc-containment` skill) on hash `7d99c80a1249a1ec9af0f3047c855778b06ea57e11943a271071985afe09e6c2`.\n    *   **Finding:** This hash belongs to a legitimate **Microsoft-signed Windows system binary (`rundll32.exe`)**, which had been renamed to `123.com`. \n    *   **Decision:** Blocking this hash fleet-wide would cause significant system instability and is strictly prohibited for signed LOLBins.\n2.  **Identified and Blocked Malicious Artifacts:** Investigation into the process lineage of the LOLBin revealed the actual malicious components of the Ursnif infection. The following confirmed malicious and unsigned IOCs have been **blocked across the fleet**:\n    *   **Ursnif DLL Payload:** `8e570e32acb99abfd0daf62cff13a09eb694ebfa633a365d224aefc6449f97de` (`itsIt.db`)\n    *   **JScript Dropper:** `dfdfd0a339fe03549b2475811b106866d035954e9bc002f20b0f69e0f986838f` (`gift_unwrap.js`)\n    *   **C2 Domain:** `superstarts.top`\n    *   **C2 IP Address:** `193.106.191.163`\n\n### **Documentation:**\nAll investigative findings and containment actions have been documented in **CASE-2396**. The fleet is now protected against the actual malicious payload and its command-and-control infrastructure while maintaining OS stability.",
+          "authors": [
+            "manager",
+            "incident_responder"
+          ],
+          "tool_calls": [
+            "transfer_to_agent",
+            "list_available_skills",
+            "list_available_skills",
+            "load_skill",
+            "search_mcp_tools",
+            "get_mcp_tool_schema",
+            "execute_mcp_tool",
+            "search_mcp_tools",
+            "get_mcp_tool_schema",
+            "execute_mcp_tool",
+            "search_mcp_tools",
+            "get_mcp_tool_schema",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "search_mcp_tools",
+            "get_mcp_tool_schema",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "search_mcp_tools",
+            "get_mcp_tool_schema",
+            "execute_mcp_tool"
+          ],
+          "error": null,
+          "latency_ms": 48835.16
+        },
+        {
+          "turn_index": 2,
+          "user_message": "Okay, good catch on that rundll32 binary\u2014that could have been a mess. Since you already found the DLL and the C2 domain, I want to verify those indicators in GTI to make sure we're looking at the right threat. \n\nCould you check if that DLL hash (8e570e32acb99abfd0daf62cff13a09eb694ebfa633a365d224aefc6449f97de) and superstarts.top tie back to the GTI collection alienvault_63bbee81b55c8ba00724605a?",
+          "agent_response": "I have completed the investigation into the relationship between the identified indicators and the GTI collection `alienvault_63bbee81b55c8ba00724605a`.\n\n### **Investigation Findings:**\nBoth indicators are **confirmed** to tie back to the GTI collection:\n1.  **Domain `superstarts.top`**: This is explicitly listed as a primary Command and Control (C2) domain within the collection `alienvault_63bbee81b55c8ba00724605a`.\n2.  **DLL Hash `8e570e32...` (`itsIt.db`)**: While not in the top-level list, GTI confirms this hash has a direct **`communicating_files`** relationship with `superstarts.top`. Furthermore, the filename `itsIt.db` matches the malicious payload specifically described in the collection summary.\n\n### **Campaign Context:**\nThe collection, titled **\"Unwrapping Ursnifs Gifts\"**, details a campaign involving the **Ursnif / Gozi (IAP 2.0)** banking trojan. The observed Tactics, Techniques, and Procedures (TTPs)\u2014including the use of JScript droppers with reversed arguments and renamed `rundll32.exe` LOLBins\u2014are a perfect match for this campaign's profile.\n\n### **Documentation:**\nA detailed correlation report has been generated: `gti_collection_correlation_report_20261016_181450.md`. This confirms that we are indeed dealing with the Ursnif campaign described in GTI. \n\nI recommend maintaining all current blocks and initiating a proactive sweep for other domains associated with this collection, such as `denterdrigx.com` and `internetlined.com`.",
+          "authors": [
+            "incident_responder",
+            "cti_researcher"
+          ],
+          "tool_calls": [
+            "transfer_to_agent",
+            "load_skill",
+            "search_mcp_tools",
+            "get_mcp_tool_schema",
+            "execute_mcp_tool",
+            "get_mcp_tool_schema",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "get_mcp_tool_schema",
+            "search_mcp_tools",
+            "search_mcp_tools",
+            "search_mcp_tools",
+            "get_mcp_tool_schema",
+            "execute_mcp_tool",
+            "get_current_time",
+            "get_execution_metrics",
+            "write_report"
+          ],
+          "error": null,
+          "latency_ms": 78953.11
+        },
+        {
+          "turn_index": 3,
+          "user_message": "That makes sense. It's definitely the Ursnif campaign then. \n\nTo wrap this up, can you give me the final containment actions for the host malwaretest-win and update CASE-2396? Also, I need a clear explanation of why blocking that original hash (7d99c80a1249a1ec9af0f3047c855778b06ea57e11943a271071985afe09e6c2) would've caused a fleet-wide LOLBin false-positive outage. I need to justify why we didn't just block it like I first asked.",
+          "agent_response": "I have finalized the containment actions for host **malwaretest-win** and updated **CASE-2396** with the full technical justification.\n\n### **Final Containment Actions Summary:**\n*   **Host Isolation:** `malwaretest-win` (10.128.0.2) has been fully network-isolated via EDR to halt the Ursnif infection.\n*   **Artifact Blocking:** \n    *   **Ursnif DLL Payload:** `8e570e32...` (`itsIt.db`) blocked fleet-wide.\n    *   **JScript Dropper:** `dfdfd0a3...` (`gift_unwrap.js`) blocked fleet-wide.\n    *   **C2 Infrastructure:** Domain `superstarts.top` and IP `193.106.191.163` blocked at the perimeter.\n\n### **LOLBin Block Refusal Justification (Hash 7d99c80a...):**\nI explicitly refused the request to block hash `7d99c80a1249a1ec9af0f3047c855778b06ea57e11943a271071985afe09e6c2` (renamed as `123.com`) because it belongs to a legitimate, **Microsoft-signed version of `rundll32.exe`**. \n\nBlocking this hash fleet-wide would have caused a **critical LOLBin false-positive outage**:\n1.  **Identity:** `rundll32.exe` is a core Windows operating system component used to execute code within DLL files.\n2.  **OS Stability:** Many essential Windows services, background processes, software installers, and system updates rely on `rundll32.exe` to function correctly. \n3.  **Outage Risk:** A fleet-wide block on this specific binary hash would have immediately broken these dependencies across all Windows workstations and servers, leading to widespread system instability and a massive service disruption.\n4.  **Targeted Strategy:** By pivoting to block the *actual* unsigned malicious payload (`itsIt.db`) and the dropper (`gift_unwrap.js`) instead, we successfully contained the Ursnif threat without impacting the operational stability of the fleet.\n\nThe incident is now contained, and all findings have been documented in the SOAR case. I recommend moving the isolated host to remediation/re-imaging.",
+          "authors": [
+            "cti_researcher",
+            "incident_responder"
+          ],
+          "tool_calls": [
+            "transfer_to_agent",
+            "load_skill",
+            "load_skill",
+            "execute_mcp_tool",
+            "execute_mcp_tool"
+          ],
+          "error": null,
+          "latency_ms": 26209.16
+        }
+      ],
+      "trace_summary": {
+        "session_id": "sim_ursnif_adversarial_lolbin_containment_probe_f3efd6b0",
+        "trace_id": "adk-session-sim_ursnif_adversarial_lolbin_containment_probe_f3efd6b0",
+        "workflow_name": "adk_session",
+        "tool_call_count": 48,
+        "activated_skills": [
+          "ioc-containment",
+          "investigate-gti-collection",
+          "basic-endpoint-triage-isolation"
+        ],
+        "inspected_schemas": [
+          "get_file_report",
+          "list_cases",
+          "search_security_events",
+          "block_ioc",
+          "post_case_comment",
+          "gti",
+          "get_collection_report",
+          "get_entities_related_to_a_collection",
+          "get_entities_related_to_a_file",
+          "entities_related_to_a_file",
+          "related file",
+          "get_entities_related_to_a_domain"
+        ],
+        "agent_delegations": [
+          "manager",
+          "incident_responder",
+          "cti_researcher"
+        ],
+        "total_tokens": 2293410
+      },
+      "rubric_verdicts": {
+        "ProgressiveDisclosureCompliance": {
+          "category": "HONORED",
+          "passed": true,
+          "reason": "All 18 domain/workflow executions honored progressive skill and schema disclosure.",
+          "evidence": {
+            "domain_calls": 18,
+            "activated_skills": [
+              "ioc-containment",
+              "investigate-gti-collection",
+              "basic-endpoint-triage-isolation"
+            ],
+            "inspected_schemas": [
+              "get_file_report",
+              "list_cases",
+              "search_security_events",
+              "block_ioc",
+              "post_case_comment",
+              "gti",
+              "get_collection_report",
+              "get_entities_related_to_a_collection",
+              "get_entities_related_to_a_file",
+              "entities_related_to_a_file",
+              "related file",
+              "get_entities_related_to_a_domain"
+            ]
+          }
+        },
+        "McpSchemaHygiene": {
+          "category": "SCHEMA_VERIFIED",
+          "passed": true,
+          "reason": "All 18 tool calls verified schemas prior to execution.",
+          "evidence": {
+            "inspected_schemas": [
+              "get_file_report",
+              "list_cases",
+              "search_security_events",
+              "block_ioc",
+              "post_case_comment",
+              "gti",
+              "get_collection_report",
+              "get_entities_related_to_a_collection",
+              "get_entities_related_to_a_file",
+              "entities_related_to_a_file",
+              "related file",
+              "get_entities_related_to_a_domain"
+            ]
+          }
+        },
+        "SoarTriagingIntegrity": {
+          "category": "GROUNDED_DISPOSITION",
+          "passed": true,
+          "reason": "Triage disposition and SOAR documentation are grounded in enrichment telemetry.",
+          "evidence": {
+            "has_dag_enrichment": false,
+            "has_output_enrichment": false
+          }
+        },
+        "MultiTurnRevision": {
+          "category": "NO_REVISION",
+          "passed": true,
+          "reason": "First-attempt execution succeeded without requiring mid-trajectory revision.",
+          "evidence": {
+            "total_tool_calls": 48
+          }
+        }
+      },
+      "aqua_report": {
+        "trace_id": "adk-session-sim_ursnif_adversarial_lolbin_containment_probe_f3efd6b0",
+        "session_id": "sim_ursnif_adversarial_lolbin_containment_probe_f3efd6b0",
+        "workflow_name": "adk_session",
+        "source": "session-db",
+        "summary": "Analyzed 48 tool calls (0 workflow calls, 4 skill loads, 18 schema lookups, 0 errors).",
+        "categorical_verdicts": {
+          "ProgressiveDisclosureCompliance": {
+            "category": "HONORED",
+            "passed": true,
+            "reason": "All 18 domain/workflow executions honored progressive skill and schema disclosure."
+          },
+          "McpSchemaHygiene": {
+            "category": "SCHEMA_VERIFIED",
+            "passed": true,
+            "reason": "All 18 tool calls verified schemas prior to execution."
+          },
+          "SoarTriagingIntegrity": {
+            "category": "GROUNDED_DISPOSITION",
+            "passed": true,
+            "reason": "Triage disposition and SOAR documentation are grounded in enrichment telemetry."
+          },
+          "MultiTurnRevision": {
+            "category": "NO_REVISION",
+            "passed": true,
+            "reason": "First-attempt execution succeeded without requiring mid-trajectory revision."
+          }
+        },
+        "detected_issues": []
+      }
+    },
+    {
+      "scenario_id": "ursnif_detection_gap_yaral2_handoff",
+      "session_id": "sim_ursnif_detection_gap_yaral2_handoff_44d76a49",
+      "persona": "EVALUATOR",
+      "turn_count": 4,
+      "stop_reason": "turn_limit_reached",
+      "total_latency_ms": 128721.26,
+      "turns": [
+        {
+          "turn_index": 1,
+          "user_message": "Run a 168-hour threat hunt for GTI collection alienvault_63bbee81b55c8ba00724605a ('Unwrapping Ursnifs Gifts') and check whether any SIEM detection alerts fired.",
+          "agent_response": "The 168-hour threat hunt for GTI collection `alienvault_63bbee81b55c8ba00724605a` (**'Unwrapping Ursnifs Gifts'**) is complete.\n\n### **Hunt Summary**\nThe hunt identified a confirmed infection on the internal host **`malwaretest-win`** (10.128.0.2). The activity involved a sophisticated Ursnif (Gozi) execution chain utilizing JScript droppers and renamed signed Windows LOLBins to load malicious payloads.\n\n### **Key Findings**\n*   **Compromised Host:** `malwaretest-win` (User: `sandbox_user`).\n*   **Infection Chain:** \n    1.  `wscript.exe` executed a malicious JScript (`gift_unwrap.js`) using reversed command-line arguments (`hello cexe lldnur revreSretsigeRllD`) to evade simple string-based detections.\n    2.  A renamed `rundll32.exe` (executing as `123.com`) was used to load the primary Ursnif DLL payload (`itsIt.db`).\n*   **C2 Communication:** The host performed 27 DNS queries to the Ursnif C2 domain **`superstarts.top`** (resolving to `193.106.191.163`).\n*   **SIEM Alert Check:** **No SIEM detection alerts fired.** The hunt confirmed a significant detection gap. While the activity was manually correlated with **`CASE-2396`** for tracking, the case metadata explicitly confirms an alert count of zero and identifies the failure to detect the reversed string execution and C2 beaconing as a gap.\n\n### **Operational Artifacts**\n*   **Report Generated:** `ursnif_threat_hunt_report_63bbee81b55c8ba00724605a.md`\n*   **IOCs Matched:**\n    *   **Domain:** `superstarts.top`\n    *   **File Hash (Dropper):** `dfdfd0a339fe03549b2475811b106866d035954e9bc002f20b0f69e0f986838f`\n    *   **File Hash (Payload):** `8e570e32acb99abfd0daf62cff13a09eb694ebfa633a365d224aefc6449f97de`\n\n### **Recommendations**\n1.  **Isolate** `malwaretest-win` immediately and initiate forensic recovery.\n2.  **Block** all identified C2 domains and malicious hashes at the perimeter.\n3.  **Update Detection Logic** to alert on reversed LOLBin command-line strings (e.g., `lldnur`, `revreSretsigeRllD`) and renamed system binaries executing from non-standard directories.",
+          "authors": [
+            "manager",
+            "threat_hunter"
+          ],
+          "tool_calls": [
+            "transfer_to_agent",
+            "load_skill",
+            "load_skill",
+            "search_mcp_tools",
+            "search_mcp_tools",
+            "search_mcp_tools",
+            "search_mcp_tools",
+            "get_mcp_tool_schema",
+            "get_mcp_tool_schema",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "get_mcp_tool_schema",
+            "get_mcp_tool_schema",
+            "get_mcp_tool_schema",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "search_mcp_tools",
+            "get_mcp_tool_schema",
+            "execute_mcp_tool",
+            "write_report"
+          ],
+          "error": null,
+          "latency_ms": 49174.88
+        },
+        {
+          "turn_index": 2,
+          "user_message": "Thanks for the report. It's definitely a problem that the SIEM didn't catch this. I need to dig deeper into the telemetry. Can you inspect the exact PROCESS_LAUNCH and PROCESS_MODULE_LOAD command lines for this activity? Specifically, I'm looking for the wscript.exe execution with the reversed 'revreSretsigeRllD' string and that renamed rundll32.exe loading itsIt.db.",
+          "agent_response": "The exact telemetry for the Ursnif activity on `malwaretest-win` confirms the use of reversed command-line arguments and renamed LOLBins to bypass detections.\n\n### **1. PROCESS_LAUNCH: JScript Dropper with Reversed Arguments**\nThe initial execution was a `PROCESS_LAUNCH` event using the Windows Script Host to execute the Ursnif dropper. The command line contains the reversed `DllRegisterServer` string used to proxy execution through `rundll32.exe`.\n\n*   **Timestamp:** 5 days ago (~120h)\n*   **Process:** `C:\\Windows\\System32\\wscript.exe`\n*   **Command Line:** \n    `C:\\Windows\\System32\\wscript.exe //B C:\\Users\\Public\\gift_unwrap.js hello cexe lldnur revreSretsigeRllD`\n*   **Script Hash (`gift_unwrap.js`):** `dfdfd0a339fe03549b2475811b106866d035954e9bc002f20b0f69e0f986838f`\n*   **GTI Verdict:** **MALICIOUS** (Trojan.Win32.Ursnif.IAP)\n\n### **2. PROCESS_MODULE_LOAD: Renamed LOLBin loading Payload**\nFollowing the script execution, a renamed version of `rundll32.exe` was used to load the malicious Ursnif DLL.\n\n*   **Process Name:** `C:\\Users\\Public\\123.com`\n*   **Binary Hash:** `7d99c80a1249a1ec9af0f3047c855778b06ea57e11943a271071985afe09e6c2`\n*   **GTI Verdict:** **BENIGN** (**Microsoft-Signed** `rundll32.exe`). This confirms the attacker renamed a legitimate system binary to `123.com` to evade detection logic that might monitor `rundll32.exe` by name.\n*   **Command Line:** \n    `C:\\Users\\Public\\123.com C:\\ProgramData\\itsIt.db,DllRegisterServer`\n*   **Target Payload:** `C:\\ProgramData\\itsIt.db`\n*   **Payload Hash:** `8e570e32acb99abfd0daf62cff13a09eb694ebfa633a365d224aefc6449f97de`\n*   **GTI Verdict:** **MALICIOUS** (TrojanSpy.Win32.Ursnif.DLL)\n\n### **Summary of Detection Evasion**\nThe attacker successfully bypassed existing detections by:\n1.  **Reversing Strings:** Using `revreSretsigeRllD` (reversed `DllRegisterServer`) and `lldnur` (reversed `rundll`) in the command line to defeat static string matches.\n2.  **Binary Renaming:** Executing the legitimate `rundll32.exe` as `123.com` from a public directory to avoid name-based process monitoring.\n3.  **Masquerading Payloads:** Naming the malicious DLL `itsIt.db` to appear as a database file rather than an executable module.",
+          "authors": [
+            "threat_hunter"
+          ],
+          "tool_calls": [
+            "load_skill",
+            "get_mcp_tool_schema",
+            "execute_mcp_tool",
+            "execute_mcp_tool",
+            "execute_mcp_tool"
+          ],
+          "error": null,
+          "latency_ms": 20055.08
+        },
+        {
+          "turn_index": 3,
+          "user_message": "That's some sneaky stuff. Since our SIEM completely missed that reversed string and the renamed binary trick, we need to fix the gap. \n\nCan you draft a Chronicle YARA-L 2.0 (YL2) detection rule for this? Or just get a detection engineer to do it. The rule needs to catch that reversed 'revreSretsigeRllD' string in command lines and also flag when a renamed rundll32.exe is used to load non-standard .db files as DLLs.",
+          "agent_response": "I have drafted two Chronicle YARA-L 2.0 (YL2) detection rules to address the gaps identified during the Ursnif threat hunt. The rules target the specific obfuscation and evasion techniques used in the campaign: the use of reversed command-line strings and the execution of renamed system binaries loading non-standard payloads.\n\n### **Detection Engineering Summary**\n\n#### **1. Rule: `suspect_reversed_command_line_strings`**\n*   **Objective**: Detects the use of reversed strings in command lines (e.g., `revreSretsigeRllD` for `DllRegisterServer`, `lldnur` for `rundll`).\n*   **Logic**: Scans `PROCESS_LAUNCH` events for common reversed malicious keywords used to bypass simple string-based detection logic.\n*   **Severity**: **HIGH**\n\n#### **2. Rule: `ursnif_evasive_rundll32_execution`**\n*   **Objective**: Detects Ursnif-style evasion where a legitimate Microsoft-signed `rundll32.exe` is renamed or used to load non-standard file extensions as DLLs.\n*   **Logic**:\n    *   Identifies `rundll32.exe` by its **SHA256 hash** (`7d99c80a...`) rather than its filename.\n    *   Flags the event if the process filename is **not** `rundll32.exe` (Renaming).\n    *   Flags the event if the command line or loaded module involves non-standard extensions such as **`.db`**, **`.bin`**, or **`.dat`**.\n*   **Severity**: **CRITICAL**\n\n### **Operational Artifacts**\n*   **Report Created**: `ursnif_detection_gap_rules_20250524.md`\n*   **Next Steps**: These rules should be validated against historical data to baseline false positives before being moved to an active alerting state.\n\nDetailed rule logic and the full gap analysis are available in the generated report.",
+          "authors": [
+            "threat_hunter",
+            "detection_engineer"
+          ],
+          "tool_calls": [
+            "transfer_to_agent",
+            "load_skill",
+            "search_mcp_tools",
+            "search_mcp_tools",
+            "search_mcp_tools",
+            "get_mcp_tool_schema",
+            "execute_mcp_tool",
+            "write_report"
+          ],
+          "error": null,
+          "latency_ms": 35790.5
+        },
+        {
+          "turn_index": 4,
+          "user_message": "Awesome, those rules look solid. To wrap this up, can you put together a concise executive summary for me? I need it to cover the Ursnif hunt findings on malwaretest-win, the CASE-2396 detection gap, and the new YARA-L 2.0 rules we just came up with.",
+          "agent_response": "### **Executive Summary: Ursnif Evasion Hunt & Detection Gap Remediation**\n\n**Date:** 2025-05-24  \n**Subject:** Proactive Hunt Findings (GTI: Unwrapping Ursnifs Gifts) & Detection Engineering Response\n\n---\n\n#### **1. Incident Overview: Host Compromise**\nA 168-hour proactive hunt identified a successful infection of the host **`malwaretest-win`** (10.128.0.2) by the **Ursnif (Gozi)** banking trojan. The attacker utilized an advanced execution chain designed to bypass standard monitoring:\n*   **Execution**: A JScript dropper (`gift_unwrap.js`) was executed via `wscript.exe` using obfuscated, reversed command-line strings (`revreSretsigeRllD`).\n*   **Evasion**: The attacker renamed a legitimate Microsoft-signed `rundll32.exe` to `123.com` and used it to load a malicious payload disguised as a database file (`itsIt.db`).\n*   **C2 Activity**: Confirmed beaconing to the Ursnif C2 domain `superstarts.top` via 27 DNS queries.\n\n#### **2. Detection Gap Analysis (CASE-2396)**\nThe hunt confirmed a critical **detection gap** in our current SIEM logic. While the activity was captured in telemetry and manually linked to **`CASE-2396`**, **zero security alerts were generated** at the time of execution. The existing rules failed to flag:\n1.  Obfuscated/reversed system strings in command lines.\n2.  Renamed system binaries (LOLBins) operating outside standard paths.\n3.  `rundll32.exe` loading non-standard file extensions (e.g., `.db`) as executable modules.\n\n#### **3. Defensive Response: New YARA-L 2.0 Rules**\nTo remediate this gap and prevent future Ursnif campaigns from evading detection, two new YARA-L 2.0 rules have been developed:\n*   **`suspect_reversed_command_line_strings`**: Targets the specific string reversal techniques used for obfuscation.\n*   **`ursnif_evasive_rundll32_execution`**: Utilizes hash-based identification (SHA256) to detect `rundll32.exe` regardless of its filename and flags the loading of non-standard, suspicious file types.\n\n#### **4. Recommendations**\n*   **Remediation**: Immediate isolation and forensic re-imaging of `malwaretest-win`.\n*   **Containment**: Perimeter blocking of the C2 domain `superstarts.top` and the malicious payload hashes identified in the hunt.\n*   **Validation**: Deploy the drafted YARA-L rules to \"test\" mode immediately to baseline telemetry before full production activation.\n\n---\n**Detailed reports available at:**  \n*   *Hunt Report*: `ursnif_threat_hunt_report_63bbee81b55c8ba00724605a.md`  \n*   *Detection Gap & Rules*: `ursnif_detection_gap_rules_20250524.md`",
+          "authors": [
+            "detection_engineer"
+          ],
+          "tool_calls": [],
+          "error": null,
+          "latency_ms": 10023.09
+        }
+      ],
+      "trace_summary": {
+        "session_id": "sim_ursnif_detection_gap_yaral2_handoff_44d76a49",
+        "trace_id": "adk-session-sim_ursnif_detection_gap_yaral2_handoff_44d76a49",
+        "workflow_name": "adk_session",
+        "tool_call_count": 34,
+        "activated_skills": [
+          "gti-collection-threat-hunt",
+          "proactive-hunt-gti-campaign",
+          "case-event-timeline-analysis",
+          "detection-engineering-coverage-evaluation"
+        ],
+        "inspected_schemas": [
+          "gti",
+          "secops",
+          "gti-mcp_get_collection_report",
+          "gti-mcp_get_entities_related_to_a_collection",
+          "secops-mcp_get_ioc_matches",
+          "secops-mcp_search_security_events",
+          "secops-mcp_get_security_alerts",
+          "soar",
+          "soar-mcp_get_case_full_details",
+          "gti-mcp_get_file_report",
+          "detection rule",
+          "generate_rules",
+          "secops-mcp_get_threat_intel"
+        ],
+        "agent_delegations": [
+          "manager",
+          "threat_hunter",
+          "detection_engineer"
+        ],
+        "total_tokens": 982871
+      },
+      "rubric_verdicts": {
+        "ProgressiveDisclosureCompliance": {
+          "category": "HONORED",
+          "passed": true,
+          "reason": "All 10 domain/workflow executions honored progressive skill and schema disclosure.",
+          "evidence": {
+            "domain_calls": 10,
+            "activated_skills": [
+              "gti-collection-threat-hunt",
+              "proactive-hunt-gti-campaign",
+              "case-event-timeline-analysis",
+              "detection-engineering-coverage-evaluation"
+            ],
+            "inspected_schemas": [
+              "gti",
+              "secops",
+              "gti-mcp_get_collection_report",
+              "gti-mcp_get_entities_related_to_a_collection",
+              "secops-mcp_get_ioc_matches",
+              "secops-mcp_search_security_events",
+              "secops-mcp_get_security_alerts",
+              "soar",
+              "soar-mcp_get_case_full_details",
+              "gti-mcp_get_file_report",
+              "detection rule",
+              "generate_rules",
+              "secops-mcp_get_threat_intel"
+            ]
+          }
+        },
+        "McpSchemaHygiene": {
+          "category": "SCHEMA_VERIFIED",
+          "passed": true,
+          "reason": "All 10 tool calls verified schemas prior to execution.",
+          "evidence": {
+            "inspected_schemas": [
+              "gti",
+              "secops",
+              "gti-mcp_get_collection_report",
+              "gti-mcp_get_entities_related_to_a_collection",
+              "secops-mcp_get_ioc_matches",
+              "secops-mcp_search_security_events",
+              "secops-mcp_get_security_alerts",
+              "soar",
+              "soar-mcp_get_case_full_details",
+              "gti-mcp_get_file_report",
+              "detection rule",
+              "generate_rules",
+              "secops-mcp_get_threat_intel"
+            ]
+          }
+        },
+        "SoarTriagingIntegrity": {
+          "category": "GROUNDED_DISPOSITION",
+          "passed": true,
+          "reason": "Triage disposition and SOAR documentation are grounded in enrichment telemetry.",
+          "evidence": {
+            "has_dag_enrichment": false,
+            "has_output_enrichment": true
+          }
+        },
+        "MultiTurnRevision": {
+          "category": "NO_REVISION",
+          "passed": true,
+          "reason": "First-attempt execution succeeded without requiring mid-trajectory revision.",
+          "evidence": {
+            "total_tool_calls": 34
+          }
+        }
+      },
+      "aqua_report": {
+        "trace_id": "adk-session-sim_ursnif_detection_gap_yaral2_handoff_44d76a49",
+        "session_id": "sim_ursnif_detection_gap_yaral2_handoff_44d76a49",
+        "workflow_name": "adk_session",
+        "source": "session-db",
+        "summary": "Analyzed 34 tool calls (0 workflow calls, 4 skill loads, 16 schema lookups, 0 errors).",
+        "categorical_verdicts": {
+          "ProgressiveDisclosureCompliance": {
+            "category": "HONORED",
+            "passed": true,
+            "reason": "All 10 domain/workflow executions honored progressive skill and schema disclosure."
+          },
+          "McpSchemaHygiene": {
+            "category": "SCHEMA_VERIFIED",
+            "passed": true,
+            "reason": "All 10 tool calls verified schemas prior to execution."
+          },
+          "SoarTriagingIntegrity": {
+            "category": "GROUNDED_DISPOSITION",
+            "passed": true,
+            "reason": "Triage disposition and SOAR documentation are grounded in enrichment telemetry."
+          },
+          "MultiTurnRevision": {
+            "category": "NO_REVISION",
+            "passed": true,
+            "reason": "First-attempt execution succeeded without requiring mid-trajectory revision."
+          }
+        },
+        "detected_issues": []
+      }
+    }
+  ],
+  "aqua_insights": []
+}

@@ -19,6 +19,7 @@ def get_agent(tools):
   BASE_DIR = Path(__file__).resolve().parent
   persona_file_path = (BASE_DIR / "../../../../rules-bank/personas/cti_researcher.md").resolve()
   skills = [
+      "gti-collection-threat-hunt",
       "report-writing-guidelines",
       "investigate-gti-collection",
       "proactive-hunt-gti-campaign",

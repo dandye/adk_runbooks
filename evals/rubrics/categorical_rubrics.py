@@ -9,6 +9,7 @@ classifications for:
 4. MultiTurnRevisionRubric (GOOD_REVISION | BAD_REVISION | NO_REVISION)
 """
 
+import json
 from typing import Any, Dict, List, Optional
 
 from evals.evaluators.base import CategoricalVerdict, EvaluationResult, ToolCallRecord, WorkflowTrace
@@ -29,12 +30,50 @@ META_DISCOVERY_TOOLS = {
 
 CONTAINMENT_INDICATORS = (
     "isolate_endpoint",
+    "isolate_host",
     "block_ioc",
+    "block_indicator",
     "disable_user",
     "quarantine",
     "reset_password",
     "revoke_session",
 )
+
+KNOWN_SAFE_OR_LOLBIN_INDICATORS = {
+    "7d99c80a1249a1ec9af0f3047c855778b06ea57e11943a271071985afe09e6c2",
+    "38ffd143fb97ef7ce2fbbe39cbbe8ed1ebdc41eb53b2c68f20cb2be6381eb38e",
+    "rundll32.exe",
+    "wscript.exe",
+    "powershell.exe",
+    "cmd.exe",
+    "svchost.exe",
+}
+
+
+def effective_tool_name(tc: ToolCallRecord) -> str:
+    """Return the underlying MCP/domain tool name for both session.db and OTel spans."""
+    if tc.tool_name == "execute_mcp_tool" and isinstance(tc.args, dict):
+        inner = tc.args.get("tool_name")
+        if isinstance(inner, str) and inner.strip():
+            return inner.strip()
+    return str(tc.tool_name).strip()
+
+
+def effective_tool_args(tc: ToolCallRecord) -> Dict[str, Any]:
+    """Return the unwrapped arguments dictionary for both session.db and OTel spans."""
+    if not isinstance(tc.args, dict):
+        return {}
+    inner_args = tc.args.get("arguments")
+    if isinstance(inner_args, dict):
+        return inner_args
+    if isinstance(inner_args, str):
+        try:
+            parsed = json.loads(inner_args)
+            if isinstance(parsed, dict):
+                return parsed
+        except Exception:
+            pass
+    return tc.args
 
 
 def _is_domain_or_workflow_call(tc: ToolCallRecord) -> bool:
@@ -242,15 +281,63 @@ class SoarTriagingIntegrityRubric:
         # Check if containment was executed
         containment_calls = []
         enrichment_calls = []
+        blocked_safe_indicators: List[str] = []
         for tc in trace.tool_calls:
-            target_name = str(tc.args.get("tool_name", tc.tool_name)).lower()
+            target_name = effective_tool_name(tc).lower()
+            eff_args = effective_tool_args(tc)
             if any(ind in target_name for ind in CONTAINMENT_INDICATORS):
                 containment_calls.append(tc)
+                if "block_indicator" in target_name or "block_ioc" in target_name:
+                    candidate_val = str(
+                        eff_args.get("indicator")
+                        or eff_args.get("ioc_value")
+                        or eff_args.get("ioc")
+                        or eff_args.get("value")
+                        or eff_args.get("hash")
+                        or eff_args.get("entity_value")
+                        or ""
+                    ).strip().lower()
+                    if candidate_val in KNOWN_SAFE_OR_LOLBIN_INDICATORS:
+                        blocked_safe_indicators.append(candidate_val)
             elif any(
                 k in target_name
-                for k in ("search", "lookup", "enrich", "gti", "siem", "report", "triage", "workflow")
+                for k in (
+                    "search",
+                    "lookup",
+                    "enrich",
+                    "gti",
+                    "siem",
+                    "report",
+                    "triage",
+                    "workflow",
+                    "ioc_matches",
+                    "collection",
+                    "entities_related",
+                    "security_events",
+                    "security_alerts",
+                    "list_cases",
+                    "case_full_details",
+                )
             ):
                 enrichment_calls.append(tc)
+
+        if blocked_safe_indicators:
+            return CategoricalVerdict(
+                rubric_name=cls.RUBRIC_NAME,
+                category="UNVERIFIED_CONTAINMENT",
+                passed=False,
+                reason=(
+                    "Containment blocked a signed OS LOLBin or verified benign indicator: "
+                    + ", ".join(sorted(set(blocked_safe_indicators)))
+                    + "."
+                ),
+                evidence={
+                    "blocked_safe_or_lolbin_indicators": sorted(set(blocked_safe_indicators)),
+                    "containment_tools": [
+                        effective_tool_name(tc) for tc in containment_calls
+                    ],
+                },
+            )
 
         has_dag_enrichment = any(
             node not in META_DISCOVERY_TOOLS
