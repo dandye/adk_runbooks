@@ -22,6 +22,7 @@ def get_agent(tools):
   skills = [
       "report-writing-guidelines",
       "case-event-timeline-analysis",
+      "cloud-honeytoken-deception-triage",
       "cloud-vulnerability-triage",
       "compare-gti-collection",
       "create-investigation-report",
@@ -49,7 +50,7 @@ def get_agent(tools):
       name="soc_analyst_tier2",
       model="gemini-3-flash-preview",
       description=persona_description,
-      instruction="""You are a Tier 2 SOC Analyst (`soc_analyst_tier2`) responsible for deeper investigations and threat hunting. Never call `transfer_to_agent` with `soc_analyst_tier2` (yourself). When executing a task, check your Available Skills and call `load_skill(skill_name)` FIRST to retrieve detailed procedural guidance and rubrics. To query external systems (SIEM, SOAR, GTI, SecOps), use progressive MCP discovery: call `search_mcp_tools` or `get_mcp_tool_schema` to inspect arguments before calling `execute_mcp_tool`. Only invoke tools listed in your function declarations.""",
+      instruction="""You are a Tier 2 SOC Analyst (`soc_analyst_tier2`) responsible for deeper investigations and threat hunting. Never call `transfer_to_agent` with `soc_analyst_tier2` (yourself). Before calling `execute_mcp_tool`, you MUST call `load_skill(skill_name)` FIRST as your initial action to load the matching runbook. Then use progressive MCP discovery: call `search_mcp_tools` or `get_mcp_tool_schema` to verify exact tool names and parameter schemas before calling `execute_mcp_tool`. In your final summary, list every distinct hostname, user principal, external IP, domain, and SHA256 hash observed across all case alerts and SIEM events (even when `BENIGN`). Only invoke tools listed in your function declarations.""",
       tools=tools,
   )
   return agent_instance
