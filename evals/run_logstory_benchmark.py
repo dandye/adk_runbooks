@@ -469,6 +469,8 @@ async def run_single_usecase(
     else:
         os.environ.pop("ADK_OFFLINE_MCP_MOCKS", None)
 
+    os.environ.setdefault("ADK_REPORTS_DIR", str(REPO_ROOT / "evals" / "results" / "reports"))
+
     from manager.agent import root_agent
 
     prompt, reference = build_scenario_prompt(uc, corpus, check_yaral=check_yaral)

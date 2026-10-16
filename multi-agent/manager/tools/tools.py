@@ -76,9 +76,10 @@ def write_report(report_name: str, report_contents: str):
                            will be added if not present.
         report_contents (str): The markdown content to write to the report.
     """
-    reports_dir = os.path.abspath(
+    reports_dir = os.environ.get("ADK_REPORTS_DIR") or os.path.abspath(
         os.path.join(os.path.dirname(__file__), "..", "..", "reports")
     )
+    os.makedirs(reports_dir, exist_ok=True)
 
     base_name, ext = os.path.splitext(report_name)
     if not ext:
