@@ -10,6 +10,7 @@ from google.adk.tools import FunctionTool
 from google.adk.tools.base_tool import BaseTool
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, StdioConnectionParams
 
+from .logstory_corpus import get_logstory_corpus
 from .mcp_registry import (
     MCPToolMetadata,
     MCPToolRegistry,
@@ -230,6 +231,23 @@ def _mock_search_security_events(
             "events_matched": len(_URSNIF_UDM_EVENTS),
             "events": list(_URSNIF_UDM_EVENTS)[: int(max_events or 50)],
         }
+
+    corpus = get_logstory_corpus()
+    if corpus.get_active_usecase_ids() is not None or corpus.has_corpus_match(effective_query):
+        events = corpus.search_events(
+            query=effective_query,
+            hours_back=hb,
+            max_events=int(max_events or 50),
+        )
+        return {
+            "status": "success",
+            "server": "siem",
+            "query": effective_query,
+            "hours_back": hb,
+            "events_matched": len(events),
+            "events": events,
+        }
+
     return {
         "status": "success",
         "server": "siem",
@@ -291,6 +309,11 @@ def _mock_lookup_entity(
                 "in DNS/PROCESS_LAUNCH/PROCESS_MODULE_LOAD telemetry (correlated with CASE-2396)."
             ),
         }
+
+    corpus_ent = get_logstory_corpus().lookup_entity(val)
+    if corpus_ent is not None:
+        return corpus_ent
+
     return {
         "status": "success",
         "server": "siem",
@@ -316,6 +339,16 @@ def _mock_get_security_alerts(
                 "logged as an unalerted telemetry note in SOAR CASE-2396 (detection gap)."
             ),
         }
+    corpus = get_logstory_corpus()
+    if corpus.get_active_usecase_ids() is not None or corpus.has_corpus_match(query):
+        findings = corpus.list_scc_findings(query=query)[: int(max_alerts or 25)]
+        return {
+            "status": "success",
+            "server": "siem",
+            "query": query,
+            "hours_back": hours_back,
+            "alerts": findings,
+        }
     return {
         "status": "success",
         "server": "siem",
@@ -331,6 +364,51 @@ def _mock_get_ioc_matches(
         hb = int(hours_back)
     except (TypeError, ValueError):
         hb = 72
+    corpus = get_logstory_corpus()
+    active_ids = corpus.get_active_usecase_ids()
+    if active_ids is not None:
+        matches: list[dict[str, Any]] = []
+        for uid in sorted(active_ids):
+            uc = corpus.usecases.get(uid)
+            if not uc or uc.is_baseline:
+                continue
+            for ev in uc.events:
+                if ev.domain:
+                    matches.append(
+                        {
+                            "ioc_value": ev.domain,
+                            "ioc_type": "DOMAIN",
+                            "hostname": ev.hostname,
+                            "ip": ev.src_ip,
+                            "event_timestamp": ev.timestamp,
+                            "usecase_id": uid,
+                        }
+                    )
+                if ev.file_sha256:
+                    matches.append(
+                        {
+                            "ioc_value": ev.file_sha256,
+                            "ioc_type": "FILE_SHA256",
+                            "hostname": ev.hostname,
+                            "ip": ev.src_ip,
+                            "event_timestamp": ev.timestamp,
+                            "usecase_id": uid,
+                        }
+                    )
+        deduped: list[dict[str, Any]] = []
+        seen_vals: set[str] = set()
+        for m in matches:
+            k = f"{m['ioc_type']}:{m['ioc_value']}"
+            if k not in seen_vals:
+                seen_vals.add(k)
+                deduped.append(m)
+        return {
+            "status": "success",
+            "server": "siem",
+            "hours_back": hb,
+            "total_matches": len(deduped),
+            "ioc_matches": deduped[: int(max_matches or 25)],
+        }
     if hb >= 168:
         matches = [
             {
@@ -380,6 +458,29 @@ def _mock_get_case_full_details(case_id: str = "") -> dict[str, Any]:
             "server": "soar",
             **_URSNIF_SOAR_CASE,
         }
+    corpus = get_logstory_corpus()
+    if cid in corpus.usecases:
+        built = corpus.build_soar_case(cid)
+        if built:
+            return {"status": "success", "server": "soar", **built}
+    if cid.startswith("CASE-40"):
+        try:
+            idx = int(cid.split("-")[1]) - 4000
+            keys = sorted(corpus.usecases.keys())
+            if 0 <= idx < len(keys):
+                built = corpus.build_soar_case(keys[idx])
+                if built:
+                    return {"status": "success", "server": "soar", **built}
+        except ValueError:
+            pass
+    active_ids = corpus.get_active_usecase_ids()
+    if active_ids:
+        for uid in sorted(active_ids):
+            uc = corpus.usecases.get(uid)
+            if uc and not uc.is_baseline:
+                built = corpus.build_soar_case(uid)
+                if built:
+                    return {"status": "success", "server": "soar", **built}
     return {
         "status": "success",
         "server": "soar",
@@ -388,10 +489,18 @@ def _mock_get_case_full_details(case_id: str = "") -> dict[str, Any]:
 
 
 def _mock_list_cases(limit: int = 25) -> dict[str, Any]:
+    cases = [dict(_URSNIF_SOAR_CASE)]
+    corpus = get_logstory_corpus()
+    active_ids = corpus.get_active_usecase_ids()
+    if active_ids:
+        for uid in sorted(active_ids):
+            built = corpus.build_soar_case(uid)
+            if built:
+                cases.append(built)
     return {
         "status": "success",
         "server": "soar",
-        "cases": [dict(_URSNIF_SOAR_CASE)],
+        "cases": cases[: int(limit or 25)],
     }
 
 
@@ -409,6 +518,9 @@ def _mock_get_ip_address_report(ip_address: str = "") -> dict[str, Any]:
             "vt_total": 72,
             "reverse_dns": "superstarts.top",
         }
+    corpus_rep = get_logstory_corpus().get_gti_indicator_report(ip, "IP")
+    if corpus_rep is not None:
+        return corpus_rep
     return {
         "status": "success",
         "server": "gti",
@@ -431,6 +543,9 @@ def _mock_get_domain_report(domain: str = "") -> dict[str, Any]:
             "vt_total": 72,
             "resolutions": ["193.106.191.163"],
         }
+    corpus_rep = get_logstory_corpus().get_gti_indicator_report(dom, "DOMAIN")
+    if corpus_rep is not None:
+        return corpus_rep
     return {
         "status": "success",
         "server": "gti",
@@ -496,11 +611,82 @@ def _mock_get_file_report(hash: str = "", file_hash: str = "") -> dict[str, Any]
             "vt_positives": 59,
             "vt_total": 72,
         }
+    corpus_rep = get_logstory_corpus().get_gti_indicator_report(h, "FILE_SHA256")
+    if corpus_rep is not None:
+        return corpus_rep
     return {
         "status": "success",
         "server": "gti",
         "hash": hash or file_hash,
         "verdict": "malicious",
+    }
+
+
+def _mock_list_security_rules(query: str = "") -> dict[str, Any]:
+    rules = get_logstory_corpus().list_rules(query=query)
+    return {
+        "status": "success",
+        "server": "siem",
+        "query": query,
+        "rules_count": len(rules),
+        "rules": rules[:50],
+    }
+
+
+def _mock_get_detection_rule(rule_id: str = "") -> dict[str, Any]:
+    rule = get_logstory_corpus().get_rule(rule_id=rule_id)
+    if rule is not None:
+        return rule
+    return {
+        "status": "success",
+        "server": "siem",
+        "rule_id": rule_id,
+    }
+
+
+def _mock_validate_yaral2_rule(rule_text: str = "") -> dict[str, Any]:
+    return get_logstory_corpus().validate_yaral2_rule(rule_text=rule_text)
+
+
+def _mock_list_scc_findings(
+    query: str = "",
+    category: str = "",
+    max_findings: int = 25,
+) -> dict[str, Any]:
+    findings = get_logstory_corpus().list_scc_findings(query=query, category=category)
+    return {
+        "status": "success",
+        "server": "scc",
+        "query": query,
+        "category": category,
+        "total_findings": len(findings),
+        "findings": findings[: int(max_findings or 25)],
+    }
+
+
+def _mock_get_scc_finding(finding_id: str = "", category: str = "") -> dict[str, Any]:
+    findings = get_logstory_corpus().list_scc_findings(query=finding_id, category=category)
+    if findings:
+        return {
+            "status": "success",
+            "server": "scc",
+            "finding": findings[0],
+        }
+    return {
+        "status": "not_found",
+        "server": "scc",
+        "finding_id": finding_id,
+    }
+
+
+def _mock_lookup_cloud_iam_principal(principal_email: str = "") -> dict[str, Any]:
+    res = get_logstory_corpus().lookup_cloud_iam_principal(principal_email=principal_email)
+    if res is not None:
+        return res
+    return {
+        "status": "not_found",
+        "server": "scc",
+        "principal_email": principal_email,
     }
 
 
@@ -690,20 +876,17 @@ def build_canonical_mcp_tools(
             (
                 "list_security_rules",
                 "List YARA-L detection rules in Chronicle SIEM.",
-                lambda query="": {
-                    "status": "success",
-                    "server": "siem",
-                    "rules": [],
-                },
+                _mock_list_security_rules,
             ),
             (
                 "get_detection_rule",
                 "Retrieve a specific YARA-L detection rule by rule_id.",
-                lambda rule_id="": {
-                    "status": "success",
-                    "server": "siem",
-                    "rule_id": rule_id,
-                },
+                _mock_get_detection_rule,
+            ),
+            (
+                "validate_yaral2_rule",
+                "Validate YARA-L 2.0 detection rule syntax and Chronicle UDM field bindings.",
+                _mock_validate_yaral2_rule,
             ),
             (
                 "get_threat_intel",
@@ -713,6 +896,23 @@ def build_canonical_mcp_tools(
                     "server": "siem",
                     "summary": f"Threat intel summary for {query}",
                 },
+            ),
+        ],
+        "scc": [
+            (
+                "list_scc_findings",
+                "List Google Cloud Security Command Center (SCC) threat and vulnerability findings.",
+                _mock_list_scc_findings,
+            ),
+            (
+                "get_scc_finding",
+                "Retrieve details for a specific Security Command Center (SCC) finding.",
+                _mock_get_scc_finding,
+            ),
+            (
+                "lookup_cloud_iam_principal",
+                "Look up Cloud IAM roles, groups, and service account context for a principal.",
+                _mock_lookup_cloud_iam_principal,
             ),
         ],
         "soar": [
@@ -1031,7 +1231,7 @@ def build_canonical_mcp_tools(
         ],
     }
 
-    prefix_map = {"siem": "secops-mcp", "soar": "soar-mcp", "gti": "gti-mcp"}
+    prefix_map = {"siem": "secops-mcp", "soar": "soar-mcp", "gti": "gti-mcp", "scc": "scc-mcp"}
     prefix = prefix_map.get(server, server)
     tools: list[BaseTool] = []
 

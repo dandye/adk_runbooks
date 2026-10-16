@@ -352,6 +352,7 @@ def init_shared_mcp_tools():
     siem_offline = _build_canonical_mcp_tools("siem")
     soar_offline = _build_canonical_mcp_tools("soar")
     gti_offline = _build_canonical_mcp_tools("gti")
+    _build_canonical_mcp_tools("scc")
 
     siem_toolset = OfflineResilientMCPToolset(
         connection_params=StdioConnectionParams(
