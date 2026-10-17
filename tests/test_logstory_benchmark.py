@@ -316,3 +316,54 @@ def test_logstory_multi_turn_scenarios_file_and_usecase_ids():
         assert sc.starting_prompt
         assert sc.conversation_plan
         assert sc.user_persona is not None
+
+
+def test_get_run_metrics_is_session_scoped_and_compact(tmp_path: Path):
+    """Verify get_run_metrics returns only current session spans and stays compact across runs."""
+    import json
+    from manager.utils.instrumentation import (
+        TELEMETRY_RECORDER,
+        get_run_metrics,
+        telemetry_session_scope,
+    )
+
+    otel_path = tmp_path / "otel.jsonl"
+    with telemetry_session_scope(session_id="sess-old-bulk", otel_log_path=otel_path):
+        for i in range(60):
+            TELEMETRY_RECORDER.record_span(
+                {
+                    "session_id": "sess-old-bulk",
+                    "timestamp": "2026-10-17T00:00:00Z",
+                    "tool_name": f"old_tool_{i}",
+                    "effective_tool_name": f"old_tool_{i}",
+                    "duration_seconds": 0.1,
+                    "status": "success",
+                    "estimated_tokens_in": 100,
+                    "estimated_tokens_out": 2000,
+                    "total_estimated_tokens": 2100,
+                    "gen_ai.tool.call.result_summary": "X" * 500,
+                }
+            )
+
+    with telemetry_session_scope(session_id="sess-new-clean", otel_log_path=otel_path):
+        TELEMETRY_RECORDER.record_span(
+            {
+                "session_id": "sess-new-clean",
+                "timestamp": "2026-10-17T00:01:00Z",
+                "tool_name": "execute_mcp_tool",
+                "effective_tool_name": "soar-mcp_get_case_full_details",
+                "duration_seconds": 0.05,
+                "status": "success",
+                "estimated_tokens_in": 20,
+                "estimated_tokens_out": 80,
+                "total_estimated_tokens": 100,
+                "gen_ai.tool.call.result_summary": "Y" * 500,
+            }
+        )
+        metrics_json = get_run_metrics()
+        parsed = json.loads(metrics_json)
+
+    assert len(parsed) == 1
+    assert parsed[0]["tool_name"] == "soar-mcp_get_case_full_details"
+    assert "gen_ai.tool.call.result_summary" not in parsed[0]
+    assert len(metrics_json) < 1000

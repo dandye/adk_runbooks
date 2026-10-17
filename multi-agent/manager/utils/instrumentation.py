@@ -444,5 +444,24 @@ def instrument_tool(tool_func: Any) -> Any:
 
 
 def get_run_metrics() -> str:
-    """Returns a summary of the execution metrics collected so far."""
-    return json.dumps(RUN_METRICS, indent=2, default=str)
+    """Returns a summary of the execution metrics for the current session."""
+    sid = current_session_id.get()
+    session_spans = TELEMETRY_RECORDER.get_session_spans(sid)
+    spans = (
+        session_spans
+        if session_spans or sid != "default-session"
+        else RUN_METRICS[-50:]
+    )
+    compact_spans = [
+        {
+            "timestamp": s.get("timestamp"),
+            "tool_name": s.get("effective_tool_name") or s.get("tool_name"),
+            "duration_seconds": s.get("duration_seconds"),
+            "status": s.get("status"),
+            "estimated_tokens_in": s.get("estimated_tokens_in"),
+            "estimated_tokens_out": s.get("estimated_tokens_out"),
+            "total_estimated_tokens": s.get("total_estimated_tokens"),
+        }
+        for s in spans[-50:]
+    ]
+    return json.dumps(compact_spans, indent=2, default=str)
