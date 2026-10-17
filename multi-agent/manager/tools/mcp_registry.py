@@ -88,8 +88,8 @@ class MCPToolRegistry:
         alt_underscore = norm_name.replace("-", "_")
         self._tools[alt_underscore] = metadata
 
-        # Register prefix-normalized aliases (e.g. secops-mcp_X -> secops_X, X; soar-mcp_X -> soar_X, secops-soar_X, secops_X, X)
-        for prefix in ("secops-mcp_", "secops_mcp_", "soar-mcp_", "soar_mcp_", "gti-mcp_", "gti_mcp_", "secops-soar_", "secops_soar_"):
+        # Register prefix-normalized aliases (e.g. secops-mcp_X -> secops_X, X; soar-mcp_X -> soar_X, secops-soar_X, secops_X, X; scc-mcp_X -> scc_X, X)
+        for prefix in ("secops-mcp_", "secops_mcp_", "soar-mcp_", "soar_mcp_", "gti-mcp_", "gti_mcp_", "secops-soar_", "secops_soar_", "scc-mcp_", "scc_mcp_"):
             if norm_name.startswith(prefix):
                 base_tool_name = norm_name[len(prefix):]
                 for alias in (
@@ -99,6 +99,7 @@ class MCPToolRegistry:
                     f"secops-soar_{base_tool_name}",
                     f"secops_soar_{base_tool_name}",
                     f"gti_{base_tool_name}",
+                    f"scc_{base_tool_name}",
                 ):
                     if alias not in self._tools:
                         self._tools[alias] = metadata

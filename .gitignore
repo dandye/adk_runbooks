@@ -28,6 +28,7 @@ multi-agent/manager/sub_agents/*/*.log
 # Test output artifacts
 .superpowers/
 evals/results/*.db
+evals/results/reports/
 multi-agent/reports/otel_traces.jsonl
 multi-agent/reports/Alert_Report_*.md
 multi-agent/reports/Case_Report_*.md

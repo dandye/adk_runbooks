@@ -92,7 +92,19 @@ def redact_sensitive_args(data: Any) -> Any:
 
 
 def _normalize_identifier(name: str) -> str:
-    return name.strip().lower().replace("-", "_")
+    norm = name.strip().lower().replace("-", "_")
+    for prefix in (
+        "secops_mcp_",
+        "soar_mcp_",
+        "gti_mcp_",
+        "secops_soar_",
+        "secops_",
+        "soar_",
+        "gti_",
+    ):
+        if norm.startswith(prefix):
+            return norm[len(prefix) :]
+    return norm
 
 
 class AgentTelemetryRecorder:
@@ -341,6 +353,7 @@ def _finalize_span(
         "gen_ai.tool.name": effective_tool_name,
         "gen_ai.tool.wrapper_name": wrapper_name,
         "gen_ai.tool.call.arguments_redacted": redacted_args,
+        "gen_ai.tool.call.result_summary": output_str[:500],
         "gen_ai.usage.input_tokens": tokens_in,
         "gen_ai.usage.output_tokens": tokens_out,
         "adk.turn_index": turn_idx,
@@ -431,5 +444,24 @@ def instrument_tool(tool_func: Any) -> Any:
 
 
 def get_run_metrics() -> str:
-    """Returns a summary of the execution metrics collected so far."""
-    return json.dumps(RUN_METRICS, indent=2, default=str)
+    """Returns a summary of the execution metrics for the current session."""
+    sid = current_session_id.get()
+    session_spans = TELEMETRY_RECORDER.get_session_spans(sid)
+    spans = (
+        session_spans
+        if session_spans or sid != "default-session"
+        else RUN_METRICS[-50:]
+    )
+    compact_spans = [
+        {
+            "timestamp": s.get("timestamp"),
+            "tool_name": s.get("effective_tool_name") or s.get("tool_name"),
+            "duration_seconds": s.get("duration_seconds"),
+            "status": s.get("status"),
+            "estimated_tokens_in": s.get("estimated_tokens_in"),
+            "estimated_tokens_out": s.get("estimated_tokens_out"),
+            "total_estimated_tokens": s.get("total_estimated_tokens"),
+        }
+        for s in spans[-50:]
+    ]
+    return json.dumps(compact_spans, indent=2, default=str)

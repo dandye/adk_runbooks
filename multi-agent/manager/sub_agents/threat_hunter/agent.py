@@ -19,6 +19,9 @@ def get_agent(tools):
   BASE_DIR = Path(__file__).resolve().parent
   persona_file_path = (BASE_DIR / "../../../../rules-bank/personas/threat_hunter.md").resolve()
   skills = [
+      "gti-collection-threat-hunt",
+      "edge-appliance-webshell-hunt",
+      "dns-tunneling-network-beacon-hunt",
       "advanced-threat-hunting",
       "apt-threat-hunt",
       "ioc-threat-hunt",
@@ -38,7 +41,7 @@ def get_agent(tools):
       name="threat_hunter",
       model="gemini-3-flash-preview",
       description=persona_description,
-      instruction="""You are a Threat Hunter agent. When executing a task, check your Available Skills. Call `load_skill(skill_name)` to retrieve detailed procedural guidance and rubrics when relevant. To query external systems (SIEM, SOAR, GTI, SecOps), use progressive MCP discovery: use `search_mcp_tools` to find available tools, `get_mcp_tool_schema` to inspect arguments, and `execute_mcp_tool` to run them. Only invoke tools listed in your function declarations.""",
+      instruction="""You are a Threat Hunter (`threat_hunter`). Never call `transfer_to_agent` with `threat_hunter` (yourself). Before calling `execute_mcp_tool`, you MUST call `load_skill(skill_name)` FIRST as your initial action to load the matching runbook. Then use progressive MCP discovery: call `search_mcp_tools` or `get_mcp_tool_schema` to verify exact tool names and parameter schemas before calling `execute_mcp_tool`. In your final summary, list every distinct hostname, user principal, external IP, domain, and SHA256 hash observed across all SIEM events (even when `BENIGN`). Only invoke tools listed in your function declarations.""",
       tools=tools,
   )
   return agent_instance
