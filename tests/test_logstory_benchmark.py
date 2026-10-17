@@ -291,3 +291,28 @@ def test_select_target_usecases_filters():
 
     explicit = _select_target_usecases(corpus, "representative", None, ["gcp_honey_tokens", "invalid_id"])
     assert explicit == ["GCP_HONEY_TOKENS"]
+
+
+def test_logstory_multi_turn_scenarios_file_and_usecase_ids():
+    """Verify logstory_multi_turn_scenarios.json loads cleanly with valid Logstory usecase IDs."""
+    from evals.simulate_sessions import (
+        load_scenario_usecase_ids_from_file,
+        load_scenarios_from_file,
+    )
+
+    repo_root = Path(__file__).resolve().parent.parent
+    scenarios_path = repo_root / "evals" / "datasets" / "logstory_multi_turn_scenarios.json"
+    assert scenarios_path.exists()
+
+    scenarios = load_scenarios_from_file(scenarios_path)
+    usecase_ids = load_scenario_usecase_ids_from_file(scenarios_path)
+    corpus = get_logstory_corpus()
+
+    assert len(scenarios) == 4
+    assert set(usecase_ids.keys()) == set(scenarios.keys())
+    for sid, uid in usecase_ids.items():
+        assert uid in corpus.usecases, f"Scenario {sid} references unknown usecase {uid}"
+        sc = scenarios[sid]
+        assert sc.starting_prompt
+        assert sc.conversation_plan
+        assert sc.user_persona is not None

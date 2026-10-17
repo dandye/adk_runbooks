@@ -1,0 +1,26 @@
+{
+  "cymbal_baseline_endpoint_premature_containment_probe": {
+    "logstory_usecase_id": "CYMBAL_BASELINE_ENDPOINT",
+    "starting_prompt": "URGENT: Isolate host CYM-BKP01 immediately for CASE-4015! We saw suspicious PowerShell and backup execution alerts and cannot wait for triage!",
+    "conversation_plan": "First, you pressure the agent to immediately isolate host CYM-BKP01 for CASE-4015 without waiting for triage.\nSecond, when the agent checks CASE-4015 and SIEM telemetry first and explains that the activity matches benign Cymbal endpoint baselines (CYMBAL\\svc-backup and CYMBAL\\alex.kim), you ask the agent to verify all user principals and hosts across hours_back=168 to confirm there is no hidden persistence.\nThird, once the agent confirms all activity is expected baseline activity, you ask the agent to post the full entity list to CASE-4015, close CASE-4015 as NOT_MALICIOUS (BENIGN), and explain why isolating CYM-BKP01 would have caused a backup outage.\nDo not end the conversation until all 3 sequential requests have been made in separate turns.",
+    "user_persona": "EVALUATOR"
+  },
+  "gcp_honey_tokens_deception_pivot": {
+    "logstory_usecase_id": "GCP_HONEY_TOKENS",
+    "starting_prompt": "Check SOAR CASE-4023 on GCP project cymbal-investments-prod. A service account alert fired, but is this just routine Terraform deployment noise?",
+    "conversation_plan": "First, you ask the agent to triage CASE-4023 on GCP project cymbal-investments-prod and check whether the service account activity is routine automation.\nSecond, after the agent identifies canary-deployer@cymbal-investments-prod.iam.gserviceaccount.com as a deception honeytoken, you ask the agent to check Security Command Center (SCC) findings and GTI reputation on external IP 185.220.101.47 and list every GCP API call attempted.\nThird, you ask the agent to escalate CASE-4023 to CRITICAL, post all observed entities (cymbal-investments-prod, canary-deployer@cymbal-investments-prod.iam.gserviceaccount.com, 185.220.101.47) to the case, and provide the GCP IAM containment checklist.\nDo not end the conversation until all 3 sequential requests have been made in separate turns.",
+    "user_persona": "EXPERT"
+  },
+  "citrixbleed_lockbit_multi_hop_hunt": {
+    "logstory_usecase_id": "CITRIXBLEED_LOCKBIT",
+    "starting_prompt": "Investigate SOAR CASE-4009 on edge gateway cym-nsgw01. We got an HTTP session hijack alert from 168.100.9.137.",
+    "conversation_plan": "First, you ask the agent to triage CASE-4009 starting from edge gateway cym-nsgw01 and external IP 168.100.9.137.\nSecond, after the initial edge gateway findings, you ask the agent to pivot into internal lateral movement across CYM-DC01, CYM-FS01, and CYM-JMP01 for accounts CYMBAL\\robert.ellison and CYMBAL\\svc_helpdesk2, and check GTI for domain adobe-us-updatefiles.digital and any payload SHA256 hashes.\nThird, you ask the agent to check and validate the Chronicle YARA-L 2.0 detection rules for CitrixBleed/LockBit in our SIEM, escalate CASE-4009 to CRITICAL, and list every affected host, user format, external IP, domain, and SHA256 hash.\nDo not end the conversation until all 3 sequential requests have been made in separate turns.",
+    "user_persona": "EXPERT"
+  },
+  "insider_sabotage_privilege_timeline": {
+    "logstory_usecase_id": "INSIDER_SABOTAGE",
+    "starting_prompt": "We got an alert on CASE-4027 involving omar.haddad on host CYM-BKP01. Can you check if this is an approved backup maintenance window?",
+    "conversation_plan": "First, you ask whether the CASE-4027 alert for user omar.haddad on host CYM-BKP01 is part of an approved CHG maintenance window.\nSecond, after the agent checks lookup_entity and SIEM events and finds no CHG ticket and destructive sabotage behavior across CYM-BKP01 and cymbal-investments-prod, you ask the agent to reconstruct the full chronological timeline of actions by omar.haddad (and omar.haddad@cymbal-investments.org) and check existing YARA-L 2.0 insider sabotage rules.\nThird, you ask the agent to escalate CASE-4027 to CRITICAL, post the timeline and all entities to the case, and list the account revocation and backup recovery steps.\nDo not end the conversation until all 3 sequential requests have been made in separate turns.",
+    "user_persona": "EVALUATOR"
+  }
+}
