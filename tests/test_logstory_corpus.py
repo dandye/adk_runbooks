@@ -192,3 +192,47 @@ def test_ursnif_queries_take_precedence_and_init_shared_mcp_tools_invariant():
     )
     assert ursnif_ev["events_matched"] == 3
     assert ursnif_ev["events"][0]["principal"]["hostname"] == "malwaretest-win"
+
+
+def test_logstory_alerts_events_and_url_report():
+    """Verify SOAR list_alerts_by_case, list_events_by_alert, and GTI get_url_report."""
+    get_agent_tools(disclosure_mode="dual_progressive")
+
+    with active_logstory_usecase("DEFENDER_MALWARE", include_baselines=True):
+        alerts_res = _as_dict(
+            global_mcp_registry.execute_tool(
+                "soar-mcp_list_alerts_by_case", {"case_id": "DEFENDER_MALWARE"}
+            )
+        )
+        assert alerts_res["status"] == "success"
+        assert len(alerts_res["alerts"]) >= 1
+        first_alert_id = alerts_res["alerts"][0]["alert_id"]
+
+        events_res = _as_dict(
+            global_mcp_registry.execute_tool(
+                "soar-mcp_list_events_by_alert",
+                {"case_id": "DEFENDER_MALWARE", "alert_id": first_alert_id},
+            )
+        )
+        assert events_res["status"] == "success"
+        assert len(events_res["events"]) >= 1
+
+        url_res = _as_dict(
+            global_mcp_registry.execute_tool(
+                "gti-mcp_get_url_report",
+                {"url": "https://cdn.invoicecloud-verify.com/gate.php"},
+            )
+        )
+        assert url_res["status"] == "success"
+        assert url_res["verdict"] == "malicious"
+
+    with active_logstory_usecase("CYMBAL_BASELINE_ENDPOINT", include_baselines=True):
+        base_alerts = _as_dict(
+            global_mcp_registry.execute_tool(
+                "soar-mcp_list_alerts_by_case", {"case_id": "CYMBAL_BASELINE_ENDPOINT"}
+            )
+        )
+        assert base_alerts["status"] == "success"
+        assert len(base_alerts["alerts"]) >= 1
+        assert all(a["severity"] == "LOW" for a in base_alerts["alerts"])
+

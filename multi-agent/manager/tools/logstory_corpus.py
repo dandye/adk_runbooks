@@ -1128,11 +1128,116 @@ class LogstoryCorpus:
                 results.append({"usecase_id": uid, **f})
         return results
 
+    def resolve_usecase_id_for_case(self, case_id: str = "") -> Optional[str]:
+        cid = str(case_id or "").strip().upper()
+        if cid in self.usecases:
+            return cid
+        if cid.startswith("CASE-40"):
+            try:
+                idx = int(cid.split("-")[1]) - 4000
+                keys = sorted(self.usecases.keys())
+                if 0 <= idx < len(keys):
+                    return keys[idx]
+            except ValueError:
+                pass
+        active_ids = self.get_active_usecase_ids()
+        if active_ids:
+            non_base = [uid for uid in sorted(active_ids) if uid in self.usecases and not self.usecases[uid].is_baseline]
+            if non_base:
+                return non_base[0]
+            valid = [uid for uid in sorted(active_ids) if uid in self.usecases]
+            if valid:
+                return valid[0]
+        return None
+
+    def list_alerts_for_case(self, case_id: str = "") -> list[dict[str, Any]]:
+        uid = self.resolve_usecase_id_for_case(case_id)
+        if not uid or uid not in self.usecases:
+            return []
+        uc = self.usecases[uid]
+        by_log_type: dict[str, list[LogstoryEvent]] = {}
+        for ev in uc.events:
+            by_log_type.setdefault(ev.log_type, []).append(ev)
+
+        alerts: list[dict[str, Any]] = []
+        if uc.rules:
+            log_types = sorted(by_log_type.keys())
+            for i, rule in enumerate(uc.rules, start=1):
+                lt = log_types[(i - 1) % len(log_types)] if log_types else "GENERIC"
+                ev_slice = by_log_type.get(lt, uc.events)[:15]
+                alerts.append({
+                    "alert_id": f"ALERT-{uid}-{i}",
+                    "case_id": f"CASE-{4000 + sorted(self.usecases.keys()).index(uid)}",
+                    "rule_id": rule.rule_name,
+                    "rule_name": rule.rule_name,
+                    "severity": rule.meta.get("severity") or ("LOW" if uc.is_baseline else "HIGH"),
+                    "log_type": lt,
+                    "event_count": len(ev_slice),
+                    "hosts": sorted({e.hostname for e in ev_slice if e.hostname and e.hostname != "-"}),
+                    "users": sorted({u for e in ev_slice for u in (e.principal_user, e.target_user) if u and u != "-"}),
+                    "ips": sorted({ip for e in ev_slice for ip in (e.src_ip, e.dst_ip) if ip and ip != "-"}),
+                    "domains": sorted({e.domain for e in ev_slice if e.domain and e.domain != "-"})[:10],
+                    "urls": sorted({e.url for e in ev_slice if e.url and e.url != "-"})[:10],
+                    "hashes": sorted({e.file_sha256 for e in ev_slice if e.file_sha256 and e.file_sha256 != "-"})[:10],
+                })
+        else:
+            for i, (lt, ev_slice) in enumerate(sorted(by_log_type.items()), start=1):
+                alerts.append({
+                    "alert_id": f"ALERT-{uid}-{i}",
+                    "case_id": f"CASE-{4000 + sorted(self.usecases.keys()).index(uid)}",
+                    "rule_id": f"baseline_monitor_{lt.lower()}",
+                    "rule_name": f"Baseline Telemetry Review ({lt})",
+                    "severity": "LOW" if uc.is_baseline else "MEDIUM",
+                    "log_type": lt,
+                    "event_count": len(ev_slice),
+                    "hosts": sorted({e.hostname for e in ev_slice if e.hostname and e.hostname != "-"}),
+                    "users": sorted({u for e in ev_slice for u in (e.principal_user, e.target_user) if u and u != "-"}),
+                    "ips": sorted({ip for e in ev_slice for ip in (e.src_ip, e.dst_ip) if ip and ip != "-"}),
+                    "domains": sorted({e.domain for e in ev_slice if e.domain and e.domain != "-"})[:10],
+                    "urls": sorted({e.url for e in ev_slice if e.url and e.url != "-"})[:10],
+                    "hashes": sorted({e.file_sha256 for e in ev_slice if e.file_sha256 and e.file_sha256 != "-"})[:10],
+                })
+        return alerts
+
+    def list_events_for_alert(
+        self,
+        case_id: str = "",
+        alert_id: str = "",
+        max_events: int = 25,
+    ) -> list[dict[str, Any]]:
+        uid = self.resolve_usecase_id_for_case(case_id)
+        if not uid and alert_id:
+            m = re.match(r"^ALERT-([A-Z0-9_]+)-\d+$", str(alert_id).strip().upper())
+            if m and m.group(1) in self.usecases:
+                uid = m.group(1)
+        if not uid or uid not in self.usecases:
+            return []
+        uc = self.usecases[uid]
+        alerts = self.list_alerts_for_case(uid)
+        aid = str(alert_id or "").strip().upper()
+        target_log_type = ""
+        for a in alerts:
+            if a["alert_id"].upper() == aid:
+                target_log_type = str(a.get("log_type") or "")
+                break
+        matched: list[dict[str, Any]] = []
+        for ev in uc.events:
+            if target_log_type and ev.log_type != target_log_type:
+                continue
+            matched.append(ev.to_udm_like_dict())
+            if len(matched) >= max_events:
+                break
+        if not matched:
+            matched = [ev.to_udm_like_dict() for ev in uc.events[:max_events]]
+        return matched
+
     def build_soar_case(self, usecase_id: str) -> Optional[dict[str, Any]]:
         uc = self.usecases.get(usecase_id)
         if not uc:
             return None
         case_num = 4000 + sorted(self.usecases.keys()).index(usecase_id)
+        urls = sorted({ev.url for ev in uc.events if ev.url and ev.url != "-"})
+        alerts = self.list_alerts_for_case(usecase_id)
         return {
             "case_id": f"CASE-{case_num}",
             "usecase_id": usecase_id,
@@ -1147,6 +1252,8 @@ class LogstoryCorpus:
             "ips": uc.unique_ips[:10],
             "hashes": uc.unique_hashes[:10],
             "domains": uc.unique_domains[:10],
+            "urls": urls[:10],
+            "alerts": alerts,
             "scc_findings_count": len(uc.scc_findings),
             "rules_count": len(uc.rules),
         }
@@ -1175,7 +1282,8 @@ class LogstoryCorpus:
                     ev.dst_ip.lower(),
                     ev.file_sha256.lower(),
                     ev.domain.lower(),
-                ):
+                    ev.url.lower(),
+                ) or (ev.url and ind in ev.url.lower()):
                     if ev.is_baseline:
                         in_baseline = True
                     else:

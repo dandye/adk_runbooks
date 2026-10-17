@@ -20,6 +20,8 @@ def get_agent(tools):
   persona_file_path = (BASE_DIR / "../../../../rules-bank/personas/threat_hunter.md").resolve()
   skills = [
       "gti-collection-threat-hunt",
+      "edge-appliance-webshell-hunt",
+      "dns-tunneling-network-beacon-hunt",
       "advanced-threat-hunting",
       "apt-threat-hunt",
       "ioc-threat-hunt",

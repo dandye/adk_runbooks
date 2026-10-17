@@ -51,13 +51,13 @@ Covers initial alert review, duplicate checks, full entity inventory across all 
 
 ### Stage A: Full Case & Alert Entity Inventory
 
-1. Call `get_case_full_details`, `list_alerts_by_case`, and `list_events_by_alert` on `<case_id>` to extract every alert rule name, severity, hostname, user principal, source/destination IP, domain, and SHA256 file hash across all alerts in the case.
-2. Call `lookup_entity` on `<asset_identifier>` to check asset role, criticality, and `CHG-...` maintenance windows.
+1. Call `get_case_full_details`, `list_alerts_by_case`, and `list_events_by_alert` on `<case_id>` to extract every alert rule name, severity, hostname, user, IP, domain, URL (`target.url`), DNS query (`network.dns.questions.name`), and SHA256 hash across all alerts.
+2. Call `lookup_entity` on `<asset_identifier>` to check asset role, criticality, and `CHG-...` windows.
 
 ### Stage B: Alert-Specific SIEM Sweep
 
-3. Call `search_security_events` (`hours_back=168`) for all extracted hostnames, user principals, IPs, domains, and hashes across `USER_LOGIN`, `PROCESS_LAUNCH`, `NETWORK_CONNECTION`, and `NETWORK_DNS` to check for corroborating activity.
-4. Decode any Base64 command-line flags (`-enc`, `-EncodedCommand`) before classifying dual-use tools (`powershell.exe`, `wmic.exe`, `rundll32.exe`).
+3. Call `search_security_events` (`hours_back=168`) for all extracted hostnames, users, IPs, domains, and hashes across `USER_LOGIN`, `PROCESS_LAUNCH`, `NETWORK_CONNECTION`, and `NETWORK_DNS` to check for corroborating activity.
+4. Decode Base64 command-line flags (`-enc`, `-EncodedCommand`) before classifying dual-use tools (`powershell.exe`, `wmic.exe`, `rundll32.exe`).
 
 ### Stage C: Threat Intelligence Reputation Check
 
@@ -65,8 +65,8 @@ Covers initial alert review, duplicate checks, full entity inventory across all 
 
 ### Stage D: Disposition, Action, & Mandatory Entity Listing
 
-6. Classify and list every distinct hostname, user principal, external IP, domain, and SHA256 hash observed across all case alerts and SIEM events in the final summary (even when `BENIGN`):
+6. Classify and list every distinct hostname, user, external IP, domain, full URL, sample DNS query, and SHA256 hash verbatim in the final summary (never summarize as "multiple hosts/users", even when `BENIGN`):
     * **MALICIOUS:** Corroborated compromise across SIEM events and GTI reputation. Call `change_case_priority` (`HIGH`/`CRITICAL`), document all entities via `post_case_comment`, and escalate for containment.
     * **SUSPICIOUS:** Unverified anomaly without second-source corroboration. Document via `post_case_comment` and escalate to Tier 2; do not isolate hosts or disable accounts.
     * **INCONCLUSIVE:** Telemetry or API outage (`HTTP 503`). Record gap via `post_case_comment`; execute zero destructive actions.
-    * **BENIGN:** Verified IT/EDR/backup administration, `CHG-...` maintenance, or clean baseline noise with zero malicious GTI hits. Call `post_case_comment` listing all observed hosts, users, and IPs, then call `close_case` (`reason="NOT_MALICIOUS"`). Execute zero containment actions.
+    * **BENIGN:** Verified IT/EDR/backup administration, `CHG-...` maintenance, or clean baseline noise with zero malicious GTI hits. Call `post_case_comment` listing every observed host, user, IP, and domain verbatim, then call `close_case` (`reason="NOT_MALICIOUS"`). Execute zero containment actions.

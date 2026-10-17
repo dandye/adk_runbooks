@@ -1015,7 +1015,7 @@ def build_canonical_mcp_tools(
                     "status": "success",
                     "server": "soar",
                     "case_id": case_id,
-                    "alerts": [],
+                    "alerts": get_logstory_corpus().list_alerts_for_case(case_id),
                 },
             ),
             (
@@ -1026,7 +1026,7 @@ def build_canonical_mcp_tools(
                     "server": "soar",
                     "case_id": case_id,
                     "alert_id": alert_id,
-                    "events": [],
+                    "events": get_logstory_corpus().list_events_for_alert(case_id, alert_id),
                 },
             ),
             (
@@ -1151,12 +1151,15 @@ def build_canonical_mcp_tools(
             (
                 "get_url_report",
                 "Retrieve VirusTotal / GTI reputation report for a URL.",
-                lambda url="": {
-                    "status": "success",
-                    "server": "gti",
-                    "url": url,
-                    "verdict": "clean",
-                },
+                lambda url="": (
+                    get_logstory_corpus().get_gti_indicator_report(url, "URL")
+                    or {
+                        "status": "success",
+                        "server": "gti",
+                        "url": url,
+                        "verdict": "clean",
+                    }
+                ),
             ),
             (
                 "get_collection_report",
