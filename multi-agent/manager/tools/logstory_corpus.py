@@ -166,9 +166,16 @@ class LogstoryEvent:
                 else str(self.raw_record),
             ]
         ).lower()
-        tokens = _extract_search_tokens(q)
+        negated = [
+            m.strip().lower()
+            for m in re.findall(r'!=[\s]*["\']([^"\']{2,})["\']', q)
+        ]
+        if any(neg in haystack for neg in negated):
+            return False
+        q_pos = re.sub(r'!=[\s]*["\'][^"\']*["\']', " ", q)
+        tokens = _extract_search_tokens(q_pos)
         if not tokens:
-            return q in haystack
+            return not negated and (q in haystack) if not negated else True
         return any(tok in haystack for tok in tokens)
 
 
@@ -280,6 +287,47 @@ def _extract_search_tokens(query: str) -> list[str]:
         "email_addresses",
         "log_type",
         "security_result",
+        "show",
+        "all",
+        "security",
+        "events",
+        "event",
+        "for",
+        "from",
+        "with",
+        "the",
+        "find",
+        "list",
+        "search",
+        "get",
+        "logs",
+        "log",
+        "activity",
+        "activities",
+        "related",
+        "involving",
+        "where",
+        "host",
+        "hosts",
+        "domain",
+        "domains",
+        "hash",
+        "hashes",
+        "alert",
+        "alerts",
+        "rule",
+        "rules",
+        "case",
+        "cases",
+        "false",
+        "true",
+        "null",
+        "info",
+        "informational",
+        "high",
+        "medium",
+        "low",
+        "critical",
     }
     raw_words = re.findall(r"[a-zA-Z0-9_.@:\\/-]{3,}", query.lower())
     return [w for w in raw_words if w not in stop_words]
@@ -1130,6 +1178,8 @@ class LogstoryCorpus:
 
     def resolve_usecase_id_for_case(self, case_id: str = "") -> Optional[str]:
         cid = str(case_id or "").strip().upper()
+        if re.fullmatch(r"40\d\d", cid):
+            cid = f"CASE-{cid}"
         if cid in self.usecases:
             return cid
         if cid.startswith("CASE-40"):
@@ -1419,6 +1469,13 @@ class LogstoryCorpus:
     def validate_yaral2_rule(self, rule_text: str) -> dict[str, Any]:
         """Validate YARA-L 2.0 rule syntax and Chronicle UDM schema constraints."""
         text = str(rule_text or "").strip()
+        if "\n" not in text and "\\n" in text:
+            text = (
+                text.replace("\\n", "\n")
+                .replace("\\t", "\t")
+                .replace('\\"', '"')
+                .replace("\\'", "'")
+            )
         errors: list[str] = []
         warnings: list[str] = []
 

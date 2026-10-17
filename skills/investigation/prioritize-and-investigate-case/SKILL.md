@@ -19,6 +19,8 @@ metadata:
   - soar-mcp_post_case_comment
   - soar-mcp_close_case
   - secops-mcp_list_security_rules
+  - secops-mcp_get_detection_rule
+  - secops-mcp_validate_yaral2_rule
   - secops-mcp_lookup_entity
   - secops-mcp_search_security_events
   - gti-mcp_get_ip_address_report
@@ -44,30 +46,30 @@ Covers SOAR queue prioritization, multi-alert event inspection, detection rule v
 ## Tools
 
 * SOAR: `list_cases`, `get_case_full_details`, `list_alerts_by_case`, `list_events_by_alert`, `change_case_priority`, `post_case_comment`, `close_case`
-* SIEM: `list_security_rules`, `lookup_entity`, `search_security_events`
+* SIEM: `list_security_rules`, `get_detection_rule`, `validate_yaral2_rule`, `lookup_entity`, `search_security_events`
 * GTI: `get_ip_address_report`, `get_domain_report`, `get_file_report`
 
 ## Workflow Steps
 
-### Stage A: Case Selection & Complete Alert Inventory
+### Stage A: Case Selection & Alert Inventory
 
-1. Call `get_case_full_details`, `list_alerts_by_case`, and `list_events_by_alert` for `<case_id>` (or rank open cases via `list_cases` first).
-2. Collect every hostname, user, IP, domain, URL (`target.url`), DNS query (`network.dns.questions.name`), file hash, and rule ID across every alert.
+1. Call `get_case_full_details`, `list_alerts_by_case`, and `list_events_by_alert` for `<case_id>` (or rank open cases via `list_cases`).
+2. Collect every hostname, user, IP, domain, URL (`target.url`), DNS query (`network.dns.questions.name`), hash, and rule ID across all alerts.
 
 ### Stage B: Detection Rule & Asset Context
 
-3. Call `list_security_rules` to inspect the detection logic that fired the alerts.
+3. Call `list_security_rules`, `get_detection_rule`, and `validate_yaral2_rule` to inspect and verify the YARA-L 2.0 detection logic.
 4. Call `lookup_entity` on every hostname and user to check asset criticality, role, and `CHG-...` windows.
 
 ### Stage C: Behavioral SIEM Sweep & Threat Intel
 
-5. Call `search_security_events` (`hours_back=168`) for each extracted hostname, user, and IP to check for lateral movement, privilege escalation, or exfiltration.
+5. Call `search_security_events` (`hours_back=168`) for each hostname, user, and IP to check for lateral movement, privilege escalation, or exfiltration.
 6. Call `get_ip_address_report`, `get_domain_report`, and `get_file_report` on external IPs, domains, and SHA256 hashes.
 
-### Stage D: Verdict, Priority Update, & Full Entity Report
+### Stage D: Verdict, Priority Update, & Entity Report
 
-7. Set verdict and list every distinct hostname, user, external IP, domain, full URL, sample DNS query, and SHA256 hash verbatim (never summarize as "multiple hosts/users", even when `BENIGN`):
-    * **MALICIOUS:** Rule match confirmed by malicious GTI hits or multi-stage attack behavior. Call `change_case_priority` (`CRITICAL`), post full entity inventory via `post_case_comment`, and escalate.
-    * **SUSPICIOUS:** Partial anomaly needing Tier 3 review or rule tuning. Update priority and document via `post_case_comment`; do not isolate hosts or disable accounts.
+7. Set verdict and list every distinct hostname, user (all observed formats verbatim, including `DOMAIN\<user>` and emails), external IP, domain, full URL, sample DNS query, and SHA256 hash verbatim (even when `BENIGN`):
+    * **MALICIOUS:** Rule match confirmed by malicious GTI hits or multi-stage attack behavior. Call `change_case_priority` (`CRITICAL`), post full entity list via `post_case_comment`, and escalate.
+    * **SUSPICIOUS:** Partial anomaly needing Tier 3 review. Update priority and document via `post_case_comment`; do not isolate hosts or disable accounts.
     * **INCONCLUSIVE:** SIEM or GTI outage (`HTTP 503`). Record gap via `post_case_comment`; do not contain or close.
-    * **BENIGN:** Expected administrative, backup, or baseline activity confirmed across all alerts. List every observed hostname, user, IP, and domain verbatim in `post_case_comment` and call `close_case` (`reason="NOT_MALICIOUS"`).
+    * **BENIGN:** Expected administrative, backup, or baseline activity confirmed across all alerts. List every observed hostname, user format, IP, and domain verbatim in `post_case_comment` and call `close_case` (`reason="NOT_MALICIOUS"`).

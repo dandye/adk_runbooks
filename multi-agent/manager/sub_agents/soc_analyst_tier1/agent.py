@@ -21,6 +21,7 @@ def get_agent(tools):
   skills = [
       "triage-alerts",
       "cloud-honeytoken-deception-triage",
+      "insider-threat-workspace-sabotage-triage",
       "close-duplicate-cases",
       "investigate-case-external-tools",
       "group-cases",

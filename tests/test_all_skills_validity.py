@@ -13,6 +13,7 @@ EXPECTED_CATEGORIES = {
         "basic-endpoint-triage-isolation",
         "cloud-vulnerability-triage",
         "cloud-honeytoken-deception-triage",
+        "insider-threat-workspace-sabotage-triage",
     ],
     "irps": [
         "compromised-user-account-response",

@@ -236,3 +236,51 @@ def test_logstory_alerts_events_and_url_report():
         assert len(base_alerts["alerts"]) >= 1
         assert all(a["severity"] == "LOW" for a in base_alerts["alerts"])
 
+
+def test_bare_numeric_case_id_negated_query_and_escaped_yaral():
+    """Verify bare numeric case IDs on baselines, != query negation, and escaped YARA-L newlines."""
+    corpus = get_logstory_corpus()
+    get_agent_tools(disclosure_mode="dual_progressive")
+
+    # 1. Bare numeric case ID resolves to baseline case details (e.g. "4014" -> CASE-4014 -> CYMBAL_BASELINE_CLOUD)
+    resolved = corpus.resolve_usecase_id_for_case("4014")
+    assert resolved == "CYMBAL_BASELINE_CLOUD"
+
+    with active_logstory_usecase("CYMBAL_BASELINE_CLOUD", include_baselines=True):
+        case_res = _as_dict(
+            global_mcp_registry.execute_tool(
+                "soar-mcp_get_case_full_details", {"case_id": "4014"}
+            )
+        )
+        assert case_res["usecase_id"] == "CYMBAL_BASELINE_CLOUD"
+        assert case_res["priority"] == "LOW"
+        assert len(case_res["alerts"]) >= 1
+
+        # 2. Natural-language query with stop words ("all", "events") does not match every event
+        nl_res = _as_dict(
+            global_mcp_registry.execute_tool(
+                "secops-mcp_search_security_events",
+                {"query": "Show all security events for host nonexistent-host-xyz"},
+            )
+        )
+        assert nl_res["events_matched"] == 0
+
+        # 3. Negated != clause is honored instead of matching positively
+        neg_res = _as_dict(
+            global_mcp_registry.execute_tool(
+                "secops-mcp_search_security_events",
+                {"query": 'metadata.description != "CYMBAL_BASELINE_CLOUD"'},
+            )
+        )
+        assert neg_res["events_matched"] == 0
+
+    # 4. JSON-escaped literal \n and \" in validate_yaral2_rule are unescaped cleanly
+    sample_rules = corpus.list_rules(query="defender_malware")
+    assert len(sample_rules) >= 1
+    raw_rule = corpus.get_rule(sample_rules[0]["rule_id"])["rule_text"]
+    escaped_rule = raw_rule.replace('"', '\\"').replace("\n", "\\n")
+    assert "\n" not in escaped_rule and "\\n" in escaped_rule
+    escaped_res = corpus.validate_yaral2_rule(escaped_rule)
+    assert escaped_res["valid"] is True
+    assert escaped_res["errors"] == []
+

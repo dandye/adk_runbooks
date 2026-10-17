@@ -459,28 +459,11 @@ def _mock_get_case_full_details(case_id: str = "") -> dict[str, Any]:
             **_URSNIF_SOAR_CASE,
         }
     corpus = get_logstory_corpus()
-    if cid in corpus.usecases:
-        built = corpus.build_soar_case(cid)
+    uid = corpus.resolve_usecase_id_for_case(cid)
+    if uid:
+        built = corpus.build_soar_case(uid)
         if built:
             return {"status": "success", "server": "soar", **built}
-    if cid.startswith("CASE-40"):
-        try:
-            idx = int(cid.split("-")[1]) - 4000
-            keys = sorted(corpus.usecases.keys())
-            if 0 <= idx < len(keys):
-                built = corpus.build_soar_case(keys[idx])
-                if built:
-                    return {"status": "success", "server": "soar", **built}
-        except ValueError:
-            pass
-    active_ids = corpus.get_active_usecase_ids()
-    if active_ids:
-        for uid in sorted(active_ids):
-            uc = corpus.usecases.get(uid)
-            if uc and not uc.is_baseline:
-                built = corpus.build_soar_case(uid)
-                if built:
-                    return {"status": "success", "server": "soar", **built}
     return {
         "status": "success",
         "server": "soar",

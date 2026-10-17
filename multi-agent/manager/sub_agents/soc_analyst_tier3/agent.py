@@ -22,6 +22,7 @@ def get_agent(tools):
   persona_file_path = (BASE_DIR / "../../../../rules-bank/personas/soc_analyst_tier_3.md").resolve()
   skills = [
       "cloud-honeytoken-deception-triage",
+      "insider-threat-workspace-sabotage-triage",
       "edge-appliance-webshell-hunt",
       "dns-tunneling-network-beacon-hunt",
       "deep-dive-ioc-analysis",

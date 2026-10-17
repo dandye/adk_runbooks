@@ -23,6 +23,7 @@ def get_agent(tools):
       "report-writing-guidelines",
       "case-event-timeline-analysis",
       "cloud-honeytoken-deception-triage",
+      "insider-threat-workspace-sabotage-triage",
       "cloud-vulnerability-triage",
       "create-investigation-report",
       "proactive-hunt-gti-campaign",
@@ -35,8 +36,6 @@ def get_agent(tools):
       "edge-appliance-webshell-hunt",
       "dns-tunneling-network-beacon-hunt",
       "lateral-movement-hunt-psexec-wmi",
-      "ioc-threat-hunt",
-      "apt-threat-hunt",
   ]
 
   persona_description = load_persona_with_skills_catalog(
