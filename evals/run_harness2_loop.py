@@ -55,7 +55,23 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--dataset",
         default="core_workflows",
-        help="Dataset name under evals/datasets/ (default: core_workflows).",
+        help="Dataset name under evals/datasets/ or 'logstory' (default: core_workflows).",
+    )
+    parser.add_argument(
+        "--suite",
+        choices=("representative", "full"),
+        default="representative",
+        help="Logstory suite when --dataset=logstory (default: representative).",
+    )
+    parser.add_argument(
+        "--cohort",
+        default=None,
+        help="Optional Logstory cohort filter when --dataset=logstory.",
+    )
+    parser.add_argument(
+        "--check-yaral",
+        action="store_true",
+        help="Prompt Logstory runs to inspect or validate YARA-L 2.0 rules.",
     )
     parser.add_argument(
         "--k",
@@ -102,10 +118,18 @@ def _format_score(scored: harness_judge.Scored | None) -> str:
     gates = raw.get("gates_passed")
     tokens = raw.get("total_tokens")
     calls = raw.get("tool_calls_count")
+    ls_metrics = raw.get("logstory_metrics")
+    extra = ""
+    if isinstance(ls_metrics, dict):
+        extra = (
+            f" verdict={raw.get('disposition_predicted')}/{raw.get('disposition_expected')} "
+            f"ioc_recall={ls_metrics.get('entity_ioc_recall')} "
+            f"safety={ls_metrics.get('containment_safety')}"
+        )
     return (
         f"score={rubric}/{scored.n_criteria} "
         f"all_pass={scored.all_pass} "
-        f"gates_passed={gates} "
+        f"gates_passed={gates}{extra} "
         f"tool_calls={calls} "
         f"tokens={tokens}"
     )
@@ -200,6 +224,9 @@ def run_single_task(
     improver_model: str,
     runs_dir: Path,
     tag: str = "",
+    suite: str = "representative",
+    cohort: str | None = None,
+    check_yaral: bool = False,
 ) -> dict[str, Any]:
     runs_root = Path(runs_dir).resolve()
     runs_root.mkdir(parents=True, exist_ok=True)
@@ -211,6 +238,9 @@ def run_single_task(
         task_ids=[task_id],
         solver_model=solver_model,
         improver_model=improver_model,
+        logstory_suite=suite,
+        logstory_cohort=cohort,
+        check_yaral=check_yaral,
     )
     proposer = AdkGeminiProposer(
         adapter.spec.channels["proposer"],
@@ -310,6 +340,9 @@ def run_dataset_sweep(
     max_tasks: int | None = None,
     domain_parallel: int = 1,
     only_domains: Sequence[str] = (),
+    suite: str = "representative",
+    cohort: str | None = None,
+    check_yaral: bool = False,
 ) -> dict[str, Any]:
     runs_root = Path(runs_dir).resolve()
     runs_root.mkdir(parents=True, exist_ok=True)
@@ -321,6 +354,9 @@ def run_dataset_sweep(
         task_ids=None,
         solver_model=solver_model,
         improver_model=improver_model,
+        logstory_suite=suite,
+        logstory_cohort=cohort,
+        check_yaral=check_yaral,
     )
     proposer = AdkGeminiProposer(
         adapter.spec.channels["proposer"],
@@ -385,6 +421,11 @@ def run_dataset_sweep(
             if f_pass:
                 final_passes += 1
 
+            b_raw = bs.raw if (bs and bs.raw) else {}
+            f_raw = fs.raw if (fs and fs.raw) else {}
+            b_ls = b_raw.get("logstory_metrics") if isinstance(b_raw.get("logstory_metrics"), dict) else {}
+            f_ls = f_raw.get("logstory_metrics") if isinstance(f_raw.get("logstory_metrics"), dict) else {}
+
             task_rows.append(
                 {
                     "task_id": tid,
@@ -393,9 +434,13 @@ def run_dataset_sweep(
                     "library_entries_before": lib_before,
                     "base_score": b_val,
                     "base_all_pass": b_pass,
+                    "base_ioc_recall": b_ls.get("entity_ioc_recall"),
+                    "base_verdict_accuracy": b_ls.get("verdict_accuracy"),
                     "final_label": scored_info["sel"].get("chosen_label"),
                     "final_score": f_val,
                     "final_all_pass": f_pass,
+                    "final_ioc_recall": f_ls.get("entity_ioc_recall"),
+                    "final_verdict_accuracy": f_ls.get("verdict_accuracy"),
                     "diff_added": diff["added"],
                     "diff_modified": diff["modified"],
                     "diff_removed": diff["removed"],
@@ -468,6 +513,9 @@ def main(argv: list[str] | None = None) -> int:
             max_tasks=args.max_tasks,
             domain_parallel=args.domain_parallel,
             only_domains=only_domains,
+            suite=args.suite,
+            cohort=args.cohort,
+            check_yaral=args.check_yaral,
         )
         failed = sum(
             int(d.get("failed") or 0) + (1 if d.get("error") else 0)
@@ -484,6 +532,9 @@ def main(argv: list[str] | None = None) -> int:
         improver_model=args.improver_model,
         runs_dir=Path(args.runs_dir),
         tag=args.tag,
+        suite=args.suite,
+        cohort=args.cohort,
+        check_yaral=args.check_yaral,
     )
     status = out["result"].get("status")
     return 0 if status in ("ok", "skipped") else 1

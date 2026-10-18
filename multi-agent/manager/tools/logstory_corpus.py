@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 import json
 import os
@@ -68,10 +69,12 @@ PAIRED_BASELINES_BY_USECASE: dict[str, list[str]] = {
     "NIX_CRYPTOMINER": ["CYMBAL_BASELINE_NETWORK"],
 }
 
-_ACTIVE_USECASE_STATE: dict[str, Any] = {
-    "usecase_id": None,
-    "include_baselines": True,
-}
+_ACTIVE_USECASE_ID_VAR: ContextVar[Optional[str]] = ContextVar(
+    "logstory_active_usecase_id", default=None
+)
+_ACTIVE_INCLUDE_BASELINES_VAR: ContextVar[bool] = ContextVar(
+    "logstory_active_include_baselines", default=True
+)
 
 
 @dataclass(frozen=True)
@@ -1019,11 +1022,11 @@ class LogstoryCorpus:
         return self.usecases.get(str(usecase_id or "").strip().upper())
 
     def get_active_usecase_ids(self) -> Optional[set[str]]:
-        active = _ACTIVE_USECASE_STATE.get("usecase_id") or os.environ.get("LOGSTORY_ACTIVE_USECASE")
+        active = _ACTIVE_USECASE_ID_VAR.get() or os.environ.get("LOGSTORY_ACTIVE_USECASE")
         if not active or active not in self.usecases:
             return None
         ids = {active}
-        if _ACTIVE_USECASE_STATE.get("include_baselines", True):
+        if _ACTIVE_INCLUDE_BASELINES_VAR.get():
             ids.update(self.usecases[active].paired_baselines)
         return ids
 
@@ -1547,12 +1550,10 @@ def active_logstory_usecase(
     corpus = get_logstory_corpus()
     if usecase_id not in corpus.usecases:
         raise KeyError(f"Unknown Logstory usecase: {usecase_id}")
-    prev_id = _ACTIVE_USECASE_STATE.get("usecase_id")
-    prev_base = _ACTIVE_USECASE_STATE.get("include_baselines", True)
-    _ACTIVE_USECASE_STATE["usecase_id"] = usecase_id
-    _ACTIVE_USECASE_STATE["include_baselines"] = include_baselines
+    tok_id = _ACTIVE_USECASE_ID_VAR.set(usecase_id)
+    tok_base = _ACTIVE_INCLUDE_BASELINES_VAR.set(include_baselines)
     try:
         yield corpus.usecases[usecase_id]
     finally:
-        _ACTIVE_USECASE_STATE["usecase_id"] = prev_id
-        _ACTIVE_USECASE_STATE["include_baselines"] = prev_base
+        _ACTIVE_USECASE_ID_VAR.reset(tok_id)
+        _ACTIVE_INCLUDE_BASELINES_VAR.reset(tok_base)

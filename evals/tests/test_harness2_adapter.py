@@ -342,3 +342,145 @@ def test_sweep_threads_library_between_same_domain_tasks(tmp_path: Path) -> None
     assert dom["tasks"][0]["library_entries_before"]["agg"] == 0
     assert dom["tasks"][1]["library_entries_before"]["agg"] == 1
 
+
+def test_logstory_adapter_loads_representative_cohorts_and_scores(tmp_path: Path) -> None:
+    adapter = AdkRunbooksAdapter(
+        tmp_path,
+        dataset_name="logstory",
+        logstory_suite="representative",
+    )
+    tasks = adapter.tasks()
+    assert len(tasks) == 16
+    assert adapter.reference_domain_order() == [
+        "cloud_deception",
+        "ransomware_edr",
+        "edge_network_lotl",
+        "identity_insider_detection",
+        "cymbal_baselines",
+    ]
+    assert adapter.domain_of("GCP_HONEY_TOKENS") == "cloud_deception"
+    assert adapter.domain_of("CYMBAL_BASELINE_CLOUD") == "cymbal_baselines"
+
+    tree = harness_tree.read_tree(OPENCODE_SURFACE, adapter.base_harness())
+    harness_tree.validate(OPENCODE_SURFACE, tree, allow_subagents=False)
+    adapter.validate_tree(tree)
+    assert "skills/cloud-honeytoken-deception-triage/SKILL.md" in tree
+    assert "skills/dns-tunneling-network-beacon-hunt/SKILL.md" in tree
+    assert "skills/ransomware-response/SKILL.md" in tree
+
+    prompt = adapter.task_prompt("GCP_HONEY_TOKENS")
+    assert "CASE-" in prompt
+    assert "write_report" in prompt
+
+    # Verify explicit non-representative task ID works even with default suite
+    single_adapter = AdkRunbooksAdapter(
+        tmp_path / "single",
+        dataset_name="logstory",
+        task_ids=["AWS_S3_DATA_THEFT"],
+    )
+    assert single_adapter.tasks() == ["AWS_S3_DATA_THEFT"]
+    assert single_adapter.domain_of("AWS_S3_DATA_THEFT") == "cloud_deception"
+
+    # Score a fake Logstory rollout for GCP_HONEY_TOKENS
+    ref = adapter._cases_by_id["GCP_HONEY_TOKENS"]["reference"]
+    expected_ents = list(ref.get("expected_entities") or [])
+    ent_lines = "\n".join(f"- Observed entity: {e}" for e in expected_ents)
+    deliverable = (
+        "# GCP Honeytoken Triage Report\n\n"
+        "Disposition: MALICIOUS\n\n"
+        f"{ent_lines}\n"
+    )
+    trace = WorkflowTrace(
+        workflow_name="logstory_cloud_deception",
+        executed_nodes=["scc-mcp_list_scc_findings", "secops-mcp_search_security_events"],
+        duration_seconds=2.5,
+        estimated_tokens_in=800,
+        estimated_tokens_out=300,
+        total_tokens=1100,
+        status="success",
+        disclosure_mode="dual_progressive",
+        tool_calls=[
+            ToolCallRecord(
+                turn_index=1,
+                agent_name="soc_analyst",
+                tool_name="load_skill",
+                args={"skill_name": "cloud-honeytoken-deception-triage"},
+                status="success",
+                disclosure_skill_loaded=True,
+                mcp_schema_inspected=False,
+            ),
+            ToolCallRecord(
+                turn_index=2,
+                agent_name="soc_analyst",
+                tool_name="get_mcp_tool_schema",
+                args={"tool_name": "scc-mcp_list_scc_findings"},
+                status="success",
+                disclosure_skill_loaded=True,
+                mcp_schema_inspected=True,
+            ),
+            ToolCallRecord(
+                turn_index=3,
+                agent_name="soc_analyst",
+                tool_name="execute_mcp_tool",
+                args={"tool_name": "scc-mcp_list_scc_findings", "arguments": {}},
+                status="success",
+                disclosure_skill_loaded=True,
+                mcp_schema_inspected=True,
+            ),
+        ],
+        activated_skills=["cloud-honeytoken-deception-triage"],
+        inspected_schemas=["scc-mcp_list_scc_findings"],
+    )
+    run_dir = tmp_path / "executions" / "fake_ls"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    (run_dir / "deliverable.md").write_text(deliverable, encoding="utf-8")
+    (run_dir / "trajectory.md").write_text("[ASSISTANT] ok", encoding="utf-8")
+    import json
+    (run_dir / "trace.json").write_text(
+        json.dumps({"trace": asdict(trace), "tool_outputs": []}, indent=2),
+        encoding="utf-8",
+    )
+    scored = adapter.score(run_dir, "GCP_HONEY_TOKENS")
+    assert scored is not None
+    assert scored["all_pass"] is True
+    assert scored["n_criteria"] == 100
+    assert scored["rubric_score"] >= 95.0
+    assert scored["logstory_metrics"]["verdict_accuracy"] == 1.0
+    assert scored["logstory_metrics"]["entity_ioc_recall"] == 1.0
+
+
+def test_active_logstory_usecase_is_thread_isolated() -> None:
+    import threading
+    from manager.tools.logstory_corpus import active_logstory_usecase, get_logstory_corpus
+
+    corpus = get_logstory_corpus()
+    b1 = threading.Barrier(2)
+    b2 = threading.Barrier(2)
+    results: dict[str, set[str] | None] = {}
+
+    def worker_a() -> None:
+        with active_logstory_usecase("GCP_HONEY_TOKENS", include_baselines=False):
+            b1.wait()
+            results["a_before_b_exit"] = corpus.get_active_usecase_ids()
+            b2.wait()
+            results["a_after_b_exit"] = corpus.get_active_usecase_ids()
+
+    def worker_b() -> None:
+        with active_logstory_usecase("AKIRA_RANSOMWARE", include_baselines=False):
+            b1.wait()
+            results["b_inside"] = corpus.get_active_usecase_ids()
+        b2.wait()
+
+    t_a = threading.Thread(target=worker_a)
+    t_b = threading.Thread(target=worker_b)
+    t_a.start()
+    t_b.start()
+    t_a.join(timeout=5)
+    t_b.join(timeout=5)
+
+    assert results["a_before_b_exit"] == {"GCP_HONEY_TOKENS"}
+    assert results["b_inside"] == {"AKIRA_RANSOMWARE"}
+    assert results["a_after_b_exit"] == {"GCP_HONEY_TOKENS"}
+    assert corpus.get_active_usecase_ids() is None
+
+

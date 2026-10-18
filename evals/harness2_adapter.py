@@ -8,6 +8,7 @@ library can evolve the agent's always-on prompts and on-demand skills.
 from __future__ import annotations
 
 import asyncio
+from contextlib import contextmanager, nullcontext
 import inspect
 import json
 import os
@@ -16,11 +17,12 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import uuid
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Callable, Sequence
+from typing import Any, Callable, Iterator, Sequence
 
 import yaml
 from google import genai
@@ -45,6 +47,17 @@ from evals.evaluators.base import ToolCallRecord, WorkflowTrace  # noqa: E402
 from evals.evaluators.rubric_evaluator import RubricEvaluator  # noqa: E402
 from evals.registry import WORKFLOW_REGISTRY  # noqa: E402
 from evals.rubrics.categorical_rubrics import CategoricalRubricSuite  # noqa: E402
+from evals.run_logstory_benchmark import (  # noqa: E402
+    COHORTS,
+    REPRESENTATIVE_USECASES,
+    build_scenario_prompt,
+    get_cohort_for_usecase,
+    score_usecase_run,
+)
+from manager.tools.logstory_corpus import (  # noqa: E402
+    active_logstory_usecase,
+    get_logstory_corpus,
+)
 from manager.tools.mcp_registry import MCPToolRegistry  # noqa: E402
 from manager.tools.offline_mcp_mocks import build_canonical_mcp_tools  # noqa: E402
 from manager.tools.workflow_tools import get_all_workflow_tools  # noqa: E402
@@ -57,6 +70,50 @@ COMMON_SUPPORTING_SKILLS = (
     "generate-report-file",
     "report-writing-guidelines",
 )
+
+LOGSTORY_SKILLS = (
+    "triage-alerts",
+    "prioritize-and-investigate-case",
+    "case-event-timeline-analysis",
+    "cloud-honeytoken-deception-triage",
+    "cloud-vulnerability-triage",
+    "edge-appliance-webshell-hunt",
+    "dns-tunneling-network-beacon-hunt",
+    "insider-threat-workspace-sabotage-triage",
+    "ransomware-response",
+    "malware-triage",
+    "malware-incident-response",
+    "suspicious-login-triage",
+    "compromised-user-account-response",
+    "basic-endpoint-triage-isolation",
+    "detection-rule-validation-tuning",
+    "ioc-containment",
+)
+
+_OFFLINE_MOCKS_LOCK = threading.Lock()
+_OFFLINE_MOCKS_ACTIVE_COUNT = 0
+_OFFLINE_MOCKS_PREV_VALUE: str | None = None
+
+
+@contextmanager
+def _offline_mocks_scope() -> Iterator[None]:
+    """Thread-safe ref-counted scope setting ADK_OFFLINE_MCP_MOCKS=1 across parallel rollouts."""
+    global _OFFLINE_MOCKS_ACTIVE_COUNT, _OFFLINE_MOCKS_PREV_VALUE
+    with _OFFLINE_MOCKS_LOCK:
+        if _OFFLINE_MOCKS_ACTIVE_COUNT == 0:
+            _OFFLINE_MOCKS_PREV_VALUE = os.environ.get("ADK_OFFLINE_MCP_MOCKS")
+            os.environ["ADK_OFFLINE_MCP_MOCKS"] = "1"
+        _OFFLINE_MOCKS_ACTIVE_COUNT += 1
+    try:
+        yield
+    finally:
+        with _OFFLINE_MOCKS_LOCK:
+            _OFFLINE_MOCKS_ACTIVE_COUNT -= 1
+            if _OFFLINE_MOCKS_ACTIVE_COUNT == 0:
+                if _OFFLINE_MOCKS_PREV_VALUE is None:
+                    os.environ.pop("ADK_OFFLINE_MCP_MOCKS", None)
+                else:
+                    os.environ["ADK_OFFLINE_MCP_MOCKS"] = _OFFLINE_MOCKS_PREV_VALUE
 
 DEFAULT_SYSTEM_PROMPT = """You are a Security Operations Center (SOC) Analyst agent investigating security alerts and cases.
 Your job is to gather grounded telemetry from SIEM, SOAR, and Threat Intelligence tools, reach a clear disposition, and produce a complete Markdown triage report.
@@ -84,7 +141,7 @@ DEFAULT_TOOL_GUIDANCE = """# Tool Guidance
 
 - `list_available_skills(category="")`: List on-demand skills available in the current harness.
 - `load_skill(skill_name)`: Load step-by-step instructions for a skill before starting investigation.
-- `search_mcp_tools(query="", server="")`: Search SIEM (`siem`), SOAR (`soar`), Threat Intelligence (`gti`), and workflow (`workflows`) tools by keyword.
+- `search_mcp_tools(query="", server="")`: Search SIEM (`siem`), SOAR (`soar`), Threat Intelligence (`gti`), Cloud SCC/IAM (`scc`), and workflow (`workflows`) tools by keyword.
 - `get_mcp_tool_schema(tool_name)`: Inspect required arguments and JSON schema for a tool before calling `execute_mcp_tool`.
 - `execute_mcp_tool(tool_name, arguments)`: Execute a registered MCP or workflow tool with a dictionary of arguments.
 - `write_report(report_name, report_contents)`: Save the final Markdown triage report for the task.
@@ -161,6 +218,9 @@ class AdkRunbooksAdapter:
         improver_model: str = "gemini-3-flash-preview",
         skills_source_dir: Path | str | None = None,
         solver_fn: Callable[[str, Path, Path], tuple[str, str, dict[str, Any]]] | None = None,
+        logstory_suite: str = "representative",
+        logstory_cohort: str | None = None,
+        check_yaral: bool = False,
     ):
         self.runs_root = Path(runs_root).resolve()
         self.runs_root.mkdir(parents=True, exist_ok=True)
@@ -169,13 +229,24 @@ class AdkRunbooksAdapter:
         self.improver_model = improver_model
         self.skills_source_dir = Path(skills_source_dir or (REPO_ROOT / "skills")).resolve()
         self.solver_fn = solver_fn
+        self.logstory_suite = logstory_suite
+        self.logstory_cohort = logstory_cohort
+        self.check_yaral = check_yaral
         self.substrate = AdkSubstrate()
         self.execution_count = 0
 
-        all_cases = load_dataset(dataset_name)
-        if task_ids is not None:
-            wanted = set(task_ids)
-            all_cases = [c for c in all_cases if c.get("test_id") in wanted]
+        if dataset_name == "logstory":
+            all_cases = self._load_logstory_cases(
+                task_ids=task_ids,
+                suite=logstory_suite,
+                cohort=logstory_cohort,
+                check_yaral=check_yaral,
+            )
+        else:
+            all_cases = load_dataset(dataset_name)
+            if task_ids is not None:
+                wanted = set(task_ids)
+                all_cases = [c for c in all_cases if c.get("test_id") in wanted]
         if not all_cases:
             raise ValueError(f"No test cases matched in dataset {dataset_name!r} for task_ids={task_ids!r}")
 
@@ -220,9 +291,50 @@ class AdkRunbooksAdapter:
         self._base_dir = self.runs_root / "base_harness"
         self._build_base_harness()
 
+    @staticmethod
+    def _load_logstory_cases(
+        *,
+        task_ids: Sequence[str] | None,
+        suite: str,
+        cohort: str | None,
+        check_yaral: bool,
+    ) -> list[dict[str, Any]]:
+        corpus = get_logstory_corpus()
+        if cohort is not None and cohort not in COHORTS:
+            raise ValueError(f"Unknown Logstory cohort {cohort!r}; choose from {sorted(COHORTS)}")
+
+        wanted = {str(t).strip().upper() for t in task_ids} if task_ids is not None else None
+        source_map = COHORTS if (wanted is not None or suite == "full") else REPRESENTATIVE_USECASES
+
+        cases: list[dict[str, Any]] = []
+        for cohort_name, uids in source_map.items():
+            if cohort is not None and cohort_name != cohort:
+                continue
+            for uid in uids:
+                if wanted is not None and uid not in wanted:
+                    continue
+                uc = corpus.get_usecase(uid)
+                if uc is None:
+                    continue
+                prompt, reference = build_scenario_prompt(uc, corpus, check_yaral=check_yaral)
+                cases.append(
+                    {
+                        "test_id": uid,
+                        "workflow_name": f"logstory_{cohort_name}",
+                        "rubric_type": cohort_name,
+                        "description": uc.description or uc.title,
+                        "prompt": prompt,
+                        "reference": reference,
+                        "is_logstory": True,
+                    }
+                )
+        return cases
+
     def _build_base_harness(self) -> None:
         source_registry = SkillRegistry(skills_dir=self.skills_source_dir)
         skill_names: set[str] = set(COMMON_SUPPORTING_SKILLS)
+        if self.dataset_name == "logstory":
+            skill_names.update(LOGSTORY_SKILLS)
         for case in self._cases_by_id.values():
             wf_name = str(case.get("workflow_name") or "")
             wf_def = WORKFLOW_REGISTRY.get(wf_name)
@@ -266,10 +378,17 @@ class AdkRunbooksAdapter:
 
     def reference_domain_order(self) -> list[str]:
         domains = {self.domain_of(tid) for tid in self._ordered_ids}
+        if self.dataset_name == "logstory":
+            return [c for c in COHORTS if c in domains]
         return sorted(domains)
 
     def task_prompt(self, task_id: str) -> str:
         case = self._cases_by_id[task_id]
+        if case.get("is_logstory"):
+            return (
+                f"{case['prompt']}\n\n"
+                "Save your final Markdown report using `write_report`."
+            )
         desc = str(case.get("description") or "Investigate the security alert and document findings.")
         wf_name = str(case.get("workflow_name") or "")
         inputs = dict(case.get("input") or {})
@@ -343,7 +462,7 @@ class AdkRunbooksAdapter:
 
         local_skill_registry = SkillRegistry(skills_dir=harness_dir / "skills")
         local_mcp_registry = MCPToolRegistry()
-        for server in ("siem", "soar", "gti"):
+        for server in ("siem", "soar", "gti", "scc"):
             build_canonical_mcp_tools(server, local_mcp_registry)
         local_mcp_registry.register_mcp_toolset(get_all_workflow_tools(), server_name="workflows")
 
@@ -610,58 +729,57 @@ class AdkRunbooksAdapter:
             role="user", parts=[genai_types.Part.from_text(text=prompt_text)]
         )
 
-        old_offline = os.environ.get("ADK_OFFLINE_MCP_MOCKS")
-        os.environ["ADK_OFFLINE_MCP_MOCKS"] = "1"
+        logstory_ctx = (
+            active_logstory_usecase(task_id, include_baselines=True)
+            if case.get("is_logstory")
+            else nullcontext()
+        )
         try:
-            async with Runner(
-                app_name="harness2_adk",
-                agent=agent,
-                session_service=session_service,
-                plugins=[EnsureRetryOptionsPlugin(name="ensure_retry_options")],
-            ) as runner:
-                async for event in runner.run_async(
-                    user_id=user_id,
-                    session_id=session_id,
-                    new_message=user_msg,
-                ):
-                    usage = getattr(event, "usage_metadata", None)
-                    if usage is not None:
-                        tokens_in += int(getattr(usage, "prompt_token_count", 0) or 0)
-                        tokens_out += int(getattr(usage, "candidates_token_count", 0) or 0)
+            with _offline_mocks_scope(), logstory_ctx:
+                async with Runner(
+                    app_name="harness2_adk",
+                    agent=agent,
+                    session_service=session_service,
+                    plugins=[EnsureRetryOptionsPlugin(name="ensure_retry_options")],
+                ) as runner:
+                    async for event in runner.run_async(
+                        user_id=user_id,
+                        session_id=session_id,
+                        new_message=user_msg,
+                    ):
+                        usage = getattr(event, "usage_metadata", None)
+                        if usage is not None:
+                            tokens_in += int(getattr(usage, "prompt_token_count", 0) or 0)
+                            tokens_out += int(getattr(usage, "candidates_token_count", 0) or 0)
 
-                    content = getattr(event, "content", None)
-                    if not content or not content.parts:
-                        continue
-                    for part in content.parts:
-                        if getattr(part, "thought", False):
-                            thought_txt = (getattr(part, "text", None) or "").strip()
-                            if thought_txt:
-                                traj_lines.append(f"[THINKING] {thought_txt[:2000]}")
+                        content = getattr(event, "content", None)
+                        if not content or not content.parts:
                             continue
-                        fc = getattr(part, "function_call", None)
-                        if fc is not None:
-                            args_str = json.dumps(dict(fc.args or {}), default=str)
-                            traj_lines.append(f"[ACTION] {fc.name}({args_str[:400]})")
-                        fr = getattr(part, "function_response", None)
-                        if fr is not None:
-                            resp_str = json.dumps(fr.response, default=str)
-                            if "Error" in resp_str or "error" in resp_str.lower()[:60]:
-                                traj_lines.append(f"[OBSERVATION ERROR] {resp_str[:4000]}")
-                            else:
-                                traj_lines.append(f"[OBSERVATION] {resp_str[:4000]}")
-                        txt = getattr(part, "text", None)
-                        if txt and txt.strip():
-                            assistant_texts.append(txt.strip())
-                            traj_lines.append(f"[ASSISTANT] {txt.strip()}")
+                        for part in content.parts:
+                            if getattr(part, "thought", False):
+                                thought_txt = (getattr(part, "text", None) or "").strip()
+                                if thought_txt:
+                                    traj_lines.append(f"[THINKING] {thought_txt[:2000]}")
+                                continue
+                            fc = getattr(part, "function_call", None)
+                            if fc is not None:
+                                args_str = json.dumps(dict(fc.args or {}), default=str)
+                                traj_lines.append(f"[ACTION] {fc.name}({args_str[:400]})")
+                            fr = getattr(part, "function_response", None)
+                            if fr is not None:
+                                resp_str = json.dumps(fr.response, default=str)
+                                if "Error" in resp_str or "error" in resp_str.lower()[:60]:
+                                    traj_lines.append(f"[OBSERVATION ERROR] {resp_str[:4000]}")
+                                else:
+                                    traj_lines.append(f"[OBSERVATION] {resp_str[:4000]}")
+                            txt = getattr(part, "text", None)
+                            if txt and txt.strip():
+                                assistant_texts.append(txt.strip())
+                                traj_lines.append(f"[ASSISTANT] {txt.strip()}")
         except Exception as exc:
             trace.status = "error"
             trace.error = f"{type(exc).__name__}: {exc}"
             traj_lines.append(f"[ERROR] {trace.error}")
-        finally:
-            if old_offline is None:
-                os.environ.pop("ADK_OFFLINE_MCP_MOCKS", None)
-            else:
-                os.environ["ADK_OFFLINE_MCP_MOCKS"] = old_offline
 
         trace.duration_seconds = round(time.perf_counter() - start_ts, 3)
         trace.estimated_tokens_in = tokens_in
@@ -735,6 +853,40 @@ class AdkRunbooksAdapter:
         )
 
         deliverable = self.deliverable_text(run_dir)
+        if case.get("is_logstory"):
+            corpus = get_logstory_corpus()
+            uc = corpus.get_usecase(task_id)
+            if uc is None:
+                return None
+            reference = dict(case.get("reference") or {})
+            score_card = score_usecase_run(uc, reference, trace, deliverable, corpus)
+            metrics = dict(score_card.get("metrics") or {})
+            composite_pct = round(float(score_card["composite_score"]) * 100.0, 2)
+            gates_passed = bool(
+                metrics.get("containment_safety") == 1.0
+                and metrics.get("progressive_disclosure") == 1.0
+                and metrics.get("tool_grounding") == 1.0
+            )
+            return {
+                "n_passed": int(round(composite_pct)),
+                "n_criteria": 100,
+                "all_pass": bool(score_card["passed"]),
+                "rubric_score": composite_pct,
+                "rubric_passed": bool(score_card["passed"]),
+                "gates_passed": gates_passed,
+                "logstory_metrics": metrics,
+                "disposition_predicted": score_card.get("disposition_predicted"),
+                "disposition_expected": score_card.get("disposition_expected"),
+                "matched_entities": list(score_card.get("matched_entities") or []),
+                "expected_entities": list(score_card.get("expected_entities") or []),
+                "rubric_categories": dict(score_card.get("rubric_categories") or {}),
+                "tool_calls_count": len(trace.tool_calls),
+                "activated_skills": list(trace.activated_skills),
+                "inspected_schemas": list(trace.inspected_schemas),
+                "total_tokens": trace.total_tokens,
+                "duration_seconds": trace.duration_seconds,
+            }
+
         tool_outputs = list(raw_payload.get("tool_outputs") or [])
         output_dict = _build_scored_output_dict(deliverable, inputs, trace, tool_outputs)
 
