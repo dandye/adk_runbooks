@@ -29,6 +29,7 @@ multi-agent/manager/sub_agents/*/*.log
 .superpowers/
 evals/results/*.db
 evals/results/reports/
+evals/results/harness2_runs/
 multi-agent/reports/otel_traces.jsonl
 multi-agent/reports/Alert_Report_*.md
 multi-agent/reports/Case_Report_*.md
