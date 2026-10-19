@@ -8,6 +8,7 @@ library can evolve the agent's always-on prompts and on-demand skills.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import inspect
 import json
 import os
@@ -16,11 +17,12 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import uuid
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Callable, Sequence
+from typing import Any, Callable, Iterator, Sequence
 
 import yaml
 from google import genai
@@ -91,6 +93,76 @@ DEFAULT_TOOL_GUIDANCE = """# Tool Guidance
 """
 
 _JINJA_BRACES = re.compile(r"\{\{|\{%|\{#")
+_ADK_TEMPLATE_VAR_RE = re.compile(r"\{+([^{}\n]*)\}+")
+_ADK_STATE_PREFIXES = ("app:", "user:", "temp:")
+_OFFLINE_ENV_LOCK = threading.Lock()
+_OFFLINE_ENV_REFCOUNT = 0
+_OFFLINE_ENV_PREV: str | None = None
+
+
+def _is_valid_adk_state_name(var_name: str) -> bool:
+    """Match google.adk.utils.instructions_utils._is_valid_state_name."""
+    parts = var_name.split(":")
+    if len(parts) == 1:
+        return var_name.isidentifier()
+    if len(parts) == 2 and f"{parts[0]}:" in _ADK_STATE_PREFIXES:
+        return parts[1].isidentifier()
+    return False
+
+
+def _escape_adk_template_placeholders(text: str) -> str:
+    """Replace ADK state/artifact `{VAR}` or `{{VAR}}` placeholders with `<VAR>`.
+
+    Leaves MyST code fences (```` ```{mermaid} ````) and JSON literals
+    (`{"ioc": "1.2.3.4"}`) intact while preventing ADK `inject_session_state`
+    from treating prompt placeholders as missing session state keys.
+    """
+    if "{" not in text:
+        return text
+
+    def _replace(match: re.Match[str]) -> str:
+        start = match.start()
+        if start >= 3 and text[start - 3 : start] == "```":
+            return match.group(0)
+        raw_inner = match.group(1).strip()
+        check_name = raw_inner[:-1] if raw_inner.endswith("?") else raw_inner
+        if check_name.startswith("artifact.") or _is_valid_adk_state_name(check_name):
+            return f"<{raw_inner}>"
+        return match.group(0)
+
+    cleaned = _ADK_TEMPLATE_VAR_RE.sub(_replace, text)
+    return cleaned.replace("{{", "{").replace("}}", "}").replace("{%", "{").replace("{#", "{")
+
+
+def _make_static_instruction_provider(instruction_text: str) -> Callable[[Any], str]:
+    """Return an ADK InstructionProvider callable that bypasses session-state regex injection."""
+    safe_text = _escape_adk_template_placeholders(instruction_text)
+
+    def _provider(_ctx: Any) -> str:
+        return safe_text
+
+    return _provider
+
+
+@contextlib.contextmanager
+def _offline_mcp_mocks_env() -> Iterator[None]:
+    """Thread-safe ref-counted guard keeping ADK_OFFLINE_MCP_MOCKS=1 across parallel rollouts."""
+    global _OFFLINE_ENV_REFCOUNT, _OFFLINE_ENV_PREV
+    with _OFFLINE_ENV_LOCK:
+        if _OFFLINE_ENV_REFCOUNT == 0:
+            _OFFLINE_ENV_PREV = os.environ.get("ADK_OFFLINE_MCP_MOCKS")
+            os.environ["ADK_OFFLINE_MCP_MOCKS"] = "1"
+        _OFFLINE_ENV_REFCOUNT += 1
+    try:
+        yield
+    finally:
+        with _OFFLINE_ENV_LOCK:
+            _OFFLINE_ENV_REFCOUNT -= 1
+            if _OFFLINE_ENV_REFCOUNT == 0:
+                if _OFFLINE_ENV_PREV is None:
+                    os.environ.pop("ADK_OFFLINE_MCP_MOCKS", None)
+                else:
+                    os.environ["ADK_OFFLINE_MCP_MOCKS"] = _OFFLINE_ENV_PREV
 
 
 class AdkSubstrate:
@@ -103,7 +175,7 @@ class AdkSubstrate:
 
 
 def _prepare_skill_for_harness(skill_name: str, raw_md: str) -> str:
-    """Normalize frontmatter and strip grading rubrics from a seeded SKILL.md."""
+    """Normalize frontmatter, strip grading rubrics, and escape ADK template braces."""
     body = raw_md
     fm_data: dict[str, Any] = {}
     match = re.match(r"^---\s*\n(.*?)\n---\s*\n(.*)$", raw_md, re.DOTALL)
@@ -117,11 +189,11 @@ def _prepare_skill_for_harness(skill_name: str, raw_md: str) -> str:
         body = match.group(2)
 
     body = re.split(r"\n##\s+Rubrics\b", body, maxsplit=1)[0].strip()
-    body = body.replace("{{", "{").replace("}}", "}").replace("{%", "{").replace("{#", "{")
+    body = _escape_adk_template_placeholders(body)
 
     desc = str(fm_data.get("description") or f"Workflow guidance for {skill_name}.").strip()
     desc = " ".join(desc.split())
-    desc = desc.replace("{{", "{").replace("}}", "}")
+    desc = _escape_adk_template_placeholders(desc)
 
     lines = [
         "---",
@@ -586,7 +658,7 @@ class AdkRunbooksAdapter:
             name="soc_analyst",
             model=self.solver_model,
             description=description,
-            instruction="\n\n---\n\n".join(always_on_parts),
+            instruction=_make_static_instruction_provider("\n\n---\n\n".join(always_on_parts)),
             tools=tools,
         )
 
@@ -610,58 +682,52 @@ class AdkRunbooksAdapter:
             role="user", parts=[genai_types.Part.from_text(text=prompt_text)]
         )
 
-        old_offline = os.environ.get("ADK_OFFLINE_MCP_MOCKS")
-        os.environ["ADK_OFFLINE_MCP_MOCKS"] = "1"
-        try:
-            async with Runner(
-                app_name="harness2_adk",
-                agent=agent,
-                session_service=session_service,
-                plugins=[EnsureRetryOptionsPlugin(name="ensure_retry_options")],
-            ) as runner:
-                async for event in runner.run_async(
-                    user_id=user_id,
-                    session_id=session_id,
-                    new_message=user_msg,
-                ):
-                    usage = getattr(event, "usage_metadata", None)
-                    if usage is not None:
-                        tokens_in += int(getattr(usage, "prompt_token_count", 0) or 0)
-                        tokens_out += int(getattr(usage, "candidates_token_count", 0) or 0)
+        with _offline_mcp_mocks_env():
+            try:
+                async with Runner(
+                    app_name="harness2_adk",
+                    agent=agent,
+                    session_service=session_service,
+                    plugins=[EnsureRetryOptionsPlugin(name="ensure_retry_options")],
+                ) as runner:
+                    async for event in runner.run_async(
+                        user_id=user_id,
+                        session_id=session_id,
+                        new_message=user_msg,
+                    ):
+                        usage = getattr(event, "usage_metadata", None)
+                        if usage is not None:
+                            tokens_in += int(getattr(usage, "prompt_token_count", 0) or 0)
+                            tokens_out += int(getattr(usage, "candidates_token_count", 0) or 0)
 
-                    content = getattr(event, "content", None)
-                    if not content or not content.parts:
-                        continue
-                    for part in content.parts:
-                        if getattr(part, "thought", False):
-                            thought_txt = (getattr(part, "text", None) or "").strip()
-                            if thought_txt:
-                                traj_lines.append(f"[THINKING] {thought_txt[:2000]}")
+                        content = getattr(event, "content", None)
+                        if not content or not content.parts:
                             continue
-                        fc = getattr(part, "function_call", None)
-                        if fc is not None:
-                            args_str = json.dumps(dict(fc.args or {}), default=str)
-                            traj_lines.append(f"[ACTION] {fc.name}({args_str[:400]})")
-                        fr = getattr(part, "function_response", None)
-                        if fr is not None:
-                            resp_str = json.dumps(fr.response, default=str)
-                            if "Error" in resp_str or "error" in resp_str.lower()[:60]:
-                                traj_lines.append(f"[OBSERVATION ERROR] {resp_str[:4000]}")
-                            else:
-                                traj_lines.append(f"[OBSERVATION] {resp_str[:4000]}")
-                        txt = getattr(part, "text", None)
-                        if txt and txt.strip():
-                            assistant_texts.append(txt.strip())
-                            traj_lines.append(f"[ASSISTANT] {txt.strip()}")
-        except Exception as exc:
-            trace.status = "error"
-            trace.error = f"{type(exc).__name__}: {exc}"
-            traj_lines.append(f"[ERROR] {trace.error}")
-        finally:
-            if old_offline is None:
-                os.environ.pop("ADK_OFFLINE_MCP_MOCKS", None)
-            else:
-                os.environ["ADK_OFFLINE_MCP_MOCKS"] = old_offline
+                        for part in content.parts:
+                            if getattr(part, "thought", False):
+                                thought_txt = (getattr(part, "text", None) or "").strip()
+                                if thought_txt:
+                                    traj_lines.append(f"[THINKING] {thought_txt[:2000]}")
+                                continue
+                            fc = getattr(part, "function_call", None)
+                            if fc is not None:
+                                args_str = json.dumps(dict(fc.args or {}), default=str)
+                                traj_lines.append(f"[ACTION] {fc.name}({args_str[:400]})")
+                            fr = getattr(part, "function_response", None)
+                            if fr is not None:
+                                resp_str = json.dumps(fr.response, default=str)
+                                if "Error" in resp_str or "error" in resp_str.lower()[:60]:
+                                    traj_lines.append(f"[OBSERVATION ERROR] {resp_str[:4000]}")
+                                else:
+                                    traj_lines.append(f"[OBSERVATION] {resp_str[:4000]}")
+                            txt = getattr(part, "text", None)
+                            if txt and txt.strip():
+                                assistant_texts.append(txt.strip())
+                                traj_lines.append(f"[ASSISTANT] {txt.strip()}")
+            except Exception as exc:
+                trace.status = "error"
+                trace.error = f"{type(exc).__name__}: {exc}"
+                traj_lines.append(f"[ERROR] {trace.error}")
 
         trace.duration_seconds = round(time.perf_counter() - start_ts, 3)
         trace.estimated_tokens_in = tokens_in

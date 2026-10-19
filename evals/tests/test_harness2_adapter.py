@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
+import os
 import shutil
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock
 
+from google.adk.agents import Agent
+from google.adk.flows.llm_flows.instructions import _process_agent_instruction
 from harness2.core import library as harness_library
 from harness2.core import schedule as harness_schedule
 from harness2.core import tree as harness_tree
@@ -16,6 +21,9 @@ from harness2.substrate.opencode import OPENCODE_SURFACE
 from evals.evaluators.base import ToolCallRecord, WorkflowTrace
 from evals.harness2_adapter import (
     AdkRunbooksAdapter,
+    _escape_adk_template_placeholders,
+    _make_static_instruction_provider,
+    _offline_mcp_mocks_env,
     _prepare_skill_for_harness,
 )
 
@@ -27,7 +35,11 @@ def test_prepare_skill_strips_rubrics_and_jinja_braces() -> None:
         "description: Investigate {{alert_id}} with tool steps.\n"
         "---\n"
         "# Instructions\n"
-        "Check {{source_ip}} in SIEM.\n\n"
+        "Check {{source_ip}} and {IOC_VALUE} in SIEM.\n"
+        'Example payload: `{"ioc": "1.2.3.4"}`\n'
+        "```{mermaid}\n"
+        "graph TD\n"
+        "```\n\n"
         "## Rubrics\n"
         "- Must score 100 points.\n"
     )
@@ -37,8 +49,60 @@ def test_prepare_skill_strips_rubrics_and_jinja_braces() -> None:
     assert "Must score 100 points" not in cleaned
     assert "{{" not in cleaned
     assert "}}" not in cleaned
-    assert "{alert_id}" in cleaned
-    assert "{source_ip}" in cleaned
+    assert "<alert_id>" in cleaned
+    assert "<source_ip>" in cleaned
+    assert "<IOC_VALUE>" in cleaned
+    assert '{"ioc": "1.2.3.4"}' in cleaned
+    assert "```{mermaid}" in cleaned
+
+
+def test_escape_adk_template_placeholders_preserves_json_and_myst() -> None:
+    src = (
+        "Pass {IOC_VALUE}, {{alert_id}}, {app:user_id}, {IOC_VALUE?}, and {artifact.report.md}.\n"
+        'JSON stays intact: {"tool_name": "enrich_ioc", "ioc": "1.2.3.4"}.\n'
+        "MyST stays intact:\n```{mermaid}\ngraph LR\n```"
+    )
+    out = _escape_adk_template_placeholders(src)
+    assert "<IOC_VALUE>" in out
+    assert "<alert_id>" in out
+    assert "<app:user_id>" in out
+    assert "<IOC_VALUE?>" in out
+    assert "<artifact.report.md>" in out
+    assert '{"tool_name": "enrich_ioc", "ioc": "1.2.3.4"}' in out
+    assert "```{mermaid}" in out
+    assert "{IOC_VALUE}" not in out
+
+
+def test_static_instruction_provider_bypasses_adk_state_injection() -> None:
+    provider = _make_static_instruction_provider(
+        "Investigate {IOC_VALUE} and {{alert_id}} using {\"ioc\": \"1.2.3.4\"}."
+    )
+    agent = Agent(
+        name="soc_analyst",
+        model="gemini-3-flash-preview",
+        instruction=provider,
+    )
+    fake_ctx = MagicMock()
+    fake_ctx.session.state = {}
+
+    resolved = asyncio.run(_process_agent_instruction(agent, fake_ctx))
+    assert "<IOC_VALUE>" in resolved
+    assert "<alert_id>" in resolved
+    assert '{"ioc": "1.2.3.4"}' in resolved
+    assert "{IOC_VALUE}" not in resolved
+
+
+def test_offline_mcp_mocks_env_refcounts_nested_scopes(monkeypatch: Any) -> None:
+    monkeypatch.delenv("ADK_OFFLINE_MCP_MOCKS", raising=False)
+    assert os.environ.get("ADK_OFFLINE_MCP_MOCKS") is None
+
+    with _offline_mcp_mocks_env():
+        assert os.environ.get("ADK_OFFLINE_MCP_MOCKS") == "1"
+        with _offline_mcp_mocks_env():
+            assert os.environ.get("ADK_OFFLINE_MCP_MOCKS") == "1"
+        assert os.environ.get("ADK_OFFLINE_MCP_MOCKS") == "1"
+
+    assert os.environ.get("ADK_OFFLINE_MCP_MOCKS") is None
 
 
 def test_base_harness_validates_on_opencode_surface(tmp_path: Path) -> None:
