@@ -21,10 +21,15 @@ from harness2.substrate.opencode import OPENCODE_SURFACE
 from evals.evaluators.base import ToolCallRecord, WorkflowTrace
 from evals.harness2_adapter import (
     AdkRunbooksAdapter,
+    _build_scored_output_dict,
     _escape_adk_template_placeholders,
     _make_static_instruction_provider,
     _offline_mcp_mocks_env,
     _prepare_skill_for_harness,
+)
+from evals.run_harness2_loop import (
+    _adapt_compare_harness_for_dataset,
+    export_merged_evolved_harness,
 )
 
 
@@ -405,4 +410,137 @@ def test_sweep_threads_library_between_same_domain_tasks(tmp_path: Path) -> None
     assert dom["failed"] == 0
     assert dom["tasks"][0]["library_entries_before"]["agg"] == 0
     assert dom["tasks"][1]["library_entries_before"]["agg"] == 1
+
+
+def test_build_scored_output_dict_extracts_list_inputs_and_hunting_summaries() -> None:
+    trace = WorkflowTrace(
+        workflow_name="threat_hunting_ioc_hunt",
+        executed_nodes=["search_security_events", "get_threat_intel"],
+        duration_seconds=1.1,
+        status="success",
+        disclosure_mode="dual_progressive",
+    )
+    inputs = {
+        "ioc_list": ["198.51.100.44", "evil.example.com"],
+        "campaign_or_actor_name": "APT29",
+        "time_range_hours": 72,
+    }
+    deliverable = (
+        "# Threat Hunt Summary\n"
+        "Investigated APT29 activity over 72 hours. Found hits for 198.51.100.44.\n"
+        "Verdict: escalate.\n"
+    )
+    tool_outputs = [
+        {
+            "tool_name": "search_security_events",
+            "arguments": {"query": "ip = '198.51.100.44'"},
+            "output": {"events": 3},
+        },
+        {
+            "tool_name": "get_threat_intel",
+            "arguments": {"ioc": "198.51.100.44"},
+            "output": {"actor": "APT29"},
+        },
+    ]
+
+    scored = _build_scored_output_dict(deliverable, inputs, trace, tool_outputs)
+    assert scored["ioc_list"] == ["198.51.100.44", "evil.example.com"]
+    assert scored["campaign_or_actor_name"] == "APT29"
+    assert scored["time_range_hours"] == 72
+    assert "search_summary" in scored
+    assert "gti_summary" in scored
+    assert scored["verdict"] == "escalate"
+
+
+def test_export_merged_evolved_harness_and_adapt_for_transfer(tmp_path: Path) -> None:
+    def fake_solver(
+        task_id: str, harness_dir: Path, run_dir: Path
+    ) -> tuple[str, str, dict[str, Any]]:
+        del harness_dir, run_dir
+        trace = WorkflowTrace(
+            workflow_name="case_report_workflow",
+            executed_nodes=["soar-mcp_get_case_full_details"],
+            duration_seconds=0.5,
+            estimated_tokens_in=100,
+            estimated_tokens_out=100,
+            total_tokens=200,
+            status="success",
+            disclosure_mode="dual_progressive",
+            tool_calls=[
+                ToolCallRecord(
+                    turn_index=1,
+                    agent_name="soc_analyst",
+                    tool_name="load_skill",
+                    args={"skill_name": "case-report"},
+                    status="success",
+                    disclosure_skill_loaded=True,
+                    mcp_schema_inspected=True,
+                )
+            ],
+            activated_skills=["case-report"],
+            inspected_schemas=["soar-mcp_get_case_full_details"],
+        )
+        deliverable = (
+            f"# Executive Summary for {task_id}\n\n"
+            "## Overview\nCase 33279 alert de_4ee5885c details and entity findings.\n\n"
+            "## Recommendations\nAction taken: documented case summary.\n"
+        )
+        trace.raw_output = deliverable
+        return deliverable, f"[ASSISTANT] {deliverable}", {"trace": asdict(trace), "tool_outputs": []}
+
+    adapter = AdkRunbooksAdapter(
+        tmp_path,
+        dataset_name="core_workflows",
+        solver_fn=fake_solver,
+    )
+    prop = _ScriptedFakeProposer(
+        adapter.spec.channels["proposer"],
+        audit_dir=tmp_path / "audit",
+    )
+    sweep_rec = harness_schedule.run_sweep(
+        1,
+        adapter=adapter,
+        prop=prop,
+        runs_root=tmp_path,
+        library_root=tmp_path / "library",
+        modes=("agg",),
+        only_domains=("reporting",),
+    )
+
+    manifest = export_merged_evolved_harness(
+        adapter=adapter,
+        sweep_rec=sweep_rec,
+        mode_tok="agg",
+        k=1,
+        runs_root=tmp_path,
+    )
+    evolved_dir = Path(manifest["evolved_harness_dir"])
+    assert evolved_dir.is_dir()
+    assert Path(manifest["manifest_path"]).is_file()
+    assert manifest["guardrail_rules_added"] >= 1
+    assert manifest["memory_cues_added"] >= 1
+
+    evolved_guard = (evolved_dir / "guardrails.md").read_text(encoding="utf-8")
+    assert "## Evolved Guardrails" in evolved_guard
+    evolved_mem = (evolved_dir / "LongTermMEMORY.md").read_text(encoding="utf-8")
+    assert "## Learned Domain Cues" in evolved_mem
+
+    reg_adapter = AdkRunbooksAdapter(
+        tmp_path / "transfer_runs",
+        dataset_name="production_regressions",
+        solver_fn=fake_solver,
+    )
+    adapted_dir = _adapt_compare_harness_for_dataset(
+        adapter=reg_adapter,
+        compare_dir=evolved_dir,
+        runs_root=tmp_path / "transfer_runs",
+        dataset_name="production_regressions",
+    )
+    assert adapted_dir.is_dir()
+    adapted_guard = (adapted_dir / "guardrails.md").read_text(encoding="utf-8")
+    assert "## Evolved Guardrails" in adapted_guard
+    base_skills = sorted(p.parent.name for p in (reg_adapter.base_harness() / "skills").glob("*/SKILL.md"))
+    adapted_skills = sorted(p.parent.name for p in (adapted_dir / "skills").glob("*/SKILL.md"))
+    assert adapted_skills == base_skills
+
 

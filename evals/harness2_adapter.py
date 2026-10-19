@@ -857,20 +857,12 @@ def _build_scored_output_dict(
     }
 
     haystack = deliverable + "\n" + json.dumps(tool_outputs, default=str)
-    for key in (
-        "case_id",
-        "alert_id",
-        "rule_id",
-        "rule_name",
-        "user_id",
-        "source_ip",
-        "hostname",
-        "file_hash",
-        "ioc_value",
-        "endpoint_id",
-    ):
-        val = inputs.get(key)
-        if val is not None and str(val) in haystack:
+    for key, val in inputs.items():
+        if val is None or isinstance(val, bool):
+            continue
+        if isinstance(val, (str, int, float)) and str(val) in haystack:
+            out[key] = val
+        elif isinstance(val, list) and val and any(str(x) in haystack for x in val):
             out[key] = val
 
     low = deliverable.lower()
@@ -881,6 +873,10 @@ def _build_scored_output_dict(
             out["soar_comment"] = str(targs["comment"])
         if any(k in tname for k in ("lookup", "search", "report", "enrich", "workflow", "case")):
             out["enrichment_summary"] = f"Grounded via {tname}"
+        if any(k in tname for k in ("search", "hunt", "events", "query", "workflow")):
+            out["search_summary"] = f"Executed {tname}"
+        if any(k in tname for k in ("gti", "threat", "collection", "report", "ioc")):
+            out["gti_summary"] = f"Correlated via {tname}"
 
     for word in (
         "escalate",

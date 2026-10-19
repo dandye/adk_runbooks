@@ -8,6 +8,7 @@ Examples:
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import sys
 from pathlib import Path
@@ -36,10 +37,31 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Run all scenarios in the dataset in continual-learning stream order across domains.",
     )
     parser.add_argument(
+        "--evaluate-only",
+        action="store_true",
+        help="Evaluate dataset scenarios on a frozen harness (k=0) without proposer calls.",
+    )
+    parser.add_argument(
+        "--harness-dir",
+        default="",
+        help="Frozen harness directory for --evaluate-only (defaults to adapter base_harness).",
+    )
+    parser.add_argument(
+        "--compare-harness-dir",
+        default="",
+        help="Optional second frozen harness directory to compare side-by-side in --evaluate-only mode.",
+    )
+    parser.add_argument(
+        "--eval-parallel",
+        type=int,
+        default=1,
+        help="Number of tasks to evaluate concurrently in --evaluate-only mode (default: 1).",
+    )
+    parser.add_argument(
         "--max-tasks",
         type=int,
         default=None,
-        help="Optional cap on tasks per domain during a sweep.",
+        help="Optional cap on tasks per domain during a sweep or frozen evaluation.",
     )
     parser.add_argument(
         "--domain-parallel",
@@ -403,6 +425,14 @@ def run_dataset_sweep(
             )
 
     n_tasks = len(task_rows)
+    evolved_export = export_merged_evolved_harness(
+        adapter=adapter,
+        sweep_rec=sweep_rec,
+        mode_tok=mode_tok,
+        k=k,
+        runs_root=runs_root,
+        tag=tag,
+    )
     agg_summary = {
         "dataset": dataset_name,
         "mode": mode_tok,
@@ -413,6 +443,8 @@ def run_dataset_sweep(
         "final_pass_count": final_passes,
         "base_mean_score": round(sum(base_scores) / len(base_scores), 2) if base_scores else None,
         "final_mean_score": round(sum(final_scores) / len(final_scores), 2) if final_scores else None,
+        "evolved_harness_dir": evolved_export["evolved_harness_dir"],
+        "evolved_manifest_path": evolved_export["manifest_path"],
         "sweep": sweep_rec,
         "tasks": task_rows,
     }
@@ -449,12 +481,442 @@ def run_dataset_sweep(
         f"Aggregate Final : {final_passes}/{n_tasks} passed, mean score={agg_summary['final_mean_score']}",
         flush=True,
     )
+    print(f"Evolved harness : {evolved_export['evolved_harness_dir']}", flush=True)
     print(f"Sweep report    : {sweep_scores_path}", flush=True)
     return agg_summary
 
 
+def export_merged_evolved_harness(
+    *,
+    adapter: AdkRunbooksAdapter,
+    sweep_rec: dict[str, Any],
+    mode_tok: str,
+    k: int,
+    runs_root: Path,
+    tag: str = "",
+    out_dir: Path | None = None,
+) -> dict[str, Any]:
+    """Merge non-regressing evolved artifacts across all domain tasks into one valid harness tree."""
+    surface = adapter.substrate.surface()
+    base_tree = harness_tree.read_tree(surface, adapter.base_harness())
+    merged_tree = dict(base_tree)
+
+    ns_obj = harness_schedule.Namespace(
+        adapter.spec.name, adapter.substrate.name, mode_tok, k, None, tag
+    )
+
+    merged_skills: dict[str, str] = {}
+    merged_scripts: dict[str, str] = {}
+    guardrail_seen = {
+        line.strip()
+        for line in base_tree.get("guardrails.md", "").splitlines()
+        if line.strip()
+    }
+    guardrail_added: list[str] = []
+    tool_guidance_seen = {
+        line.strip()
+        for line in base_tree.get("tool_descriptions/tool_guidance.md", "").splitlines()
+        if line.strip()
+    }
+    tool_guidance_added: list[str] = []
+    seen_cues: set[str] = set()
+    memory_entries: list[str] = []
+
+    for dom_rec in sweep_rec.get("domains") or []:
+        dom_name = str(dom_rec.get("domain") or "")
+        for t_entry in dom_rec.get("tasks") or []:
+            tid = str(t_entry.get("task") or "")
+            if not tid:
+                continue
+            task_dir = ns_obj.task_dir(runs_root, tid)
+            summary_path = task_dir / "summary.json"
+            if not summary_path.is_file():
+                continue
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+            sel = (summary.get("selections") or {}).get(mode_tok) or {}
+            chosen_label = str(sel.get("chosen_label") or "")
+            if not sel.get("ok") or not chosen_label or chosen_label.startswith("base"):
+                continue
+
+            scores_path = task_dir / "scores.json"
+            if scores_path.is_file():
+                scores = json.loads(scores_path.read_text(encoding="utf-8"))
+                b_raw = ((scores.get("base1") or {}).get("raw") or {})
+                c_raw = ((scores.get("chosen") or {}).get("raw") or {})
+                b_pass = bool((scores.get("base1") or {}).get("all_pass"))
+                c_pass = bool((scores.get("chosen") or {}).get("all_pass"))
+                b_rubric = float(b_raw.get("rubric_score", 0.0) or 0.0)
+                c_rubric = float(c_raw.get("rubric_score", 0.0) or 0.0)
+                if (b_pass and not c_pass) or (c_rubric < b_rubric):
+                    continue
+
+            chosen_dir = task_dir / "harnesses" / chosen_label
+            if not chosen_dir.is_dir():
+                continue
+            chosen_tree = harness_tree.read_tree(surface, chosen_dir)
+            if not chosen_tree:
+                continue
+
+            for rel, content in chosen_tree.items():
+                if rel.startswith("skills/") and rel.endswith("/SKILL.md"):
+                    if content != base_tree.get(rel):
+                        candidate = dict(merged_tree)
+                        candidate[rel] = content
+                        try:
+                            harness_tree.validate(surface, candidate, allow_subagents=False)
+                            adapter.validate_tree(candidate)
+                            merged_tree[rel] = content
+                            merged_skills[rel] = f"{dom_name}/{tid}"
+                        except Exception:
+                            pass
+                elif rel.startswith("scripts/") and rel.endswith(".py"):
+                    if content != base_tree.get(rel):
+                        candidate = dict(merged_tree)
+                        candidate[rel] = content
+                        try:
+                            harness_tree.validate(surface, candidate, allow_subagents=False)
+                            adapter.validate_tree(candidate)
+                            merged_tree[rel] = content
+                            merged_scripts[rel] = f"{dom_name}/{tid}"
+                        except Exception:
+                            pass
+                elif rel == "guardrails.md":
+                    for line in content.splitlines():
+                        s = line.strip()
+                        if (
+                            s.startswith("- ")
+                            and s not in guardrail_seen
+                            and tid not in s
+                            and "CASE-" not in s
+                            and "ALERT-" not in s
+                        ):
+                            guardrail_seen.add(s)
+                            guardrail_added.append(s)
+                elif rel == "tool_descriptions/tool_guidance.md":
+                    for line in content.splitlines():
+                        s = line.strip()
+                        if s.startswith("- ") and s not in tool_guidance_seen and tid not in s:
+                            tool_guidance_seen.add(s)
+                            tool_guidance_added.append(s)
+
+            exp = sel.get("experience") or {}
+            cue = str(exp.get("cue") or "").strip()
+            lesson = str(exp.get("lesson") or "").strip()
+            if cue and lesson and cue not in seen_cues:
+                seen_cues.add(cue)
+                memory_entries.append(f"- **{cue}** ({dom_name}): {lesson}")
+
+    if guardrail_added:
+        merged_tree["guardrails.md"] = (
+            base_tree.get("guardrails.md", "").rstrip()
+            + "\n\n## Evolved Guardrails\n"
+            + "\n".join(guardrail_added[:40])
+            + "\n"
+        )
+    if tool_guidance_added:
+        merged_tree["tool_descriptions/tool_guidance.md"] = (
+            base_tree.get("tool_descriptions/tool_guidance.md", "").rstrip()
+            + "\n\n## Evolved Tool Notes\n"
+            + "\n".join(tool_guidance_added[:40])
+            + "\n"
+        )
+    if memory_entries:
+        merged_tree["LongTermMEMORY.md"] = (
+            base_tree.get("LongTermMEMORY.md", "").rstrip()
+            + "\n\n## Learned Domain Cues\n"
+            + "\n".join(memory_entries[:60])
+            + "\n"
+        )
+
+    harness_tree.autotrigger(surface, merged_tree)
+    harness_tree.validate(surface, merged_tree, allow_subagents=False)
+    adapter.validate_tree(merged_tree)
+
+    tag_suffix = f"_{tag}" if tag else ""
+    target_dir = Path(out_dir) if out_dir else (runs_root / f"evolved_harness_{mode_tok}{k}{tag_suffix}")
+    harness_tree.write_tree(surface, merged_tree, target_dir, stubs=False)
+
+    diff = harness_tree.diff_summary(surface, base_tree, merged_tree)
+    manifest = {
+        "mode": mode_tok,
+        "k": k,
+        "tag": tag,
+        "evolved_harness_dir": str(target_dir),
+        "diff_from_base": diff,
+        "merged_skills": merged_skills,
+        "merged_scripts": merged_scripts,
+        "guardrail_rules_added": len(guardrail_added[:40]),
+        "tool_notes_added": len(tool_guidance_added[:40]),
+        "memory_cues_added": len(memory_entries[:60]),
+    }
+    manifest_path = target_dir.parent / f"{target_dir.name}_manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    manifest["manifest_path"] = str(manifest_path)
+    return manifest
+
+
+def _adapt_compare_harness_for_dataset(
+    *,
+    adapter: AdkRunbooksAdapter,
+    compare_dir: Path,
+    runs_root: Path,
+    dataset_name: str,
+    tag: str = "",
+) -> Path:
+    """Overlay evolved harness components onto the target dataset's base harness.
+
+    Keeps the skill catalog matched to the target dataset (plus any newly invented
+    skills not in REPO_ROOT/skills) so zero-shot transfer comparisons stay fair.
+    """
+    surface = adapter.substrate.surface()
+    target_base = harness_tree.read_tree(surface, adapter.base_harness())
+    source_evolved = harness_tree.read_tree(surface, compare_dir)
+
+    known_repo_skills = {
+        p.parent.name for p in (REPO_ROOT / "skills").rglob("SKILL.md")
+    }
+    adapted = dict(target_base)
+    for rel, content in source_evolved.items():
+        if rel == "guardrails.md":
+            target_guard = target_base.get("guardrails.md", "").rstrip()
+            if "## Evolved Guardrails" in content:
+                evolved_sec = content.split("## Evolved Guardrails", 1)[1]
+                adapted["guardrails.md"] = (
+                    target_guard + "\n\n## Evolved Guardrails" + evolved_sec
+                )
+            else:
+                target_lines = {ln.strip() for ln in target_guard.splitlines() if ln.strip()}
+                extra = [
+                    ln.strip()
+                    for ln in content.splitlines()
+                    if ln.strip().startswith("- ")
+                    and not ln.strip().startswith("- Load `")
+                    and ln.strip() not in target_lines
+                ]
+                if extra:
+                    adapted["guardrails.md"] = (
+                        target_guard + "\n\n## Evolved Guardrails\n" + "\n".join(extra) + "\n"
+                    )
+        elif rel in target_base:
+            adapted[rel] = content
+        elif rel.startswith("scripts/") and rel.endswith(".py"):
+            adapted[rel] = content
+        elif rel.startswith("skills/") and rel.endswith("/SKILL.md"):
+            parts = Path(rel).parts
+            skill_name = parts[1] if len(parts) >= 3 else ""
+            if skill_name and skill_name not in known_repo_skills:
+                adapted[rel] = content
+
+    harness_tree.autotrigger(surface, adapted)
+    tag_suffix = f"_{tag}" if tag else ""
+    dest = runs_root / f"adapted_evolved_harness_{dataset_name}{tag_suffix}"
+    harness_tree.write_tree(surface, adapted, dest, stubs=False)
+    return dest
+
+
+def run_frozen_transfer_eval(
+    *,
+    dataset_name: str,
+    runs_dir: Path,
+    harness_dir: Path | None = None,
+    compare_harness_dir: Path | None = None,
+    solver_model: str = "gemini-3-flash-preview",
+    eval_parallel: int = 1,
+    max_tasks: int | None = None,
+    tag: str = "",
+) -> dict[str, Any]:
+    """Evaluate dataset tasks zero-shot (k=0) on one or two frozen harnesses without proposer calls."""
+    runs_root = Path(runs_dir).resolve()
+    runs_root.mkdir(parents=True, exist_ok=True)
+
+    adapter = AdkRunbooksAdapter(
+        runs_root,
+        dataset_name=dataset_name,
+        task_ids=None,
+        solver_model=solver_model,
+    )
+    all_tasks = adapter.tasks("all")
+    if max_tasks is not None and max_tasks > 0:
+        all_tasks = all_tasks[:max_tasks]
+
+    primary_dir = Path(harness_dir).resolve() if harness_dir else None
+    raw_compare_dir = Path(compare_harness_dir).resolve() if compare_harness_dir else None
+    compare_dir = (
+        _adapt_compare_harness_for_dataset(
+            adapter=adapter,
+            compare_dir=raw_compare_dir,
+            runs_root=runs_root,
+            dataset_name=dataset_name,
+            tag=tag,
+        )
+        if raw_compare_dir is not None
+        else None
+    )
+    primary_label = "base" if primary_dir is None else "primary"
+    compare_label = "evolved"
+
+    print(
+        f"[harness2] Starting frozen transfer eval dataset={dataset_name} tasks={len(all_tasks)} "
+        f"primary={primary_dir or 'adapter.base_harness'} "
+        f"compare={compare_dir or 'none'} parallel={eval_parallel}",
+        flush=True,
+    )
+
+    def _eval_one(task_id: str, label: str, h_dir: Path | None) -> dict[str, Any]:
+        tag_part = f"_{tag}" if tag else ""
+        run_id = f"transfer_{dataset_name}_{label}_{task_id}{tag_part}"
+        run_dir = adapter.execute(task_id, h_dir, run_id)
+        scored = adapter.score(run_dir, task_id)
+        return {
+            "task_id": task_id,
+            "domain": adapter.domain_of(task_id),
+            "label": label,
+            "run_dir": str(run_dir),
+            "delivered": adapter.delivered(run_dir),
+            "scored": scored,
+        }
+
+    jobs: list[tuple[str, str, Path | None]] = []
+    for tid in all_tasks:
+        jobs.append((tid, primary_label, primary_dir))
+        if compare_dir is not None:
+            jobs.append((tid, compare_label, compare_dir))
+
+    results_by_key: dict[tuple[str, str], dict[str, Any]] = {}
+    with ThreadPoolExecutor(max_workers=max(1, int(eval_parallel))) as pool:
+        futs = {
+            pool.submit(_eval_one, tid, lbl, h_dir): (tid, lbl)
+            for tid, lbl, h_dir in jobs
+        }
+        for fut in as_completed(futs):
+            tid, lbl = futs[fut]
+            res = fut.result()
+            results_by_key[(tid, lbl)] = res
+            sc = res.get("scored") or {}
+            print(
+                f"  [transfer:{lbl:<7}] {tid:<32} score={sc.get('rubric_score')} "
+                f"all_pass={sc.get('all_pass')} calls={sc.get('tool_calls_count')}",
+                flush=True,
+            )
+
+    rows: list[dict[str, Any]] = []
+    p_scores: list[float] = []
+    c_scores: list[float] = []
+    p_calls: list[int] = []
+    c_calls: list[int] = []
+    p_passes = 0
+    c_passes = 0
+
+    for tid in all_tasks:
+        p_res = results_by_key[(tid, primary_label)]
+        p_sc = p_res.get("scored") or {}
+        p_val = float(p_sc.get("rubric_score", 0.0)) if p_sc else None
+        p_pass = bool(p_sc.get("all_pass")) if p_sc else False
+        p_tc = int(p_sc.get("tool_calls_count", 0)) if p_sc else None
+        if p_val is not None:
+            p_scores.append(p_val)
+        if p_tc is not None:
+            p_calls.append(p_tc)
+        if p_pass:
+            p_passes += 1
+
+        row: dict[str, Any] = {
+            "task_id": tid,
+            "domain": adapter.domain_of(tid),
+            "primary_label": primary_label,
+            "primary_score": p_val,
+            "primary_all_pass": p_pass,
+            "primary_tool_calls": p_tc,
+            "primary_tokens": p_sc.get("total_tokens") if p_sc else None,
+        }
+
+        if compare_dir is not None:
+            c_res = results_by_key[(tid, compare_label)]
+            c_sc = c_res.get("scored") or {}
+            c_val = float(c_sc.get("rubric_score", 0.0)) if c_sc else None
+            c_pass = bool(c_sc.get("all_pass")) if c_sc else False
+            c_tc = int(c_sc.get("tool_calls_count", 0)) if c_sc else None
+            if c_val is not None:
+                c_scores.append(c_val)
+            if c_tc is not None:
+                c_calls.append(c_tc)
+            if c_pass:
+                c_passes += 1
+
+            row.update(
+                {
+                    "compare_label": compare_label,
+                    "compare_score": c_val,
+                    "compare_all_pass": c_pass,
+                    "compare_tool_calls": c_tc,
+                    "compare_tokens": c_sc.get("total_tokens") if c_sc else None,
+                    "score_delta": (
+                        round(c_val - p_val, 2)
+                        if (c_val is not None and p_val is not None)
+                        else None
+                    ),
+                    "tool_calls_delta": (
+                        (c_tc - p_tc) if (c_tc is not None and p_tc is not None) else None
+                    ),
+                }
+            )
+        rows.append(row)
+
+    n_tasks = len(rows)
+    summary: dict[str, Any] = {
+        "dataset": dataset_name,
+        "tag": tag,
+        "n_tasks": n_tasks,
+        "primary_harness": str(primary_dir) if primary_dir else "base_harness",
+        "compare_harness": str(compare_dir) if compare_dir else None,
+        "primary_pass_count": p_passes,
+        "primary_mean_score": round(sum(p_scores) / len(p_scores), 2) if p_scores else None,
+        "primary_mean_tool_calls": round(sum(p_calls) / len(p_calls), 2) if p_calls else None,
+        "compare_pass_count": c_passes if compare_dir else None,
+        "compare_mean_score": round(sum(c_scores) / len(c_scores), 2) if c_scores else None,
+        "compare_mean_tool_calls": round(sum(c_calls) / len(c_calls), 2) if c_calls else None,
+        "tasks": rows,
+    }
+    tag_suffix = f"_{tag}" if tag else ""
+    out_path = runs_root / f"transfer_{dataset_name}{tag_suffix}_scores.json"
+    out_path.write_text(json.dumps(summary, indent=2, default=str), encoding="utf-8")
+
+    print(
+        f"\n=== Frozen Transfer Complete: {dataset_name} ({n_tasks} tasks) ===",
+        flush=True,
+    )
+    print(
+        f"Primary ({primary_label}): {p_passes}/{n_tasks} passed, "
+        f"mean score={summary['primary_mean_score']}, mean calls={summary['primary_mean_tool_calls']}",
+        flush=True,
+    )
+    if compare_dir is not None:
+        print(
+            f"Compare ({compare_label}): {c_passes}/{n_tasks} passed, "
+            f"mean score={summary['compare_mean_score']}, mean calls={summary['compare_mean_tool_calls']}",
+            flush=True,
+        )
+    print(f"Transfer report : {out_path}", flush=True)
+    return summary
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
+    if args.evaluate_only:
+        run_frozen_transfer_eval(
+            dataset_name=args.dataset,
+            runs_dir=Path(args.runs_dir),
+            harness_dir=Path(args.harness_dir) if args.harness_dir else None,
+            compare_harness_dir=(
+                Path(args.compare_harness_dir) if args.compare_harness_dir else None
+            ),
+            solver_model=args.solver_model,
+            eval_parallel=args.eval_parallel,
+            max_tasks=args.max_tasks,
+            tag=args.tag,
+        )
+        return 0
+
     if args.sweep:
         only_domains = [d.strip() for d in args.only_domains.split(",") if d.strip()]
         out = run_dataset_sweep(
