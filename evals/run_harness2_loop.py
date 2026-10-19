@@ -563,9 +563,10 @@ def export_merged_evolved_harness(
                         candidate = dict(merged_tree)
                         candidate[rel] = content
                         try:
+                            harness_tree.autotrigger(surface, candidate)
                             harness_tree.validate(surface, candidate, allow_subagents=False)
                             adapter.validate_tree(candidate)
-                            merged_tree[rel] = content
+                            merged_tree = candidate
                             merged_skills[rel] = f"{dom_name}/{tid}"
                         except Exception:
                             pass
@@ -574,9 +575,10 @@ def export_merged_evolved_harness(
                         candidate = dict(merged_tree)
                         candidate[rel] = content
                         try:
+                            harness_tree.autotrigger(surface, candidate)
                             harness_tree.validate(surface, candidate, allow_subagents=False)
                             adapter.validate_tree(candidate)
-                            merged_tree[rel] = content
+                            merged_tree = candidate
                             merged_scripts[rel] = f"{dom_name}/{tid}"
                         except Exception:
                             pass
@@ -585,6 +587,7 @@ def export_merged_evolved_harness(
                         s = line.strip()
                         if (
                             s.startswith("- ")
+                            and not s.startswith("- Load `")
                             and s not in guardrail_seen
                             and tid not in s
                             and "CASE-" not in s
@@ -606,27 +609,51 @@ def export_merged_evolved_harness(
                 seen_cues.add(cue)
                 memory_entries.append(f"- **{cue}** ({dom_name}): {lesson}")
 
-    if guardrail_added:
-        merged_tree["guardrails.md"] = (
-            base_tree.get("guardrails.md", "").rstrip()
-            + "\n\n## Evolved Guardrails\n"
-            + "\n".join(guardrail_added[:40])
-            + "\n"
-        )
-    if tool_guidance_added:
-        merged_tree["tool_descriptions/tool_guidance.md"] = (
-            base_tree.get("tool_descriptions/tool_guidance.md", "").rstrip()
-            + "\n\n## Evolved Tool Notes\n"
-            + "\n".join(tool_guidance_added[:40])
-            + "\n"
-        )
-    if memory_entries:
-        merged_tree["LongTermMEMORY.md"] = (
-            base_tree.get("LongTermMEMORY.md", "").rstrip()
-            + "\n\n## Learned Domain Cues\n"
-            + "\n".join(memory_entries[:60])
-            + "\n"
-        )
+    harness_tree.autotrigger(surface, merged_tree)
+    max_always_on = int(surface.always_on_max) - 400
+
+    def _append_bounded_section(
+        file_rel: str, heading: str, items: list[str], budget_share: int
+    ) -> int:
+        if not items:
+            return 0
+        current = merged_tree.get(file_rel, "").rstrip()
+        header_block = f"\n\n{heading}\n"
+        if len(harness_tree.always_on_text(surface, merged_tree)) + len(header_block) > max_always_on:
+            return 0
+        accepted: list[str] = []
+        used_chars = 0
+        for item in items:
+            if used_chars + len(item) + 1 > budget_share:
+                break
+            candidate = dict(merged_tree)
+            candidate[file_rel] = current + header_block + "\n".join([*accepted, item]) + "\n"
+            if len(harness_tree.always_on_text(surface, candidate)) > max_always_on:
+                break
+            try:
+                adapter.validate_tree(candidate)
+                merged_tree[file_rel] = candidate[file_rel]
+                accepted.append(item)
+                used_chars += len(item) + 1
+            except Exception:
+                continue
+        return len(accepted)
+
+    rem_budget = max(0, max_always_on - len(harness_tree.always_on_text(surface, merged_tree)))
+    n_guard = _append_bounded_section(
+        "guardrails.md", "## Evolved Guardrails", guardrail_added, max(1200, rem_budget // 3)
+    )
+    rem_budget = max(0, max_always_on - len(harness_tree.always_on_text(surface, merged_tree)))
+    n_tool = _append_bounded_section(
+        "tool_descriptions/tool_guidance.md",
+        "## Evolved Tool Notes",
+        tool_guidance_added,
+        max(1200, rem_budget // 2),
+    )
+    rem_budget = max(0, max_always_on - len(harness_tree.always_on_text(surface, merged_tree)))
+    n_mem = _append_bounded_section(
+        "LongTermMEMORY.md", "## Learned Domain Cues", memory_entries, rem_budget
+    )
 
     harness_tree.autotrigger(surface, merged_tree)
     harness_tree.validate(surface, merged_tree, allow_subagents=False)
@@ -645,9 +672,9 @@ def export_merged_evolved_harness(
         "diff_from_base": diff,
         "merged_skills": merged_skills,
         "merged_scripts": merged_scripts,
-        "guardrail_rules_added": len(guardrail_added[:40]),
-        "tool_notes_added": len(tool_guidance_added[:40]),
-        "memory_cues_added": len(memory_entries[:60]),
+        "guardrail_rules_added": n_guard,
+        "tool_notes_added": n_tool,
+        "memory_cues_added": n_mem,
     }
     manifest_path = target_dir.parent / f"{target_dir.name}_manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")

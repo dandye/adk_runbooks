@@ -630,13 +630,19 @@ class AdkRunbooksAdapter:
                     extra_args = [str(x) for x in json.loads(args_json or "[]")]
                 except Exception as exc:
                     return f"Error parsing args_json: {exc}"
-                proc = subprocess.run(
-                    [sys.executable, str(script_path), *extra_args],
-                    cwd=run_dir,
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                )
+                try:
+                    proc = subprocess.run(
+                        [sys.executable, str(script_path), *extra_args],
+                        cwd=run_dir,
+                        stdin=subprocess.DEVNULL,
+                        capture_output=True,
+                        text=True,
+                        timeout=30,
+                    )
+                except subprocess.TimeoutExpired:
+                    return f"Error: script {safe_name!r} timed out after 30 seconds."
+                except Exception as exc:
+                    return f"Error running script {safe_name!r}: {exc}"
                 return proc.stdout if proc.returncode == 0 else f"rc={proc.returncode}: {proc.stderr}"
 
             tools.append(run_harness_script)
