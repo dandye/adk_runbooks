@@ -16,170 +16,28 @@ metadata:
 
 # Investigate Google Threat Intelligence Collection ID (Enhanced)
 
-Objective: Investigate Google Threat Intelligence Collection ID provided by the user `${COLLECTION_ID}`. Enrich findings with detailed entity reports and correlate with the local environment (SIEM/SOAR). Create a timestamped markdown report summarizing findings, correlations, and recommended actions.
+## Objective
+Investigate a Google Threat Intelligence (`GTI`) Collection ID (`<collection_id>`), enrich related indicators and TTPs, correlate against local SIEM/SOAR telemetry across multi-horizon windows, and produce an actionable threat report.
 
-Instructions:
+## Scope
+Follows Track B (Hypothesis-First CTI Sweep) with workflow-first execution and manual GTI/SIEM fallback. Always call `get_mcp_tool_schema` before invoking tools via `execute_mcp_tool`.
 
-1.  **Initial Collection Context:**
-    *   Use the `get_collection_report` tool from the `Google Threat Intelligence MCP server` (gti-mcp).
-    *   Provide the argument: `id`: `${COLLECTION_ID}`.
-    *   Record the collection details, especially the `collection_type`.
+## Inputs
+- `<collection_id>`: GTI Collection, Campaign, or Threat Actor identifier to investigate.
 
-2.  **Define Relationships to Investigate:**
-    *   Based on the `collection_type` (from Step 1), determine a prioritized list of relevant relationships. (Default: `["associations", "attack_techniques", "domains", "files", "ip_addresses", "urls", "threat_actors", "malware_families", "software_toolkits", "campaigns", "vulnerabilities", "reports", "suspected_threat_actors"]`, but can be narrowed). Let's call this `RELATIONSHIP_LIST`.
+## Tools
+- `workflows`: `run_investigate_gti_collection_workflow`
+- `gti-mcp`: `get_collection_report`, `get_entities_related_to_a_collection`, `get_domain_report`, `get_file_report`, `get_ip_address_report`, `search_threats`, `search_threat_actors`
+- `secops-mcp`: `get_ioc_matches`, `lookup_entity`, `search_security_events`
+- `secops-soar`: `list_cases`, `post_case_comment`
+- `write_report`
 
-3.  **Iterative GTI Relationship Investigation:**
-    *   Initialize an empty data structure (e.g., `gti_findings`) to store results.
-    *   Loop through each `relationship_name` in `RELATIONSHIP_LIST`.
-    *   Use the `get_entities_related_to_a_collection` tool (gti-mcp).
-    *   Arguments: `id`: `${COLLECTION_ID}`, `relationship_name`: current relationship name.
-    *   Store the results in `gti_findings` under the corresponding `relationship_name`.
-
-4.  **Detailed GTI Entity Enrichment:**
-    *   Initialize an empty data structure (e.g., `enriched_entities`) to store detailed reports.
-    *   Iterate through key entity types found in `gti_findings` (e.g., domains, files, ip_addresses).
-    *   For each entity found:
-        *   If it's a domain, use `get_domain_report` (gti-mcp) with the domain name. Store the result.
-        *   If it's a file (hash), use `get_file_report` (gti-mcp) with the hash. Store the result.
-        *   If it's an IP address, use `get_ip_address_report` (gti-mcp) with the IP. Store the result.
-        *   *(Add other relevant enrichment tools if needed, e.g., `get_url_report`)*.
-
-5.  **Local Environment Correlation (SIEM/SOAR):**
-    *   Initialize an empty data structure (e.g., `local_findings`) to store correlation results.
-    *   Iterate through key IOCs found (domains, files, IPs from `gti_findings`).
-    *   For each IOC:
-        *   Use `lookup_entity` (secops-mcp) with `entity_value` = IOC. Store summary.
-        *   Use `search_security_events` (secops-mcp) with `text` query related to the IOC (e.g., "Events involving IP 1.2.3.4"). Store key event findings.
-    *   *(Optional: Check if related threat actors/campaigns match existing SOAR cases using `list_cases` (secops-soar) with appropriate filters)*.
-
-6.  **Data Synthesis and Formatting:**
-    *   Initialize an empty markdown string for the report content.
-    *   Add a main title and summary section mentioning the Collection ID.
-    *   **Add "Key Findings & Recommendations" section:** Summarize critical entities, highlight correlations between GTI and local findings, and list actionable next steps.
-    *   Iterate through `gti_findings` and `enriched_entities`:
-        *   Add sections for each relationship type investigated.
-        *   List entities found. For enriched entities, include key details from their detailed reports (Step 4). Note relationships with no findings.
-    *   Add a "Local Environment Correlation" section:
-        *   Summarize results from `lookup_entity` and `search_security_events` for each checked IOC. Highlight any matches or significant activity.
-
-7.  **Report Creation:**
-    *   Generate a timestamp string (`${timestamp}`, e.g., `yyyymmdd_hhmm`).
-    *   Construct `report_name_var` (e.g., `enhanced_report_${COLLECTION_ID}_${timestamp}.md`).
-    *   Let the complete formatted markdown string be `report_contents_var`.
-    *   Use the `write_report` tool.
-    *   Arguments: `report_name=${report_name_var}`, `report_contents=${report_contents_var}`.
-
-### ADK Graph-Based Workflow Diagram
-
-```{mermaid}
-graph TD
-    START(["START"]) --> extract_gti_collection_payload_node["1. extract_gti_collection_payload_node<br/><i>(Extract GTI Collection ID Payload)</i>"]
-    extract_gti_collection_payload_node --> fetch_gti_collection_report_node["2. fetch_gti_collection_report_node<br/><i>(Fetch GTI Collection Intel & SIEM Correlation)</i>"]
-    fetch_gti_collection_report_node --> gti_collection_investigation_router{"3. gti_collection_investigation_router<br/><i>(Event.actions.route)</i>"}
-
-    gti_collection_investigation_router -- "ACTIVE_CAMPAIGN_DETECTED" --> handle_active_campaign_branch["4a. handle_active_campaign_branch<br/><i>(Document Active Campaign Matches)</i>"]
-    gti_collection_investigation_router -- "NO_SIEM_MATCH" --> handle_no_siem_match_branch["4b. handle_no_siem_match_branch<br/><i>(Document No SIEM Matches)</i>"]
-
-    handle_active_campaign_branch --> document_gti_collection_report_node["5. document_gti_collection_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
-    handle_no_siem_match_branch --> document_gti_collection_report_node
-```
-
-### Sequence Diagram
-
-```{mermaid}
-sequenceDiagram
-    participant User
-    participant AutomatedAgent as Automated Agent (MCP Client)
-    participant GTI as gti-mcp
-    participant SIEM as secops-mcp
-    participant SOAR as secops-soar
-
-    User->>AutomatedAgent: Investigate GTI Collection ID `${COLLECTION_ID}` (Enhanced)
-
-    %% Step 1: Initial Collection Context
-    AutomatedAgent->>GTI: get_collection_report(id=`${COLLECTION_ID}`)
-    GTI-->>AutomatedAgent: Collection Details (Type: T)
-
-    %% Step 2 & 3: Define & Investigate Relationships
-    Note over AutomatedAgent: Determine RELATIONSHIP_LIST based on Type T
-    loop For each relationship_name in RELATIONSHIP_LIST
-        AutomatedAgent->>GTI: get_entities_related_to_a_collection(id=`${COLLECTION_ID}`, relationship_name=...)
-        GTI-->>AutomatedAgent: Related Entities (E1, E2...) for relationship
-        Note over AutomatedAgent: Store entities in gti_findings
-    end
-
-    %% Step 4: Detailed GTI Entity Enrichment
-    Note over AutomatedAgent: Initialize enriched_entities
-    loop For each key Entity Ei in gti_findings (Files, Domains, IPs)
-        alt Entity is File (Hash H)
-            AutomatedAgent->>GTI: get_file_report(hash=H)
-            GTI-->>AutomatedAgent: File Report for H
-            Note over AutomatedAgent: Store in enriched_entities
-        else Entity is Domain (D)
-            AutomatedAgent->>GTI: get_domain_report(domain=D)
-            GTI-->>AutomatedAgent: Domain Report for D
-            Note over AutomatedAgent: Store in enriched_entities
-        else Entity is IP Address (IP)
-            AutomatedAgent->>GTI: get_ip_address_report(ip_address=IP)
-            GTI-->>AutomatedAgent: IP Report for IP
-            Note over AutomatedAgent: Store in enriched_entities
-        end
-    end
-
-    %% Step 5: Local Environment Correlation
-    Note over AutomatedAgent: Initialize local_findings
-    loop For each key IOC Ii from gti_findings (Files, Domains, IPs)
-        AutomatedAgent->>SIEM: lookup_entity(entity_value=Ii)
-        SIEM-->>AutomatedAgent: SIEM Entity Summary for Ii
-        Note over AutomatedAgent: Store in local_findings
-        AutomatedAgent->>SIEM: search_security_events(text="Events involving Ii")
-        SIEM-->>AutomatedAgent: Relevant SIEM Events for Ii
-        Note over AutomatedAgent: Store in local_findings
-    end
-    %% Optional SOAR Check (Conceptual)
-    %% AutomatedAgent->>SOAR: list_cases(filter="Related to Campaign/Actor from GTI")
-    %% SOAR-->>AutomatedAgent: Potentially related SOAR cases
-
-    %% Step 6 & 7: Synthesize Report and Write File
-    Note over AutomatedAgent: Synthesize report content (report_contents_var) from gti_findings, enriched_entities, local_findings
-    Note over AutomatedAgent: Include Key Findings & Recommendations
-    Note over AutomatedAgent: Construct report_name_var (e.g., enhanced_report_${COLLECTION_ID}_${timestamp}.md)
-    AutomatedAgent->>AutomatedAgent: write_report(report_name=report_name_var, report_contents=report_contents_var)
-    Note over AutomatedAgent: Report file created
-
-    AutomatedAgent->>User: attempt_completion(result="Enhanced investigation complete. Report generated.")
-
-## Rubrics
-
-The following rubric is used to evaluate the execution of this **Threat Hunt/Analysis** runbook by an LLM agent.
-
-### Grading Scale (0-100 Points)
-
-| Criteria | Points | Description |
-| :--- | :--- | :--- |
-| **Scope & Query** | 25 | Defined a clear scope and executed effective queries (UDM, search). |
-| **Data Analysis** | 30 | Analyzed results to identify patterns, anomalies, or malicious behavior. |
-| **Findings** | 15 | Accurately identified and filtered findings (True Positives vs. False Positives). |
-| **Documentation** | 15 | Documented the hunt methodology and results clearly. |
-| **Operational Artifacts** | 15 | Produced required artifacts: Sequence diagram, execution metadata (date/cost), and summary. |
-
-### Evaluation Criteria Details
-
-#### 1. Scope & Query (25 Points)
-- **10 pts**: Correctly defined the time range and entities/indicators for the hunt.
-- **15 pts**: Constructed and executed valid, efficient queries to retrieve relevant data.
-
-#### 2. Data Analysis (30 Points)
-- **15 pts**: Effectively analyzed the returned data for the hypothesized threat.
-- **15 pts**: Correlated events or indicators to strengthen the analysis.
-
-#### 3. Findings (15 Points)
-- **15 pts**: Correctly classified the findings and provided evidence for the conclusion.
-
-#### 4. Documentation (15 Points)
-- **15 pts**: Recorded the hunt process, queries used, and findings in the system of record.
-
-#### 5. Operational Artifacts (15 Points)
-- **5 pts**: **Sequence Diagram**: Produced a Mermaid sequence diagram visualizing the steps taken.
-- **5 pts**: **Execution Metadata**: Recorded the date, duration, and estimated token cost.
-- **5 pts**: **Summary Report**: Generated a concise summary of the actions and outcomes.
+## Workflow Steps
+1. **Stage A (Workflow Execution & Multi-Horizon CTI Sweep `72h` to `168h`)**: Execute `run_investigate_gti_collection_workflow` with `collection_id=<collection_id>`, and query `get_collection_report` plus `get_entities_related_to_a_collection` across `domains`, `files`, `ip_addresses`, `urls`, and `attack_techniques` (if empty by ID, pivot via `search_threats` or `search_threat_actors`). Sweep `get_ioc_matches` and `search_security_events` at `hours_back=72`; if `72h` returns zero verified hits, automatically widen `hours_back` to `168` (`7` days).
+2. **Stage B (Second-Hop Pivot, LOLBin Guard, & Event Verification)**: Enrich matched IOCs with `get_domain_report`, `get_file_report`, and `get_ip_address_report`. Verify `cert_status` on every file hash to separate malicious payloads from signed OS LOLBins (`rundll32.exe`, `wscript.exe`) — never block signed OS binaries. Ignore uncorroborated `events_matched: 1` metadata-only noise lacking event details, and correlate open SOAR cases via `list_cases`.
+3. **Stage C (4-Way Disposition, Benign Admin Override, & Reporting)**:
+   - **Benign Admin Override**: If matched activity reflects authorized administrative maintenance or RFC-5737 test ranges during an approved `CHG-...` window, select `tune_detection` or `benign_or_inconclusive` and forbid `CONTAIN_HOST` and `DISABLE_ACCOUNT`.
+   - **`escalate_incident`**: Confirmed local campaign presence corroborated across >=2 sources -> `CONTAIN_HOST`, `DISABLE_ACCOUNT`, block verified malicious IOCs only, and escalate to Tier-2 IR.
+   - **`contain_and_patch`**: Confirmed exploitation of a collection-linked CVE on an internal asset -> `BLOCK_IOC`, isolate host, and patch.
+   - **`tune_detection`**: Benign scanner or admin overlap triggering collection indicators -> `PROPOSE_RULE_TUNING` with zero containment.
+   - **`benign_or_inconclusive`**: Clean sweep across `72h` and `168h` (`CLOSE_BENIGN`) -> record proactive defensive posture and save the report via `write_report`.
