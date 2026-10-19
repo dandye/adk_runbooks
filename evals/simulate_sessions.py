@@ -17,33 +17,37 @@ import argparse
 import asyncio
 import copy
 import json
-from pathlib import Path
 import sys
 import time
-from typing import Any, Callable, Optional
 import uuid
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
 
 from google import genai
-from google.adk.events.event import Event
 from google.adk.evaluation._retry_options_utils import EnsureRetryOptionsPlugin
 from google.adk.evaluation.conversation_scenarios import (
     ConversationGenerationConfig,
-    ConversationScenario,
 )
+from google.adk.evaluation.conversation_scenarios import ConversationScenario
 from google.adk.evaluation.simulation.llm_backed_user_simulator import (
     LlmBackedUserSimulator,
+)
+from google.adk.evaluation.simulation.llm_backed_user_simulator import (
     LlmBackedUserSimulatorConfig,
 )
 from google.adk.evaluation.simulation.user_simulator import (
     Status as UserSimulatorStatus,
-    UserSimulator,
 )
+from google.adk.evaluation.simulation.user_simulator import UserSimulator
+from google.adk.events.event import Event
 from google.adk.runners import Runner
 from google.adk.sessions.base_session_service import BaseSessionService
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.sessions.sqlite_session_service import SqliteSessionService
 from google.genai import types as genai_types
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from pydantic import Field
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MULTI_AGENT_DIR = REPO_ROOT / "multi-agent"
@@ -51,20 +55,17 @@ for _p in (REPO_ROOT, MULTI_AGENT_DIR):
   if str(_p) not in sys.path:
     sys.path.insert(0, str(_p))
 
-from evals.aqua_outer_loop import (  # noqa: E402
-    DEFAULT_AQUA_DB,
-    analyze_session_trace,
-    cluster_trace_reports,
-)
+from manager.utils.instrumentation import telemetry_session_scope  # noqa: E402
+
+from evals.aqua_outer_loop import DEFAULT_AQUA_DB  # noqa: E402
+from evals.aqua_outer_loop import analyze_session_trace  # noqa: E402
+from evals.aqua_outer_loop import cluster_trace_reports  # noqa: E402
 from evals.evaluators.base import WorkflowTrace  # noqa: E402
 from evals.rubrics.categorical_rubrics import CategoricalRubricSuite  # noqa: E402
-from evals.telemetry_bridge import (  # noqa: E402
-    DEFAULT_OTEL_JSONL,
-    DEFAULT_SESSION_DB,
-    load_session_trace,
-    load_traces_from_otel_jsonl,
-)
-from manager.utils.instrumentation import telemetry_session_scope  # noqa: E402
+from evals.telemetry_bridge import DEFAULT_OTEL_JSONL  # noqa: E402
+from evals.telemetry_bridge import DEFAULT_SESSION_DB  # noqa: E402
+from evals.telemetry_bridge import load_session_trace  # noqa: E402
+from evals.telemetry_bridge import load_traces_from_otel_jsonl  # noqa: E402
 from skills.registry import SkillRegistry  # noqa: E402
 
 DEFAULT_SESSION_DB_PATH = DEFAULT_SESSION_DB
@@ -247,12 +248,14 @@ def load_scenarios_from_file(path: Path) -> dict[str, ConversationScenario]:
 
 def generate_soc_scenarios(
     config: ConversationGenerationConfig,
-    skills_dir: Optional[Path] = None,
+    skills_dir: Path | None = None,
 ) -> dict[str, ConversationScenario]:
   """Dynamically synthesizes multi-turn SOC ConversationScenarios using Gemini."""
   registry = SkillRegistry(skills_dir=skills_dir)
   catalog_summary = registry.get_skill_catalog()
-  env_context = config.environment_context or _build_default_environment_context()
+  env_context = (
+      config.environment_context or _build_default_environment_context()
+  )
 
   prompt = (
       "You are designing realistic multi-turn Security Operations Center (SOC) "
@@ -307,8 +310,8 @@ def generate_soc_scenarios(
 
 def _resolve_workflow_trace(
     session_id: str,
-    session_db_path: Optional[Path],
-    trace_log_path: Optional[Path],
+    session_db_path: Path | None,
+    trace_log_path: Path | None,
     full_response: str,
 ) -> WorkflowTrace:
   """Loads the session's WorkflowTrace from SQLite session.db or otel_traces.jsonl."""
@@ -340,17 +343,17 @@ async def run_simulated_session(
     scenario_id: str,
     scenario: ConversationScenario,
     *,
-    root_agent: Optional[Any] = None,
-    user_simulator: Optional[UserSimulator] = None,
+    root_agent: Any | None = None,
+    user_simulator: UserSimulator | None = None,
     simulator_model: str = "gemini-3-flash-preview",
     max_turns: int = 4,
     include_function_calls: bool = False,
-    session_service: Optional[BaseSessionService] = None,
-    session_db_path: Optional[Path] = DEFAULT_SESSION_DB_PATH,
+    session_service: BaseSessionService | None = None,
+    session_db_path: Path | None = DEFAULT_SESSION_DB_PATH,
     trace_log_path: Path = DEFAULT_OTEL_JSONL,
     user_id: str = "soc_simulator",
     app_name: str = "manager",
-    on_turn_callback: Optional[Callable[[int, str, str, list[str]], None]] = None,
+    on_turn_callback: Callable[[int, str, str, list[str]], None] | None = None,
 ) -> dict[str, Any]:
   """Runs a multi-turn simulated conversation between UserSimulator and root_agent.
 
@@ -446,11 +449,11 @@ async def run_simulated_session(
         )
 
         turn_start = time.perf_counter()
-        invocation_id: Optional[str] = None
+        invocation_id: str | None = None
         agent_texts: list[str] = []
         turn_tools: list[str] = []
         turn_authors: list[str] = []
-        turn_error: Optional[str] = None
+        turn_error: str | None = None
 
         try:
           async for event in runner.run_async(
@@ -521,9 +524,7 @@ async def run_simulated_session(
             }
         )
         if on_turn_callback is not None:
-          on_turn_callback(
-              turn_idx, user_text, combined_agent_text, turn_tools
-          )
+          on_turn_callback(turn_idx, user_text, combined_agent_text, turn_tools)
 
   total_latency_ms = round((time.perf_counter() - start_ts) * 1000.0, 2)
 
@@ -583,9 +584,9 @@ async def run_simulation_suite(
     *,
     simulator_model: str = "gemini-3-flash-preview",
     max_turns: int = 4,
-    session_db_path: Optional[Path] = DEFAULT_SESSION_DB_PATH,
+    session_db_path: Path | None = DEFAULT_SESSION_DB_PATH,
     trace_log_path: Path = DEFAULT_OTEL_JSONL,
-    aqua_db_path: Optional[Path] = DEFAULT_AQUA_DB,
+    aqua_db_path: Path | None = DEFAULT_AQUA_DB,
     verbose: bool = True,
 ) -> dict[str, Any]:
   """Runs multiple simulated multi-turn scenarios and clusters their traces."""
@@ -612,6 +613,7 @@ async def run_simulation_suite(
         user_text: str,
         agent_text: str,
         tool_names: list[str],
+        _persona_id: str = persona_id,
     ) -> None:
       if not verbose:
         return
@@ -621,9 +623,9 @@ async def run_simulation_suite(
       )
       print(
           f"\n--- Turn {turn_idx} ---\n"
-          f"👤 User ({persona_id}): {user_text}\n"
-          f"🔧 Tools Called: {tools_str}\n"
-          f"🤖 Agent: {preview}",
+          f"[User ({_persona_id})]: {user_text}\n"
+          f"[Tools Called]: {tools_str}\n"
+          f"[Agent]: {preview}",
           flush=True,
       )
 
@@ -663,7 +665,7 @@ async def run_simulation_suite(
   }
 
 
-def main(argv: Optional[list[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
   parser = argparse.ArgumentParser(
       description=(
           "Drive multi-turn simulated conversations against the ADK SecOps "
@@ -786,7 +788,9 @@ def main(argv: Optional[list[str]] = None) -> int:
       )
     if args.save_scenarios is not None:
       save_generated_scenarios(generated, args.save_scenarios)
-      print(f"\nSaved synthesized scenarios to {args.save_scenarios}", flush=True)
+      print(
+          f"\nSaved synthesized scenarios to {args.save_scenarios}", flush=True
+      )
   else:
     if args.scenarios.strip().lower() == "all":
       selected_scenarios.update(DEFAULT_SOC_SCENARIOS)
@@ -840,9 +844,7 @@ def main(argv: Optional[list[str]] = None) -> int:
 
   if args.output is not None:
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(
-        json.dumps(suite_report, indent=2), encoding="utf-8"
-    )
+    args.output.write_text(json.dumps(suite_report, indent=2), encoding="utf-8")
     print(f"\nSaved full simulation report to {args.output}")
 
   return 0

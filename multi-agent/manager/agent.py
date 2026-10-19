@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 # Load environment variables from manager/.env and external/mcp-security/.env
@@ -9,27 +10,26 @@ load_dotenv((BASE_DIR / "../../external/mcp-security/.env").resolve())
 
 from google.adk.agents import Agent
 
-from .sub_agents.soc_analyst_tier1 import agent as soc_analyst_tier1_agent_module
-from .sub_agents.soc_analyst_tier2 import agent as soc_analyst_tier2_agent_module
 from .sub_agents.cti_researcher import agent as cti_researcher_agent_module
-from .sub_agents.threat_hunter import agent as threat_hunter_agent_module
-from .sub_agents.soc_analyst_tier3 import agent as soc_analyst_tier3_agent_module
-from .sub_agents.incident_responder import agent as incident_responder_agent_module
-from .sub_agents.detection_engineer import agent as detection_engineer_agent_module
-from .sub_agents.llm_judge import agent as llm_judge_agent_module
-
-from .tools.tools import (
-    get_current_time,
-    write_report,
-    get_agent_tools,
-    load_persona_with_skills_catalog,
-    read_file_content,
-    load_skill,
-    list_available_skills,
-    search_mcp_tools,
-    get_mcp_tool_schema,
-    execute_mcp_tool,
+from .sub_agents.detection_engineer import (
+    agent as detection_engineer_agent_module,
 )
+from .sub_agents.incident_responder import (
+    agent as incident_responder_agent_module,
+)
+from .sub_agents.llm_judge import agent as llm_judge_agent_module
+from .sub_agents.soc_analyst_tier1 import (
+    agent as soc_analyst_tier1_agent_module,
+)
+from .sub_agents.soc_analyst_tier2 import (
+    agent as soc_analyst_tier2_agent_module,
+)
+from .sub_agents.soc_analyst_tier3 import (
+    agent as soc_analyst_tier3_agent_module,
+)
+from .sub_agents.threat_hunter import agent as threat_hunter_agent_module
+from .tools.tools import get_agent_tools
+from .tools.tools import load_persona_with_skills_catalog
 
 # Set the root logger to output debug messages
 logging.basicConfig(level=logging.ERROR)
@@ -38,18 +38,30 @@ logging.basicConfig(level=logging.ERROR)
 shared_tools = get_agent_tools()
 
 # Initialize all sub-agents with the shared tools
-initialized_soc_analyst_tier1 = soc_analyst_tier1_agent_module.get_agent(shared_tools)
-initialized_soc_analyst_tier2 = soc_analyst_tier2_agent_module.get_agent(shared_tools)
+initialized_soc_analyst_tier1 = soc_analyst_tier1_agent_module.get_agent(
+    shared_tools
+)
+initialized_soc_analyst_tier2 = soc_analyst_tier2_agent_module.get_agent(
+    shared_tools
+)
 initialized_cti_researcher = cti_researcher_agent_module.get_agent(shared_tools)
 initialized_threat_hunter = threat_hunter_agent_module.get_agent(shared_tools)
-initialized_soc_analyst_tier3 = soc_analyst_tier3_agent_module.get_agent(shared_tools)
-initialized_incident_responder = incident_responder_agent_module.get_agent(shared_tools)
-initialized_detection_engineer = detection_engineer_agent_module.get_agent(shared_tools)
+initialized_soc_analyst_tier3 = soc_analyst_tier3_agent_module.get_agent(
+    shared_tools
+)
+initialized_incident_responder = incident_responder_agent_module.get_agent(
+    shared_tools
+)
+initialized_detection_engineer = detection_engineer_agent_module.get_agent(
+    shared_tools
+)
 initialized_llm_judge = llm_judge_agent_module.get_agent(shared_tools)
 
 # Load persona and skills catalog for the manager
 BASE_DIR = Path(__file__).resolve().parent
-persona_file_path = (BASE_DIR / "../../rules-bank/personas/soc_manager.md").resolve()
+persona_file_path = (
+    BASE_DIR / "../../rules-bank/personas/soc_manager.md"
+).resolve()
 manager_skills = [
     "compromised-user-account-response",
     "phishing-response",
@@ -62,7 +74,7 @@ manager_skills = [
 persona_description = load_persona_with_skills_catalog(
     str(persona_file_path),
     skill_names=manager_skills,
-    default_persona_description="SOC Manager: Responsible for delegating to other agents and writing reports."
+    default_persona_description="SOC Manager: Responsible for delegating to other agents and writing reports.",
 )
 
 # Create the root agent directly

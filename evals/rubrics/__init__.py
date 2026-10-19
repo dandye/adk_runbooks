@@ -1,12 +1,10 @@
-"""
-Rubrics package exporting rubric profiles.
-"""
+"""Rubrics package exporting rubric profiles."""
 
 from evals.rubrics.base import BaseRubric
-from evals.rubrics.reporting_rubric import ReportingRubric
-from evals.rubrics.triage_irp_rubric import TriageIRPRubric
 from evals.rubrics.detection_rubric import DetectionRubric
+from evals.rubrics.reporting_rubric import ReportingRubric
 from evals.rubrics.threat_hunting_rubric import ThreatHuntingRubric
+from evals.rubrics.triage_irp_rubric import TriageIRPRubric
 
 RUBRIC_REGISTRY = {
     "REPORTING": ReportingRubric,

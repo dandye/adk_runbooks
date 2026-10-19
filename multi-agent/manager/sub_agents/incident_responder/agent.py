@@ -1,4 +1,5 @@
 from pathlib import Path
+
 from google.adk.agents import Agent
 
 from ...tools.tools import load_persona_with_skills_catalog
@@ -18,7 +19,9 @@ def get_agent(tools):
       Agent: An initialized instance of the Incident Responder agent.
   """
   BASE_DIR = Path(__file__).resolve().parent
-  persona_file_path = (BASE_DIR / "../../../../rules-bank/personas/incident_responder.md").resolve()
+  persona_file_path = (
+      BASE_DIR / "../../../../rules-bank/personas/incident_responder.md"
+  ).resolve()
   skills = [
       "compromised-user-account-response",
       "malware-incident-response",
@@ -33,7 +36,7 @@ def get_agent(tools):
   persona_description = load_persona_with_skills_catalog(
       str(persona_file_path),
       skill_names=skills,
-      default_persona_description="Default Incident Responder description: Responsible for managing and responding to security incidents."
+      default_persona_description="Default Incident Responder description: Responsible for managing and responding to security incidents.",
   )
 
   agent_instance = Agent(

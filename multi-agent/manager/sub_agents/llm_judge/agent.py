@@ -1,6 +1,9 @@
 from pathlib import Path
+
 from google.adk.agents import Agent
+
 from ...tools.tools import load_persona_with_skills_catalog
+
 
 def get_agent(tools):
   """Initializes and returns the LLM Judge agent.
@@ -12,7 +15,9 @@ def get_agent(tools):
       Agent: The initialized LLM Judge agent.
   """
   BASE_DIR = Path(__file__).resolve().parent
-  persona_file_path = (BASE_DIR / "../../../../rules-bank/personas/llm_judge.md").resolve()
+  persona_file_path = (
+      BASE_DIR / "../../../../rules-bank/personas/llm_judge.md"
+  ).resolve()
 
   skills = [
       "report-writing-guidelines",
@@ -25,7 +30,7 @@ def get_agent(tools):
   persona_description = load_persona_with_skills_catalog(
       str(persona_file_path),
       skill_names=skills,
-      default_persona_description="LLM Judge: Evaluates runbook and skill executions based on rubrics."
+      default_persona_description="LLM Judge: Evaluates runbook and skill executions based on rubrics.",
   )
 
   return Agent(

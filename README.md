@@ -83,12 +83,17 @@ Operational procedures and external MCP tools are loaded strictly on-demand to p
 
 ```
 adk_runbooks/
+├── .github/workflows/        # GitHub Actions CI and Sphinx Pages deployment
+├── AGENTS.md                 # AI coding assistant instructions and repository guidelines
+├── justfile                  # Task runner (setup, sync, test, lint, format, typecheck, html, eval)
+├── pyproject.toml            # PEP 621 + Hatchling + PEP 735 dependency groups + Pyink/Ruff/Pytype config
+├── uv.lock                   # Locked dependency graph managed by uv
 ├── multi-agent/              # Multi-agent system implementation
 │   ├── manager/              # Manager agent and sub-agents
 │   │   ├── sub_agents/       # Specialized security sub-agents
 │   │   └── tools/            # MCP tool configurations & skill loading tools
 │   └── reports/              # Generated markdown operational reports
-├── dac-agent/                # Standalone Detection-as-Code agent
+├── dac_agent/                # Standalone Detection-as-Code agent
 ├── skills/                   # Standardized security skills repository (SKILL.md)
 │   ├── atomic/               # Atomic IOC lookups and enrichment skills
 │   ├── common/               # Reusable SOAR and reporting procedures
@@ -99,7 +104,7 @@ adk_runbooks/
 │   ├── reporting/            # Standardized report writing guidelines
 │   ├── triage/               # Alert and vulnerability triage procedures
 │   └── registry.py           # Central SkillRegistry and parser engine
-├── rules-bank/               # Agent personas and behavioral definitions
+├── rules-bank/               # Agent personas, behavioral definitions, and Sphinx docs source
 │   └── personas/             # System prompts and role definitions
 ├── evals/                    # Evaluation and benchmark framework
 │   ├── datasets/             # Workflow benchmark datasets (core, all 36, expanded)
@@ -115,52 +120,53 @@ adk_runbooks/
 
 ### Prerequisites
 
-- Python 3.10+
-- Google API key (for Gemini models)
-- Virtual environment tool (`venv`)
+- Python 3.11+
+- [`uv`](https://docs.astral.sh/uv/) (Python package and environment manager)
+- [`just`](https://github.com/casey/just) (command runner)
+- Google Cloud project with Vertex AI enabled (or a Gemini API key)
 
 ### Basic Setup
 
 ```bash
-# Clone the repository with submodules
-git clone --recurse-submodules https://github.com/dandye/adk_runbooks.git
+REPO_URL="https://github.com/dandye/adk_runbooks.git"
+git clone --recurse-submodules "$REPO_URL"
 cd adk_runbooks
 
-# If already cloned without submodules:
-git submodule update --init --recursive
-
-# Create and activate virtual environment
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r multi-agent/requirements.txt
-
-# Configure environment
-cp multi-agent/manager/.env.example multi-agent/manager/.env
-# Edit multi-agent/manager/.env and add your GOOGLE_API_KEY
+# Initialize submodules, create .env files from templates, and sync uv environment
+just setup
 ```
 
 ### Running the Multi-Agent System
 
 ```bash
-# Run CLI interface
-cd multi-agent
-adk run manager
+# Run the interactive Manager CLI
+just run-manager
 
-# Run Web UI
-adk web
+# Launch the interactive ADK Web UI
+just web
+
+# Build Sphinx HTML documentation into build/html/
+just html
 ```
 
 ---
 
-## Testing & Benchmarking
+## Testing, Quality & Benchmarking
 
-### Running Test Suites
+### Running Quality Checks & Test Suites
 
 ```bash
-# Run all unit and integration tests
-./venv/bin/pytest tests/ evals/tests/ -v
+# Run all unit and evaluation tests
+just test
+
+# Run Pyink format check and Ruff linter
+just lint
+
+# Run Google Pytype static type checker
+just typecheck
+
+# Run the full CI gate locally (lint + typecheck + test-cov)
+just check
 ```
 
 ### Running Workflow Evaluations
@@ -169,13 +175,13 @@ The evaluation harness tests multi-agent and graph workflows against 4 procedura
 
 ```bash
 # Run core benchmark workflows (10 test cases)
-./venv/bin/python -m evals.runner --dataset core_workflows
+just eval core_workflows
 
 # Run all 36 operational workflows
-./venv/bin/python -m evals.runner --dataset all_36_workflows
+just eval all_36_workflows
 
 # Run expanded cases and alerts dataset (25 test cases)
-./venv/bin/python -m evals.runner --dataset expanded_cases_alerts
+just eval expanded_cases_alerts
 ```
 
 ---

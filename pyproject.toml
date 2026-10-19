@@ -1,0 +1,134 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "adk-runbooks"
+version = "0.1.0"
+description = "Multi-agent cybersecurity operations and operational runbooks built on Google ADK"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+  { name = "Dan Dye", email = "dandye@google.com" }
+]
+dependencies = [
+  "google-adk[mcp]>=2.7.1",
+  "google-genai>=1.64.0",
+  "python-dotenv>=1.0.0",
+  "pyyaml>=6.0.0",
+  "pydantic>=2.0.0",
+  "httpx>=0.27.0",
+  "requests>=2.31.0",
+  "aiofiles>=23.0.0",
+  "aiohttp>=3.8.0",
+  "gitpython>=3.1.0",
+  "structlog>=23.0.0",
+  "click>=8.0.0",
+  "jinja2>=3.1.0",
+]
+
+[dependency-groups]
+dev = [
+  "pyink>=24.3.0",
+  "pytype>=2024.10.11",
+  "pytest>=8.0.0",
+  "pytest-cov>=5.0.0",
+  "pytest-asyncio>=0.23.0",
+  "ruff>=0.5.0",
+]
+docs = [
+  "linkify-it-py>=2.0.0",
+  "sphinx>=7.0.0",
+  "myst-nb>=1.0.0",
+  "sphinx-autodoc-typehints>=2.0.0",
+  "sphinx-copybutton>=0.5.0",
+  "sphinx-design>=0.5.0",
+  "sphinxcontrib-mermaid>=0.9.0",
+  "sphinx-book-theme>=1.1.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["skills", "evals", "dac_agent"]
+
+[tool.pyink]
+line-length = 80
+target-version = ["py311"]
+pyink-indentation = 2
+pyink-use-majority-quotes = true
+extend-exclude = '''
+/(
+    external
+  | build
+  | \.venv
+  | venv
+)/
+'''
+
+[tool.pytype]
+inputs = ["skills", "evals", "dac_agent", "multi-agent/manager"]
+disable = ["import-error"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "evals/tests"]
+pythonpath = [".", "multi-agent", "dac_agent"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+
+[tool.ruff]
+line-length = 80
+indent-width = 4
+target-version = "py311"
+exclude = [
+  ".git",
+  ".venv",
+  "venv",
+  "build",
+  "dist",
+  "__pycache__",
+  "external",
+]
+
+[tool.ruff.lint]
+select = [
+  "E",    # pycodestyle errors
+  "W",    # pycodestyle warnings
+  "F",    # pyflakes
+  "I",    # isort
+  "B",    # flake8-bugbear
+  "C4",   # flake8-comprehensions
+  "UP",   # pyupgrade
+  "D",    # pydocstyle (Google docstrings)
+  "G",    # flake8-logging-format (enforces %s, bans f-strings in logging per §3.10.1)
+  "S",    # bandit security checks
+]
+ignore = [
+  "E402",  # module level import not at top of file (used after sys.path / load_dotenv)
+  "E501",  # line too long (handled by pyink formatter)
+  "D100",  # missing docstring in public module
+  "D101",  # missing docstring in public class
+  "D102",  # missing docstring in public method
+  "D103",  # missing docstring in public function
+  "D104",  # missing docstring in public package
+  "D105",  # missing docstring in magic method
+  "D107",  # missing docstring in __init__
+  "D205",  # 1 blank line required between summary line and description
+  "S105",  # false-positive hardcoded password on token_source="heuristic"
+  "S106",  # false-positive hardcoded password on token_source argument
+  "S110",  # try-except-pass in best-effort telemetry/cleanup blocks
+  "S112",  # try-except-continue in best-effort parsing blocks
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"**/__init__.py" = ["F401"]
+"tests/**/*.py" = ["S101", "D101", "D102", "D103"]
+"evals/tests/**/*.py" = ["S101", "D101", "D102", "D103"]
+"dac_agent/tools/**/*.py" = ["S603", "S607"]
+"skills/scripts/**/*.py" = ["S603", "S607", "D103"]
+
+[tool.ruff.lint.isort]
+force-single-line = true

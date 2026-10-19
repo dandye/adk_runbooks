@@ -3,18 +3,21 @@
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
-import os
-import sys
 import json
-from datetime import date, datetime
+from datetime import date
+from datetime import datetime
 
 # Enable JSON serialization of datetime objects parsed from YAML frontmatter by MyST parser
 _orig_dumps = json.dumps
 
+
 def _custom_dumps(obj, *args, **kwargs):
-    if "default" not in kwargs:
-        kwargs["default"] = lambda o: o.isoformat() if isinstance(o, (datetime, date)) else str(o)
-    return _orig_dumps(obj, *args, **kwargs)
+  if 'default' not in kwargs:
+    kwargs['default'] = (
+        lambda o: o.isoformat() if isinstance(o, (datetime, date)) else str(o)
+    )
+  return _orig_dumps(obj, *args, **kwargs)
+
 
 json.dumps = _custom_dumps
 
@@ -44,7 +47,7 @@ extensions = [
     'sphinx.ext.graphviz',
 ]
 
-templates_path = ['_templates'] # Relative to this conf.py file
+templates_path = ['_templates']  # Relative to this conf.py file
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', 'readme.md', '_static/']
 
 # The master toctree document.
@@ -56,7 +59,7 @@ root_doc = 'index'
 # You can specify multiple suffix as a list of string:
 source_suffix = {
     '.rst': 'restructuredtext',
-    '.txt': 'markdown', # if you have .txt files as markdown
+    '.txt': 'markdown',  # if you have .txt files as markdown
     '.md': 'markdown',
 }
 
@@ -72,12 +75,12 @@ source_suffix = {
 # https://myst-nb.readthedocs.io/en/latest/configuration.html
 
 myst_enable_extensions = [
-    "colon_fence",    # For directives like ```{directive}
-    "dollarmath",     # For LaTeX math like $E=mc^2$
-    "linkify",        # Auto-detect and create links for URLs (requires linkify-it-py)
-    "smartquotes",    # Convert straight quotes to curly quotes
-    "tasklist",       # For checklists like - [x] Task
-    "substitution",   # For defining and using substitutions
+    'colon_fence',  # For directives like ```{directive}
+    'dollarmath',  # For LaTeX math like $E=mc^2$
+    'linkify',  # Auto-detect and create links for URLs (requires linkify-it-py)
+    'smartquotes',  # Convert straight quotes to curly quotes
+    'tasklist',  # For checklists like - [x] Task
+    'substitution',  # For defining and using substitutions
 ]
 myst_heading_anchors = 3  # Auto-generate header anchors up to level 3
 # myst_substitutions = {
@@ -85,7 +88,7 @@ myst_heading_anchors = 3  # Auto-generate header anchors up to level 3
 # }
 
 # For myst_nb (if you use .ipynb files or executable code blocks in .md)
-nb_execution_mode = "off"  # "off", "force", "auto", "cache"
+nb_execution_mode = 'off'  # "off", "force", "auto", "cache"
 # nb_execution_timeout = 30
 # nb_output_stderr = "show"
 
@@ -93,18 +96,20 @@ nb_execution_mode = "off"  # "off", "force", "auto", "cache"
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 html_theme = 'sphinx_book_theme'
-html_static_path = ['_static'] # Relative to this conf.py file. For custom CSS, JS.
-html_logo = "_static/adk_runbooks_logo.png"
+html_static_path = [
+    '_static'
+]  # Relative to this conf.py file. For custom CSS, JS.
+html_logo = '_static/adk_runbooks_logo.png'
 # html_favicon = "_static/favicon.ico"
 
 html_theme_options = {
-    "repository_url": "https://github.com/dandye/adk_runbooks",
-    "repository_branch": "main",
-    "path_to_docs": "rules-bank",  # Path from repository root to this sphinx source dir
-    "use_edit_page_button": True,
-    "use_issues_button": True,
-    "use_repository_button": True,
-    "home_page_in_toc": True,
+    'repository_url': 'https://github.com/dandye/adk_runbooks',
+    'repository_branch': 'main',
+    'path_to_docs': 'rules-bank',  # Path from repository root to this sphinx source dir
+    'use_edit_page_button': True,
+    'use_issues_button': True,
+    'use_repository_button': True,
+    'home_page_in_toc': True,
     # "announcement": "<em>Important</em> announcement!",
 }
 

@@ -3,17 +3,19 @@ name: Deploy Documentation to GitHub Pages
 on:
   push:
     branches:
-      - main # Or your default branch
+      - main
     paths:
-      - 'rules-bank/**' # Trigger on changes within the rules-bank (source) directory
-      - 'Makefile' # Trigger if the main Makefile changes
-      - 'requirements-docs.txt' # Trigger if Python dependencies change
-  workflow_dispatch: # Allows manual triggering
+      - 'rules-bank/**'
+      - 'justfile'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'requirements-docs.txt'
+  workflow_dispatch:
 
 # Required for GitHub Pages API deployment
 permissions:
   contents: read
-  pages: write  # Needed to push to gh-pages branch
+  pages: write
   id-token: write
 
 # Allow only one concurrent deployment
@@ -28,41 +30,28 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
         with:
-          python-version: '3.11'
+          version: "latest"
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.11
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          # Assuming requirements are in requirements-docs.txt in the root
-          if [ -f requirements-docs.txt ]; then
-            pip install -r requirements-docs.txt
-          else
-            echo "requirements-docs.txt not found. Please ensure it exists in the repository root."
-            # Fallback to install core dependencies if file is missing, though it should exist
-            pip install sphinx myst-nb sphinx-book-theme sphinx-copybutton sphinx-design sphinxcontrib-mermaid linkify-it-py sphinx-autodoc-typehints
-          fi
+        run: uv sync --all-groups
 
-      - name: List files for debugging
+      - name: Install just
         run: |
-          ls -R .
-          echo "--- rules-bank content ---"
-          ls -R rules-bank || echo "rules-bank directory not found at root"
-          echo "--- content of rules-bank/conf.py ---"
-          cat rules-bank/conf.py || echo "rules-bank/conf.py not found"
-          echo "--- end listing ---"
+          uv tool install rust-just
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Build documentation
-        run: |
-          # Run make html from the repository root
-          # The Makefile is configured with SOURCEDIR=rules-bank and BUILDDIR=build
-          make html
+        run: just html
 
       - name: Create .nojekyll file in output directory
-        run: |
-          touch build/html/.nojekyll
+        run: touch build/html/.nojekyll
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

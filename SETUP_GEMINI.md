@@ -14,30 +14,28 @@ This guide covers the setup and configuration steps for running ADK Runbooks.
 
 ## Setup
 
-Do *NOT* use `uv` to run `adk` with a pyproject.yaml file. (It causes intractable dependency resolution issues.)
+Use `just` and `uv` from the repository root to initialize submodules, create `.env` files from templates, and synchronize the `.venv` virtual environment:
 
-Instead, do this:
-```
-git clone --recurse-submodules https://github.com/dandye/adk_runbooks.git
-cd adk_runbooks/multi-agent
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-adk run manager
+```bash
+REPO_URL="https://github.com/dandye/adk_runbooks.git"
+git clone --recurse-submodules "$REPO_URL"
+cd adk_runbooks
+just setup
+just run-manager
 ```
 
-# Or with uv as pip replacement:
-```
-git clone --recurse-submodules https://github.com/dandye/adk_runbooks.git
-cd adk_runbooks/multi-agent
-python -m venv .venv
-source .venv/bin/activate
-uv pip sync requirements.txt
-adk run manager
+If you prefer running `uv` directly:
+```bash
+REPO_URL="https://github.com/dandye/adk_runbooks.git"
+git clone --recurse-submodules "$REPO_URL"
+cd adk_runbooks
+git submodule update --init --recursive
+uv sync --all-groups
+cd multi-agent && uv run adk run manager
 ```
 
-# If you already cloned without submodules:
-```
+If you already cloned without submodules:
+```bash
 cd adk_runbooks
 git submodule update --init --recursive
 ```
