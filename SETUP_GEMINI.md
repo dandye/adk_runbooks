@@ -51,10 +51,22 @@ git submodule update --init --recursive
 You can configure your `.env` files interactively using the optional Bubble Tea configuration wizard submodule (`external/secops-config-wizard`), which initializes on demand:
 
 ```bash
-just configure
+just config-wizard
+```
+
+Or auto-discover your tenant settings from `https://<tenant>.backstory.chronicle.security/settings/profile` (by copying the **Chronicle API URL** or **Organization Details** block), active `gcloud` credentials, or local tenant configuration:
+
+```bash
+just config-auto-discover
+
+# Or pass the Chronicle API URL copied from /settings/profile directly:
+CHRONICLE_API_URL="https://us-chronicle.googleapis.com/projects/813924125873/locations/us/instances/a13f6726-efed-452e-9008-8fe0d3cb0f75"
+just config-auto-discover "$CHRONICLE_API_URL"
 ```
 
 ![Interactive Region Matrix](docs/images/secops_wizard_region_matrix.png)
+
+![Standalone SOAR Mode](docs/images/secops_wizard_standalone_soar.png)
 
 ![UUIDv4 Validation](docs/images/secops_wizard_uuid_validation.png)
 
