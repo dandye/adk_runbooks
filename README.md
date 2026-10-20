@@ -134,6 +134,9 @@ cd adk_runbooks
 
 # Initialize submodules, create .env files from templates, and sync uv environment
 just setup
+
+# Optional: Launch the interactive Bubble Tea TUI to configure .env files (initializes submodule on demand)
+just configure
 ```
 
 ### Running the Multi-Agent System
