@@ -19,38 +19,33 @@ ADK Runbooks is a multi-agent system for cybersecurity operations built on Googl
 ### Initial Setup
 ```bash
 # Clone with submodules
-git clone --recurse-submodules https://github.com/dandye/adk_runbooks.git
+REPO_URL="https://github.com/dandye/adk_runbooks.git"
+git clone --recurse-submodules "$REPO_URL"
 cd adk_runbooks
 
-# Or if already cloned:
-git submodule update --init --recursive
+# Initialize submodules, create .env files from templates, and install dependencies into .venv
+just setup
 
-# Create virtual environment
-python -m venv venv
+# Optional: Auto-discover configuration from SecOps /settings/profile (Chronicle API URL), clipboard, or gcloud (pure Python, no Go/submodule needed)
+just config-auto-discover
 
-# Activate environment
-source venv/bin/activate  # macOS/Linux
-# or
-venv\Scripts\activate  # Windows
-
-# Install dependencies
-pip install -r requirements.txt  # For multi-agent system
-pip install -r requirements-docs.txt  # For documentation
+# Or launch the interactive Bubble Tea TUI to configure .env files (initializes submodule on demand via config-wizard-install)
+just config-wizard
 ```
 
 ### Running the Multi-Agent System
 ```bash
-cd multi-agent
-adk run manager  # Run the manager agent
+just run-manager  # Run the manager agent CLI
 # or
-adk web  # Run web UI (from multi-agent directory)
+just adk-web      # Run the interactive ADK web UI (runs setup first; aliased as just web)
+# or
+just run-dac      # Run the Detection-as-Code (DAC) agent CLI
 ```
 
 ### Documentation
 ```bash
 # Build Sphinx documentation
-make html  # From project root
-# Output in build/html/
+just html  # From project root (output in build/html/)
 ```
 
 ## Architecture & Key Components
@@ -174,15 +169,15 @@ Edit `multi-agent/manager/tools/tools.py` to add new tools or modify tool initia
 ### Testing and Evaluation
 1. Run pytest test suite:
    ```bash
-   ./venv/bin/pytest tests/ evals/tests/ -v
+   just test
    ```
 2. Run workflow evaluation benchmarks:
    ```bash
-   ./venv/bin/python -m evals.runner --dataset all_36_workflows --report -v
+   just eval all_36_workflows --report -v
    ```
 3. Run individual agents interactively:
    ```bash
-   cd multi-agent && adk run manager
+   just run-manager
    ```
 
 ## Best Practices

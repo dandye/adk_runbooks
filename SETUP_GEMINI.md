@@ -14,11 +14,25 @@ This guide covers the setup and configuration steps for running ADK Runbooks.
 
 ## Setup
 
-Do *NOT* use `uv` to run `adk` with a pyproject.yaml file. (It causes intractable dependency resolution issues.)
+Use `just setup` from the repository root to initialize submodules, copy `.env` templates, and install dependencies into `.venv`:
 
-Instead, do this:
+```bash
+REPO_URL="https://github.com/dandye/adk_runbooks.git"
+git clone --recurse-submodules "$REPO_URL"
+cd adk_runbooks
+just setup
+just run-manager
 ```
-git clone --recurse-submodules https://github.com/dandye/adk_runbooks.git
+
+Or to launch the interactive ADK Web UI:
+```bash
+just web
+```
+
+If you prefer manual setup without `just`:
+```bash
+REPO_URL="https://github.com/dandye/adk_runbooks.git"
+git clone --recurse-submodules "$REPO_URL"
 cd adk_runbooks/multi-agent
 python -m venv .venv
 source .venv/bin/activate
@@ -26,25 +40,39 @@ pip install -r requirements.txt
 adk run manager
 ```
 
-# Or with uv as pip replacement:
-```
-git clone --recurse-submodules https://github.com/dandye/adk_runbooks.git
-cd adk_runbooks/multi-agent
-python -m venv .venv
-source .venv/bin/activate
-uv pip sync requirements.txt
-adk run manager
-```
-
-# If you already cloned without submodules:
-```
+If you already cloned without submodules:
+```bash
 cd adk_runbooks
 git submodule update --init --recursive
 ```
 
 ## Configuration
 
-There are two places to configure for your environment:
+You can configure your `.env` files automatically from `https://<tenant>.backstory.chronicle.security/settings/profile` (by copying the **Chronicle API URL** or **Organization Details** block), active `gcloud` credentials, or local tenant configuration—using pure Python with zero Go or submodule requirements:
+
+```bash
+just config-auto-discover
+
+# Or pass the Chronicle API URL copied from /settings/profile directly:
+CHRONICLE_API_URL="https://us-chronicle.googleapis.com/projects/813924125873/locations/us/instances/a13f6726-efed-452e-9008-8fe0d3cb0f75"
+just config-auto-discover "$CHRONICLE_API_URL"
+```
+
+Or launch the optional interactive Go + Bubble Tea v2 configuration wizard (`external/secops-config-wizard`), which initializes the submodule on demand via the `config-wizard-install` prerequisite recipe:
+
+```bash
+just config-wizard
+```
+
+![Interactive Region Matrix](docs/images/secops_wizard_region_matrix.png)
+
+![Standalone SOAR Mode](docs/images/secops_wizard_standalone_soar.png)
+
+![UUIDv4 Validation](docs/images/secops_wizard_uuid_validation.png)
+
+![Saved Summary](docs/images/secops_wizard_saved_summary.png)
+
+Or configure the files manually in two places:
 
 ### 1. ADK Environment Variables
 Copy and configure the ADK environment file:

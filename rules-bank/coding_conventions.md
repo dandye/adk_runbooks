@@ -14,7 +14,7 @@ related:
 
 This document outlines the coding conventions for the Python code within the `google-mcp-security` project. The project aims to follow the [Google Python Style Guide](https://google.github.io/styleguide/pyguide.html).
 
-Code formatting and import sorting are enforced automatically using `pyink` and `isort`, respectively. These tools are configured in the `pyproject.toml` files within each server subdirectory and are run via `pre-commit` hooks and `Makefile` targets.
+Code formatting and import sorting are enforced automatically using `pyink` and `isort`, respectively. These tools are configured in the `pyproject.toml` files within each server subdirectory and are run via `pre-commit` hooks and `justfile` recipes.
 
 Key aspects enforced by the tools include:
 

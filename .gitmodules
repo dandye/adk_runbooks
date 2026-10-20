@@ -1,3 +1,7 @@
 [submodule "external/mcp-security"]
 	path = external/mcp-security
 	url = https://github.com/google/mcp-security.git
+[submodule "external/secops-config-wizard"]
+	path = external/secops-config-wizard
+	url = https://github.com/dandye/secops-config-wizard.git
+	update = none
