@@ -54,6 +54,12 @@ You can configure your `.env` files interactively using the optional Bubble Tea 
 just configure
 ```
 
+![Interactive Region Matrix](docs/images/secops_wizard_region_matrix.png)
+
+![UUIDv4 Validation](docs/images/secops_wizard_uuid_validation.png)
+
+![Saved Summary](docs/images/secops_wizard_saved_summary.png)
+
 Or configure the files manually in two places:
 
 ### 1. ADK Environment Variables
