@@ -151,8 +151,8 @@ just config-auto-discover
 # Run CLI interface
 just run-manager
 
-# Run Web UI
-just web
+# Run Web UI (runs setup automatically)
+just adk-web
 
 # Run Detection-as-Code (DAC) Agent CLI
 just run-dac

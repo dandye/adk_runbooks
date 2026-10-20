@@ -37,7 +37,7 @@ just config-wizard
 ```bash
 just run-manager  # Run the manager agent CLI
 # or
-just web          # Run the interactive ADK web UI (from multi-agent directory)
+just adk-web      # Run the interactive ADK web UI (runs setup first; aliased as just web)
 # or
 just run-dac      # Run the Detection-as-Code (DAC) agent CLI
 ```

@@ -264,6 +264,17 @@ sync:
 # Agents & Evaluations
 # ------------------------------------------------------------------------------
 
+# Launch the interactive ADK Web UI (adk web; runs setup first)
+[group('Agents & Evaluations')]
+adk-web *args="": setup
+  #!/usr/bin/env bash
+  set -euo pipefail
+  ADK_BIN="adk"
+  if [ -x ".venv/bin/adk" ]; then ADK_BIN="../.venv/bin/adk"; elif [ -x "venv/bin/adk" ]; then ADK_BIN="../venv/bin/adk"; fi
+  cd multi-agent && "$ADK_BIN" web {{ args }}
+
+alias web := adk-web
+
 # Run the Multi-Agent Manager CLI interactively (adk run manager)
 [group('Agents & Evaluations')]
 run-manager *args="":
@@ -272,15 +283,6 @@ run-manager *args="":
   ADK_BIN="adk"
   if [ -x ".venv/bin/adk" ]; then ADK_BIN="../.venv/bin/adk"; elif [ -x "venv/bin/adk" ]; then ADK_BIN="../venv/bin/adk"; fi
   cd multi-agent && "$ADK_BIN" run manager {{ args }}
-
-# Launch the interactive ADK Web UI (adk web)
-[group('Agents & Evaluations')]
-web *args="":
-  #!/usr/bin/env bash
-  set -euo pipefail
-  ADK_BIN="adk"
-  if [ -x ".venv/bin/adk" ]; then ADK_BIN="../.venv/bin/adk"; elif [ -x "venv/bin/adk" ]; then ADK_BIN="../venv/bin/adk"; fi
-  cd multi-agent && "$ADK_BIN" web {{ args }}
 
 # Run the Detection-as-Code (DAC) Agent CLI
 [group('Agents & Evaluations')]
