@@ -10,14 +10,16 @@ sphinx_sourcedir := "rules-bank"
 sphinx_builddir := "build"
 
 # Default recipe: list available commands
+[private]
 default:
-  @just --list
+  @just --list --unsorted --list-heading $'ADK Runbooks — Available Commands\n\n' --list-prefix "    "
 
 # ------------------------------------------------------------------------------
-# Setup & Environment Management
+# Setup & Configuration
 # ------------------------------------------------------------------------------
 
-# Setup local environment (.env files from templates, submodules, and sync uv dependencies)
+# Setup .env files from templates, initialize submodules, and sync uv environment
+[group('Setup & Configuration')]
 setup:
   #!/usr/bin/env bash
   set -e
@@ -36,20 +38,8 @@ setup:
   fi
   just sync
 
-# Initialize the optional secops-config-wizard Go TUI submodule on demand
-config-wizard-install:
-  #!/usr/bin/env bash
-  set -euo pipefail
-  if [ ! -f "external/secops-config-wizard/go.mod" ]; then
-    echo "Initializing optional submodule external/secops-config-wizard..."
-    git submodule update --init --checkout external/secops-config-wizard
-  fi
-
-# Launch the interactive Bubble Tea TUI to configure .env files (installs submodule on demand)
-config-wizard *args="": config-wizard-install
-  cd external/secops-config-wizard && go run . --repo-root ../.. {{ args }}
-
-# Auto-discover SecOps configuration from /settings/profile (Chronicle API URL), clipboard, or gcloud (pure Python, no Go/submodule needed)
+# Auto-discover SecOps settings from /settings/profile, clipboard, or gcloud (pure Python)
+[group('Setup & Configuration')]
 config-auto-discover *args="":
   #!/usr/bin/env python3
   import json, os, pathlib, re, shlex, subprocess, sys, urllib.request, uuid
@@ -234,81 +224,109 @@ config-auto-discover *args="":
     print(f"│  {'Written Files:':<24}{', '.join(written):<60}│")
   print(f"╰{'─' * 86}╯")
 
-# Alias for config-wizard
-configure *args="": (config-wizard args)
+# Launch the interactive Bubble Tea TUI to configure .env files (installs submodule on demand)
+[group('Setup & Configuration')]
+config-wizard *args="": config-wizard-install
+  cd external/secops-config-wizard && go run . --repo-root ../.. {{ args }}
 
-# Synchronize virtual environment and lock dependencies via uv
+alias configure := config-wizard
+
+# Initialize the optional secops-config-wizard Go TUI submodule on demand
+[group('Setup & Configuration')]
+config-wizard-install:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  if [ ! -f "external/secops-config-wizard/go.mod" ]; then
+    echo "Initializing optional submodule external/secops-config-wizard..."
+    git submodule update --init --checkout external/secops-config-wizard
+  fi
+
+# Synchronize virtual environment (.venv) and lock dependencies via uv
+[group('Setup & Configuration')]
 sync:
   uv sync --all-groups
-
-# ------------------------------------------------------------------------------
-# Quality & Testing (Google Python Style Guide)
-# ------------------------------------------------------------------------------
-
-# Run unit and evaluation tests with pytest
-test *args="":
-  uv run pytest {{ args }}
-
-# Run tests with coverage report
-test-cov:
-  uv run pytest --cov=skills --cov=evals --cov=dac_agent --cov=multi-agent/manager --cov-report=term-missing --cov-report=html
-
-# Check formatting with Pyink (Google Style: 2-space, 80-col)
-format-check:
-  uv run pyink --check --diff .
-
-# Format code in-place with Pyink and apply Ruff fixes
-format:
-  uv run ruff check --fix .
-  uv run pyink .
-
-# Lint code against Google Python Style Guide (Pyink format check, then Ruff)
-lint: format-check
-  uv run ruff check .
-
-# Static type analysis with Google Pytype
-typecheck:
-  uv run pytype
-
-# Run the full CI gate locally (format check, lint, type analysis, tests)
-check: lint typecheck test-cov
-
-# ------------------------------------------------------------------------------
-# Documentation (Sphinx & Rules Bank)
-# ------------------------------------------------------------------------------
-
-# Build Sphinx HTML documentation into build/html
-html *args="":
-  uv run {{ sphinx_build }} -M html "{{ sphinx_sourcedir }}" "{{ sphinx_builddir }}" {{ sphinx_opts }} {{ args }}
-
-# Alias for building Sphinx HTML documentation
-docs-build *args="": (html args)
-
-# Run any Sphinx builder target (e.g., just sphinx dirhtml, just sphinx clean)
-sphinx target="help" *args="":
-  uv run {{ sphinx_build }} -M {{ target }} "{{ sphinx_sourcedir }}" "{{ sphinx_builddir }}" {{ sphinx_opts }} {{ args }}
 
 # ------------------------------------------------------------------------------
 # Agents & Evaluations
 # ------------------------------------------------------------------------------
 
-# Run the Multi-Agent Manager CLI
+# Run the Multi-Agent Manager CLI interactively (adk run manager)
+[group('Agents & Evaluations')]
 run-manager *args="":
   cd multi-agent && uv run adk run manager {{ args }}
 
-# Start the ADK Web UI from the multi-agent directory
+# Launch the interactive ADK Web UI (adk web)
+[group('Agents & Evaluations')]
 web *args="":
   cd multi-agent && uv run adk web {{ args }}
 
 # Run the Detection-as-Code (DAC) Agent CLI
+[group('Agents & Evaluations')]
 run-dac *args="":
   cd dac_agent && uv run adk run dac_agent {{ args }}
 
-# Run declarative workflow evaluation benchmarks (core_workflows, all_36_workflows, expanded_cases_alerts)
+# Run workflow evaluation benchmarks (e.g., core_workflows, all_36_workflows)
+[group('Agents & Evaluations')]
 eval dataset="core_workflows" *args="--report":
   uv run python -m evals.runner --dataset {{ dataset }} {{ args }}
 
+# ------------------------------------------------------------------------------
+# Quality & Testing (Google Python Style Guide)
+# ------------------------------------------------------------------------------
+
+# Run the full CI gate locally (lint, typecheck, and test-cov)
+[group('Quality & Testing')]
+check: lint typecheck test-cov
+
+# Run unit and evaluation test suites with pytest
+[group('Quality & Testing')]
+test *args="":
+  uv run pytest {{ args }}
+
+# Run pytest with terminal and HTML coverage reports
+[group('Quality & Testing')]
+test-cov:
+  uv run pytest --cov=skills --cov=evals --cov=dac_agent --cov=multi-agent/manager --cov-report=term-missing --cov-report=html
+
+# Lint code against Google Python Style Guide (Pyink format check + Ruff)
+[group('Quality & Testing')]
+lint: format-check
+  uv run ruff check .
+
+# Format code in-place with Ruff (--fix) and Pyink (2-space, 80-col)
+[group('Quality & Testing')]
+format:
+  uv run ruff check --fix .
+  uv run pyink .
+
+# Check formatting with Pyink without modifying files
+[group('Quality & Testing')]
+format-check:
+  uv run pyink --check --diff .
+
+# Run static type analysis with Google Pytype
+[group('Quality & Testing')]
+typecheck:
+  uv run pytype
+
+# ------------------------------------------------------------------------------
+# Documentation & Maintenance
+# ------------------------------------------------------------------------------
+
+# Build Sphinx HTML documentation into build/html
+[group('Documentation & Maintenance')]
+html *args="":
+  uv run {{ sphinx_build }} -M html "{{ sphinx_sourcedir }}" "{{ sphinx_builddir }}" {{ sphinx_opts }} {{ args }}
+
+alias docs-build := html
+
+# Run any Sphinx builder target (e.g., just sphinx dirhtml, just sphinx clean)
+[group('Documentation & Maintenance')]
+sphinx target="help" *args="":
+  uv run {{ sphinx_build }} -M {{ target }} "{{ sphinx_sourcedir }}" "{{ sphinx_builddir }}" {{ sphinx_opts }} {{ args }}
+
 # Clean build artifacts, bytecode, and test caches
+[group('Documentation & Maintenance')]
 clean:
   find . -path ./external -prune -o -type f -name "*.pyc" -delete
   find . -path ./external -prune -o -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
