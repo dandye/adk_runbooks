@@ -37,7 +37,7 @@ setup:
   just sync
 
 # Launch the interactive Bubble Tea TUI to configure .env files (initializes optional submodule on demand)
-configure *args="":
+config-wizard *args="":
   #!/usr/bin/env bash
   set -euo pipefail
   if [ ! -f "external/secops-config-wizard/go.mod" ]; then
@@ -45,6 +45,19 @@ configure *args="":
     git submodule update --init --checkout external/secops-config-wizard
   fi
   cd external/secops-config-wizard && go run . --repo-root ../.. {{ args }}
+
+# Auto-discover SecOps configuration from /settings/profile (Chronicle API URL), clipboard, or gcloud
+config-auto-discover *args="":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  if [ ! -f "external/secops-config-wizard/go.mod" ]; then
+    echo "Initializing optional submodule external/secops-config-wizard..."
+    git submodule update --init --checkout external/secops-config-wizard
+  fi
+  cd external/secops-config-wizard && go run . --repo-root ../.. --auto-discover {{ args }}
+
+# Alias for config-wizard
+configure *args="": (config-wizard args)
 
 # Synchronize virtual environment and lock dependencies via uv
 sync:

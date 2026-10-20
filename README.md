@@ -136,7 +136,10 @@ cd adk_runbooks
 just setup
 
 # Optional: Launch the interactive Bubble Tea TUI to configure .env files (initializes submodule on demand)
-just configure
+just config-wizard
+
+# Or auto-discover configuration from SecOps /settings/profile (Chronicle API URL), clipboard, or gcloud
+just config-auto-discover
 ```
 
 ### Running the Multi-Agent System
