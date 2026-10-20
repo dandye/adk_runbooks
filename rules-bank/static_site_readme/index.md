@@ -10,6 +10,6 @@ For building this documentation site locally:
    ```
 4. Build the documentation:
    ```bash
-   make html
+   just html
    ```
 5. View the site by opening `build/html/index.html` in your browser.

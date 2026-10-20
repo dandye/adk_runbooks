@@ -6,7 +6,7 @@ on:
       - main # Or your default branch
     paths:
       - 'rules-bank/**' # Trigger on changes within the rules-bank (source) directory
-      - 'Makefile' # Trigger if the main Makefile changes
+      - 'justfile' # Trigger if the main justfile changes
       - 'requirements-docs.txt' # Trigger if Python dependencies change
   workflow_dispatch: # Allows manual triggering
 
@@ -35,7 +35,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
+          python -m pip install --upgrade pip rust-just
           # Assuming requirements are in requirements-docs.txt in the root
           if [ -f requirements-docs.txt ]; then
             pip install -r requirements-docs.txt
@@ -56,9 +56,9 @@ jobs:
 
       - name: Build documentation
         run: |
-          # Run make html from the repository root
-          # The Makefile is configured with SOURCEDIR=rules-bank and BUILDDIR=build
-          make html
+          # Run just html from the repository root
+          # The justfile is configured with SOURCEDIR=rules-bank and BUILDDIR=build
+          just html
 
       - name: Create .nojekyll file in output directory
         run: |

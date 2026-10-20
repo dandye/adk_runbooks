@@ -7,6 +7,13 @@ A comprehensive multi-agent cybersecurity operations system built on Google's Ag
 The full documentation for this project, including detailed runbooks and agent information, is available at:
 [https://dandye.github.io/adk_runbooks](https://dandye.github.io/adk_runbooks)
 
+To build the Sphinx documentation locally into `build/html/`:
+
+```bash
+pip install -r requirements-docs.txt
+just html
+```
+
 ## Overview
 
 ADK Runbooks implements a manager-orchestrated multi-agent system where specialized security agents work together to execute security operations. Instead of inlining entire runbook corpora into system prompts, the system employs **Progressive Disclosure**: agents receive concise skill catalogs in their context and dynamically load full procedural playbooks, execution guidelines, and rubrics on-demand using specialized skill tools.
@@ -83,6 +90,7 @@ Operational procedures and external MCP tools are loaded strictly on-demand to p
 
 ```
 adk_runbooks/
+├── justfile                  # Sphinx documentation build recipes (just html, just clean)
 ├── multi-agent/              # Multi-agent system implementation
 │   ├── manager/              # Manager agent and sub-agents
 │   │   ├── sub_agents/       # Specialized security sub-agents

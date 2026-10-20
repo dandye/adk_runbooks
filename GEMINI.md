@@ -49,7 +49,7 @@ adk web  # Run web UI (from multi-agent directory)
 ### Documentation
 ```bash
 # Build Sphinx documentation
-make html  # From project root
+just html  # From project root
 # Output in build/html/
 ```
 
