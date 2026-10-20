@@ -48,7 +48,13 @@ git submodule update --init --recursive
 
 ## Configuration
 
-There are two places to configure for your environment:
+You can configure your `.env` files interactively using the optional Bubble Tea configuration wizard submodule (`external/secops-config-wizard`), which initializes on demand:
+
+```bash
+just configure
+```
+
+Or configure the files manually in two places:
 
 ### 1. ADK Environment Variables
 Copy and configure the ADK environment file:

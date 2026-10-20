@@ -41,6 +41,16 @@ setup:
   fi
   just sync
 
+# Launch the interactive Bubble Tea TUI to configure .env files (initializes optional submodule on demand)
+configure *args="":
+  #!/usr/bin/env bash
+  set -euo pipefail
+  if [ ! -f "external/secops-config-wizard/go.mod" ]; then
+    echo "Initializing optional submodule external/secops-config-wizard..."
+    git submodule update --init --checkout external/secops-config-wizard
+  fi
+  cd external/secops-config-wizard && go run . --repo-root ../.. {{ args }}
+
 # Create .venv and synchronize dependencies from requirements.txt and requirements-docs.txt
 sync:
   #!/usr/bin/env bash
