@@ -11,14 +11,16 @@ SPHINXBUILD := "sphinx-build"
 O := ""
 
 # Default recipe: list available commands
+[private]
 default:
-  @just --list
+  @just --list --unsorted --list-heading $'ADK Runbooks — Available Commands\n\n' --list-prefix "    "
 
 # ------------------------------------------------------------------------------
-# Setup & Environment Management
+# Setup & Configuration
 # ------------------------------------------------------------------------------
 
-# Initialize submodules, create .env files from templates, and install dependencies
+# Setup .env files from templates, initialize submodules, and sync dependencies
+[group('Setup & Configuration')]
 setup:
   #!/usr/bin/env bash
   set -euo pipefail
@@ -41,20 +43,8 @@ setup:
   fi
   just sync
 
-# Initialize the optional secops-config-wizard Go TUI submodule on demand
-config-wizard-install:
-  #!/usr/bin/env bash
-  set -euo pipefail
-  if [ ! -f "external/secops-config-wizard/go.mod" ]; then
-    echo "Initializing optional submodule external/secops-config-wizard..."
-    git submodule update --init --checkout external/secops-config-wizard
-  fi
-
-# Launch the interactive Bubble Tea TUI to configure .env files (installs submodule on demand)
-config-wizard *args="": config-wizard-install
-  cd external/secops-config-wizard && go run . --repo-root ../.. {{ args }}
-
-# Auto-discover SecOps configuration from /settings/profile (Chronicle API URL), clipboard, or gcloud (pure Python, no Go/submodule needed)
+# Auto-discover SecOps settings from /settings/profile, clipboard, or gcloud (pure Python)
+[group('Setup & Configuration')]
 config-auto-discover *args="":
   #!/usr/bin/env python3
   import json, os, pathlib, re, shlex, subprocess, sys, urllib.request, uuid
@@ -239,10 +229,25 @@ config-auto-discover *args="":
     print(f"│  {'Written Files:':<24}{', '.join(written):<60}│")
   print(f"╰{'─' * 86}╯")
 
-# Alias for config-wizard
-configure *args="": (config-wizard args)
+# Launch the interactive Bubble Tea TUI to configure .env files (installs submodule on demand)
+[group('Setup & Configuration')]
+config-wizard *args="": config-wizard-install
+  cd external/secops-config-wizard && go run . --repo-root ../.. {{ args }}
+
+alias configure := config-wizard
+
+# Initialize the optional secops-config-wizard Go TUI submodule on demand
+[group('Setup & Configuration')]
+config-wizard-install:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  if [ ! -f "external/secops-config-wizard/go.mod" ]; then
+    echo "Initializing optional submodule external/secops-config-wizard..."
+    git submodule update --init --checkout external/secops-config-wizard
+  fi
 
 # Create .venv and synchronize dependencies from requirements.txt and requirements-docs.txt
+[group('Setup & Configuration')]
 sync:
   #!/usr/bin/env bash
   set -euo pipefail
@@ -256,10 +261,11 @@ sync:
   fi
 
 # ------------------------------------------------------------------------------
-# Agents & Interactive Web UI
+# Agents & Evaluations
 # ------------------------------------------------------------------------------
 
 # Run the Multi-Agent Manager CLI interactively (adk run manager)
+[group('Agents & Evaluations')]
 run-manager *args="":
   #!/usr/bin/env bash
   set -euo pipefail
@@ -267,7 +273,8 @@ run-manager *args="":
   if [ -x ".venv/bin/adk" ]; then ADK_BIN="../.venv/bin/adk"; elif [ -x "venv/bin/adk" ]; then ADK_BIN="../venv/bin/adk"; fi
   cd multi-agent && "$ADK_BIN" run manager {{ args }}
 
-# Launch the interactive ADK Web UI from the multi-agent directory (adk web)
+# Launch the interactive ADK Web UI (adk web)
+[group('Agents & Evaluations')]
 web *args="":
   #!/usr/bin/env bash
   set -euo pipefail
@@ -276,6 +283,7 @@ web *args="":
   cd multi-agent && "$ADK_BIN" web {{ args }}
 
 # Run the Detection-as-Code (DAC) Agent CLI
+[group('Agents & Evaluations')]
 run-dac *args="":
   #!/usr/bin/env bash
   set -euo pipefail
@@ -283,19 +291,8 @@ run-dac *args="":
   if [ -x ".venv/bin/adk" ]; then ADK_BIN="../.venv/bin/adk"; elif [ -x "venv/bin/adk" ]; then ADK_BIN="../venv/bin/adk"; fi
   cd dac_agent && "$ADK_BIN" run dac_agent {{ args }}
 
-# ------------------------------------------------------------------------------
-# Testing & Evaluations
-# ------------------------------------------------------------------------------
-
-# Run unit and evaluation test suites with pytest
-test *args="tests/ evals/tests/":
-  #!/usr/bin/env bash
-  set -euo pipefail
-  PYTEST_BIN="pytest"
-  if [ -x ".venv/bin/pytest" ]; then PYTEST_BIN=".venv/bin/pytest"; elif [ -x "venv/bin/pytest" ]; then PYTEST_BIN="venv/bin/pytest"; fi
-  "$PYTEST_BIN" {{ args }}
-
-# Run declarative workflow evaluation benchmarks (core_workflows, all_36_workflows, expanded_cases_alerts)
+# Run workflow evaluation benchmarks (e.g., core_workflows, all_36_workflows)
+[group('Agents & Evaluations')]
 eval dataset="core_workflows" *args="--report":
   #!/usr/bin/env bash
   set -euo pipefail
@@ -304,18 +301,24 @@ eval dataset="core_workflows" *args="--report":
   "$PYTHON_BIN" -m evals.runner --dataset {{ dataset }} {{ args }}
 
 # ------------------------------------------------------------------------------
-# Documentation (Sphinx & Rules Bank)
+# Quality & Testing
 # ------------------------------------------------------------------------------
 
-# Show Sphinx build targets
-help:
+# Run unit and evaluation test suites with pytest
+[group('Quality & Testing')]
+test *args="tests/ evals/tests/":
   #!/usr/bin/env bash
   set -euo pipefail
-  SPHINX_BIN="{{ SPHINXBUILD }}"
-  if [ -x ".venv/bin/sphinx-build" ]; then SPHINX_BIN=".venv/bin/sphinx-build"; elif [ -x "venv/bin/sphinx-build" ]; then SPHINX_BIN="venv/bin/sphinx-build"; fi
-  "$SPHINX_BIN" -M help "{{ SOURCEDIR }}" "{{ BUILDDIR }}" {{ SPHINXOPTS }} {{ O }}
+  PYTEST_BIN="pytest"
+  if [ -x ".venv/bin/pytest" ]; then PYTEST_BIN=".venv/bin/pytest"; elif [ -x "venv/bin/pytest" ]; then PYTEST_BIN="venv/bin/pytest"; fi
+  "$PYTEST_BIN" {{ args }}
+
+# ------------------------------------------------------------------------------
+# Documentation & Maintenance
+# ------------------------------------------------------------------------------
 
 # Build Sphinx HTML documentation into build/html
+[group('Documentation & Maintenance')]
 html *opts="":
   #!/usr/bin/env bash
   set -euo pipefail
@@ -323,10 +326,10 @@ html *opts="":
   if [ -x ".venv/bin/sphinx-build" ]; then SPHINX_BIN=".venv/bin/sphinx-build"; elif [ -x "venv/bin/sphinx-build" ]; then SPHINX_BIN="venv/bin/sphinx-build"; fi
   "$SPHINX_BIN" -M html "{{ SOURCEDIR }}" "{{ BUILDDIR }}" {{ SPHINXOPTS }} {{ O }} {{ opts }}
 
-# Alias for building Sphinx HTML documentation
-docs-build *opts="": (html opts)
+alias docs-build := html
 
 # Route any Sphinx builder target to sphinx-build -M (e.g., just sphinx dirhtml)
+[group('Documentation & Maintenance')]
 sphinx target="help" *opts="":
   #!/usr/bin/env bash
   set -euo pipefail
@@ -334,7 +337,17 @@ sphinx target="help" *opts="":
   if [ -x ".venv/bin/sphinx-build" ]; then SPHINX_BIN=".venv/bin/sphinx-build"; elif [ -x "venv/bin/sphinx-build" ]; then SPHINX_BIN="venv/bin/sphinx-build"; fi
   "$SPHINX_BIN" -M {{ target }} "{{ SOURCEDIR }}" "{{ BUILDDIR }}" {{ SPHINXOPTS }} {{ O }} {{ opts }}
 
+# Show Sphinx build targets
+[group('Documentation & Maintenance')]
+help:
+  #!/usr/bin/env bash
+  set -euo pipefail
+  SPHINX_BIN="{{ SPHINXBUILD }}"
+  if [ -x ".venv/bin/sphinx-build" ]; then SPHINX_BIN=".venv/bin/sphinx-build"; elif [ -x "venv/bin/sphinx-build" ]; then SPHINX_BIN="venv/bin/sphinx-build"; fi
+  "$SPHINX_BIN" -M help "{{ SOURCEDIR }}" "{{ BUILDDIR }}" {{ SPHINXOPTS }} {{ O }}
+
 # Clean Sphinx build directory, bytecode, and test caches
+[group('Documentation & Maintenance')]
 clean:
   find . -path ./external -prune -o -type f -name "*.pyc" -delete
   find . -path ./external -prune -o -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
