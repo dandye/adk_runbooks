@@ -250,15 +250,17 @@ sync:
 # Agents & Evaluations
 # ------------------------------------------------------------------------------
 
+# Launch the interactive ADK Web UI (adk web; runs setup first)
+[group('Agents & Evaluations')]
+adk-web *args="": setup
+  cd multi-agent && uv run adk web {{ args }}
+
+alias web := adk-web
+
 # Run the Multi-Agent Manager CLI interactively (adk run manager)
 [group('Agents & Evaluations')]
 run-manager *args="":
   cd multi-agent && uv run adk run manager {{ args }}
-
-# Launch the interactive ADK Web UI (adk web)
-[group('Agents & Evaluations')]
-web *args="":
-  cd multi-agent && uv run adk web {{ args }}
 
 # Run the Detection-as-Code (DAC) Agent CLI
 [group('Agents & Evaluations')]

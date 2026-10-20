@@ -56,7 +56,7 @@ Prefer `just <recipe>` over calling the underlying tool directly. GitHub Actions
 | **Full CI Gate** | `just check` | Run `lint`, `typecheck`, and `test-cov` (reproduces CI locally) |
 | **Build Docs** | `just html` | Build Sphinx HTML documentation from `rules-bank/` into `build/html/` |
 | **Run Manager** | `just run-manager` | Run the multi-agent Manager CLI interactively (`adk run manager`) |
-| **Run Web UI** | `just web` | Launch the interactive ADK Web UI from `multi-agent/` |
+| **Run Web UI** | `just adk-web` | Launch the interactive ADK Web UI from `multi-agent/` (runs `setup` dependency first; aliased as `just web`) |
 | **Run DAC Agent** | `just run-dac` | Execute the Detection-as-Code (DAC) agent workflow |
 | **Run Evals** | `just eval` | Run the declarative workflow evaluation suite (`core_workflows` by default) |
 | **Clean** | `just clean` | Remove build artifacts, caches, and temporary coverage files |

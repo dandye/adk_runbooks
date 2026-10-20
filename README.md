@@ -148,8 +148,8 @@ just config-auto-discover
 # Run the interactive Manager CLI
 just run-manager
 
-# Launch the interactive ADK Web UI
-just web
+# Launch the interactive ADK Web UI (runs setup automatically)
+just adk-web
 
 # Build Sphinx HTML documentation into build/html/
 just html
