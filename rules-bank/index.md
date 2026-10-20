@@ -39,28 +39,19 @@ The setup and configuration details below primarily pertain to the example multi
 
 **Setup**
 
-```{warning}
-Do *NOT* use `uv` to run `adk` with a `pyproject.toml` file. (It causes intractable dependency resolution issues.)
+Use `just setup` from the repository root to initialize submodules, copy `.env` templates, and install dependencies into `.venv`:
+
+```bash
+REPO_URL="https://github.com/dandye/adk_runbooks.git"
+git clone --recurse-submodules "$REPO_URL"
+cd adk_runbooks
+just setup
+just run-manager
 ```
 
-Instead, do this:
+Or launch the ADK Web UI:
 ```bash
-git clone --recurse-submodules https://github.com/dandye/adk_runbooks.git
-cd adk_runbooks/multi-agent
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-adk run manager
-```
-
-Or with uv as pip replacement:
-```bash
-git clone --recurse-submodules https://github.com/dandye/adk_runbooks.git
-cd adk_runbooks/multi-agent
-python -m venv .venv
-source .venv/bin/activate
-uv pip sync requirements.txt
-adk run manager
+just web
 ```
 
 If you already cloned without submodules:

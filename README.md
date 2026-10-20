@@ -90,7 +90,7 @@ Operational procedures and external MCP tools are loaded strictly on-demand to p
 
 ```
 adk_runbooks/
-├── justfile                  # Sphinx documentation build recipes (just html, just clean)
+├── justfile                  # Task runner (setup, sync, run-manager, web, run-dac, test, eval, html, clean)
 ├── multi-agent/              # Multi-agent system implementation
 │   ├── manager/              # Manager agent and sub-agents
 │   │   ├── sub_agents/       # Specialized security sub-agents
@@ -131,33 +131,25 @@ adk_runbooks/
 
 ```bash
 # Clone the repository with submodules
-git clone --recurse-submodules https://github.com/dandye/adk_runbooks.git
+REPO_URL="https://github.com/dandye/adk_runbooks.git"
+git clone --recurse-submodules "$REPO_URL"
 cd adk_runbooks
 
-# If already cloned without submodules:
-git submodule update --init --recursive
-
-# Create and activate virtual environment
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r multi-agent/requirements.txt
-
-# Configure environment
-cp multi-agent/manager/.env.example multi-agent/manager/.env
-# Edit multi-agent/manager/.env and add your GOOGLE_API_KEY
+# Initialize submodules, create .env files from templates, and install dependencies into .venv
+just setup
 ```
 
 ### Running the Multi-Agent System
 
 ```bash
 # Run CLI interface
-cd multi-agent
-adk run manager
+just run-manager
 
 # Run Web UI
-adk web
+just web
+
+# Run Detection-as-Code (DAC) Agent CLI
+just run-dac
 ```
 
 ---
@@ -168,7 +160,7 @@ adk web
 
 ```bash
 # Run all unit and integration tests
-./venv/bin/pytest tests/ evals/tests/ -v
+just test
 ```
 
 ### Running Workflow Evaluations
@@ -177,13 +169,13 @@ The evaluation harness tests multi-agent and graph workflows against 4 procedura
 
 ```bash
 # Run core benchmark workflows (10 test cases)
-./venv/bin/python -m evals.runner --dataset core_workflows
+just eval core_workflows
 
 # Run all 36 operational workflows
-./venv/bin/python -m evals.runner --dataset all_36_workflows
+just eval all_36_workflows
 
 # Run expanded cases and alerts dataset (25 test cases)
-./venv/bin/python -m evals.runner --dataset expanded_cases_alerts
+just eval expanded_cases_alerts
 ```
 
 ---
