@@ -26,8 +26,11 @@ cd adk_runbooks
 # Initialize submodules, create .env files from templates, and install dependencies into .venv
 just setup
 
-# Optional: Launch the interactive Bubble Tea TUI to configure .env files (initializes submodule on demand)
-just configure
+# Optional: Auto-discover configuration from SecOps /settings/profile (Chronicle API URL), clipboard, or gcloud (pure Python, no Go/submodule needed)
+just config-auto-discover
+
+# Or launch the interactive Bubble Tea TUI to configure .env files (initializes submodule on demand via config-wizard-install)
+just config-wizard
 ```
 
 ### Running the Multi-Agent System
