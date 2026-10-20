@@ -250,10 +250,10 @@ sync:
 # Agents & Evaluations
 # ------------------------------------------------------------------------------
 
-# Launch the interactive ADK Web UI (adk web; runs setup first)
+# Launch the interactive ADK Web UI (binds 0.0.0.0:8000; runs setup first)
 [group('Agents & Evaluations')]
 adk-web *args="": setup
-  cd multi-agent && uv run adk web {{ args }}
+  cd multi-agent && uv run adk web --host 0.0.0.0 {{ args }}
 
 alias web := adk-web
 
