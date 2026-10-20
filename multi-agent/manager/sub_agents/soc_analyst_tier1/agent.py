@@ -1,4 +1,5 @@
 from pathlib import Path
+
 from google.adk.agents import Agent
 
 from ...tools.tools import load_persona_with_skills_catalog
@@ -17,7 +18,9 @@ def get_agent(tools):
       Agent: An initialized instance of the SOC Analyst Tier 1 agent.
   """
   BASE_DIR = Path(__file__).resolve().parent
-  persona_file_path = (BASE_DIR / "../../../../rules-bank/personas/soc_analyst_tier_1.md").resolve()
+  persona_file_path = (
+      BASE_DIR / "../../../../rules-bank/personas/soc_analyst_tier_1.md"
+  ).resolve()
   skills = [
       "triage-alerts",
       "close-duplicate-cases",
@@ -32,7 +35,7 @@ def get_agent(tools):
   persona_description = load_persona_with_skills_catalog(
       str(persona_file_path),
       skill_names=skills,
-      default_persona_description="Default SOC Analyst Tier 1 description: Responsible for initial alert triage and basic IOC enrichment."
+      default_persona_description="Default SOC Analyst Tier 1 description: Responsible for initial alert triage and basic IOC enrichment.",
   )
 
   agent_instance = Agent(

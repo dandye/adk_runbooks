@@ -25,7 +25,15 @@ multi-agent/manager/sub_agents/*/*.log
 # Local ADK databases
 **/.adk/
 
-# Test output artifacts
+# Test output artifacts & quality tool caches
+.pytest_cache/
+.pytype/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+dist/
+*.egg-info/
 .superpowers/
 evals/results/*.db
 multi-agent/reports/otel_traces.jsonl

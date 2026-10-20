@@ -1,31 +1,29 @@
-"""
-Datasets package for declarative evaluation test cases.
-"""
+"""Datasets package for declarative evaluation test cases."""
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 DATASETS_DIR = Path(__file__).resolve().parent
 
 
 def get_dataset_path(dataset_name: str) -> Path:
-    """Retrieve absolute file path for a dataset JSON file."""
-    candidate = Path(dataset_name)
-    if candidate.exists() and candidate.is_file():
-        return candidate.resolve()
-    if not dataset_name.endswith(".json"):
-        dataset_name = f"{dataset_name}.json"
-    return DATASETS_DIR / dataset_name
+  """Retrieve absolute file path for a dataset JSON file."""
+  candidate = Path(dataset_name)
+  if candidate.exists() and candidate.is_file():
+    return candidate.resolve()
+  if not dataset_name.endswith(".json"):
+    dataset_name = f"{dataset_name}.json"
+  return DATASETS_DIR / dataset_name
 
 
-def load_dataset(dataset_name: str) -> List[Dict[str, Any]]:
-    """Load and parse a JSON test dataset by name or path."""
-    path = get_dataset_path(dataset_name)
-    if not path.exists():
-        raise FileNotFoundError(f"Dataset file not found at '{path}'.")
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    if not isinstance(data, list):
-        raise ValueError(f"Dataset in '{path}' must be a JSON array of test cases.")
-    return data
+def load_dataset(dataset_name: str) -> list[dict[str, Any]]:
+  """Load and parse a JSON test dataset by name or path."""
+  path = get_dataset_path(dataset_name)
+  if not path.exists():
+    raise FileNotFoundError(f"Dataset file not found at '{path}'.")
+  with open(path, encoding="utf-8") as f:
+    data = json.load(f)
+  if not isinstance(data, list):
+    raise ValueError(f"Dataset in '{path}' must be a JSON array of test cases.")
+  return data

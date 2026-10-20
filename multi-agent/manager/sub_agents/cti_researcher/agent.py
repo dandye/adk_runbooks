@@ -1,4 +1,5 @@
 from pathlib import Path
+
 from google.adk.agents import Agent
 
 from ...tools.tools import load_persona_with_skills_catalog
@@ -17,7 +18,9 @@ def get_agent(tools):
       Agent: An initialized instance of the CTI Researcher agent.
   """
   BASE_DIR = Path(__file__).resolve().parent
-  persona_file_path = (BASE_DIR / "../../../../rules-bank/personas/cti_researcher.md").resolve()
+  persona_file_path = (
+      BASE_DIR / "../../../../rules-bank/personas/cti_researcher.md"
+  ).resolve()
   skills = [
       "report-writing-guidelines",
       "investigate-gti-collection",
@@ -30,7 +33,7 @@ def get_agent(tools):
   persona_data = load_persona_with_skills_catalog(
       str(persona_file_path),
       skill_names=skills,
-      default_persona_description="Default CTI Researcher description: Responsible for threat intelligence."
+      default_persona_description="Default CTI Researcher description: Responsible for threat intelligence.",
   )
   agent_instance = Agent(
       name="cti_researcher",

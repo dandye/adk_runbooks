@@ -1,4 +1,5 @@
 from pathlib import Path
+
 from google.adk.agents import Agent
 
 from ...tools.tools import load_persona_with_skills_catalog
@@ -17,7 +18,9 @@ def get_agent(tools):
       Agent: An initialized instance of the Threat Hunter agent.
   """
   BASE_DIR = Path(__file__).resolve().parent
-  persona_file_path = (BASE_DIR / "../../../../rules-bank/personas/threat_hunter.md").resolve()
+  persona_file_path = (
+      BASE_DIR / "../../../../rules-bank/personas/threat_hunter.md"
+  ).resolve()
   skills = [
       "advanced-threat-hunting",
       "apt-threat-hunt",
@@ -31,7 +34,7 @@ def get_agent(tools):
   persona_description = load_persona_with_skills_catalog(
       str(persona_file_path),
       skill_names=skills,
-      default_persona_description="Default Threat Hunter description: Responsible for proactive threat hunting."
+      default_persona_description="Default Threat Hunter description: Responsible for proactive threat hunting.",
   )
 
   agent_instance = Agent(

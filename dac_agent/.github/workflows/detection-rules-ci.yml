@@ -182,10 +182,10 @@ jobs:
           if warnings:
               print("SECURITY REVIEW WARNINGS:")
               for warning in warnings:
-                  print(f"⚠️  {warning}")
+                  print(f"[WARNING] {warning}")
               print("\nPlease review these warnings before merging.")
           else:
-              print("✅ No security concerns detected in rule changes")
+              print("[OK] No security concerns detected in rule changes")
           EOF
 
   deploy-rules:
@@ -307,7 +307,7 @@ jobs:
             if [ -n "$file" ]; then
               echo "- $file"
               # Simulate backtesting
-              echo "  ✅ Backtest passed - estimated 15% reduction in false positives"
+              echo "  [PASS] Backtest passed - estimated 15% reduction in false positives"
             fi
           done <<< "$changed_files"
           

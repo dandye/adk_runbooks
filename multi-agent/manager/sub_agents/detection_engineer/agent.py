@@ -1,4 +1,5 @@
 from pathlib import Path
+
 from google.adk.agents import Agent
 
 from ...tools.tools import load_persona_with_skills_catalog
@@ -18,7 +19,9 @@ def get_agent(tools):
       Agent: An initialized instance of the Detection Engineer agent.
   """
   BASE_DIR = Path(__file__).resolve().parent
-  persona_file_path = (BASE_DIR / "../../../../rules-bank/personas/detection_engineer.md").resolve()
+  persona_file_path = (
+      BASE_DIR / "../../../../rules-bank/personas/detection_engineer.md"
+  ).resolve()
   skills = [
       "detection-engineering-coverage-evaluation",
       "detection-rule-validation-tuning",
@@ -32,7 +35,7 @@ def get_agent(tools):
       str(persona_file_path),
       skill_names=skills,
       default_persona_description="Default Detection Engineer description: "
-      "Responsible for creating, tuning, and managing security detection rules."
+      "Responsible for creating, tuning, and managing security detection rules.",
   )
 
   agent_instance = Agent(

@@ -2,14 +2,13 @@
 # Building
 
 For building this documentation site locally:
-1. Navigate to the git top-level directory (likely `adk_runbooks`).
-2. Ensure you have a Python virtual environment activated.
-3. Install dependencies:
+1. Navigate to the git top-level directory (`adk_runbooks`).
+2. Synchronize dependencies using `uv` and `just`:
    ```bash
-   pip install -r requirements-docs.txt
+   just sync
    ```
-4. Build the documentation:
+3. Build the Sphinx HTML documentation:
    ```bash
-   make html
+   just html
    ```
-5. View the site by opening `build/html/index.html` in your browser.
+4. View the site by opening `build/html/index.html` in your browser.

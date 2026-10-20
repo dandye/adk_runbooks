@@ -1,10 +1,11 @@
-"""
-Helper script to populate the design spec and implementation plan for progressive_discovery_mcp_v0001.
-"""
+"""Helper script to populate the design spec and implementation plan for progressive_discovery_mcp_v0001."""
 
 from pathlib import Path
 
-target_root = Path(__file__).resolve().parent.parent.parent.parent / "progressive_discovery_mcp_v0001"
+target_root = (
+    Path(__file__).resolve().parent.parent.parent.parent
+    / "progressive_discovery_mcp_v0001"
+)
 spec_dir = target_root / "docs" / "superpowers" / "specs"
 plan_dir = target_root / "docs" / "superpowers" / "plans"
 
@@ -16,16 +17,16 @@ plan_file = plan_dir / "2026-08-20-progressive-discovery-mcp.md"
 
 spec_text = """# Design Specification: Progressive MCP Tool Discovery & Dispatcher
 
-**Date:** 2026-08-20  
-**Branch:** `progressive_discovery_mcp_v0001`  
-**Status:** Approved  
-**Author:** Antigravity (Google DeepMind) & Dan Dye  
+**Date:** 2026-08-20
+**Branch:** `progressive_discovery_mcp_v0001`
+**Status:** Approved
+**Author:** Antigravity (Google DeepMind) & Dan Dye
 
 ---
 
 ## 1. Executive Summary
 
-This specification defines the **Progressive MCP Tool Discovery & Dispatcher Framework** for the Google ADK Multi-Agent Cybersecurity Operations platform. 
+This specification defines the **Progressive MCP Tool Discovery & Dispatcher Framework** for the Google ADK Multi-Agent Cybersecurity Operations platform.
 
 While the previous iteration (`skills_v0001`) solved procedural knowledge bloat via **Skills Progressive Disclosure** (`SkillRegistry` and `load_skill`), raw Model Context Protocol (MCP) security tools (`siem-mcp`, `soar-mcp`, `gti-mcp`) are still registered statically across agent definitions. As additional security integrations and MCP servers are connected, injecting dozens of full JSON schemas upfront leads to prompt context bloat, increased latency, and tool-selection degradation.
 
@@ -256,4 +257,6 @@ plan_text = """# Progressive MCP Tool Discovery & Dispatcher Implementation Plan
 
 spec_file.write_text(spec_text)
 plan_file.write_text(plan_text)
-print("[+] Successfully generated Design Spec and Implementation Plan in target worktree.")
+print(
+    "[+] Successfully generated Design Spec and Implementation Plan in target worktree."
+)

@@ -62,31 +62,37 @@ evals/
 
 ## 3. Quick Start & Execution
 
-### Running via Pytest
+### Running via `just` and Pytest
 ```bash
-# Run all evaluation tests
-pytest evals/tests/ -v
+# Run all unit and evaluation tests via just
+just test
+
+# Run all evaluation tests directly
+uv run pytest evals/tests/ -v
 
 # Run the 36-workflow full regression suite
-pytest evals/tests/test_all_36_workflows.py -v
+uv run pytest evals/tests/test_all_36_workflows.py -v
 
 # Run core security benchmark scenarios
-pytest evals/tests/test_core_benchmarks.py -v
+uv run pytest evals/tests/test_core_benchmarks.py -v
 ```
 
 ### Running via the CLI Runner
 ```bash
+# Evaluate core workflows via just
+just eval core_workflows --report
+
 # Evaluate all 36 workflows and generate markdown + JSON reports in evals/results/
-python -m evals.runner --dataset all_36_workflows --report
+just eval all_36_workflows --report
 
 # Run focused core benchmarks with verbose rubric breakdown
-python -m evals.runner --dataset core_workflows --verbose
+just eval core_workflows --verbose
 
 # Run with custom DAG execution step limit (default: 50)
-python -m evals.runner --dataset all_36_workflows --max-steps 75 --report
+just eval all_36_workflows --max-steps 75 --report
 
 # Run a single workflow
-python -m evals.runner --dataset all_36_workflows --workflow suspicious_login_workflow --report
+just eval all_36_workflows --workflow suspicious_login_workflow --report
 ```
 
 ---
