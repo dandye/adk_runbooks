@@ -42,13 +42,7 @@ git submodule update --init --recursive
 
 ## Configuration
 
-You can configure your `.env` files interactively using the optional Bubble Tea configuration wizard submodule (`external/secops-config-wizard`), which initializes on demand:
-
-```bash
-just config-wizard
-```
-
-Or auto-discover your tenant settings from `https://<tenant>.backstory.chronicle.security/settings/profile` (by copying the **Chronicle API URL** or **Organization Details** block), active `gcloud` credentials, or local tenant configuration:
+You can configure your `.env` files automatically from `https://<tenant>.backstory.chronicle.security/settings/profile` (by copying the **Chronicle API URL** or **Organization Details** block), active `gcloud` credentials, or local tenant configuration—using pure Python with zero Go or submodule requirements:
 
 ```bash
 just config-auto-discover
@@ -56,6 +50,12 @@ just config-auto-discover
 # Or pass the Chronicle API URL copied from /settings/profile directly:
 CHRONICLE_API_URL="https://us-chronicle.googleapis.com/projects/813924125873/locations/us/instances/a13f6726-efed-452e-9008-8fe0d3cb0f75"
 just config-auto-discover "$CHRONICLE_API_URL"
+```
+
+Or launch the optional interactive Go + Bubble Tea v2 configuration wizard (`external/secops-config-wizard`), which initializes the submodule on demand via the `config-wizard-install` prerequisite recipe:
+
+```bash
+just config-wizard
 ```
 
 ![Interactive Region Matrix](docs/images/secops_wizard_region_matrix.png)

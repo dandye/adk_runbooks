@@ -43,7 +43,9 @@ Prefer `just <recipe>` over calling the underlying tool directly. GitHub Actions
 | :--- | :--- | :--- |
 | **List Recipes** | `just` or `just --list` | List all available `justfile` recipes |
 | **Setup** | `just setup` | Initialize submodules, create `.env` files from templates, and sync `uv` environment |
-| **Configure** | `just configure` | Launch the optional Bubble Tea TUI (`external/secops-config-wizard`) on demand to write `.env` files |
+| **Config Auto-Discover** | `just config-auto-discover` | Auto-discover SecOps configuration from `/settings/profile` (`Chronicle API URL`), clipboard, or `gcloud` (pure Python, no Go/submodule needed) |
+| **Config Wizard** | `just config-wizard` | Launch the optional Bubble Tea TUI (`external/secops-config-wizard`, initialized on demand via `config-wizard-install`) to write `.env` files |
+| **Config Wizard Install** | `just config-wizard-install` | Initialize the optional `external/secops-config-wizard` Go TUI submodule on demand |
 | **Sync Deps** | `just sync` | Synchronize virtual environment (`.venv`) and dependency groups via `uv sync --all-groups` |
 | **Run Tests** | `just test` | Run all unit and evaluation test suites via `pytest` |
 | **Test Coverage** | `just test-cov` | Run `pytest` with terminal coverage report |
