@@ -113,6 +113,21 @@ adk_runbooks/
 
 ## Quick Start
 
+### Screencast Walkthrough
+
+**Standard (`venv` + `pip` + `adk`) Workflow:**
+
+![ADK Runbooks Quick Start & Multi-Agent System Screencast](docs/images/adk_runbooks_screencast.gif)
+
+<details>
+<summary><strong>Modernized <code>just</code> + <code>uv</code> Workflow Screencast (<code>just setup</code>, <code>just config-auto-discover</code>, <code>just run-manager</code>, <code>just adk-web</code>)</strong></summary>
+
+<br>
+
+![ADK Runbooks just + uv Screencast](docs/images/adk_runbooks_just_screencast.gif)
+
+</details>
+
 ### Prerequisites
 
 - Python 3.10+
