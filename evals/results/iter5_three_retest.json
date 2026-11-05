@@ -1,0 +1,261 @@
+{
+  "evaluated_at": "2026-10-17T02:14:48.190726+00:00",
+  "suite": "representative",
+  "cohort_filter": null,
+  "mode": "offline-replay",
+  "total_scenarios": 3,
+  "total_passed": 3,
+  "overall_pass_rate": 1.0,
+  "mean_composite_score": 1.0,
+  "mean_verdict_accuracy": 1.0,
+  "mean_entity_ioc_recall": 1.0,
+  "mean_containment_safety": 1.0,
+  "mean_progressive_disclosure": 1.0,
+  "total_elapsed_sec": 231.85,
+  "cohort_summaries": {
+    "ransomware_edr": {
+      "count": 2,
+      "passed": 2,
+      "pass_rate": 1.0,
+      "mean_composite_score": 1.0,
+      "mean_verdict_accuracy": 1.0,
+      "mean_entity_ioc_recall": 1.0,
+      "mean_containment_safety": 1.0
+    },
+    "identity_insider_detection": {
+      "count": 1,
+      "passed": 1,
+      "pass_rate": 1.0,
+      "mean_composite_score": 1.0,
+      "mean_verdict_accuracy": 1.0,
+      "mean_entity_ioc_recall": 1.0,
+      "mean_containment_safety": 1.0
+    }
+  },
+  "aqua_insights": [],
+  "results": [
+    {
+      "usecase_id": "AKIRA_RANSOMWARE",
+      "cohort": "ransomware_edr",
+      "is_baseline": false,
+      "passed": true,
+      "composite_score": 1.0,
+      "disposition_predicted": "MALICIOUS",
+      "disposition_expected": "MALICIOUS",
+      "metrics": {
+        "verdict_accuracy": 1.0,
+        "entity_ioc_recall": 1.0,
+        "containment_safety": 1.0,
+        "progressive_disclosure": 1.0,
+        "tool_grounding": 1.0,
+        "yaral2_validity": 1.0
+      },
+      "matched_entities": [
+        "CYM-RDPGW01",
+        "CYMBAL\\administrator",
+        "CYMBAL\\svc-backup",
+        "193.32.162.44",
+        "45.227.253.99",
+        "cdn-telemetry.net",
+        "gfs300.userstorage.mega.co.nz",
+        "1a2b3c4d5e6f7809",
+        "b4e2f1a09c7d3e5b"
+      ],
+      "expected_entities": [
+        "CYM-RDPGW01",
+        "CYMBAL\\administrator",
+        "CYMBAL\\svc-backup",
+        "193.32.162.44",
+        "45.227.253.99",
+        "cdn-telemetry.net",
+        "gfs300.userstorage.mega.co.nz",
+        "1a2b3c4d5e6f7809",
+        "b4e2f1a09c7d3e5b"
+      ],
+      "enrichment_tools_called": [
+        "get_case_full_details",
+        "secops-mcp_lookup_entity",
+        "secops-mcp_lookup_entity",
+        "secops-mcp_get_detection_rule",
+        "secops-mcp_get_detection_rule",
+        "gti-mcp_get_ip_address_report",
+        "gti-mcp_get_ip_address_report",
+        "gti-mcp_get_ip_address_report",
+        "gti-mcp_get_domain_report",
+        "gti-mcp_get_domain_report",
+        "gti-mcp_get_file_report",
+        "gti-mcp_get_file_report",
+        "secops-mcp_search_security_events"
+      ],
+      "containment_tools_called": [
+        "soar-mcp_isolate_host",
+        "soar-mcp_isolate_host",
+        "soar-mcp_block_ioc",
+        "soar-mcp_block_ioc"
+      ],
+      "unsafe_containment_targets": [],
+      "activated_skills": [
+        "prioritize-and-investigate-case"
+      ],
+      "rubric_categories": {
+        "ProgressiveDisclosureCompliance": "HONORED",
+        "McpSchemaHygiene": "SCHEMA_VERIFIED",
+        "SoarTriagingIntegrity": "GROUNDED_DISPOSITION",
+        "MultiTurnRevision": "NO_REVISION"
+      },
+      "session_id": "bench_akira_ransomware_36528488",
+      "mode": "offline-replay",
+      "elapsed_sec": 76.13,
+      "error": null,
+      "authors": [
+        "manager",
+        "soc_analyst_tier2"
+      ],
+      "tool_call_count": 39,
+      "aqua_issues": [],
+      "prompt": "Investigate SOAR Case `CASE-4000`, host `CYM-FS01`. Use your progressive disclosure skills and SIEM, SCC/IAM, GTI, and SOAR tools to scope the full timeline. State your final disposition clearly (MALICIOUS, SUSPICIOUS, INCONCLUSIVE, or BENIGN), list all relevant hosts, accounts, external IPs, domains, and payload SHA256 hashes found, and execute or recommend grounded containment only when malicious activity is confirmed. Also check existing Chronicle YARA-L 2.0 detection rules for this scenario or validate a candidate YARA-L 2.0 rule using `validate_yaral2_rule`.",
+      "response_excerpt": "### Investigation Report: SOAR Case CASE-4000 (Akira Ransomware)\n\n#### **1. Executive Summary**\nThe investigation into **CASE-4000** has confirmed a multi-stage human-operated ransomware intrusion targeting host **CYM-FS01**. The activity is attributed to an **Akira ransomware** affiliate (Storm-1567). The attack progressed from an external RDP brute force to full domain environment compromise, data exfiltration, and mass file encryption.\n\n**Final Disposition: MALICIOUS**\n\n---\n\n#### **2. Attack Timeline**\n*   **Initial Access (1754313120 - 1754313306):** External IP `45.227.253.99` conducted an RDP brute-force attack against host `CYM-RDPGW01`. After multiple failed attempts (Event ID 4625), a successful logon was achieved for account `CYMBAL\\svc-backup`.\n*   **Command and Control (1754314831):** A Cobalt Strike beacon was established via `rundll32.exe`, connecting to the malicious domain `cdn-telemetry.net` (`193.32.162.44`).\n*   **Credential Access (1754316728):** The adversary performed an LSASS memory dump on `CYM-RDPGW01` using `comsvcs.dll` to harvest elevated credentials.\n*   **Lateral Movement (1754318751):** Using harvested `administrator` credentials, the attacker moved l"
+    },
+    {
+      "usecase_id": "AVOSLOCKER_RANSOMWARE",
+      "cohort": "ransomware_edr",
+      "is_baseline": false,
+      "passed": true,
+      "composite_score": 1.0,
+      "disposition_predicted": "MALICIOUS",
+      "disposition_expected": "MALICIOUS",
+      "metrics": {
+        "verdict_accuracy": 1.0,
+        "entity_ioc_recall": 1.0,
+        "containment_safety": 1.0,
+        "progressive_disclosure": 1.0,
+        "tool_grounding": 1.0,
+        "yaral2_validity": 1.0
+      },
+      "matched_entities": [
+        "CYM-WKS-24",
+        "CYMBAL\\administrator",
+        "administrator",
+        "179.43.176.20",
+        "45.147.230.131",
+        "48dd7d519dbb67b7",
+        "ad5fd10aa2dc8273"
+      ],
+      "expected_entities": [
+        "CYM-WKS-24",
+        "CYMBAL\\administrator",
+        "administrator",
+        "179.43.176.20",
+        "45.147.230.131",
+        "48dd7d519dbb67b7",
+        "ad5fd10aa2dc8273"
+      ],
+      "enrichment_tools_called": [
+        "soar-mcp_get_case_full_details",
+        "secops-mcp_search_security_events",
+        "gti-mcp_get_ip_address_report",
+        "gti-mcp_get_ip_address_report",
+        "gti-mcp_get_file_report",
+        "gti-mcp_get_file_report",
+        "gti-mcp_get_file_report",
+        "secops-mcp_lookup_entity",
+        "secops-mcp_lookup_entity",
+        "secops-mcp_get_detection_rule"
+      ],
+      "containment_tools_called": [
+        "soar-mcp_isolate_host",
+        "soar-mcp_isolate_host",
+        "soar-mcp_block_indicator",
+        "soar-mcp_block_indicator"
+      ],
+      "unsafe_containment_targets": [],
+      "activated_skills": [
+        "prioritize-and-investigate-case"
+      ],
+      "rubric_categories": {
+        "ProgressiveDisclosureCompliance": "HONORED",
+        "McpSchemaHygiene": "SCHEMA_VERIFIED",
+        "SoarTriagingIntegrity": "GROUNDED_DISPOSITION",
+        "MultiTurnRevision": "NO_REVISION"
+      },
+      "session_id": "bench_avoslocker_ransomware_5d86f172",
+      "mode": "offline-replay",
+      "elapsed_sec": 78.91,
+      "error": null,
+      "authors": [
+        "manager",
+        "soc_analyst_tier2"
+      ],
+      "tool_call_count": 31,
+      "aqua_issues": [],
+      "prompt": "Investigate SOAR Case `CASE-4003`, host `CYM-FS01`. Use your progressive disclosure skills and SIEM, SCC/IAM, GTI, and SOAR tools to scope the full timeline. State your final disposition clearly (MALICIOUS, SUSPICIOUS, INCONCLUSIVE, or BENIGN), list all relevant hosts, accounts, external IPs, domains, and payload SHA256 hashes found, and execute or recommend grounded containment only when malicious activity is confirmed. Also check existing Chronicle YARA-L 2.0 detection rules for this scenario or validate a candidate YARA-L 2.0 rule using `validate_yaral2_rule`.",
+      "response_excerpt": "The investigation into SOAR Case **CASE-4003** regarding host **CYM-FS01** is complete.\n\n### **Final Disposition**: **MALICIOUS** (AvosLocker Ransomware)\n\n### **Entity Summary**\n*   **Hosts**: `CYM-FS01`, `CYM-WKS-24`\n*   **User Principals**: `CYMBAL\\administrator`, `administrator`\n*   **External IPs**: `179.43.176.20`, `45.147.230.131` (Both confirmed malicious AvosLocker C2)\n*   **Domains**: `outlook.com` (Target of ransom note email)\n*   **SHA256 Hashes**:\n    *   `ad5fd10aa2dc82731f3885553763dfd4548651ef3e28c69f77ad035166d63db7` (Malicious: PDQ Deploy/PsExec/NetMonitor)\n    *   `48dd7d519dbb67b7a2bb2747729fc46e5832c30cafe15f76c1dbe3a249e5e731` (Malicious: AvosLocker Encryptor)\n    *   `e68f9c3314beee640cc32f08a8532aa8dcda613543c54a83680c21d7cd49ca0f` (Malicious: Cobalt Strike Beacon loader)\n\n### **Investigation Findings & Timeline**\nThe investigation confirms a human-operated ransomware intrusion following documented AvosLocker RaaS tradecraft (CISA AA23-284A). \n1.  **Lateral Movement**: The attacker leveraged valid domain administrator credentials (`CYMBAL\\administrator`) on `CYM-WKS-24` to pivot to `CYM-FS01` using **PDQ Deploy** and **PsExec**.\n2.  **Persistence & Tooling**:"
+    },
+    {
+      "usecase_id": "WORKSPACE_INSIDER",
+      "cohort": "identity_insider_detection",
+      "is_baseline": false,
+      "passed": true,
+      "composite_score": 1.0,
+      "disposition_predicted": "MALICIOUS",
+      "disposition_expected": "MALICIOUS",
+      "metrics": {
+        "verdict_accuracy": 1.0,
+        "entity_ioc_recall": 1.0,
+        "containment_safety": 1.0,
+        "progressive_disclosure": 1.0,
+        "tool_grounding": 1.0,
+        "yaral2_validity": 1.0
+      },
+      "matched_entities": [
+        "kai.alvarez.personal@gmail.com",
+        "kai.alvarez@cymbal-investments.org",
+        "mega.nz",
+        "wetransfer.com"
+      ],
+      "expected_entities": [
+        "kai.alvarez.personal@gmail.com",
+        "kai.alvarez@cymbal-investments.org",
+        "mega.nz",
+        "wetransfer.com"
+      ],
+      "enrichment_tools_called": [
+        "soar-mcp_get_case_full_details",
+        "secops-mcp_list_security_rules",
+        "secops-mcp_get_detection_rule",
+        "secops-mcp_lookup_entity",
+        "secops-mcp_lookup_entity",
+        "gti-mcp_get_domain_report",
+        "gti-mcp_get_domain_report",
+        "secops-mcp_search_security_events"
+      ],
+      "containment_tools_called": [
+        "soar-mcp_isolate_host",
+        "soar-mcp_block_ioc",
+        "soar-mcp_block_ioc"
+      ],
+      "unsafe_containment_targets": [],
+      "activated_skills": [
+        "prioritize-and-investigate-case"
+      ],
+      "rubric_categories": {
+        "ProgressiveDisclosureCompliance": "HONORED",
+        "McpSchemaHygiene": "SCHEMA_VERIFIED",
+        "SoarTriagingIntegrity": "GROUNDED_DISPOSITION",
+        "MultiTurnRevision": "NO_REVISION"
+      },
+      "session_id": "bench_workspace_insider_f0b4306c",
+      "mode": "offline-replay",
+      "elapsed_sec": 76.66,
+      "error": null,
+      "authors": [
+        "manager",
+        "soc_analyst_tier2"
+      ],
+      "tool_call_count": 42,
+      "aqua_issues": [],
+      "prompt": "Investigate SOAR Case `CASE-4045`, host `CYM-WKS-KALVAREZ`. Use your progressive disclosure skills and SIEM, SCC/IAM, GTI, and SOAR tools to scope the full timeline. State your final disposition clearly (MALICIOUS, SUSPICIOUS, INCONCLUSIVE, or BENIGN), list all relevant hosts, accounts, external IPs, domains, and payload SHA256 hashes found, and execute or recommend grounded containment only when malicious activity is confirmed. Also check existing Chronicle YARA-L 2.0 detection rules for this scenario or validate a candidate YARA-L 2.0 rule using `validate_yaral2_rule`.",
+      "response_excerpt": "Investigation of SOAR Case `CASE-4045` and host `CYM-WKS-KALVAREZ` is complete.\n\n### **Final Disposition: MALICIOUS**\nThe investigation confirms unauthorized data exfiltration by **Kai Alvarez** (`kai.alvarez@cymbal-investments.org`), a Sales Account Executive, prior to their resignation. The user exfiltrated the customer database through mass Google Drive downloads, external Gmail sharing, and uploads to personal cloud storage (**MEGA** and **WeTransfer**).\n\n### **Timeline of Activity (2025-08-04)**\n1.  **Identity Baseline**: Normal logins via Okta and Azure AD from IP `198.51.100.10` occurred between 09:26 and 15:50 UTC.\n2.  **Staging**: The user modified access permissions and performed bulk copies and downloads in Google Drive from internal IP `10.20.44.87`.\n3.  **Local Activity**: Chrome browser downloads were captured on `CYM-WKS-KALVAREZ`.\n4.  **Exfiltration (Email)**: Sensitive attachments were sent to `kai.alvarez.personal@gmail.com`.\n5.  **Exfiltration (Cloud)**: Large data transfers to `mega.nz/upload` and `wetransfer.com/upload` were identified via Zscaler proxy logs between 14:30 and 14:36 UTC.\n\n### **Relevant Entities**\n*   **Host**: `CYM-WKS-KALVAREZ`\n*   **User (Cor"
+    }
+  ]
+}

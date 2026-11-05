@@ -51,6 +51,10 @@ initialized_llm_judge = llm_judge_agent_module.get_agent(shared_tools)
 BASE_DIR = Path(__file__).resolve().parent
 persona_file_path = (BASE_DIR / "../../rules-bank/personas/soc_manager.md").resolve()
 manager_skills = [
+    "triage-alerts",
+    "prioritize-and-investigate-case",
+    "cloud-honeytoken-deception-triage",
+    "insider-threat-workspace-sabotage-triage",
     "compromised-user-account-response",
     "phishing-response",
     "ransomware-response",
@@ -73,7 +77,11 @@ root_agent = Agent(
     instruction="""
     You are the SOC Manager agent, responsible for overseeing and orchestrating the work of specialized sub-agents. Your primary goal is to ensure efficient and effective incident response and SOC operations.
 
-    When executing a task, check your Available Skills. Call `load_skill(skill_name)` to retrieve detailed procedural guidance and rubrics when relevant.
+    **Mandatory Progressive Disclosure & Delegation Rule:**
+    - Never call `execute_mcp_tool` yourself before calling `load_skill(skill_name)` first. Either delegate directly via `transfer_to_agent` WITHOUT calling `execute_mcp_tool`, OR call `load_skill(skill_name)` as your very first tool call before any `execute_mcp_tool` call.
+    - For alert triage, case investigation, threat hunting, CTI enrichment, incident containment, or detection engineering, delegate to the matching specialist sub-agent (`soc_analyst_tier1`, `soc_analyst_tier2`, `soc_analyst_tier3`, `threat_hunter`, `cti_researcher`, `incident_responder`, `detection_engineer`) or load the matching skill via `load_skill(skill_name)` FIRST.
+    - Before calling `execute_mcp_tool` for any MCP tool, ALWAYS call `search_mcp_tools` or `get_mcp_tool_schema` first to verify exact tool names and required parameter schemas.
+    - In your final summary to the user, ALWAYS state the explicit verdict (`MALICIOUS`, `SUSPICIOUS`, `INCONCLUSIVE`, or `BENIGN`) and list every distinct hostname, user principal (in all observed formats verbatim, including `DOMAIN\\<user>` NetBIOS names and emails), external IP, domain, and SHA256 hash observed across all case alerts and SIEM events (even when closing as `BENIGN`).
 
     **Incident Response Plan (IRP) Execution:**
     When an IRP is invoked (e.g., "Start Malware IRP for CASE_ID 123"):

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import copy
 import json
 from pathlib import Path
@@ -64,6 +65,7 @@ from evals.telemetry_bridge import (  # noqa: E402
     load_session_trace,
     load_traces_from_otel_jsonl,
 )
+from manager.tools.logstory_corpus import active_logstory_usecase  # noqa: E402
 from manager.utils.instrumentation import telemetry_session_scope  # noqa: E402
 from skills.registry import SkillRegistry  # noqa: E402
 
@@ -245,6 +247,17 @@ def load_scenarios_from_file(path: Path) -> dict[str, ConversationScenario]:
   return out
 
 
+def load_scenario_usecase_ids_from_file(path: Path) -> dict[str, str]:
+  """Loads optional logstory_usecase_id mappings per scenario from a JSON dataset file."""
+  raw = json.loads(path.read_text(encoding="utf-8"))
+  out: dict[str, str] = {}
+  for sid, item in raw.items():
+    usecase_id = item.get("logstory_usecase_id")
+    if isinstance(usecase_id, str) and usecase_id.strip():
+      out[sid] = usecase_id.strip()
+  return out
+
+
 def generate_soc_scenarios(
     config: ConversationGenerationConfig,
     skills_dir: Optional[Path] = None,
@@ -350,6 +363,7 @@ async def run_simulated_session(
     trace_log_path: Path = DEFAULT_OTEL_JSONL,
     user_id: str = "soc_simulator",
     app_name: str = "manager",
+    logstory_usecase_id: Optional[str] = None,
     on_turn_callback: Optional[Callable[[int, str, str, list[str]], None]] = None,
 ) -> dict[str, Any]:
   """Runs a multi-turn simulated conversation between UserSimulator and root_agent.
@@ -416,7 +430,12 @@ async def run_simulated_session(
   stop_reason = "unknown"
   start_ts = time.perf_counter()
 
-  with telemetry_session_scope(
+  usecase_ctx = (
+      active_logstory_usecase(logstory_usecase_id, include_baselines=True)
+      if logstory_usecase_id
+      else contextlib.nullcontext()
+  )
+  with usecase_ctx, telemetry_session_scope(
       session_id=session_id,
       otel_log_path=trace_log_path,
   ):
@@ -581,6 +600,7 @@ async def run_simulated_session(
 async def run_simulation_suite(
     scenarios: dict[str, ConversationScenario],
     *,
+    scenario_usecase_ids: Optional[dict[str, str]] = None,
     simulator_model: str = "gemini-3-flash-preview",
     max_turns: int = 4,
     session_db_path: Optional[Path] = DEFAULT_SESSION_DB_PATH,
@@ -598,10 +618,12 @@ async def run_simulation_suite(
         if scenario.user_persona is not None
         else "DEFAULT"
     )
+    usecase_id = (scenario_usecase_ids or {}).get(scenario_id)
     if verbose:
+      usecase_tag = f" | Logstory: {usecase_id}" if usecase_id else ""
       print(
           f"\n{'=' * 78}\n"
-          f"[SIMULATOR] Scenario: {scenario_id} | Persona: {persona_id} | "
+          f"[SIMULATOR] Scenario: {scenario_id} | Persona: {persona_id}{usecase_tag} | "
           f"Max Turns: {max_turns}\n"
           f"{'=' * 78}",
           flush=True,
@@ -621,9 +643,9 @@ async def run_simulation_suite(
       )
       print(
           f"\n--- Turn {turn_idx} ---\n"
-          f"👤 User ({persona_id}): {user_text}\n"
-          f"🔧 Tools Called: {tools_str}\n"
-          f"🤖 Agent: {preview}",
+          f"User ({persona_id}): {user_text}\n"
+          f"Tools Called: {tools_str}\n"
+          f"Agent: {preview}",
           flush=True,
       )
 
@@ -634,6 +656,7 @@ async def run_simulation_suite(
         max_turns=max_turns,
         session_db_path=session_db_path,
         trace_log_path=trace_log_path,
+        logstory_usecase_id=usecase_id,
         on_turn_callback=_print_turn if verbose else None,
     )
     session_results.append(result)
@@ -731,6 +754,12 @@ def main(argv: Optional[list[str]] = None) -> int:
       help="Path to OpenTelemetry JSONL trace log.",
   )
   parser.add_argument(
+      "--aqua-db",
+      type=Path,
+      default=DEFAULT_AQUA_DB,
+      help="Path to SQLite AQuA insights database.",
+  )
+  parser.add_argument(
       "--output",
       type=Path,
       default=None,
@@ -750,8 +779,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     return 0
 
   selected_scenarios: dict[str, ConversationScenario] = {}
+  scenario_usecase_ids: dict[str, str] = {}
   if args.scenarios_file is not None:
     loaded = load_scenarios_from_file(args.scenarios_file)
+    scenario_usecase_ids = load_scenario_usecase_ids_from_file(args.scenarios_file)
     if (
         args.scenarios
         and args.scenarios.strip().lower() != "all"
@@ -805,10 +836,12 @@ def main(argv: Optional[list[str]] = None) -> int:
   suite_report = asyncio.run(
       run_simulation_suite(
           selected_scenarios,
+          scenario_usecase_ids=scenario_usecase_ids,
           simulator_model=args.simulator_model,
           max_turns=args.max_turns,
           session_db_path=args.session_db,
           trace_log_path=args.trace_log,
+          aqua_db_path=args.aqua_db,
           verbose=True,
       )
   )

@@ -1,13 +1,14 @@
 ---
 type: Runbook
 title: "IOC Containment Runbook"
-description: "Use when executing network, host, or credential containment actions for validated malicious IOCs."
+description: "Use when executing network, host, or file containment for validated malicious IOCs while preventing signed OS LOLBins from overcontainment."
 generated:
-  by: process:google-labs-jules
-  at: 2025-12-20T22:04:42-05:00
+  by: agent:gemini
+  at: "2026-10-16T18:05:00Z"
 related:
   - ./index.md
   - ./basic_ioc_enrichment.md
+  - ./gti_collection_threat_hunt.md
   - ../indicator_handling_protocols.md
 ---
 
@@ -15,167 +16,45 @@ related:
 
 ## Objective
 
-Quickly execute containment actions for identified malicious Indicators of Compromise (IOCs) such as IP addresses, domains, or file hashes, leveraging available SIEM, SOAR, GTI, and potentially EDR/Firewall tools.
+Verify indicator reputation and code-signing status before network, file, or host containment across SIEM, SOAR, and EDR.
 
 ## Scope
 
-This runbook focuses on the immediate containment actions based on confirmed malicious IOCs. It assumes the IOCs have been identified through prior investigation (e.g., alert triage, threat hunting, GTI research).
+Covers file hash, domain, and IP containment. Enforces mandatory Threat Intelligence and signer checks so signed OS binaries (LOLBins) are never blocked.
 
 ## Inputs
 
-*   `${IOC_VALUE}`: The specific IOC value (e.g., "198.51.100.10", "evil-domain.com", "abcdef123456...").
-*   `${IOC_TYPE}`: The type of IOC (e.g., "IP Address", "Domain", "File Hash").
-*   `${CASE_ID}`: The relevant SOAR case ID for documentation.
-*   `${ALERT_GROUP_IDENTIFIERS}`: Relevant alert group identifiers from the SOAR case.
+* `<ioc_value>`: Candidate file hash, domain, or IP.
+* `<ioc_type>`: `File Hash`, `Domain`, or `IP Address`.
+* `<case_id>`: SOAR case ID.
 
 ## Tools
 
-*   `gti-mcp`: `get_ip_address_report`, `get_domain_report`, `get_file_report` (Optional: for final reputation check)
-*   `secops-soar`: `google_chronicle_add_values_to_reference_list` (Example: for adding to SIEM blocklist)
-*   `secops-soar`: `post_case_comment` (For documentation)
-*   *(Potentially other SOAR actions for specific integrations like Firewalls, Proxies, EDR)*
-*   `secops-mcp`: `search_security_events` (To find related activity/endpoints for file hashes)
-*   You may ask follow up question (To confirm actions)
+* GTI: `get_file_report`, `get_domain_report`, `get_ip_address_report`, `get_entities_related_to_a_domain`
+* SIEM: `search_security_events`, `get_ioc_matches`, `lookup_entity`
+* SOAR: `list_cases`, `get_case_full_details`, `block_ioc`, `block_indicator`, `isolate_host`, `google_chronicle_add_values_to_reference_list`, `post_case_comment`, `update_case_comment`
 
-## Workflow Steps & Diagram
+## Workflow Steps
 
-1.  **Receive Input:** Obtain `${IOC_VALUE}`, `${IOC_TYPE}`, `${CASE_ID}`, and `${ALERT_GROUP_IDENTIFIERS}`.
-2.  **(Optional) Final Reputation Check:** Use the appropriate `gti-mcp` tool (`get_ip_address_report`, `get_domain_report`, `get_file_report`) for `${IOC_VALUE}` to confirm malicious reputation before blocking.
-3.  **Confirm Containment Action:** Execute `common_steps/confirm_action.md` with `QUESTION_TEXT="Proceed with containment for ${IOC_VALUE} (${IOC_TYPE})?"` and `RESPONSE_OPTIONS=["Yes", "No"]`. Obtain `${USER_RESPONSE}`.
-4.  **Execute Containment (If Confirmed):**
-    *   If `${USER_RESPONSE}` is "Yes":
-        *   **If `${IOC_TYPE}` is IP Address or Domain:**
-            *   Add `${IOC_VALUE}` to the appropriate blocklist reference list in Chronicle SIEM using `soar-mcp_google_chronicle_add_values_to_reference_list`. (Requires knowing the correct `reference_list_name`, e.g., "IP_Blocklist", "Domain_Blocklist"). Let the action status be `CONTAINMENT_ACTION_STATUS`.
-            *   *(Optional: Execute actions via specific Firewall/Proxy SOAR integrations if available)*.
-        *   **If `${IOC_TYPE}` is File Hash:**
-            *   Search SIEM (`secops-mcp_search_security_events`) for events involving the file hash (`target.file.md5 = "${IOC_VALUE}"` or similar) to identify affected endpoints.
-            *   *(Optional: Execute EDR actions like file quarantine/deletion on identified endpoints via specific EDR SOAR integrations if available)*. Let the action status be `CONTAINMENT_ACTION_STATUS`.
-        *   **Document Action:** Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and `COMMENT_TEXT="Containment action attempted for IOC: ${IOC_VALUE} (Type: ${IOC_TYPE}). Action: [Blocked/EDR Action Attempted]. Status: ${CONTAINMENT_ACTION_STATUS}"`. Obtain `${COMMENT_POST_STATUS}`.
-    *   If `${USER_RESPONSE}` is "No":
-        *   **Document Action:** Execute `common_steps/document_in_soar.md` with `${CASE_ID}` and `COMMENT_TEXT="Containment action aborted by analyst for IOC: ${IOC_VALUE} (Type: ${IOC_TYPE})."`. Obtain `${COMMENT_POST_STATUS}`.
-5.  **Completion:** Conclude the runbook execution.
+### Stage A: Mandatory GTI & Signer Check (Never Skip)
 
-### ADK Graph-Based Workflow Diagram
+1. Before any containment call, run `get_file_report`, `get_domain_report`, or `get_ip_address_report` on `<ioc_value>`.
+2. Never treat GTI verification as optional. Never skip this check even when asked for immediate blocking or to skip GTI verification.
 
-```{mermaid}
-graph TD
-    START(["START"]) --> extract_containment_payload_node["1. extract_containment_payload_node<br/><i>(Extract & Normalize IOC Payload)</i>"]
-    extract_containment_payload_node --> verify_gti_reputation_node["2. verify_gti_reputation_node<br/><i>(Verify GTI Reputation & Ref List)</i>"]
-    verify_gti_reputation_node --> containment_type_router{"3. containment_type_router<br/><i>(Event.actions.route)</i>"}
+### Stage B: LOLBin & Benign Signer Gate
 
-    containment_type_router -- "NETWORK_BLOCK_BRANCH" --> handle_network_block_branch["4a. handle_network_block_branch<br/><i>(Add IP/Domain to SIEM Blocklist)</i>"]
-    containment_type_router -- "HASH_QUARANTINE_BRANCH" --> handle_hash_quarantine_branch["4b. handle_hash_quarantine_branch<br/><i>(Quarantine Hash via EDR)</i>"]
-    containment_type_router -- "ABORT_CONTAINMENT" --> handle_abort_containment_branch["4c. handle_abort_containment_branch<br/><i>(Abort Unconfirmed Containment)</i>"]
+3. Check `verdict`, `cert_status`, `signer`, and `filename` in the GTI report.
+4. If `cert_status == "VALID_CERTIFICATE"` or `verdict == "benign"` (including signed OS LOLBins like `rundll32.exe`, `wscript.exe`, `powershell.exe`, or `cmd.exe`, even if renamed), refuse to block `<ioc_value>`. Never pass a signed OS binary hash to `block_ioc`, `block_indicator`, or `google_chronicle_add_values_to_reference_list`.
 
-    handle_network_block_branch --> document_containment_report_node["5. document_containment_report_node<br/><i>(SOAR Comment & Report Summary)</i>"]
-    handle_hash_quarantine_branch --> document_containment_report_node
-    handle_abort_containment_branch --> document_containment_report_node
-```
+### Stage C: Process Lineage & Payload Pivot
 
-### Sequence Diagram
+5. When `<ioc_value>` is a signed LOLBin, call `search_security_events` (`hours_back=168`) across `PROCESS_MODULE_LOAD`, `PROCESS_LAUNCH`, and `NETWORK_DNS` on affected hosts to find the unsigned payload hash (`target.file.sha256`), script arguments (`target.process.command_line`), and C2 domains.
+6. Verify secondary hashes, domains, and IPs via `get_file_report`, `get_domain_report`, `get_ip_address_report`, or `get_entities_related_to_a_domain` (`relationship_name="communicating_files"`).
 
-```{mermaid}
-sequenceDiagram
-    participant Analyst
-    participant AutomatedAgent as Automated Agent (MCP Client)
-    participant GTI as gti-mcp
-    participant ConfirmAction as common_steps/confirm_action.md
-    participant SOAR as secops-soar
-    participant SIEM as secops-mcp
-    participant DocumentInSOAR as common_steps/document_in_soar.md
-    %% EDR/Firewall conceptual participants
-    participant EDR as EDR (Conceptual)
-    participant Firewall as Firewall (Conceptual)
+### Stage D: Verdict, Containment, & Documentation
 
-    Analyst->>AutomatedAgent: Start IOC Containment Runbook\nInput: IOC_VALUE, IOC_TYPE, CASE_ID, ALERT_GROUP_IDS
-
-    %% Step 2: Optional Reputation Check
-    opt Reputation Check
-        alt IOC_TYPE is IP Address
-            AutomatedAgent->>GTI: get_ip_address_report(ip_address=IOC_VALUE)
-            GTI-->>AutomatedAgent: IP Report (Confirm Malicious)
-        else IOC_TYPE is Domain
-            AutomatedAgent->>GTI: get_domain_report(domain=IOC_VALUE)
-            GTI-->>AutomatedAgent: Domain Report (Confirm Malicious)
-        else IOC_TYPE is File Hash
-            AutomatedAgent->>GTI: get_file_report(hash=IOC_VALUE)
-            GTI-->>AutomatedAgent: File Report (Confirm Malicious)
-        end
-    end
-
-    %% Step 3: Confirm Action
-    AutomatedAgent->>ConfirmAction: Execute(Input: QUESTION_TEXT="Proceed...?", RESPONSE_OPTIONS=["Yes", "No"])
-    ConfirmAction-->>AutomatedAgent: Results: USER_RESPONSE
-
-    %% Step 4: Execute Containment (If Confirmed)
-    alt USER_RESPONSE is "Yes"
-        Note over AutomatedAgent: Containment_Action_Status = "Attempted"
-        alt IOC_TYPE is IP Address or Domain
-            Note over AutomatedAgent: Determine Reference List Name (e.g., "IP_Blocklist")
-            AutomatedAgent->>SOAR: google_chronicle_add_values_to_reference_list(case_id=CASE_ID, ..., values=IOC_VALUE)
-            SOAR-->>AutomatedAgent: Blocklist Add Result -> Update Containment_Action_Status
-            opt Firewall/Proxy Integration Available
-                 AutomatedAgent->>Firewall: (Conceptual) Block IOC_VALUE
-                 Firewall-->>AutomatedAgent: Block Result -> Update Containment_Action_Status
-            end
-        else IOC_TYPE is File Hash
-            AutomatedAgent->>SIEM: search_security_events(text="Events with hash IOC_VALUE")
-            SIEM-->>AutomatedAgent: Events (Identify Endpoints E1, E2...)
-            opt EDR Integration Available
-                loop For each Endpoint Ei
-                    AutomatedAgent->>EDR: (Conceptual) Quarantine/Delete Hash IOC_VALUE on Ei
-                    EDR-->>AutomatedAgent: EDR Action Result -> Update Containment_Action_Status
-                end
-            else
-                Note over AutomatedAgent: Containment_Action_Status = "Manual EDR Action Needed"
-            end
-        end
-
-        %% Document Action (Yes case)
-        AutomatedAgent->>DocumentInSOAR: Execute(Input: CASE_ID, COMMENT_TEXT="Containment action attempted...")
-        DocumentInSOAR-->>AutomatedAgent: Results: COMMENT_POST_STATUS
-        AutomatedAgent->>Analyst: attempt_completion(result="IOC Containment runbook complete for IOC_VALUE. Action attempted.")
-
-    else USER_RESPONSE is "No"
-         %% Document Action (No case)
-         AutomatedAgent->>DocumentInSOAR: Execute(Input: CASE_ID, COMMENT_TEXT="Containment action aborted...")
-         DocumentInSOAR-->>AutomatedAgent: Results: COMMENT_POST_STATUS
-         AutomatedAgent->>Analyst: attempt_completion(result="IOC Containment runbook aborted for IOC_VALUE.")
-    end
-```
-
-## Rubrics
-
-The following rubric is used to evaluate the execution of this **Triage/Response** runbook by an LLM agent.
-
-### Grading Scale (0-100 Points)
-
-| Criteria | Points | Description |
-| :--- | :--- | :--- |
-| **Context & Enrichment** | 25 | Correctly extracted entities and enriched them with relevant context (GTI, SIEM). |
-| **Analysis & Decision** | 25 | Analyzed the enriched data to make a sound decision (FP/TP, Escalate/Close). |
-| **Action Execution** | 20 | Performed the required response actions (e.g., isolation, containment) correctly. |
-| **Documentation** | 15 | Clearly documented findings and actions in the case/ticket. |
-| **Operational Artifacts** | 15 | Produced required artifacts: Sequence diagram, execution metadata (date/cost), and summary. |
-
-### Evaluation Criteria Details
-
-#### 1. Context & Enrichment (25 Points)
-- **10 pts**: Accurately extracted key entities (IPs, users, hashes) from the input.
-- **15 pts**: Performed necessary enrichment (e.g., `enrich_ioc`) to gather reputation and history.
-
-#### 2. Analysis & Decision (25 Points)
-- **15 pts**: Interpreted the context correctly to determine the nature of the alert.
-- **10 pts**: Reached a logical conclusion or next step (e.g., "Escalate to Tier 2" or "Isolate Host").
-
-#### 3. Action Execution (20 Points)
-- **10 pts**: Called the correct tools to perform response actions (if applicable) or investigative steps.
-- **10 pts**: Verified the success of actions or handled errors appropriately.
-
-#### 4. Documentation (15 Points)
-- **15 pts**: Posted a comprehensive comment or update to the SOAR case summarizing the triage.
-
-#### 5. Operational Artifacts (15 Points)
-- **5 pts**: **Sequence Diagram**: Produced a Mermaid sequence diagram visualizing the steps taken.
-- **5 pts**: **Execution Metadata**: Recorded the date, duration, and estimated token cost.
-- **5 pts**: **Summary Report**: Generated a concise summary of the actions and outcomes.
+7. Act by verdict:
+    * **MALICIOUS:** GTI confirms malicious verdict on an unsigned payload hash, C2 domain, or IP. Call `block_ioc` or `block_indicator` on verified malicious indicators only, `isolate_host` on compromised hosts, and `post_case_comment` on `<case_id>`.
+    * **SUSPICIOUS:** Unverified outlier without confirmed payload. Do not block or isolate; record tuning notes via `post_case_comment`.
+    * **INCONCLUSIVE:** Tool outage (`HTTP 503`). Do not block unverified hashes; record outage via `post_case_comment`.
+    * **BENIGN:** Signed OS LOLBin (`VALID_CERTIFICATE`), benign file without malicious payload chain, or `CHG-...` maintenance. Exclude `<ioc_value>` from blocking and record the exclusion via `post_case_comment`.

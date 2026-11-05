@@ -12,6 +12,8 @@ EXPECTED_CATEGORIES = {
         "malware-triage",
         "basic-endpoint-triage-isolation",
         "cloud-vulnerability-triage",
+        "cloud-honeytoken-deception-triage",
+        "insider-threat-workspace-sabotage-triage",
     ],
     "irps": [
         "compromised-user-account-response",
@@ -39,6 +41,9 @@ EXPECTED_CATEGORIES = {
         "guided-ttp-hunt-credential-access",
         "lateral-movement-hunt-psexec-wmi",
         "proactive-hunt-gti-campaign",
+        "gti-collection-threat-hunt",
+        "edge-appliance-webshell-hunt",
+        "dns-tunneling-network-beacon-hunt",
     ],
     "detection": [
         "detection-rule-validation-tuning",

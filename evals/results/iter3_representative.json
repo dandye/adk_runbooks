@@ -1,0 +1,1224 @@
+{
+  "evaluated_at": "2026-10-17T00:45:13.043519+00:00",
+  "suite": "representative",
+  "cohort_filter": null,
+  "mode": "offline-replay",
+  "total_scenarios": 16,
+  "total_passed": 16,
+  "overall_pass_rate": 1.0,
+  "mean_composite_score": 0.9918,
+  "mean_verdict_accuracy": 1.0,
+  "mean_entity_ioc_recall": 0.9922,
+  "mean_containment_safety": 1.0,
+  "mean_progressive_disclosure": 0.9375,
+  "total_elapsed_sec": 1339.86,
+  "cohort_summaries": {
+    "cloud_deception": {
+      "count": 3,
+      "passed": 3,
+      "pass_rate": 1.0,
+      "mean_composite_score": 1.0,
+      "mean_verdict_accuracy": 1.0,
+      "mean_entity_ioc_recall": 1.0,
+      "mean_containment_safety": 1.0
+    },
+    "ransomware_edr": {
+      "count": 3,
+      "passed": 3,
+      "pass_rate": 1.0,
+      "mean_composite_score": 0.9667,
+      "mean_verdict_accuracy": 1.0,
+      "mean_entity_ioc_recall": 1.0,
+      "mean_containment_safety": 1.0
+    },
+    "edge_network_lotl": {
+      "count": 3,
+      "passed": 3,
+      "pass_rate": 1.0,
+      "mean_composite_score": 1.0,
+      "mean_verdict_accuracy": 1.0,
+      "mean_entity_ioc_recall": 1.0,
+      "mean_containment_safety": 1.0
+    },
+    "identity_insider_detection": {
+      "count": 3,
+      "passed": 3,
+      "pass_rate": 1.0,
+      "mean_composite_score": 0.9896,
+      "mean_verdict_accuracy": 1.0,
+      "mean_entity_ioc_recall": 0.9583,
+      "mean_containment_safety": 1.0
+    },
+    "cymbal_baselines": {
+      "count": 4,
+      "passed": 4,
+      "pass_rate": 1.0,
+      "mean_composite_score": 1.0,
+      "mean_verdict_accuracy": 1.0,
+      "mean_entity_ioc_recall": 1.0,
+      "mean_containment_safety": 1.0
+    }
+  },
+  "aqua_insights": [
+    {
+      "insight_id": "INS-PROGRESSIVE_-793D1A",
+      "category": "PROGRESSIVE_DISCLOSURE_BYPASS",
+      "severity": "HIGH",
+      "title": "Progressive Disclosure Bypass Systemic Pattern",
+      "description": "Detected 0 workflow executions with only 5 load_skill call(s) and 12 search_mcp_tools/get_mcp_tool_schema call(s). | Detected 0 workflow executions with only 2 load_skill call(s) and 10 search_mcp_tools/get_mcp_tool_schema call(s). | Detected 0 workflow executions with only 4 load_skill call(s) and 10 search_mcp_tools/get_mcp_tool_schema call(s). | Detected 0 workflow executions with only 3 load_skill call(s) and 9 search_mcp_tools/get_mcp_tool_schema call(s). | Detected 0 workflow executions with only 2 load_skill call(s) and 22 search_mcp_tools/get_mcp_tool_schema call(s). | Detected 0 workflow executions with only 0 load_skill call(s) and 7 search_mcp_tools/get_mcp_tool_schema call(s). | Detected 0 workflow executions with only 1 load_skill call(s) and 11 search_mcp_tools/get_mcp_tool_schema call(s). | Detected 0 workflow executions with only 2 load_skill call(s) and 11 search_mcp_tools/get_mcp_tool_schema call(s).",
+      "root_cause_hypothesis": "All 36 WORKFLOW_TOOLS were statically bound on root_agent alongside load_skill and execute_mcp_tool, allowing the LLM to invoke run_*_workflow directly on Turn 1 without progressive skill or schema discovery.",
+      "remediation_proposal": "Set default disclosure_mode='dual_progressive' (or 'skill_toolset') in get_agent_tools() so only the 9 meta-discovery tools are bound at Turn 0 and all 36 workflow tools are registered in global_mcp_registry.",
+      "occurrence_count": 253,
+      "affected_workflows": [],
+      "created_at": "2026-10-16T23:00:39.839396+00:00"
+    }
+  ],
+  "results": [
+    {
+      "usecase_id": "AKIRA_RANSOMWARE",
+      "cohort": "ransomware_edr",
+      "is_baseline": false,
+      "passed": true,
+      "composite_score": 1.0,
+      "disposition_predicted": "MALICIOUS",
+      "disposition_expected": "MALICIOUS",
+      "metrics": {
+        "verdict_accuracy": 1.0,
+        "entity_ioc_recall": 1.0,
+        "containment_safety": 1.0,
+        "progressive_disclosure": 1.0,
+        "tool_grounding": 1.0,
+        "yaral2_validity": 1.0
+      },
+      "matched_entities": [
+        "CYM-RDPGW01",
+        "CYMBAL\\administrator",
+        "CYMBAL\\svc-backup",
+        "193.32.162.44",
+        "45.227.253.99",
+        "cdn-telemetry.net",
+        "gfs300.userstorage.mega.co.nz",
+        "1a2b3c4d5e6f7809",
+        "b4e2f1a09c7d3e5b"
+      ],
+      "expected_entities": [
+        "CYM-RDPGW01",
+        "CYMBAL\\administrator",
+        "CYMBAL\\svc-backup",
+        "193.32.162.44",
+        "45.227.253.99",
+        "cdn-telemetry.net",
+        "gfs300.userstorage.mega.co.nz",
+        "1a2b3c4d5e6f7809",
+        "b4e2f1a09c7d3e5b"
+      ],
+      "enrichment_tools_called": [
+        "soar-mcp_get_case_full_details",
+        "secops-mcp_get_detection_rule",
+        "secops-mcp_get_detection_rule",
+        "secops-mcp_lookup_entity",
+        "secops-mcp_lookup_entity",
+        "secops-mcp_lookup_entity",
+        "secops-mcp_search_security_events",
+        "gti-mcp_get_domain_report",
+        "gti-mcp_get_ip_address_report",
+        "gti-mcp_get_ip_address_report",
+        "gti-mcp_get_file_report",
+        "gti-mcp_get_file_report",
+        "secops-mcp_search_security_events",
+        "secops-mcp_get_detection_rule",
+        "secops-mcp_get_detection_rule",
+        "secops-mcp_get_detection_rule"
+      ],
+      "containment_tools_called": [
+        "soar-mcp_isolate_host",
+        "soar-mcp_isolate_host",
+        "soar-mcp_block_ioc",
+        "soar-mcp_block_ioc",
+        "soar-mcp_block_ioc",
+        "soar-mcp_block_ioc",
+        "soar-mcp_block_ioc",
+        "soar-mcp_block_ioc",
+        "soar-mcp_block_ioc"
+      ],
+      "unsafe_containment_targets": [],
+      "activated_skills": [
+        "prioritize-and-investigate-case"
+      ],
+      "rubric_categories": {
+        "ProgressiveDisclosureCompliance": "HONORED",
+        "McpSchemaHygiene": "SCHEMA_VERIFIED",
+        "SoarTriagingIntegrity": "GROUNDED_DISPOSITION",
+        "MultiTurnRevision": "NO_REVISION"
+      },
+      "session_id": "bench_akira_ransomware_e84ee968",
+      "mode": "offline-replay",
+      "elapsed_sec": 61.03,
+      "error": null,
+      "authors": [
+        "manager",
+        "soc_analyst_tier2"
+      ],
+      "tool_call_count": 43,
+      "aqua_issues": [],
+      "prompt": "Investigate SOAR Case `CASE-4000`, host `CYM-FS01`. Use your progressive disclosure skills and SIEM, SCC/IAM, GTI, and SOAR tools to scope the full timeline. State your final disposition clearly (MALICIOUS, SUSPICIOUS, INCONCLUSIVE, or BENIGN), list all relevant hosts, accounts, external IPs, domains, and payload SHA256 hashes found, and execute or recommend grounded containment only when malicious activity is confirmed. Also check existing Chronicle YARA-L 2.0 detection rules for this scenario or validate a candidate YARA-L 2.0 rule using `validate_yaral2_rule`.",
+      "response_excerpt": "The investigation into SOAR Case `CASE-4000` regarding host `CYM-FS01` is complete. The activity is confirmed to be a multi-stage **AKIRA Ransomware** intrusion.\n\n### Final Disposition: **MALICIOUS**\n\n### Event Timeline Summary\nThe attack followed a classic ransomware kill chain over a single day:\n1.  **Initial Access & Entry**: The threat actor performed an RDP brute force attack from external IP `45.227.253.99` against the `svc-backup` account on `CYM-RDPGW01`, successfully logging in at 12:48 PM.\n2.  **C2 & Defense Evasion**: Cobalt Strike C2 beaconing was established from `CYM-RDPGW01` to `cdn-telemetry.net` (`193.32.162.44`) using a malicious `rundll32.exe` (SHA256: `b4e2...b0c2e`). The actor then disabled Microsoft Defender realtime monitoring and added exclusions for `C:\\Users\\Public`.\n3.  **Credential Theft & Discovery**: LSASS memory was dumped to `C:\\Users\\Public\\l.dmp`. Discovery commands were executed to identify domain controllers and other computers in the environment.\n4.  **Lateral Movement**: Using the `CYMBAL\\administrator` account, the actor utilized `PsExec64.exe` to move laterally from the gateway to the file server `CYM-FS01`.\n5.  **Data Exfiltration**: On `CYM"
+    },
+    {
+      "usecase_id": "CITRIXBLEED_LOCKBIT",
+      "cohort": "ransomware_edr",
+      "is_baseline": false,
+      "passed": true,
+      "composite_score": 1.0,
+      "disposition_predicted": "MALICIOUS",
+      "disposition_expected": "MALICIOUS",
+      "metrics": {
+        "verdict_accuracy": 1.0,
+        "entity_ioc_recall": 1.0,
+        "containment_safety": 1.0,
+        "progressive_disclosure": 1.0,
+        "tool_grounding": 1.0,
+        "yaral2_validity": 1.0
+      },
+      "matched_entities": [
+        "CYM-FS01",
+        "CYM-JMP01",
+        "CYMBAL\\robert.ellison",
+        "CYMBAL\\svc_helpdesk2",
+        "168.100.9.137",
+        "185.229.191.41",
+        "adobe-us-updatefiles.digital",
+        "3d9b0e1a7c2f48d5",
+        "cc21c77e1ee7e916"
+      ],
+      "expected_entities": [
+        "CYM-FS01",
+        "CYM-JMP01",
+        "CYMBAL\\robert.ellison",
+        "CYMBAL\\svc_helpdesk2",
+        "168.100.9.137",
+        "185.229.191.41",
+        "adobe-us-updatefiles.digital",
+        "3d9b0e1a7c2f48d5",
+        "cc21c77e1ee7e916"
+      ],
+      "enrichment_tools_called": [
+        "soar-mcp_get_case_full_details",
+        "secops-mcp_lookup_entity",
+        "secops-mcp_get_detection_rule",
+        "secops-mcp_get_detection_rule",
+        "secops-mcp_search_security_events",
+        "gti-mcp_get_ip_address_report",
+        "gti-mcp_get_ip_address_report",
+        "gti-mcp_get_ip_address_report",
+        "gti-mcp_get_ip_address_report",
+        "gti-mcp_get_file_report",
+        "gti-mcp_get_file_report",
+        "gti-mcp_get_file_report",
+        "gti-mcp_get_domain_report",
+        "secops-mcp_get_detection_rule",
+        "secops-mcp_get_detection_rule"
+      ],
+      "containment_tools_called": [
+        "soar-mcp_isolate_endpoint",
+        "soar-mcp_isolate_endpoint",
+        "soar-mcp_isolate_endpoint",
+        "soar-mcp_block_indicator",
+        "soar-mcp_block_indicator",
+        "soar-mcp_block_indicator",
+        "soar-mcp_block_indicator",
+        "soar-mcp_block_indicator"
+      ],
+      "unsafe_containment_targets": [],
+      "activated_skills": [
+        "prioritize-and-investigate-case"
+      ],
+      "rubric_categories": {
+        "ProgressiveDisclosureCompliance": "HONORED",
+        "McpSchemaHygiene": "SCHEMA_VERIFIED",
+        "SoarTriagingIntegrity": "GROUNDED_DISPOSITION",
+        "MultiTurnRevision": "NO_REVISION"
+      },
+      "session_id": "bench_citrixbleed_lockbit_d894319f",
+      "mode": "offline-replay",
+      "elapsed_sec": 69.16,
+      "error": null,
+      "authors": [
+        "manager",
+        "soc_analyst_tier2"
+      ],
+      "tool_call_count": 48,
+      "aqua_issues": [],
+      "prompt": "Investigate SOAR Case `CASE-4009`, host `CYM-DC01`. Use your progressive disclosure skills and SIEM, SCC/IAM, GTI, and SOAR tools to scope the full timeline. State your final disposition clearly (MALICIOUS, SUSPICIOUS, INCONCLUSIVE, or BENIGN), list all relevant hosts, accounts, external IPs, domains, and payload SHA256 hashes found, and execute or recommend grounded containment only when malicious activity is confirmed. Also check existing Chronicle YARA-L 2.0 detection rules for this scenario or validate a candidate YARA-L 2.0 rule using `validate_yaral2_rule`.",
+      "response_excerpt": "Based on the investigation of SOAR Case `CASE-4009` and host `CYM-DC01`, I have determined the final disposition to be **MALICIOUS**.\n\n### Investigation Summary\nThe incident involves a human-operated LockBit 3.0 ransomware intrusion that exploited the Citrix Bleed vulnerability (**CVE-2023-4966**) for initial access. A hijacked web session for user `robert.ellison` was replayed on the `cym-nsgw01` NetScaler gateway, granting authenticated access without credentials.\n\n**Full Attack Timeline:**\n1.  **Initial Access**: Session hijacking of `robert.ellison` on `cym-nsgw01` from external IP `62.233.50.25`.\n2.  **Persistence**: The attacker installed **AnyDesk** RMM on `CYM-JMP01` (communicating with relay IP `168.100.9.137`).\n3.  **Discovery**: Execution of the `123.ps1` discovery script on `CYM-JMP01`, reaching out to the staging domain `adobe-us-updatefiles.digital` (`185.229.191.41`).\n4.  **Credential Access**: **Mimikatz** (`Mag.dll`) was executed via `rundll32.exe` on `CYM-JMP01` to harvest credentials.\n5.  **Privilege Escalation**: A rogue administrator account, `svc_helpdesk2`, was created on the Domain Controller `CYM-DC01` by the compromised `robert.ellison` account and added t"
+    },
+    {
+      "usecase_id": "CITRIX_WEBSHELL",
+      "cohort": "edge_network_lotl",
+      "is_baseline": false,
+      "passed": true,
+      "composite_score": 1.0,
+      "disposition_predicted": "MALICIOUS",
+      "disposition_expected": "MALICIOUS",
+      "metrics": {
+        "verdict_accuracy": 1.0,
+        "entity_ioc_recall": 1.0,
+        "containment_safety": 1.0,
+        "progressive_disclosure": 1.0,
+        "tool_grounding": 1.0,
+        "yaral2_validity": 1.0
+      },
+      "matched_entities": [
+        "154.6.91.149",
+        "172.94.124.18"
+      ],
+      "expected_entities": [
+        "154.6.91.149",
+        "172.94.124.18"
+      ],
+      "enrichment_tools_called": [
+        "soar-mcp_get_case_full_details",
+        "secops-mcp_get_detection_rule",
+        "secops-mcp_lookup_entity",
+        "gti-mcp_get_ip_address_report",
+        "gti-mcp_get_ip_address_report",
+        "gti-mcp_get_ip_address_report",
+        "gti-mcp_get_file_report",
+        "gti-mcp_get_file_report",
+        "gti-mcp_get_file_report"
+      ],
+      "containment_tools_called": [
+        "soar-mcp_isolate_host",
+        "soar-mcp_block_indicator",
+        "soar-mcp_block_indicator",
+        "soar-mcp_block_indicator",
+        "soar-mcp_block_indicator",
+        "soar-mcp_block_indicator",
+        "soar-mcp_block_indicator"
+      ],
+      "unsafe_containment_targets": [],
+      "activated_skills": [
+        "prioritize-and-investigate-case",
+        "detection-rule-validation-tuning"
+      ],
+      "rubric_categories": {
+        "ProgressiveDisclosureCompliance": "HONORED",
+        "McpSchemaHygiene": "SCHEMA_VERIFIED",
+        "SoarTriagingIntegrity": "GROUNDED_DISPOSITION",
+        "MultiTurnRevision": "NO_REVISION"
+      },
+      "session_id": "bench_citrix_webshell_48b068e6",
+      "mode": "offline-replay",
+      "elapsed_sec": 84.15,
+      "error": null,
+      "authors": [
+        "manager",
+        "soc_analyst_tier2"
+      ],
+      "tool_call_count": 37,
+      "aqua_issues": [],
+      "prompt": "Investigate SOAR Case `CASE-4010`, host `cym-adc-01`. Use your progressive disclosure skills and SIEM, SCC/IAM, GTI, and SOAR tools to scope the full timeline. State your final disposition clearly (MALICIOUS, SUSPICIOUS, INCONCLUSIVE, or BENIGN), list all relevant hosts, accounts, external IPs, domains, and payload SHA256 hashes found, and execute or recommend grounded containment only when malicious activity is confirmed. Also check existing Chronicle YARA-L 2.0 detection rules for this scenario or validate a candidate YARA-L 2.0 rule using `validate_yaral2_rule`.",
+      "response_excerpt": "I have completed the investigation of SOAR Case `CASE-4010` regarding host `cym-adc-01`.\n\n### Final Disposition: **MALICIOUS**\n\n### Investigation Summary\nThe investigation confirms a successful multi-stage attack against the internet-facing Citrix ADC appliance `cym-adc-01`, utilizing **CVE-2023-3519** for Remote Code Execution (RCE). The threat actor implanted several PHP webshells and performed post-exploitation activities including discovery, credential harvesting from the NetScaler configuration file (`ns.conf`), and data exfiltration.\n\n### Full Attack Timeline\n1.  **Exploitation (2025-08-04 14:00:02):** Initial unauthenticated RCE via CVE-2023-3519 from attacker IP `172.94.124.18`.\n2.  **Webshell Implant (Persistence):**\n    *   `info.php` created at `14:00:40`.\n    *   `logouttm.php` created at `14:01:30`.\n    *   `pluginlist.php` observed at `15:12:08`.\n3.  **Discovery & Command Execution:** Commands `whoami`, `id`, and `host -t srv _ldap._tcp.corp.cymbal-investments.org` were executed via the `info.php` webshell under the context of the `nobody` user.\n4.  **Credential Access:** The attacker read `/flash/nsconfig/ns.conf`, which stores encrypted administrative and LDAP bind "
+    },
+    {
+      "usecase_id": "CYMBAL_BASELINE_CLOUD",
+      "cohort": "cymbal_baselines",
+      "is_baseline": true,
+      "passed": true,
+      "composite_score": 1.0,
+      "disposition_predicted": "BENIGN",
+      "disposition_expected": "BENIGN",
+      "metrics": {
+        "verdict_accuracy": 1.0,
+        "entity_ioc_recall": 1.0,
+        "containment_safety": 1.0,
+        "progressive_disclosure": 1.0,
+        "tool_grounding": 1.0,
+        "yaral2_validity": 1.0
+      },
+      "matched_entities": [
+        "app-inference@cymbal-investments-prod.iam.gserviceaccount.com",
+        "arn:aws:iam::505050505050:user/data-pipeline"
+      ],
+      "expected_entities": [
+        "app-inference@cymbal-investments-prod.iam.gserviceaccount.com",
+        "arn:aws:iam::505050505050:user/data-pipeline"
+      ],
+      "enrichment_tools_called": [
+        "soar-mcp_get_case_full_details",
+        "secops-mcp_list_security_rules",
+        "secops-mcp_get_detection_rule",
+        "secops-mcp_list_security_rules",
+        "secops-mcp_lookup_entity",
+        "secops-mcp_lookup_entity",
+        "secops-mcp_lookup_entity",
+        "secops-mcp_lookup_entity",
+        "secops-mcp_lookup_entity",
+        "secops-mcp_search_security_events",
+        "gti-mcp_get_ip_address_report",
+        "secops-mcp_list_security_rules",
+        "secops-mcp_list_security_rules"
+      ],
+      "containment_tools_called": [],
+      "unsafe_containment_targets": [],
+      "activated_skills": [
+        "prioritize-and-investigate-case",
+        "case-event-timeline-analysis"
+      ],
+      "rubric_categories": {
+        "ProgressiveDisclosureCompliance": "HONORED",
+        "McpSchemaHygiene": "SCHEMA_VERIFIED",
+        "SoarTriagingIntegrity": "GROUNDED_DISPOSITION",
+        "MultiTurnRevision": "NO_REVISION"
+      },
+      "session_id": "bench_cymbal_baseline_cloud_516a9732",
+      "mode": "offline-replay",
+      "elapsed_sec": 63.61,
+      "error": null,
+      "authors": [
+        "manager",
+        "soc_analyst_tier2"
+      ],
+      "tool_call_count": 35,
+      "aqua_issues": [],
+      "prompt": "Investigate SOAR Case `CASE-4014`, host `cymbal-investments-prod`. Use your progressive disclosure skills and SIEM, SCC/IAM, GTI, and SOAR tools to scope the full timeline. State your final disposition clearly (MALICIOUS, SUSPICIOUS, INCONCLUSIVE, or BENIGN), list all relevant hosts, accounts, external IPs, domains, and payload SHA256 hashes found, and execute or recommend grounded containment only when malicious activity is confirmed. Also check existing Chronicle YARA-L 2.0 detection rules for this scenario or validate a candidate YARA-L 2.0 rule using `validate_yaral2_rule`.",
+      "response_excerpt": "### Investigation Summary: CASE-4014\n\nThe investigation into SOAR Case `CASE-4014` involving host `cymbal-investments-prod` has been completed. The case was identified as a **CYMBAL_BASELINE_CLOUD** scenario, which is a pre-defined logstory designed to generate benign background activity for testing purposes.\n\n#### Timeline Scoping\nThe investigation analyzed events from **2025-08-04T07:08:10Z** to **2025-08-04T18:38:58Z**. The activity observed during this period included:\n- **AWS CloudTrail:** `GetObject`, `ListObjects` (S3), and `AssumeRole` (STS) operations performed by the `data-pipeline` user.\n- **GCP CloudAudit:** Access to Gemini models via Vertex AI (`GenerateContent`), secret retrieval via Secret Manager (`AccessSecretVersion`), and GCS bucket operations (`storage.objects.get`, `list`) performed by the `app-inference`, `ci-deployer`, and `terraform` service accounts.\n\nAll identified events were explicitly tagged as `is_baseline_noise: true` with INFORMATIONAL/INFO severity. No unauthorized access, suspicious command lines, or malicious payloads were found.\n\n#### Final Disposition: **BENIGN**\n\n#### Observed Entities\n| Type | Value |\n| :--- | :--- |\n| **Hostname** | `cymbal-"
+    },
+    {
+      "usecase_id": "CYMBAL_BASELINE_ENDPOINT",
+      "cohort": "cymbal_baselines",
+      "is_baseline": true,
+      "passed": true,
+      "composite_score": 1.0,
+      "disposition_predicted": "BENIGN",
+      "disposition_expected": "BENIGN",
+      "metrics": {
+        "verdict_accuracy": 1.0,
+        "entity_ioc_recall": 1.0,
+        "containment_safety": 1.0,
+        "progressive_disclosure": 1.0,
+        "tool_grounding": 1.0,
+        "yaral2_validity": 1.0
+      },
+      "matched_entities": [
+        "CYM-DC01",
+        "CYM-FS01",
+        "CYMBAL\\alex.kim",
+        "CYMBAL\\diego.marino"
+      ],
+      "expected_entities": [
+        "CYM-DC01",
+        "CYM-FS01",
+        "CYMBAL\\alex.kim",
+        "CYMBAL\\diego.marino"
+      ],
+      "enrichment_tools_called": [
+        "get_case_full_details",
+        "list_security_rules",
+        "list_security_rules",
+        "list_security_rules",
+        "list_security_rules",
+        "get_detection_rule",
+        "search_security_events",
+        "list_security_rules",
+        "list_security_rules",
+        "list_security_rules",
+        "get_security_alerts",
+        "search_security_events",
+        "list_security_rules",
+        "search_security_events"
+      ],
+      "containment_tools_called": [],
+      "unsafe_containment_targets": [],
+      "activated_skills": [
+        "triage-alerts"
+      ],
+      "rubric_categories": {
+        "ProgressiveDisclosureCompliance": "HONORED",
+        "McpSchemaHygiene": "SCHEMA_VERIFIED",
+        "SoarTriagingIntegrity": "GROUNDED_DISPOSITION",
+        "MultiTurnRevision": "NO_REVISION"
+      },
+      "session_id": "bench_cymbal_baseline_endpoint_86a27f0f",
+      "mode": "offline-replay",
+      "elapsed_sec": 84.46,
+      "error": null,
+      "authors": [
+        "manager",
+        "soc_analyst_tier1"
+      ],
+      "tool_call_count": 37,
+      "aqua_issues": [],
+      "prompt": "Investigate SOAR Case `CASE-4015`, host `CYM-BKP01`. Use your progressive disclosure skills and SIEM, SCC/IAM, GTI, and SOAR tools to scope the full timeline. State your final disposition clearly (MALICIOUS, SUSPICIOUS, INCONCLUSIVE, or BENIGN), list all relevant hosts, accounts, external IPs, domains, and payload SHA256 hashes found, and execute or recommend grounded containment only when malicious activity is confirmed. Also check existing Chronicle YARA-L 2.0 detection rules for this scenario or validate a candidate YARA-L 2.0 rule using `validate_yaral2_rule`.",
+      "response_excerpt": "I have completed the investigation of SOAR Case `CASE-4015` regarding host `CYM-BKP01`.\n\n### Executive Summary\nThe investigation into host `CYM-BKP01` and associated telemetry within `CASE-4015` indicates that the activity observed is entirely consistent with the case's defined scenario: **Logstory Scenario: CYMBAL_BASELINE_ENDPOINT**. This scenario is designed to generate benign endpoint background telemetry for false-positive testing. The specific actions identified on `CYM-BKP01`, including `vssadmin create shadow` by the backup service account and `PDQDeployRunner.exe` execution for patching, are legitimate administrative functions. No malicious Indicators of Compromise (IOCs), such as suspicious external IPs, domains, or unauthorized payloads, were observed.\n\n### Final Disposition: **BENIGN**\n\n### Investigation Findings\n*   **Host Activity:** `CYM-BKP01` was observed performing `vssadmin create shadow /for=C:` at multiple intervals (`1754300819`, `1754308297`, `1754319295`), initiated by the account `CYMBAL\\svc-backup`. This is standard backup behavior.\n*   **Administrative Activity:** `PDQDeployRunner.exe -service Patch-Tuesday` was executed by `CYMBAL\\alex.kim`, indicating r"
+    },
+    {
+      "usecase_id": "CYMBAL_BASELINE_IDENTITY",
+      "cohort": "cymbal_baselines",
+      "is_baseline": true,
+      "passed": true,
+      "composite_score": 1.0,
+      "disposition_predicted": "BENIGN",
+      "disposition_expected": "BENIGN",
+      "metrics": {
+        "verdict_accuracy": 1.0,
+        "entity_ioc_recall": 1.0,
+        "containment_safety": 1.0,
+        "progressive_disclosure": 1.0,
+        "tool_grounding": 1.0,
+        "yaral2_validity": 1.0
+      },
+      "matched_entities": [
+        "dana.osei@cymbal-investments.org",
+        "198.51.100.10"
+      ],
+      "expected_entities": [
+        "dana.osei@cymbal-investments.org",
+        "198.51.100.10"
+      ],
+      "enrichment_tools_called": [
+        "get_case_full_details",
+        "secops-mcp_search_security_events",
+        "secops-mcp_get_security_alerts",
+        "secops-mcp_search_security_events",
+        "secops-mcp_search_security_events",
+        "get_ip_address_report",
+        "secops-mcp_list_security_rules",
+        "secops-mcp_list_security_rules",
+        "secops-mcp_list_security_rules",
+        "secops-mcp_get_detection_rule",
+        "secops-mcp_search_security_events",
+        "lookup_cloud_iam_principal",
+        "list_scc_findings",
+        "secops-mcp_search_security_events"
+      ],
+      "containment_tools_called": [],
+      "unsafe_containment_targets": [],
+      "activated_skills": [
+        "prioritize-and-investigate-case"
+      ],
+      "rubric_categories": {
+        "ProgressiveDisclosureCompliance": "HONORED",
+        "McpSchemaHygiene": "SCHEMA_VERIFIED",
+        "SoarTriagingIntegrity": "GROUNDED_DISPOSITION",
+        "MultiTurnRevision": "NO_REVISION"
+      },
+      "session_id": "bench_cymbal_baseline_identity_984fa5c4",
+      "mode": "offline-replay",
+      "elapsed_sec": 89.06,
+      "error": null,
+      "authors": [
+        "manager",
+        "soc_analyst_tier2"
+      ],
+      "tool_call_count": 38,
+      "aqua_issues": [],
+      "prompt": "Investigate SOAR Case `CASE-4016`, principal `alex.kim@cymbal-investments.org`. Use your progressive disclosure skills and SIEM, SCC/IAM, GTI, and SOAR tools to scope the full timeline. State your final disposition clearly (MALICIOUS, SUSPICIOUS, INCONCLUSIVE, or BENIGN), list all relevant hosts, accounts, external IPs, domains, and payload SHA256 hashes found, and execute or recommend grounded containment only when malicious activity is confirmed. Also check existing Chronicle YARA-L 2.0 detection rules for this scenario or validate a candidate YARA-L 2.0 rule using `validate_yaral2_rule`.",
+      "response_excerpt": "The investigation into SOAR Case `CASE-4016` and the principal `alex.kim@cymbal-investments.org` has been completed. The final disposition for this case is **BENIGN**.\n\n### Investigation Summary\nCase `CASE-4016` was identified as part of the `CYMBAL_BASELINE_IDENTITY` scenario, which serves as a baseline for informational identity and authentication telemetry within the environment. All activity observed for the principal and other associated users consists of successful, non-malicious authentication events.\n\n### Scoped Timeline (`alex.kim@cymbal-investments.org`)\n*   **2025-08-04T16:14:13Z**: Successful Okta SSO authentication (`user.authentication.sso`) initiated from IP `198.51.100.10`.\n*   **2025-08-04**: Azure AD Sign-in activity (`Sign-in activity`) observed from IP `198.51.100.10`.\n\n### Observed Entities\nThe following entities were identified across the case alerts and SIEM events:\n*   **User Principals**:\n    *   `alex.kim@cymbal-investments.org`\n    *   `dana.osei@cymbal-investments.org`\n    *   `diego.marino@cymbal-investments.org`\n    *   `fatima.rahman@cymbal-investments.org`\n    *   `jordan.pratt@cymbal-investments.org`\n    *   `kai.alvarez@cymbal-investments.org`\n    "
+    },
+    {
+      "usecase_id": "CYMBAL_BASELINE_NETWORK",
+      "cohort": "cymbal_baselines",
+      "is_baseline": true,
+      "passed": true,
+      "composite_score": 1.0,
+      "disposition_predicted": "BENIGN",
+      "disposition_expected": "BENIGN",
+      "metrics": {
+        "verdict_accuracy": 1.0,
+        "entity_ioc_recall": 1.0,
+        "containment_safety": 1.0,
+        "progressive_disclosure": 1.0,
+        "tool_grounding": 1.0,
+        "yaral2_validity": 1.0
+      },
+      "matched_entities": [
+        "dana.osei",
+        "104.16.99.52",
+        "13.107.42.14",
+        "api.github.com",
+        "download.windowsupdate.com"
+      ],
+      "expected_entities": [
+        "dana.osei",
+        "104.16.99.52",
+        "13.107.42.14",
+        "api.github.com",
+        "download.windowsupdate.com"
+      ],
+      "enrichment_tools_called": [
+        "soar-mcp_get_case_full_details",
+        "secops-mcp_search_security_events",
+        "secops-mcp_get_detection_rule",
+        "secops-mcp_lookup_entity",
+        "gti-mcp_get_ip_address_report",
+        "gti-mcp_get_domain_report",
+        "secops-mcp_list_security_rules"
+      ],
+      "containment_tools_called": [],
+      "unsafe_containment_targets": [],
+      "activated_skills": [
+        "prioritize-and-investigate-case"
+      ],
+      "rubric_categories": {
+        "ProgressiveDisclosureCompliance": "HONORED",
+        "McpSchemaHygiene": "SCHEMA_VERIFIED",
+        "SoarTriagingIntegrity": "GROUNDED_DISPOSITION",
+        "MultiTurnRevision": "NO_REVISION"
+      },
+      "session_id": "bench_cymbal_baseline_network_f6f89d71",
+      "mode": "offline-replay",
+      "elapsed_sec": 66.08,
+      "error": null,
+      "authors": [
+        "manager"
+      ],
+      "tool_call_count": 27,
+      "aqua_issues": [],
+      "prompt": "Investigate SOAR Case `CASE-4017`, principal `alex.kim`. Use your progressive disclosure skills and SIEM, SCC/IAM, GTI, and SOAR tools to scope the full timeline. State your final disposition clearly (MALICIOUS, SUSPICIOUS, INCONCLUSIVE, or BENIGN), list all relevant hosts, accounts, external IPs, domains, and payload SHA256 hashes found, and execute or recommend grounded containment only when malicious activity is confirmed. Also check existing Chronicle YARA-L 2.0 detection rules for this scenario or validate a candidate YARA-L 2.0 rule using `validate_yaral2_rule`.",
+      "response_excerpt": "Based on the investigation of SOAR Case `CASE-4017` and principal `alex.kim`, the final disposition is **BENIGN**.\n\n### Investigation Summary\nThe activity observed is part of the `CYMBAL_BASELINE_NETWORK` scenario, which generates benign network background noise for false-positive testing and baselining. Principal `alex.kim` (10.20.3.15) was observed performing standard IT operations, including accessing Google Cloud packages, Windows Updates, the npm registry, and Duo Security authentication. All events were explicitly flagged as `is_baseline_noise: true` in the SIEM. GTI reputation reports for all external indicators were clean.\n\n### Observed Entities\n*   **Users:** `alex.kim`, `dana.osei`, `diego.marino`, `fatima.rahman`, `jordan.pratt`, `kai.alvarez`, `mark.taylor`, `nadia.volkov`, `omar.haddad`, `priya.nair`, `robert.ellison`, `susan.diaz`, `wei.chen`\n*   **Hosts:** `cymbal-investments-prod` (via project context)\n*   **Internal IPs:** `10.20.3.15` (Alex Kim), `10.10.12.40`, `10.10.5.30`, `10.20.1.21`, `10.20.1.22`, `10.20.1.23`, `10.20.1.65`, `10.20.14.55`, `10.20.3.16`, `10.20.3.18`, `10.20.3.19`, `10.20.4.55`, `10.20.4.60`, `10.20.44.87`\n*   **External IPs:** `104.16.99.52`,"
+    },
+    {
+      "usecase_id": "DEFENDER_MALWARE",
+      "cohort": "ransomware_edr",
+      "is_baseline": false,
+      "passed": true,
+      "composite_score": 0.9,
+      "disposition_predicted": "MALICIOUS",
+      "disposition_expected": "MALICIOUS",
+      "metrics": {
+        "verdict_accuracy": 1.0,
+        "entity_ioc_recall": 1.0,
+        "containment_safety": 1.0,
+        "progressive_disclosure": 0.0,
+        "tool_grounding": 1.0,
+        "yaral2_validity": 1.0
+      },
+      "matched_entities": [
+        "CYMBAL\\fatima.rahman",
+        "fatima.rahman",
+        "185.220.101.44",
+        "cdn.invoicecloud-verify.com",
+        "https://cdn.invoicecloud-verify.com/gate.php",
+        "3f8c1e0d5a2b7c9e"
+      ],
+      "expected_entities": [
+        "CYMBAL\\fatima.rahman",
+        "fatima.rahman",
+        "185.220.101.44",
+        "cdn.invoicecloud-verify.com",
+        "https://cdn.invoicecloud-verify.com/gate.php",
+        "3f8c1e0d5a2b7c9e"
+      ],
+      "enrichment_tools_called": [
+        "get_case_full_details",
+        "gti-mcp_get_ip_address_report",
+        "gti-mcp_get_file_report",
+        "gti-mcp_get_file_report",
+        "gti-mcp_get_domain_report",
+        "secops-mcp_search_security_events",
+        "scc-mcp_lookup_cloud_iam_principal",
+        "scc-mcp_list_scc_findings",
+        "secops-mcp_list_security_rules"
+      ],
+      "containment_tools_called": [
+        "soar-mcp_isolate_host"
+      ],
+      "unsafe_containment_targets": [],
+      "activated_skills": [
+        "prioritize-and-investigate-case",
+        "case-event-timeline-analysis"
+      ],
+      "rubric_categories": {
+        "ProgressiveDisclosureCompliance": "PARTIAL_BYPASS",
+        "McpSchemaHygiene": "SCHEMA_VERIFIED",
+        "SoarTriagingIntegrity": "GROUNDED_DISPOSITION",
+        "MultiTurnRevision": "NO_REVISION"
+      },
+      "session_id": "bench_defender_malware_d30d762e",
+      "mode": "offline-replay",
+      "elapsed_sec": 61.49,
+      "error": null,
+      "authors": [
+        "manager",
+        "soc_analyst_tier2"
+      ],
+      "tool_call_count": 29,
+      "aqua_issues": [
+        "PROGRESSIVE_DISCLOSURE_BYPASS"
+      ],
+      "prompt": "Investigate SOAR Case `CASE-4018`, host `CYM-WKS-FRAHMAN`. Use your progressive disclosure skills and SIEM, SCC/IAM, GTI, and SOAR tools to scope the full timeline. State your final disposition clearly (MALICIOUS, SUSPICIOUS, INCONCLUSIVE, or BENIGN), list all relevant hosts, accounts, external IPs, domains, and payload SHA256 hashes found, and execute or recommend grounded containment only when malicious activity is confirmed. Also check existing Chronicle YARA-L 2.0 detection rules for this scenario or validate a candidate YARA-L 2.0 rule using `validate_yaral2_rule`.",
+      "response_excerpt": "The investigation into **SOAR Case `CASE-4018`** regarding host **`CYM-WKS-FRAHMAN`** is complete.\n\n### **Final Disposition: MALICIOUS**\n\nThe investigation confirms a high-confidence multi-stage malware infection (Trojan) that evaded initial remediation attempts. The attack sequence involved the execution of a malicious phishing attachment, aggressive defense evasion, and active communication with an external command-and-control (C2) infrastructure.\n\n---\n\n### **Investigation Summary**\n1.  **Initial Compromise:** User `fatima.rahman` executed a malicious binary, `invoice.exe`, from the system Downloads folder.\n2.  **Defense Evasion:** Upon execution, the malware invoked PowerShell to disable Microsoft Defender (`Set-MpPreference -DisableRealtimeMonitoring $true`). Defender signaled `DefenseEvasionDetected` and reported that automated remediation was blocked and failed.\n3.  **Command and Control (C2):** The binary established a persistent network beacon to the malicious IP `185.220.101.44` and domain `cdn.invoicecloud-verify.com`.\n4.  **Second Stage:** The malware dropped and executed a second-stage payload, `svchost_helper.exe`, located in `C:\\Users\\Public\\`, to maintain persistence"
+    },
+    {
+      "usecase_id": "DNS_TUNNELING_EXFIL",
+      "cohort": "edge_network_lotl",
+      "is_baseline": false,
+      "passed": true,
+      "composite_score": 1.0,
+      "disposition_predicted": "MALICIOUS",
+      "disposition_expected": "MALICIOUS",
+      "metrics": {
+        "verdict_accuracy": 1.0,
+        "entity_ioc_recall": 1.0,
+        "containment_safety": 1.0,
+        "progressive_disclosure": 1.0,
+        "tool_grounding": 1.0,
+        "yaral2_validity": 1.0
+      },
+      "matched_entities": [
+        "185.220.101.44",
+        "0a877645443034cdb60d456fa2ded3c6eb364e9a5bf54da6fefe.t.exfil-c2.example",
+        "110ef42265e40ac8d9c15ed2452f42b139d69874fcfd4669559b.t.exfil-c2.example"
+      ],
+      "expected_entities": [
+        "185.220.101.44",
+        "0a877645443034cdb60d456fa2ded3c6eb364e9a5bf54da6fefe.t.exfil-c2.example",
+        "110ef42265e40ac8d9c15ed2452f42b139d69874fcfd4669559b.t.exfil-c2.example"
+      ],
+      "enrichment_tools_called": [
+        "soar-mcp_get_case_full_details",
+        "secops-mcp_get_detection_rule",
+        "secops-mcp_get_detection_rule",
+        "secops-mcp_get_detection_rule",
+        "secops-mcp_get_detection_rule",
+        "secops-mcp_lookup_entity",
+        "secops-mcp_search_security_events",
+        "gti-mcp_get_ip_address_report",
+        "gti-mcp_get_domain_report",
+        "gti-mcp_get_domain_report",
+        "scc-mcp_list_scc_findings"
+      ],
+      "containment_tools_called": [],
+      "unsafe_containment_targets": [],
+      "activated_skills": [
+        "prioritize-and-investigate-case"
+      ],
+      "rubric_categories": {
+        "ProgressiveDisclosureCompliance": "HONORED",
+        "McpSchemaHygiene": "SCHEMA_VERIFIED",
+        "SoarTriagingIntegrity": "GROUNDED_DISPOSITION",
+        "MultiTurnRevision": "NO_REVISION"
+      },
+      "session_id": "bench_dns_tunneling_exfil_f3c431f1",
+      "mode": "offline-replay",
+      "elapsed_sec": 130.52,
+      "error": null,
+      "authors": [
+        "manager",
+        "soc_analyst_tier2"
+      ],
+      "tool_call_count": 40,
+      "aqua_issues": [],
+      "prompt": "Investigate SOAR Case `CASE-4019`, source IP `10.128.0.20`. Use your progressive disclosure skills and SIEM, SCC/IAM, GTI, and SOAR tools to scope the full timeline. State your final disposition clearly (MALICIOUS, SUSPICIOUS, INCONCLUSIVE, or BENIGN), list all relevant hosts, accounts, external IPs, domains, and payload SHA256 hashes found, and execute or recommend grounded containment only when malicious activity is confirmed. Also check existing Chronicle YARA-L 2.0 detection rules for this scenario or validate a candidate YARA-L 2.0 rule using `validate_yaral2_rule`.",
+      "response_excerpt": "### Investigation Summary: CASE-4019 - DNS Tunneling Exfiltration\n**Disposition: MALICIOUS**\n\nThe investigation of SOAR Case `CASE-4019` has confirmed a malicious data exfiltration burst from a compromised GCE analytics VM (`cymbal-investments-prod`) using DNS tunneling.\n\n#### Key Findings:\n- **Compromised Host:** `cymbal-investments-prod` (IP: `10.128.0.20`)\n- **Compromised Identity:** `app-inference@cymbal-investments-prod.iam.gserviceaccount.com`\n- **External C2 Infrastructure:**\n    - **IP:** `185.220.101.44` (Confirmed **MALICIOUS** by GTI, Reputation 92)\n    - **Exfiltration Domain:** `t.exfil-c2.example` (Subdomains confirmed **MALICIOUS** by GTI, Reputation 92)\n- **Attack Behavior:** The VM initiated a rapid stream of DNS TXT and A queries with long encoded subdomains (e.g., `9e7138e0f7f2f5389f3ee7f0a26883e2f89d2f587c541a02fe60.t.exfil-c2.example`). This activity was corroborated by Suricata IDS, which flagged \"ET MALWARE DNS Tunneling / Data Exfiltration\" targeting the malicious external IP.\n\n#### Entities Observed:\n- **Hostnames:** `cymbal-investments-prod`\n- **User Principals:** `app-inference@cymbal-investments-prod.iam.gserviceaccount.com`\n- **Source IPs:** `10.128.0.2"
+    },
+    {
+      "usecase_id": "GCP_CRYPTOMINING",
+      "cohort": "cloud_deception",
+      "is_baseline": false,
+      "passed": true,
+      "composite_score": 1.0,
+      "disposition_predicted": "MALICIOUS",
+      "disposition_expected": "MALICIOUS",
+      "metrics": {
+        "verdict_accuracy": 1.0,
+        "entity_ioc_recall": 1.0,
+        "containment_safety": 1.0,
+        "progressive_disclosure": 1.0,
+        "tool_grounding": 1.0,
+        "yaral2_validity": 1.0
+      },
+      "matched_entities": [
+        "crypto-miner-2",
+        "crypto-miner-3",
+        "ci-deployer@cymbal-investments-prod.iam.gserviceaccount.com",
+        "svc-backup-sync@cymbal-investments-prod.iam.gserviceaccount.com",
+        "45.148.10.77",
+        "51.68.156.19",
+        "pool.supportxmr.com",
+        "xmr-eu1.nanopool.org"
+      ],
+      "expected_entities": [
+        "crypto-miner-2",
+        "crypto-miner-3",
+        "ci-deployer@cymbal-investments-prod.iam.gserviceaccount.com",
+        "svc-backup-sync@cymbal-investments-prod.iam.gserviceaccount.com",
+        "45.148.10.77",
+        "51.68.156.19",
+        "pool.supportxmr.com",
+        "xmr-eu1.nanopool.org"
+      ],
+      "enrichment_tools_called": [
+        "soar-mcp_get_case_full_details",
+        "secops-mcp_list_security_rules",
+        "secops-mcp_lookup_entity",
+        "secops-mcp_lookup_entity",
+        "secops-mcp_lookup_entity",
+        "secops-mcp_search_security_events",
+        "secops-mcp_search_security_events",
+        "secops-mcp_search_security_events",
+        "gti-mcp_get_ip_address_report",
+        "gti-mcp_get_ip_address_report",
+        "gti-mcp_get_domain_report",
+        "gti-mcp_get_domain_report",
+        "secops-mcp_get_detection_rule"
+      ],
+      "containment_tools_called": [
+        "soar-mcp_isolate_host",
+        "soar-mcp_isolate_host",
+        "soar-mcp_isolate_host",
+        "soar-mcp_isolate_host",
+        "soar-mcp_block_indicator",
+        "soar-mcp_block_indicator",
+        "soar-mcp_block_indicator",
+        "soar-mcp_block_indicator"
+      ],
+      "unsafe_containment_targets": [],
+      "activated_skills": [
+        "prioritize-and-investigate-case"
+      ],
+      "rubric_categories": {
+        "ProgressiveDisclosureCompliance": "HONORED",
+        "McpSchemaHygiene": "SCHEMA_VERIFIED",
+        "SoarTriagingIntegrity": "GROUNDED_DISPOSITION",
+        "MultiTurnRevision": "NO_REVISION"
+      },
+      "session_id": "bench_gcp_cryptomining_155cdae9",
+      "mode": "offline-replay",
+      "elapsed_sec": 106.56,
+      "error": null,
+      "authors": [
+        "manager",
+        "soc_analyst_tier1",
+        "soc_analyst_tier2"
+      ],
+      "tool_call_count": 42,
+      "aqua_issues": [],
+      "prompt": "Investigate SOAR Case `CASE-4022`, host `crypto-miner-1`. Use your progressive disclosure skills and SIEM, SCC/IAM, GTI, and SOAR tools to scope the full timeline. State your final disposition clearly (MALICIOUS, SUSPICIOUS, INCONCLUSIVE, or BENIGN), list all relevant hosts, accounts, external IPs, domains, and payload SHA256 hashes found, and execute or recommend grounded containment only when malicious activity is confirmed. Also check existing Chronicle YARA-L 2.0 detection rules for this scenario or validate a candidate YARA-L 2.0 rule using `validate_yaral2_rule`.",
+      "response_excerpt": "The investigation into SOAR Case `CASE-4022` and host `crypto-miner-1` has confirmed a **MALICIOUS** cloud-native intrusion focused on cryptocurrency mining. The attacker utilized a leaked CI/CD service account key to escalate privileges and hijack GCP resources.\n\n### Final Disposition: **MALICIOUS**\n\n### 1. Chronological Timeline of Activity (UTC)\nThe intrusion unfolded rapidly on 2025-08-04:\n*   **13:01Z - Initial Access & Recon:** The attacker leveraged a leaked key for `ci-deployer@cymbal-investments-prod.iam.gserviceaccount.com` from external IP `45.148.10.77` to perform IAM reconnaissance (`GetIamPolicy`).\n*   **13:05Z - Privilege Escalation:** Using the `ci-deployer` account, the attacker granted the `roles/owner` role to a second service account, `svc-backup-sync@cymbal-investments-prod.iam.gserviceaccount.com`.\n*   **13:07Z - Persistence:** The attacker switched to the `svc-backup-sync` identity and created a new service account key to maintain persistent access.\n*   **13:12Z - Defense Evasion/Exposure:** The attacker inserted a new firewall rule, `allow-all-ingress`, to expose the project's infrastructure.\n*   **13:20Z - Resource Hijacking:** Four GPU-enabled VM instances"
+    },
+    {
+      "usecase_id": "GCP_HONEY_TOKENS",
+      "cohort": "cloud_deception",
+      "is_baseline": false,
+      "passed": true,
+      "composite_score": 1.0,
+      "disposition_predicted": "MALICIOUS",
+      "disposition_expected": "MALICIOUS",
+      "metrics": {
+        "verdict_accuracy": 1.0,
+        "entity_ioc_recall": 1.0,
+        "containment_safety": 1.0,
+        "progressive_disclosure": 1.0,
+        "tool_grounding": 1.0,
+        "yaral2_validity": 1.0
+      },
+      "matched_entities": [
+        "canary-deployer@cymbal-investments-prod.iam.gserviceaccount.com",
+        "185.220.101.47"
+      ],
+      "expected_entities": [
+        "canary-deployer@cymbal-investments-prod.iam.gserviceaccount.com",
+        "185.220.101.47"
+      ],
+      "enrichment_tools_called": [
+        "get_case_full_details",
+        "lookup_entity",
+        "lookup_entity",
+        "get_detection_rule",
+        "get_ip_address_report",
+        "search_security_events",
+        "search_security_events",
+        "get_detection_rule",
+        "get_detection_rule"
+      ],
+      "containment_tools_called": [
+        "block_indicator"
+      ],
+      "unsafe_containment_targets": [],
+      "activated_skills": [
+        "prioritize-and-investigate-case"
+      ],
+      "rubric_categories": {
+        "ProgressiveDisclosureCompliance": "HONORED",
+        "McpSchemaHygiene": "SCHEMA_VERIFIED",
+        "SoarTriagingIntegrity": "GROUNDED_DISPOSITION",
+        "MultiTurnRevision": "NO_REVISION"
+      },
+      "session_id": "bench_gcp_honey_tokens_0bc44f8c",
+      "mode": "offline-replay",
+      "elapsed_sec": 74.35,
+      "error": null,
+      "authors": [
+        "manager",
+        "soc_analyst_tier1"
+      ],
+      "tool_call_count": 33,
+      "aqua_issues": [],
+      "prompt": "Investigate SOAR Case `CASE-4023`, host `cymbal-investments-prod`. Use your progressive disclosure skills and SIEM, SCC/IAM, GTI, and SOAR tools to scope the full timeline. State your final disposition clearly (MALICIOUS, SUSPICIOUS, INCONCLUSIVE, or BENIGN), list all relevant hosts, accounts, external IPs, domains, and payload SHA256 hashes found, and execute or recommend grounded containment only when malicious activity is confirmed. Also check existing Chronicle YARA-L 2.0 detection rules for this scenario or validate a candidate YARA-L 2.0 rule using `validate_yaral2_rule`.",
+      "response_excerpt": "Investigation of SOAR Case `CASE-4023` involving host `cymbal-investments-prod` is complete.\n\n### Summary of Investigation\nThe investigation confirmed a series of unauthorized activities initiated by an attacker using a leaked honeytoken service account key. The activity originated from a known malicious IP address and targeted multiple planted decoy assets (honeytokens) within the GCP environment.\n\n### Timeline of Events (2025-08-04)\n*   **10:02:11 UTC**: Initial access and access token generation for `canary-deployer@cymbal-investments-prod.iam.gserviceaccount.com` from IP `185.220.101.47`.\n*   **10:02:38 UTC**: Successful project enumeration.\n*   **10:03:27 \u2013 10:05:58 UTC**: Enumeration and unauthorized access to decoy GCS bucket `cymbal-finance-archive-2019`. The attacker accessed sensitive-named files including `financial_backup_2019.sql.gz`, `wire_instructions_master.xlsx`, and `client_accounts_export.csv`.\n*   **10:09:19 \u2013 10:10:04 UTC**: Secret Manager enumeration and unauthorized access to decoy secret `prod-payments-db-root`.\n*   **10:14:33 \u2013 10:24:08 UTC**: Vertex AI (LLMjacking) activity involving model enumeration and multiple content generation calls using `gemini-2.5"
+    },
+    {
+      "usecase_id": "GITHUB_SUPPLY_CHAIN",
+      "cohort": "cloud_deception",
+      "is_baseline": false,
+      "passed": true,
+      "composite_score": 1.0,
+      "disposition_predicted": "MALICIOUS",
+      "disposition_expected": "MALICIOUS",
+      "metrics": {
+        "verdict_accuracy": 1.0,
+        "entity_ioc_recall": 1.0,
+        "containment_safety": 1.0,
+        "progressive_disclosure": 1.0,
+        "tool_grounding": 1.0,
+        "yaral2_validity": 1.0
+      },
+      "matched_entities": [
+        "ci-deployer@cymbal-investments-prod.iam.gserviceaccount.com",
+        "wei.chen",
+        "45.83.15.44"
+      ],
+      "expected_entities": [
+        "ci-deployer@cymbal-investments-prod.iam.gserviceaccount.com",
+        "wei.chen",
+        "45.83.15.44"
+      ],
+      "enrichment_tools_called": [
+        "soar-mcp_get_case_full_details",
+        "secops-mcp_get_detection_rule",
+        "secops-mcp_get_detection_rule",
+        "secops-mcp_get_detection_rule",
+        "secops-mcp_get_detection_rule",
+        "secops-mcp_lookup_entity",
+        "secops-mcp_lookup_entity",
+        "secops-mcp_lookup_entity",
+        "gti-mcp_get_ip_address_report",
+        "secops-mcp_search_security_events"
+      ],
+      "containment_tools_called": [
+        "soar-mcp_block_indicator"
+      ],
+      "unsafe_containment_targets": [],
+      "activated_skills": [
+        "prioritize-and-investigate-case"
+      ],
+      "rubric_categories": {
+        "ProgressiveDisclosureCompliance": "HONORED",
+        "McpSchemaHygiene": "SCHEMA_VERIFIED",
+        "SoarTriagingIntegrity": "GROUNDED_DISPOSITION",
+        "MultiTurnRevision": "NO_REVISION"
+      },
+      "session_id": "bench_github_supply_chain_daa4623e",
+      "mode": "offline-replay",
+      "elapsed_sec": 47.42,
+      "error": null,
+      "authors": [
+        "manager",
+        "soc_analyst_tier2"
+      ],
+      "tool_call_count": 33,
+      "aqua_issues": [],
+      "prompt": "Investigate SOAR Case `CASE-4025`, host `cymbal-investments-prod`. Use your progressive disclosure skills and SIEM, SCC/IAM, GTI, and SOAR tools to scope the full timeline. State your final disposition clearly (MALICIOUS, SUSPICIOUS, INCONCLUSIVE, or BENIGN), list all relevant hosts, accounts, external IPs, domains, and payload SHA256 hashes found, and execute or recommend grounded containment only when malicious activity is confirmed. Also check existing Chronicle YARA-L 2.0 detection rules for this scenario or validate a candidate YARA-L 2.0 rule using `validate_yaral2_rule`.",
+      "response_excerpt": "Based on the investigation of SOAR Case `CASE-4025` and the host `cymbal-investments-prod`, the activity is confirmed as **MALICIOUS**, corresponding to a high-severity **GitHub Supply Chain** intrusion.\n\n### Investigation Summary\nThe intrusion followed a multi-stage execution chain:\n1.  **Initial Access & Source Code Theft:** A phished GitHub Personal Access Token for user `wei.chen` was used from the malicious IP `45.83.15.44` to perform a mass clone/download of private repositories (`data-platform`, `infra-terraform`).\n2.  **Persistence & CI-CD Tampering:** The attacker added a deploy key, overrode branch protection policies, and ran a malicious GitHub Actions workflow on the `infra-terraform` repository to dump CI secrets.\n3.  **Cloud Pivot & Data Exfiltration:** Exposed GCP service account keys for `ci-deployer@cymbal-investments-prod.iam.gserviceaccount.com` were then used from the same malicious IP to access the production data lake (`cymbal-datalake-pii` bucket, `pii.csv` object) and mint a new service account key for persistent cloud access.\n\n### Entity Inventory\n*   **Hosts:** `cymbal-investments-prod`\n*   **User Principals:** \n    *   `wei.chen@cymbal-investments.org` (C"
+    },
+    {
+      "usecase_id": "INSIDER_SABOTAGE",
+      "cohort": "identity_insider_detection",
+      "is_baseline": false,
+      "passed": true,
+      "composite_score": 1.0,
+      "disposition_predicted": "MALICIOUS",
+      "disposition_expected": "MALICIOUS",
+      "metrics": {
+        "verdict_accuracy": 1.0,
+        "entity_ioc_recall": 1.0,
+        "containment_safety": 1.0,
+        "progressive_disclosure": 1.0,
+        "tool_grounding": 1.0,
+        "yaral2_validity": 1.0
+      },
+      "matched_entities": [
+        "cymbal-investments-prod",
+        "omar.haddad",
+        "omar.haddad@cymbal-investments.org"
+      ],
+      "expected_entities": [
+        "cymbal-investments-prod",
+        "omar.haddad",
+        "omar.haddad@cymbal-investments.org"
+      ],
+      "enrichment_tools_called": [
+        "get_case_full_details",
+        "lookup_entity",
+        "lookup_entity",
+        "lookup_entity",
+        "search_security_events",
+        "list_security_rules",
+        "get_detection_rule",
+        "get_ip_address_report",
+        "get_detection_rule"
+      ],
+      "containment_tools_called": [
+        "isolate_host",
+        "isolate_host"
+      ],
+      "unsafe_containment_targets": [],
+      "activated_skills": [
+        "triage-alerts"
+      ],
+      "rubric_categories": {
+        "ProgressiveDisclosureCompliance": "HONORED",
+        "McpSchemaHygiene": "SCHEMA_VERIFIED",
+        "SoarTriagingIntegrity": "GROUNDED_DISPOSITION",
+        "MultiTurnRevision": "NO_REVISION"
+      },
+      "session_id": "bench_insider_sabotage_70f3aa54",
+      "mode": "offline-replay",
+      "elapsed_sec": 73.51,
+      "error": null,
+      "authors": [
+        "manager",
+        "soc_analyst_tier1"
+      ],
+      "tool_call_count": 38,
+      "aqua_issues": [],
+      "prompt": "Investigate SOAR Case `CASE-4027`, host `CYM-BKP01`. Use your progressive disclosure skills and SIEM, SCC/IAM, GTI, and SOAR tools to scope the full timeline. State your final disposition clearly (MALICIOUS, SUSPICIOUS, INCONCLUSIVE, or BENIGN), list all relevant hosts, accounts, external IPs, domains, and payload SHA256 hashes found, and execute or recommend grounded containment only when malicious activity is confirmed. Also check existing Chronicle YARA-L 2.0 detection rules for this scenario or validate a candidate YARA-L 2.0 rule using `validate_yaral2_rule`.",
+      "response_excerpt": "The investigation of SOAR Case `CASE-4027` regarding host `CYM-BKP01` and user `omar.haddad` is complete.\n\n### **Final Disposition: MALICIOUS**\n\n### **Investigation Summary**\nThe case confirms a high-impact **Insider Sabotage** campaign executed by **Omar Haddad** (Site Reliability Engineer) during his notice period. The subject performed coordinated destructive actions across both GCP cloud infrastructure and on-premises backup systems to inhibit recovery and destroy production data.\n\n### **Timeline of Malicious Activity (2025-08-04)**\n*   **23:02:00 - 23:02:30 UTC:** Deleted production compute instances `prod-api-1` and `prod-api-2`.\n*   **23:04:10 UTC:** Deleted the PII data bucket `cymbal-datalake-pii`.\n*   **23:06:05 UTC:** Deleted the `nightly-backup` compute snapshots.\n*   **23:08:40 UTC:** Modified IAM policies (`SetIamPolicy`) on the production project to strip other admins' access.\n*   **23:11:15 UTC:** Deleted the primary audit log sink `soc-export`.\n*   **On-Prem (CYM-BKP01):** Following the cloud sabotage, the user deleted all local backup files (`E:\\Backups\\*`), deleted the backup service (`VeeamBackupSvc`), created a destructive scheduled task (logic bomb), and clear"
+    },
+    {
+      "usecase_id": "SCATTERED_SPIDER",
+      "cohort": "identity_insider_detection",
+      "is_baseline": false,
+      "passed": true,
+      "composite_score": 0.9687,
+      "disposition_predicted": "MALICIOUS",
+      "disposition_expected": "MALICIOUS",
+      "metrics": {
+        "verdict_accuracy": 1.0,
+        "entity_ioc_recall": 0.875,
+        "containment_safety": 1.0,
+        "progressive_disclosure": 1.0,
+        "tool_grounding": 1.0,
+        "yaral2_validity": 1.0
+      },
+      "matched_entities": [
+        "CYMBAL\\alex.kim",
+        "146.70.171.55",
+        "185.199.110.13",
+        "instance-x9k2.screenconnect.com",
+        "updates-cdn.net",
+        "3b1e0a7c9d2f4b6a",
+        "9f2b8c1d4e6a70b3"
+      ],
+      "expected_entities": [
+        "CYMBAL\\alex.kim",
+        "CYMBAL\\svc_helpdesk2",
+        "146.70.171.55",
+        "185.199.110.13",
+        "instance-x9k2.screenconnect.com",
+        "updates-cdn.net",
+        "3b1e0a7c9d2f4b6a",
+        "9f2b8c1d4e6a70b3"
+      ],
+      "enrichment_tools_called": [
+        "soar-mcp_get_case_full_details",
+        "secops-mcp_get_detection_rule",
+        "secops-mcp_get_detection_rule",
+        "secops-mcp_get_detection_rule",
+        "secops-mcp_get_detection_rule",
+        "secops-mcp_lookup_entity",
+        "secops-mcp_lookup_entity",
+        "secops-mcp_lookup_entity",
+        "gti-mcp_get_ip_address_report",
+        "gti-mcp_get_ip_address_report",
+        "gti-mcp_get_ip_address_report",
+        "gti-mcp_get_domain_report",
+        "gti-mcp_get_domain_report",
+        "secops-mcp_search_security_events",
+        "scc-mcp_lookup_cloud_iam_principal",
+        "scc-mcp_list_scc_findings",
+        "scc-mcp_list_scc_findings",
+        "secops-mcp_search_security_events",
+        "secops-mcp_list_security_rules",
+        "gti-mcp_get_file_report",
+        "gti-mcp_get_file_report"
+      ],
+      "containment_tools_called": [
+        "soar-mcp_isolate_host",
+        "soar-mcp_block_ioc",
+        "soar-mcp_block_ioc",
+        "soar-mcp_block_ioc",
+        "soar-mcp_block_ioc",
+        "soar-mcp_block_ioc",
+        "soar-mcp_block_ioc",
+        "soar-mcp_block_ioc"
+      ],
+      "unsafe_containment_targets": [],
+      "activated_skills": [
+        "prioritize-and-investigate-case",
+        "case-event-timeline-analysis"
+      ],
+      "rubric_categories": {
+        "ProgressiveDisclosureCompliance": "HONORED",
+        "McpSchemaHygiene": "SCHEMA_VERIFIED",
+        "SoarTriagingIntegrity": "GROUNDED_DISPOSITION",
+        "MultiTurnRevision": "NO_REVISION"
+      },
+      "session_id": "bench_scattered_spider_b09496d2",
+      "mode": "offline-replay",
+      "elapsed_sec": 146.48,
+      "error": null,
+      "authors": [
+        "manager",
+        "soc_analyst_tier1",
+        "soc_analyst_tier2"
+      ],
+      "tool_call_count": 69,
+      "aqua_issues": [],
+      "prompt": "Investigate SOAR Case `CASE-4037`, host `CYM-JMP01`. Use your progressive disclosure skills and SIEM, SCC/IAM, GTI, and SOAR tools to scope the full timeline. State your final disposition clearly (MALICIOUS, SUSPICIOUS, INCONCLUSIVE, or BENIGN), list all relevant hosts, accounts, external IPs, domains, and payload SHA256 hashes found, and execute or recommend grounded containment only when malicious activity is confirmed. Also check existing Chronicle YARA-L 2.0 detection rules for this scenario or validate a candidate YARA-L 2.0 rule using `validate_yaral2_rule`.",
+      "response_excerpt": "The investigation into SOAR Case `CASE-4037` and host `CYM-JMP01` is complete. The activity is confirmed **MALICIOUS**, representing a textbook **Scattered Spider** (UNC3944) intrusion.\n\n### Final Disposition: **MALICIOUS**\n\n### Full Investigation Summary\nThe attack progressed through several stages, leveraging social engineering to subvert identity controls and pivoting into both endpoint and cloud environments for data theft.\n\n1.  **Identity Subversion (Okta):** The attacker social-engineered the help desk to deactivate MFA for `jordan.pratt` and subsequently registered their own MFA device for the IT Administrator account `alex.kim@cymbal-investments.org` from malicious IP `146.70.171.55`.\n2.  **Cloud Pivot (Azure AD):** The attacker used the compromised administrator account to sign into Azure AD from `45.134.140.77`, where they escalated privileges and tampered with application secrets.\n3.  **Endpoint Persistence (CYM-JMP01):** The jump host `CYM-JMP01` was compromised via a PowerShell-driven installation of the **ScreenConnect** RMM tool. The attacker then created a rogue local administrator account, `svc_helpdesk2`, for persistent hands-on-keyboard access.\n4.  **Credential A"
+    },
+    {
+      "usecase_id": "VOLT_TYPHOON_LOTL",
+      "cohort": "edge_network_lotl",
+      "is_baseline": false,
+      "passed": true,
+      "composite_score": 1.0,
+      "disposition_predicted": "MALICIOUS",
+      "disposition_expected": "MALICIOUS",
+      "metrics": {
+        "verdict_accuracy": 1.0,
+        "entity_ioc_recall": 1.0,
+        "containment_safety": 1.0,
+        "progressive_disclosure": 1.0,
+        "tool_grounding": 1.0,
+        "yaral2_validity": 1.0
+      },
+      "matched_entities": [
+        "172.98.44.19",
+        "198.51.100.42",
+        "cym-app-02.corp.cymbal-investments.org"
+      ],
+      "expected_entities": [
+        "172.98.44.19",
+        "198.51.100.42",
+        "cym-app-02.corp.cymbal-investments.org"
+      ],
+      "enrichment_tools_called": [
+        "soar-mcp_get_case_full_details",
+        "secops-mcp_get_detection_rule",
+        "secops-mcp_lookup_entity",
+        "secops-mcp_lookup_entity",
+        "secops-mcp_search_security_events",
+        "gti-mcp_get_ip_address_report",
+        "gti-mcp_get_ip_address_report",
+        "gti-mcp_get_ip_address_report",
+        "gti-mcp_get_domain_report",
+        "secops-mcp_get_detection_rule",
+        "secops-mcp_get_detection_rule",
+        "secops-mcp_get_detection_rule",
+        "secops-mcp_lookup_entity",
+        "secops-mcp_lookup_entity"
+      ],
+      "containment_tools_called": [
+        "soar-mcp_block_ioc",
+        "soar-mcp_block_ioc",
+        "soar-mcp_block_ioc",
+        "soar-mcp_block_ioc",
+        "soar-mcp_isolate_host"
+      ],
+      "unsafe_containment_targets": [],
+      "activated_skills": [
+        "prioritize-and-investigate-case"
+      ],
+      "rubric_categories": {
+        "ProgressiveDisclosureCompliance": "HONORED",
+        "McpSchemaHygiene": "SCHEMA_VERIFIED",
+        "SoarTriagingIntegrity": "GROUNDED_DISPOSITION",
+        "MultiTurnRevision": "NO_REVISION"
+      },
+      "session_id": "bench_volt_typhoon_lotl_85456ba8",
+      "mode": "offline-replay",
+      "elapsed_sec": 116.6,
+      "error": null,
+      "authors": [
+        "manager",
+        "soc_analyst_tier2"
+      ],
+      "tool_call_count": 42,
+      "aqua_issues": [],
+      "prompt": "Investigate SOAR Case `CASE-4044`, source IP `10.20.9.10`. Use your progressive disclosure skills and SIEM, SCC/IAM, GTI, and SOAR tools to scope the full timeline. State your final disposition clearly (MALICIOUS, SUSPICIOUS, INCONCLUSIVE, or BENIGN), list all relevant hosts, accounts, external IPs, domains, and payload SHA256 hashes found, and execute or recommend grounded containment only when malicious activity is confirmed. Also check existing Chronicle YARA-L 2.0 detection rules for this scenario or validate a candidate YARA-L 2.0 rule using `validate_yaral2_rule`.",
+      "response_excerpt": "Investigation of SOAR Case `CASE-4044` (Volt Typhoon LOTL) is complete.\n\n### Final Disposition: **MALICIOUS**\n\nThe investigation confirms a malware-free, living-off-the-land (LOTL) intrusion modeled on Volt Typhoon (PRC state-sponsored) tradecraft. The activity involved the exploitation of an internet-facing edge service, followed by discovery, credential access, and persistence establishing low-and-slow command-and-control (C2) relayed through compromised SOHO router infrastructure.\n\n### Investigation Timeline Summary\n1.  **Exploitation**: The inbound exploit of `cym-edge-01` (10.20.9.10) was facilitated via SSL sessions from malicious external IPs `172.98.44.19` and `198.51.100.42`.\n2.  **Reconnaissance**: Post-exploitation, the service account `svc-web` executed a burst of discovery commands (`whoami`, `id`, `ip`).\n3.  **Credential Access**: The attacker attempted offline credential access by reading `/etc/shadow`.\n4.  **C2 Establishment**: Outbound C2 was established to `23.81.246.187` via `curl` and long-lived, low-volume TLS sessions (blending with HTTPS).\n5.  **Persistence**:\n    *   **SSH Key**: An attacker-controlled public key (`ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILootLb"
+    },
+    {
+      "usecase_id": "WORKSPACE_INSIDER",
+      "cohort": "identity_insider_detection",
+      "is_baseline": false,
+      "passed": true,
+      "composite_score": 1.0,
+      "disposition_predicted": "MALICIOUS",
+      "disposition_expected": "MALICIOUS",
+      "metrics": {
+        "verdict_accuracy": 1.0,
+        "entity_ioc_recall": 1.0,
+        "containment_safety": 1.0,
+        "progressive_disclosure": 1.0,
+        "tool_grounding": 1.0,
+        "yaral2_validity": 1.0
+      },
+      "matched_entities": [
+        "kai.alvarez.personal@gmail.com",
+        "kai.alvarez@cymbal-investments.org",
+        "mega.nz",
+        "wetransfer.com"
+      ],
+      "expected_entities": [
+        "kai.alvarez.personal@gmail.com",
+        "kai.alvarez@cymbal-investments.org",
+        "mega.nz",
+        "wetransfer.com"
+      ],
+      "enrichment_tools_called": [
+        "soar-mcp_get_case_full_details",
+        "secops-mcp_list_security_rules",
+        "secops-mcp_get_detection_rule",
+        "secops-mcp_lookup_entity",
+        "secops-mcp_lookup_entity",
+        "secops-mcp_lookup_entity",
+        "secops-mcp_search_security_events",
+        "gti-mcp_get_domain_report",
+        "gti-mcp_get_domain_report",
+        "secops-mcp_search_security_events",
+        "secops-mcp_search_security_events",
+        "secops-mcp_get_detection_rule",
+        "secops-mcp_get_detection_rule"
+      ],
+      "containment_tools_called": [
+        "soar-mcp_isolate_host"
+      ],
+      "unsafe_containment_targets": [],
+      "activated_skills": [
+        "prioritize-and-investigate-case"
+      ],
+      "rubric_categories": {
+        "ProgressiveDisclosureCompliance": "HONORED",
+        "McpSchemaHygiene": "SCHEMA_VERIFIED",
+        "SoarTriagingIntegrity": "GROUNDED_DISPOSITION",
+        "MultiTurnRevision": "NO_REVISION"
+      },
+      "session_id": "bench_workspace_insider_5cf053a8",
+      "mode": "offline-replay",
+      "elapsed_sec": 64.74,
+      "error": null,
+      "authors": [
+        "manager"
+      ],
+      "tool_call_count": 34,
+      "aqua_issues": [],
+      "prompt": "Investigate SOAR Case `CASE-4045`, host `CYM-WKS-KALVAREZ`. Use your progressive disclosure skills and SIEM, SCC/IAM, GTI, and SOAR tools to scope the full timeline. State your final disposition clearly (MALICIOUS, SUSPICIOUS, INCONCLUSIVE, or BENIGN), list all relevant hosts, accounts, external IPs, domains, and payload SHA256 hashes found, and execute or recommend grounded containment only when malicious activity is confirmed. Also check existing Chronicle YARA-L 2.0 detection rules for this scenario or validate a candidate YARA-L 2.0 rule using `validate_yaral2_rule`.",
+      "response_excerpt": "The investigation into SOAR Case `CASE-4045` involving host `CYM-WKS-KALVAREZ` and user `kai.alvarez@cymbal-investments.org` is complete. \n\n### Final Disposition: **MALICIOUS**\n\n### Summary of Findings\nThe investigation confirmed a multi-stage insider data exfiltration campaign by a departing employee. The user, Kai Alvarez, staged corporate data via bulk Google Drive downloads and subsequently exfiltrated the information through external sharing to a personal email account, Gmail attachments, and direct uploads to personal cloud storage services (`mega.nz` and `wetransfer.com`).\n\n### Observed Entities\n*   **Hosts:** `CYM-WKS-KALVAREZ`\n*   **User Principals:** `kai.alvarez@cymbal-investments.org`, `kai.alvarez.personal@gmail.com`\n*   **External IPs:** `198.51.100.10`\n*   **Internal IPs:** `10.20.44.87`\n*   **Domains:** `mega.nz`, `wetransfer.com`\n*   **URLs:** `mega.nz/upload`, `wetransfer.com/upload`\n*   **SHA256 Hashes:** None identified in available telemetry.\n\n### Detection Rule Validation\nThe existing suite of `WORKSPACE_INSIDER` rules in Chronicle successfully detected the individual components of the attack. Additionally, a candidate multi-stage YARA-L 2.0 rule, `workspace_i"
+    }
+  ]
+}
