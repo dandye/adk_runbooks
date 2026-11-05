@@ -92,7 +92,19 @@ def redact_sensitive_args(data: Any) -> Any:
 
 
 def _normalize_identifier(name: str) -> str:
-    return name.strip().lower().replace("-", "_")
+    norm = name.strip().lower().replace("-", "_")
+    for prefix in (
+        "secops_mcp_",
+        "soar_mcp_",
+        "gti_mcp_",
+        "secops_soar_",
+        "secops_",
+        "soar_",
+        "gti_",
+    ):
+        if norm.startswith(prefix):
+            return norm[len(prefix) :]
+    return norm
 
 
 class AgentTelemetryRecorder:
@@ -341,6 +353,7 @@ def _finalize_span(
         "gen_ai.tool.name": effective_tool_name,
         "gen_ai.tool.wrapper_name": wrapper_name,
         "gen_ai.tool.call.arguments_redacted": redacted_args,
+        "gen_ai.tool.call.result_summary": output_str[:500],
         "gen_ai.usage.input_tokens": tokens_in,
         "gen_ai.usage.output_tokens": tokens_out,
         "adk.turn_index": turn_idx,

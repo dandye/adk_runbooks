@@ -731,6 +731,12 @@ def main(argv: Optional[list[str]] = None) -> int:
       help="Path to OpenTelemetry JSONL trace log.",
   )
   parser.add_argument(
+      "--aqua-db",
+      type=Path,
+      default=DEFAULT_AQUA_DB,
+      help="Path to SQLite AQuA insights database.",
+  )
+  parser.add_argument(
       "--output",
       type=Path,
       default=None,
@@ -809,6 +815,7 @@ def main(argv: Optional[list[str]] = None) -> int:
           max_turns=args.max_turns,
           session_db_path=args.session_db,
           trace_log_path=args.trace_log,
+          aqua_db_path=args.aqua_db,
           verbose=True,
       )
   )

@@ -419,7 +419,7 @@ def load_traces_from_otel_jsonl(
 
             tool_calls.append(
                 ToolCallRecord(
-                    turn_index=sp.get("turn_index", idx),
+                    turn_index=sp.get("turn_index", sp.get("adk.turn_index", idx)),
                     agent_name=agent_name,
                     tool_name=t_name,
                     args=sp.get("gen_ai.tool.call.arguments_redacted", {}),
