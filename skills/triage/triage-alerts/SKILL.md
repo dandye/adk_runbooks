@@ -8,7 +8,7 @@ type: Skill
 title: 'Skill: Alert Triage'
 generated:
   by: process:google-labs-jules
-  at: 2025-12-20 22:04:42-05:00
+  at: 2025-12-20T22:04:42-05:00
 metadata:
   adk_additional_tools:
   - run_triage_alerts_workflow

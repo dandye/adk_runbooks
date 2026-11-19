@@ -8,7 +8,7 @@ type: Skill
 title: 'Skill: Common Step: Generate Report File'
 generated:
   by: human:dandye
-  at: 2025-05-19 13:12:49-04:00
+  at: 2025-05-19T13:12:49-04:00
 ---
 
 # Common Step: Generate Report File
