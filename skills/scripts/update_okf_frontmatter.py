@@ -3,6 +3,7 @@ Script to enrich all SKILL.md packages with unified Skills + OKF frontmatter
 and metadata.adk_additional_tools for native ADK SkillToolset dynamic binding.
 """
 
+from datetime import date, datetime
 from pathlib import Path
 import re
 import yaml
@@ -117,6 +118,16 @@ def extract_additional_tools(skill_name: str, body: str) -> list[str]:
     return tools
 
 
+def _normalize_rfc3339_timestamp(value: object) -> str:
+    """Normalize a YAML date/datetime or string to an RFC 3339 string with 'T'."""
+    if isinstance(value, datetime):
+        return value.isoformat().replace("+00:00", "Z")
+    if isinstance(value, date):
+        return value.isoformat()
+    text = str(value).strip()
+    return re.sub(r"^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})", r"\1T\2", text)
+
+
 def update_skills():
     count = 0
     for skill_file in sorted(skills_dir.rglob("SKILL.md")):
@@ -158,14 +169,16 @@ def update_skills():
 
         # Determine timestamp
         if norm_name in legacy_meta and isinstance(legacy_meta[norm_name].get("generated"), dict):
-            gen_info = legacy_meta[norm_name]["generated"]
+            gen_info = dict(legacy_meta[norm_name]["generated"])
         elif isinstance(data.get("generated"), dict):
-            gen_info = data["generated"]
+            gen_info = dict(data["generated"])
         else:
             gen_info = {
                 "by": "process:google-labs-jules",
                 "at": "2026-08-20T02:00:00Z",
             }
+        if "at" in gen_info:
+            gen_info["at"] = _normalize_rfc3339_timestamp(gen_info["at"])
 
         additional_tools = extract_additional_tools(skill_name, body)
 

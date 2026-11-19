@@ -8,7 +8,7 @@ type: Skill
 title: 'Skill: Common Step: Check for Duplicate/Similar SOAR Cases'
 generated:
   by: human:dandye
-  at: 2025-11-10 17:21:35-05:00
+  at: 2025-11-10T17:21:35-05:00
 metadata:
   adk_additional_tools:
   - soar-mcp_siemplify_get_similar_cases

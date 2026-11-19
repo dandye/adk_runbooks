@@ -8,7 +8,7 @@ type: Skill
 title: 'Skill: Deep Dive IOC Analysis Runbook'
 generated:
   by: process:google-labs-jules
-  at: 2025-12-20 22:04:42-05:00
+  at: 2025-12-20T22:04:42-05:00
 metadata:
   adk_additional_tools:
   - run_deep_dive_ioc_analysis_workflow

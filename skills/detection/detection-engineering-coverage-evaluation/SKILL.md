@@ -9,7 +9,7 @@ type: Skill
 title: 'Skill: SecOps Detection Engineering Coverage Evaluation Skill'
 generated:
   by: process:google-labs-jules
-  at: 2026-08-20 20:19:00+00:00
+  at: 2026-08-20T20:19:00+00:00
 ---
 
 # SecOps Detection Engineering Coverage Evaluation Skill

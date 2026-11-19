@@ -8,7 +8,7 @@ type: Skill
 title: 'Skill: Group Cases Workflow'
 generated:
   by: process:google-labs-jules
-  at: 2025-12-20 22:04:42-05:00
+  at: 2025-12-20T22:04:42-05:00
 metadata:
   adk_additional_tools:
   - run_group_cases_workflow
