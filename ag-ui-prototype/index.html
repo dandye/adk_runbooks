@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ADK Runbooks - AG-UI Interactive Approval Card & Delegation Graph Prototype</title>
+  <meta name="description" content="AG-UI Protocol Interactive Remediation Approval Card & Multi-Agent Delegation Graph components for ADK Runbooks.">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-icon">AG</div>
+      <div>
+        <div class="brand-title">ADK Runbooks Cyber Ops</div>
+        <div class="brand-subtitle">AG-UI / CopilotKit Protocol Experimentation</div>
+      </div>
+    </div>
+
+    <div class="protocol-badge" id="protocolBadge">
+      <span class="status-dot"></span>
+      <span>Checking agent connection&hellip;</span>
+    </div>
+  </header>
+
+  <!-- Main Application Container -->
+  <main class="app-container">
+
+    <!-- Sidebar: Scenario Selector -->
+    <aside class="sidebar-panel">
+      <div>
+        <h2 class="section-title">Security Scenarios</h2>
+        <div id="scenarioList" class="scenario-list">
+          <!-- Populated by JavaScript -->
+        </div>
+      </div>
+
+      <!-- Agent Session Status Card -->
+      <div class="agent-status-card">
+        <h3 class="section-title">Agent Session State</h3>
+        <div class="info-row">
+          <span class="info-label">Orchestrator:</span>
+          <span class="info-value">ADK Manager Agent</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Runtime:</span>
+          <span class="info-value">Google ADK 2.0</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Protocol:</span>
+          <span class="info-value">AG-UI Event Bus</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">MCP Server:</span>
+          <span class="info-value">SecOps Remote MCP</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Workbench -->
+    <section class="main-workbench">
+      
+      <!-- Component 1: Multi-Agent Delegation Graph (<AgentDelegationGraph />) -->
+      <div class="graph-container-card" id="delegationGraphComponent">
+        
+        <!-- Graph Header & Control Bar -->
+        <div class="graph-header">
+          <div>
+            <span class="action-type-tag">ORCHESTRATION TOPOLOGY</span>
+            <h2 class="card-main-title">Live Multi-Agent Delegation Graph</h2>
+            <div class="card-subtext">Bi-directional state streaming and hand-off visualization between ADK agents</div>
+          </div>
+          
+          <div class="graph-controls">
+            <button class="btn btn-secondary btn-sm" onclick="resetDelegationGraph()">
+              Reset Graph
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="runDelegationSimulation()">
+              Simulate Agent Delegation Flow
+            </button>
+          </div>
+        </div>
+
+        <!-- Graph Status Legend -->
+        <div class="graph-legend">
+          <div class="legend-item"><span class="legend-dot status-completed"></span> Completed</div>
+          <div class="legend-item"><span class="legend-dot status-running"></span> Active / Executing Tool</div>
+          <div class="legend-item"><span class="legend-dot status-waiting"></span> Waiting for HITL Approval</div>
+          <div class="legend-item"><span class="legend-dot status-idle"></span> Standby / Idle</div>
+        </div>
+
+        <!-- Interactive Node Canvas / Topology Tree -->
+        <div class="graph-canvas">
+          
+          <!-- Root Manager Node -->
+          <div class="graph-row root-row">
+            <div class="agent-node node-manager" id="node-manager" onclick="selectGraphNode('manager')">
+              <div class="node-header">
+                <span class="node-type">ROOT ORCHESTRATOR</span>
+                <span class="badge badge-critical" id="badge-manager">ORCHESTRATING</span>
+              </div>
+              <div class="node-title">ADK Manager Agent</div>
+              <div class="node-desc">Coordinates incident investigation, delegates sub-tasks, and aggregates findings.</div>
+              <div class="node-footer">
+                <span class="node-meta">Active Session: ag-sess-9042</span>
+                <span class="node-meta">Sub-Agents: 4 Registered</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Connector Line Downward -->
+          <div class="connector-tree-down">
+            <div class="tree-line-vertical"></div>
+            <div class="tree-line-horizontal"></div>
+          </div>
+
+          <!-- Sub-Agents Row -->
+          <div class="graph-row sub-agents-row">
+            
+            <!-- Sub-Agent 1: CTI Researcher -->
+            <div class="agent-node node-sub" id="node-cti" onclick="selectGraphNode('cti')">
+              <div class="node-header">
+                <span class="node-type">SUB-AGENT</span>
+                <span class="badge badge-medium" id="badge-cti">COMPLETED</span>
+              </div>
+              <div class="node-title">CTI Researcher</div>
+              <div class="node-task">Task: Threat Intel & VT Reputation Lookup</div>
+              <div class="node-tools">
+                <span class="tool-chip">vt_ip_lookup</span>
+                <span class="tool-chip">search_threat_intel</span>
+              </div>
+            </div>
+
+            <!-- Sub-Agent 2: SOC Tier 1 -->
+            <div class="agent-node node-sub" id="node-soc" onclick="selectGraphNode('soc')">
+              <div class="node-header">
+                <span class="node-type">SUB-AGENT</span>
+                <span class="badge badge-medium" id="badge-soc">COMPLETED</span>
+              </div>
+              <div class="node-title">SOC Analyst Tier 1</div>
+              <div class="node-task">Task: Alert Triage & UDM Log Search</div>
+              <div class="node-tools">
+                <span class="tool-chip">udm_search</span>
+                <span class="tool-chip">list_case_alerts</span>
+              </div>
+            </div>
+
+            <!-- Sub-Agent 3: Incident Responder -->
+            <div class="agent-node node-sub active-pulse" id="node-ir" onclick="selectGraphNode('ir')">
+              <div class="node-header">
+                <span class="node-type">SUB-AGENT</span>
+                <span class="badge badge-high" id="badge-ir">WAITING APPROVAL</span>
+              </div>
+              <div class="node-title">Incident Responder</div>
+              <div class="node-task">Task: Host Isolation & C2 Firewall Block</div>
+              <div class="node-tools">
+                <span class="tool-chip">secops_execute_action</span>
+              </div>
+            </div>
+
+            <!-- Sub-Agent 4: Detection Engineer -->
+            <div class="agent-node node-sub" id="node-de" onclick="selectGraphNode('de')">
+              <div class="node-header">
+                <span class="node-type">SUB-AGENT</span>
+                <span class="badge badge-medium" id="badge-de" style="background: rgba(107, 114, 128, 0.2); color: #9CA3AF; border-color: rgba(107, 114, 128, 0.3);">IDLE</span>
+              </div>
+              <div class="node-title">Detection Engineer</div>
+              <div class="node-task">Task: YARA-L 2.0 Rule Generation</div>
+              <div class="node-tools">
+                <span class="tool-chip">generate_rules</span>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- Selected Node Detail Drawer & Manual Override Panel -->
+        <div class="node-detail-panel" id="nodeDetailPanel">
+          <div class="detail-header">
+            <div>
+              <span class="action-type-tag" id="detailAgentRole">SUB-AGENT INSPECTOR</span>
+              <h3 id="detailAgentTitle" class="detail-title">Incident Responder Sub-Agent</h3>
+            </div>
+            <div class="btn-group">
+              <button class="btn btn-secondary btn-sm" onclick="pauseSubAgentTask()">
+                Pause Sub-Agent
+              </button>
+              <button class="btn btn-primary btn-sm" onclick="openDirectiveModal()">
+                Inject Analyst Directive
+              </button>
+            </div>
+          </div>
+
+          <div class="detail-grid">
+            <div class="detail-block">
+              <div class="section-title">Active Task & Scope</div>
+              <div id="detailTaskText" class="detail-text">Execute host isolation on target host prod-db-gateway-01 and block C2 IP 198.51.100.42.</div>
+            </div>
+
+            <div class="detail-block">
+              <div class="section-title">Current Thinking Trajectory</div>
+              <div id="detailThinkingText" class="detail-code-box">
+[13:12:04] Manager delegated task: "Isolate host and block C2 IP"
+[13:12:05] Analyzing asset risk level (Critical database gateway)
+[13:12:06] Synthesized proposed containment parameters
+[13:12:07] Issued HITL Approval Request to AG-UI Event Stream...
+              </div>
+            </div>
+
+            <div class="detail-block">
+              <div class="section-title">Recent Tool Execution Output</div>
+              <div id="detailToolOutput" class="detail-code-box">
+{
+  "tool": "secops_get_involved_entity",
+  "status": "SUCCESS",
+  "entity": "prod-db-gateway-01",
+  "ip": "192.168.1.105",
+  "risk_score": 92
+}
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div><!-- End Component 1: Graph -->
+
+      <!-- Component 3: Interactive Threat Intel & IOC Enrichment Card (<IOCEnrichmentCard />) -->
+      <div class="ioc-enrichment-card" id="iocEnrichmentCardComponent">
+        
+        <!-- Card Header -->
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="action-type-tag" id="iocTypeTag">TOOL GENERATIVE UI &bull; VT_IP_LOOKUP</span>
+            <h2 class="card-main-title" id="iocTitle">Threat Intel & IOC Reputation Breakdown</h2>
+            <div class="card-subtext" id="iocSubtitle">Real-time threat intelligence enrichment returned by CTI Researcher Sub-Agent</div>
+          </div>
+          <div class="hitl-tag" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.4); color: var(--severity-critical);">
+            <span id="iocVerdictTag">HIGH CONFIDENCE MALICIOUS</span>
+          </div>
+        </div>
+
+        <!-- Card Body -->
+        <div class="card-body">
+          
+          <!-- Reputation Metric Scoreboard -->
+          <div class="ioc-score-grid">
+            <div class="score-card">
+              <span class="score-label">VirusTotal Score</span>
+              <div class="score-value-group">
+                <span class="score-number text-danger" id="vtScoreNum">64 / 72</span>
+                <span class="score-sub">Security Vendors Flagged</span>
+              </div>
+            </div>
+
+            <div class="score-card">
+              <span class="score-label">Threat Actor / Campaign</span>
+              <div class="score-value-group">
+                <span class="score-text" id="iocCampaign">Emotet Botnet Infrastructure</span>
+                <span class="score-sub">Known C2 Operator</span>
+              </div>
+            </div>
+
+            <div class="score-card">
+              <span class="score-label">ASN / Host Provider</span>
+              <div class="score-value-group">
+                <span class="score-text" id="iocAsn">AS16276 OVH SAS (FR)</span>
+                <span class="score-sub">Host Country: France</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tabbed Detail Tabs: Hashes vs Passive DNS vs MITRE Matrix -->
+          <div class="tabs-container">
+            <button class="tab-btn active" id="iocTabBtnHashes" onclick="switchIocTab('hashes')">Associated Malicious Hashes (2)</button>
+            <button class="tab-btn" id="iocTabBtnDns" onclick="switchIocTab('dns')">Passive DNS Resolutions (2)</button>
+            <button class="tab-btn" id="iocTabBtnMitre" onclick="switchIocTab('mitre')">MITRE ATT&CK TTP Alignment</button>
+          </div>
+
+          <!-- Tab 1: Associated Hashes -->
+          <div id="tabIocHashes" class="tab-content active">
+            <div class="ioc-table-container">
+              <table class="ioc-table">
+                <thead>
+                  <tr>
+                    <th>SHA256 Hash</th>
+                    <th>File Name / Type</th>
+                    <th>VT Detection Rate</th>
+                  </tr>
+                </thead>
+                <tbody id="iocHashesTable">
+                  <tr>
+                    <td><code class="code-sm">7a1c9e4f2b8d035a6c91e7f4482d3b0e9f5a1c7d8e2b4f691a3c5d7e9b0f2a4c</code></td>
+                    <td>win_emotet_payload.dll (PE32)</td>
+                    <td><span class="badge badge-critical">68/72 Malicious</span></td>
+                  </tr>
+                  <tr>
+                    <td><code class="code-sm">3f8b2d6a9c1e4570b3d8f2a6c9e1b4d7f0a3c6e9b2d5f8a1c4e7b0d3f6a9c2e5</code></td>
+                    <td>invoice_doc_macro.doc (Office Macro)</td>
+                    <td><span class="badge badge-critical">62/72 Malicious</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Tab 2: Passive DNS -->
+          <div id="tabIocDns" class="tab-content">
+            <div class="ioc-table-container">
+              <table class="ioc-table">
+                <thead>
+                  <tr>
+                    <th>Domain Name</th>
+                    <th>First Seen</th>
+                    <th>Last Seen</th>
+                  </tr>
+                </thead>
+                <tbody id="iocDnsTable">
+                  <tr>
+                    <td><code class="code-sm">c2-update-sync-node8.com</code></td>
+                    <td>2026-07-20 04:12:00</td>
+                    <td>2026-07-29 12:44:10</td>
+                  </tr>
+                  <tr>
+                    <td><code class="code-sm">cdn-auth-check-live.org</code></td>
+                    <td>2026-07-15 18:30:22</td>
+                    <td>2026-07-28 23:10:05</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Tab 3: MITRE ATT&CK -->
+          <div id="tabIocMitre" class="tab-content">
+            <div class="mitre-chip-grid">
+              <div class="mitre-chip">
+                <span class="mitre-id">T1071.001</span>
+                <span class="mitre-name">Application Layer Protocol: Web Protocols</span>
+              </div>
+              <div class="mitre-chip">
+                <span class="mitre-id">T1573.001</span>
+                <span class="mitre-name">Encrypted Channel: Symmetric Cryptography</span>
+              </div>
+              <div class="mitre-chip">
+                <span class="mitre-id">T1059.001</span>
+                <span class="mitre-name">Command and Scripting Interpreter: PowerShell</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Card Footer Downstream Actions -->
+        <div class="card-footer">
+          <button class="btn btn-secondary" id="btnDelegateThreatHunter" onclick="delegateToThreatHunter()">
+            Delegate to Threat Hunter Agent
+          </button>
+          <div class="btn-group">
+            <button class="btn btn-secondary" id="btnPivotUdmSearch" onclick="pivotUdmSearch()">
+              Pivot UDM Log Search
+            </button>
+            <button class="btn btn-primary" id="btnBlockIocPerimeter" onclick="blockIocPerimeter()">
+              Block IOC at Perimeter Firewall
+            </button>
+          </div>
+        </div>
+
+      </div><!-- End Component 3: IOC Enrichment -->
+
+      <!-- Component 4: YARA-L Rule Live Sandbox & Coverage Evaluator (<DetectionEngineeringSandbox />) -->
+      <div class="sandbox-card" id="detectionEngineeringSandboxComponent">
+        
+        <!-- Card Header -->
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="action-type-tag">DETECTION ENGINEERING &bull; YARA-L 2.0 SANDBOX</span>
+            <h2 class="card-main-title">YARA-L Rule Live Sandbox & Coverage Evaluator</h2>
+            <div class="card-subtext">Synthesized detection rule & synthetic UDM log simulation results from Detection Engineer Sub-Agent</div>
+          </div>
+          <div class="hitl-tag" style="background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.4); color: var(--severity-success);">
+            <span>SIMULATION PASSED (85.7%)</span>
+          </div>
+        </div>
+
+        <!-- Card Body -->
+        <div class="card-body">
+          
+          <!-- Code View & Simulation Result Split Grid -->
+          <div class="sandbox-grid">
+            
+            <!-- Left: YARA-L Rule Code Box -->
+            <div class="rule-code-container">
+              <div class="section-title">YARA-L 2.0 Rule Definition</div>
+              <pre class="rule-code-box"><code id="ruleCodeText">rule apt29_token_impersonation {
+  meta:
+    author = "Detection Engineer Agent"
+    description = "Detects elevated privilege token abuse pattern"
+    severity = "HIGH"
+    mitre_attack = "T1134.001"
+  events:
+    $e.metadata.event_type = "USER_LOGIN"
+    $e.target.user.attribute = "ELEVATED"
+    $e.security_result.action = "ALLOW"
+  condition:
+    $e
+}</code></pre>
+            </div>
+
+            <!-- Right: Synthetic Test Results & Metrics -->
+            <div class="simulation-metrics-container">
+              <div class="section-title">Synthetic UDM Log Test Metrics</div>
+              
+              <div class="sim-metric-row">
+                <span class="info-label">Synthetic Logs Injected:</span>
+                <span class="info-value">14 Events</span>
+              </div>
+              <div class="sim-metric-row">
+                <span class="info-label">Rule Matches Triggered:</span>
+                <span class="info-value text-success">12 Matches (85.7% Precision)</span>
+              </div>
+              <div class="sim-metric-row">
+                <span class="info-label">False Positive Risk:</span>
+                <span class="info-value text-success">2.4% (LOW RISK)</span>
+              </div>
+              <div class="sim-metric-row">
+                <span class="info-label">Execution Latency:</span>
+                <span class="info-value">14 ms</span>
+              </div>
+              <div class="sim-metric-row">
+                <span class="info-label">MITRE TTP Coverage Expansion:</span>
+                <span class="badge badge-high">+1 TTP (T1134.001)</span>
+              </div>
+
+              <!-- Test Event Log Snippet -->
+              <div class="test-event-box">
+                <div class="section-title" style="font-size: 10px;">Matched Synthetic Log Sample</div>
+                <div class="code-sm" style="display: block; white-space: pre-wrap;">
+{
+  "event_type": "USER_LOGIN",
+  "principal": { "user": "svc_admin" },
+  "target": { "user": "SYSTEM", "attribute": "ELEVATED" },
+  "security_result": { "action": "ALLOW" }
+}
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- Card Footer Actions -->
+        <div class="card-footer">
+          <button class="btn btn-secondary" id="btnRunSyntheticTest" onclick="runSyntheticRuleTest()">
+            Run Synthetic Event Test
+          </button>
+          <div class="btn-group">
+            <button class="btn btn-secondary" onclick="tuneRuleParameters()">
+              Tune Rule Logic
+            </button>
+            <button class="btn btn-primary" id="btnDeployRule" onclick="deployRuleToSecOps()">
+              Deploy Rule to Google SecOps
+            </button>
+          </div>
+        </div>
+
+      </div><!-- End Component 4: Detection Sandbox -->
+
+      <!-- Component 5: Incident Response Plan (IRP) Live Playbook Tracker (<IRPProgressTracker />) -->
+      <div class="irp-tracker-card" id="irpTrackerComponent">
+        
+        <!-- Card Header -->
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="action-type-tag">SHARED STATE SYNC &bull; PLAYBOOK TRACKER</span>
+            <h2 class="card-main-title">Incident Response Plan (IRP) Live Playbook Tracker</h2>
+            <div class="card-subtext">Active Playbook: Malware C2 Beaconing IRP (rules-bank/irp_malware_c2.md)</div>
+          </div>
+          <div class="hitl-tag" style="background: rgba(59, 130, 246, 0.1); border-color: rgba(59, 130, 246, 0.4); color: var(--accent-blue);">
+            <span id="irpPhaseBadge">PHASE 2: CONTAINMENT (60%)</span>
+          </div>
+        </div>
+
+        <!-- Card Body -->
+        <div class="card-body">
+          
+          <!-- Visual Phase Stepper Progress Bar -->
+          <div class="phase-stepper">
+            <div class="phase-step step-completed" id="irpStep1">
+              <div class="step-icon">1</div>
+              <div class="step-label">Identification</div>
+            </div>
+            <div class="step-connector line-completed" id="irpConnector1"></div>
+
+            <div class="phase-step step-active" id="irpStep2">
+              <div class="step-icon">2</div>
+              <div class="step-label">Containment</div>
+            </div>
+            <div class="step-connector" id="irpConnector2"></div>
+
+            <div class="phase-step" id="irpStep3">
+              <div class="step-icon">3</div>
+              <div class="step-label">Eradication</div>
+            </div>
+            <div class="step-connector" id="irpConnector3"></div>
+
+            <div class="phase-step" id="irpStep4">
+              <div class="step-icon">4</div>
+              <div class="step-label">Recovery</div>
+            </div>
+          </div>
+
+          <!-- Automated Verification Checklist -->
+          <div class="checklist-container">
+            <div class="section-title">Automated Sub-Agent Verification Checklist</div>
+            
+            <div class="checklist-item item-done">
+              <input type="checkbox" checked id="chk1" onchange="toggleIrpCheck('chk1', 'Verify C2 IP reputation score')">
+              <div class="checklist-text-group">
+                <span class="checklist-title">Verify VirusTotal C2 IP reputation score</span>
+                <span class="checklist-meta">Auto-verified by CTI Researcher Sub-Agent (Score: 64/72 Malicious)</span>
+              </div>
+              <span class="badge badge-medium">COMPLETED</span>
+            </div>
+
+            <div class="checklist-item item-done">
+              <input type="checkbox" checked id="chk2" onchange="toggleIrpCheck('chk2', 'Query UDM logs for affected endpoint socket events')">
+              <div class="checklist-text-group">
+                <span class="checklist-title">Query UDM logs for affected endpoint socket events</span>
+                <span class="checklist-meta">Auto-verified by SOC Tier 1 Sub-Agent (142 outbound socket events)</span>
+              </div>
+              <span class="badge badge-medium">COMPLETED</span>
+            </div>
+
+            <div class="checklist-item item-active">
+              <input type="checkbox" id="chk3" onchange="toggleIrpCheck('chk3', 'Isolate host network egress & block C2 IP')">
+              <div class="checklist-text-group">
+                <span class="checklist-title">Isolate host network egress & block C2 IP</span>
+                <span class="checklist-meta">Assigned to Incident Responder Agent (Awaiting HITL Approval)</span>
+              </div>
+              <span class="badge badge-high">IN PROGRESS</span>
+            </div>
+
+            <div class="checklist-item">
+              <input type="checkbox" id="chk4" onchange="toggleIrpCheck('chk4', 'Preserve system memory (RAM) dump for forensics')">
+              <div class="checklist-text-group">
+                <span class="checklist-title">Preserve system memory (RAM) dump for forensics</span>
+                <span class="checklist-meta">Pending containment execution completion</span>
+              </div>
+              <span class="badge badge-medium" style="background: rgba(107, 114, 128, 0.2); color: #9CA3AF; border-color: rgba(107, 114, 128, 0.3);">PENDING</span>
+            </div>
+
+            <div class="checklist-item">
+              <input type="checkbox" id="chk5" onchange="toggleIrpCheck('chk5', 'Synthesize and deploy YARA-L 2.0 detection rule')">
+              <div class="checklist-text-group">
+                <span class="checklist-title">Synthesize and deploy YARA-L 2.0 detection rule</span>
+                <span class="checklist-meta">Assigned to Detection Engineer Sub-Agent</span>
+              </div>
+              <span class="badge badge-medium" style="background: rgba(107, 114, 128, 0.2); color: #9CA3AF; border-color: rgba(107, 114, 128, 0.3);">PENDING</span>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- Card Footer Actions -->
+        <div class="card-footer">
+          <button class="btn btn-secondary" onclick="attachForensicNote()">
+            Attach Analyst Forensic Note
+          </button>
+          <div class="btn-group">
+            <button class="btn btn-primary" id="btnAdvanceIrpPhase" onclick="advanceIrpPhase()">
+              Advance IRP Phase &bull; Eradication
+            </button>
+          </div>
+        </div>
+
+      </div><!-- End Component 5: IRP Tracker -->
+
+      <!-- Component 2: HITL Interactive Approval Card (<HITLRemediationApproval />) -->
+      <div class="hitl-approval-card" id="approvalCardComponent">
+        
+        <!-- Card Header -->
+        <div class="card-header">
+          <div class="card-title-group">
+            <span id="cardActionType" class="action-type-tag">ISOLATE_HOST_AND_BLOCK_C2</span>
+            <h2 id="cardMainTitle" class="card-main-title">Isolate Compromised Host & Block C2 IP</h2>
+            <div id="cardSubtitle" class="card-subtext">High confidence malware C2 beaconing detected from internal host</div>
+          </div>
+          <div class="hitl-tag">
+            <span>ACTION REQUIRED</span>
+          </div>
+        </div>
+
+        <!-- Card Body -->
+        <div class="card-body">
+          
+          <!-- Context Grid -->
+          <div class="context-grid">
+            <div class="context-item">
+              <span class="context-label">Incident ID</span>
+              <span id="cardIncidentId" class="context-value">INC-2026-9042</span>
+            </div>
+            <div class="context-item">
+              <span class="context-label">Proposing Agent</span>
+              <span id="cardAgentName" class="context-value">Incident Responder Agent</span>
+            </div>
+            <div class="context-item">
+              <span class="context-label">Target Asset</span>
+              <span id="entityName" class="context-value">prod-db-gateway-01</span>
+            </div>
+            <div class="context-item">
+              <span class="context-label">Target IP / MAC</span>
+              <span id="entityIp" class="context-value">192.168.1.105</span>
+            </div>
+            <div class="context-item">
+              <span class="context-label">MAC Address</span>
+              <span id="entityMac" class="context-value">00:1B:44:11:3A:B7</span>
+            </div>
+            <div class="context-item">
+              <span class="context-label">MITRE ATT&CK TTP</span>
+              <span id="mitreTtpText" class="context-value">T1059.001</span>
+            </div>
+          </div>
+
+          <!-- Threat Intelligence Summary Box -->
+          <div class="agent-status-card">
+            <div class="section-title">Threat Intelligence Context</div>
+            <div id="threatIntelText" class="card-subtext">
+              VirusTotal score 64/72 (Malicious). C2 IP: 198.51.100.42 (Emotet Infrastructure)
+            </div>
+          </div>
+
+          <!-- Tabbed Inspector: Payload Diff vs Parameter Tweaker -->
+          <div class="tabs-container">
+            <button class="tab-btn active" data-tab="tabSummary">Summary & Parameters</button>
+            <button class="tab-btn" data-tab="tabPayloadDiff">Proposed JSON Payload Diff</button>
+          </div>
+
+          <!-- Tab Content 1: Summary & Parameters Form -->
+          <div id="tabSummary" class="tab-content active">
+            <form class="params-form" onsubmit="return false;">
+              <div class="form-group">
+                <label class="form-label" for="paramDuration">Isolation Timeout Duration</label>
+                <select id="paramDuration" class="form-select">
+                  <option value="1">1 Hour (Quick Quarantine)</option>
+                  <option value="4" selected>4 Hours (Standard Investigation Window)</option>
+                  <option value="24">24 Hours (Deep Forensic Hold)</option>
+                  <option value="0">Indefinite (Until Manual Release)</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="checkbox-group">
+                  <input type="checkbox" id="paramPreserveRam" checked>
+                  <span class="form-label">Preserve System Memory (RAM) for Forensic Analysis</span>
+                </label>
+              </div>
+
+              <div class="form-group">
+                <label class="checkbox-group">
+                  <input type="checkbox" id="paramNotifySOC" checked>
+                  <span class="form-label">Notify On-Call SOC Lead via Slack / PagerDuty</span>
+                </label>
+              </div>
+            </form>
+          </div>
+
+          <!-- Tab Content 2: Payload Diff Box -->
+          <div id="tabPayloadDiff" class="tab-content">
+            <div id="payloadDiffBox" class="payload-box">
+              <!-- Populated by JavaScript -->
+            </div>
+          </div>
+
+          <!-- Status Execution Banner -->
+          <div id="statusBanner" class="status-banner" style="display: none;"></div>
+
+        </div>
+
+        <!-- Card Footer Actions -->
+        <div id="mainCardFooter" class="card-footer">
+          <button class="btn btn-secondary" onclick="toggleRejectionForm()">
+            Reject Action
+          </button>
+          <div class="btn-group">
+            <button class="btn btn-secondary" onclick="modifyParameters()">
+              Update Parameters
+            </button>
+            <button class="btn btn-primary" id="btnApproveAction" onclick="approveAction()">
+              Approve & Execute Action
+            </button>
+          </div>
+        </div>
+
+        <!-- Rejection Feedback Sub-Panel -->
+        <div id="rejectionFormPanel" class="card-footer" style="display: none;">
+          <div class="rejection-panel">
+            <label class="form-label" for="rejectionReasonInput">Provide Feedback to Sub-Agent</label>
+            <textarea id="rejectionReasonInput" class="form-textarea" rows="2" placeholder="e.g. Host is critical production database server. Please isolate network egress instead of full host shutdown."></textarea>
+            <div class="btn-group" style="justify-content: flex-end;">
+              <button class="btn btn-secondary" onclick="hideRejectionForm()">Cancel</button>
+              <button class="btn btn-danger" id="btnConfirmRejection" onclick="submitRejection()">Confirm Rejection & Send Feedback</button>
+            </div>
+          </div>
+        </div>
+      </div><!-- End Component 2: HITL Card -->
+
+    </section>
+
+    <!-- Right Panel: Live AG-UI Protocol Inspector -->
+    <aside class="event-inspector-panel">
+      <div class="inspector-header">
+        <h2 class="section-title">AG-UI Protocol Stream</h2>
+        <span class="action-type-tag">LIVE EVENTS</span>
+      </div>
+      <div id="eventStream" class="event-stream">
+        <!-- Event stream populated by JavaScript -->
+      </div>
+    </aside>
+
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
