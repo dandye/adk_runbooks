@@ -8,6 +8,8 @@ load_dotenv(BASE_DIR / ".env")
 load_dotenv((BASE_DIR / "../../external/mcp-security/.env").resolve())
 
 from google.adk.agents import Agent
+from google.adk.apps.app import App
+from google.adk.agents.context_cache_config import ContextCacheConfig
 
 from .sub_agents.soc_analyst_tier1 import agent as soc_analyst_tier1_agent_module
 from .sub_agents.soc_analyst_tier2 import agent as soc_analyst_tier2_agent_module
@@ -119,4 +121,10 @@ root_agent = Agent(
         initialized_llm_judge,
     ],
     tools=list(shared_tools),
+)
+
+app = App(
+    name="manager_app",
+    root_agent=root_agent,
+    context_cache_config=ContextCacheConfig(min_tokens=80000)
 )
